@@ -20,6 +20,9 @@ import {
 } from 'react-beautiful-dnd';
 import { Input } from "@/components/ui/input";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
+// Office 文檔生成庫
+import dynamic from 'next/dynamic';
+import pptxgen from "pptxgenjs";
 
 // Define the Quiz types
 interface QuizOption {
@@ -268,7 +271,7 @@ const QuizResults: React.FC<QuizResultsProps> = ({
     };
   }, [showExportOptions]);
 
-  const handleExport = async () => {
+  const handleExport = async (format: string) => {
     if (!quizContentRef.current) {
       toast({
         title: "Export Failed", 
@@ -279,7 +282,7 @@ const QuizResults: React.FC<QuizResultsProps> = ({
     }
     
     // Only check for PDF library when exporting PDF
-    if (exportFormat === 'pdf' && !html2pdfLib) {
+    if (format === 'pdf' && !html2pdfLib) {
       toast({
         title: "Export Failed", 
         description: "PDF export library not loaded.",
@@ -297,49 +300,132 @@ const QuizResults: React.FC<QuizResultsProps> = ({
       const buttonsToRemove = element.querySelectorAll('button');
       buttonsToRemove.forEach(button => button.remove());
       
-      const filename = `${quiz.title.replace(/[^a-z0-9]/gi, '_').toLowerCase()}_quiz`;
+      // 使用測驗主題作為檔名，移除非法字符並轉換為小寫
+      const safeTitle = quiz.title
+        .trim()
+        .replace(/[\\/:*?"<>|]/g, '') // 移除文件系統不允許的字符
+        .replace(/\s+/g, '_'); // 將空格替換為下劃線
       
-      switch (exportFormat) {
+      switch (format) {
         case 'microsoft-word': {
-          // Prepare content for Word export
-          const styles = `
-            <style>
-              body { font-family: Arial, sans-serif; }
-              .quiz-header { background: #f0f0f0; color: #333; padding: 15px; }
-              .quiz-question { margin-bottom: 20px; }
-              .option-item { border: 1px solid #ddd; padding: 8px; margin: 4px 0; border-radius: 4px; }
-              .correct-answer { background-color: #e6f4ea; border-color: #34a853; }
-              .correct-answer-indicator { color: #34a853; }
-              .explanation-box { background-color: #f3f4f6; border: 1px solid #e5e7eb; padding: 8px; margin-top: 10px; }
-            </style>
-          `;
-          
-          // Format content for Word
-          const wordContent = `
-            <html>
-              <head>
-                <meta charset="utf-8">
-                <title>${quiz.title}</title>
-                ${styles}
-              </head>
-              <body>
-                ${element.innerHTML}
-              </body>
-            </html>
-          `;
-          
-          // Create a Blob with the content
-          const blob = new Blob([wordContent], { type: 'application/msword' });
-          const url = URL.createObjectURL(blob);
-          
-          // Create a download link and trigger it
-          const link = document.createElement('a');
-          link.href = url;
-          link.download = `${filename}.doc`;
-          link.click();
-          
-          // Clean up
-          setTimeout(() => URL.revokeObjectURL(url), 100);
+          // 動態導入docx庫，避免SSR問題
+          import('docx').then(async (docx) => {
+            try {
+              // Create Document with explicit typing
+              // Add questions directly to the first section we created above
+              const questionParagraphs: any[] = [];
+              
+              // Create all question paragraphs first
+              quiz.questions.forEach((question, index) => {                
+                // Add question title
+                questionParagraphs.push(
+                  new docx.Paragraph({
+                    text: `Question ${index + 1}: ${question.questionText}`,
+                    heading: docx.HeadingLevel.HEADING_2
+                  })
+                );
+                
+                // Add options
+                question.options.forEach(option => {
+                  const isCorrect = option.id === question.correctAnswer;
+                  
+                  questionParagraphs.push(
+                    new docx.Paragraph({
+                      children: [
+                        new docx.TextRun({
+                          text: `${option.id.toUpperCase()}. ${option.text}`,
+                          bold: isCorrect && showAnswers,
+                          color: isCorrect && showAnswers ? "2E7D32" : "000000"
+                        }),
+                        new docx.TextRun({
+                          text: isCorrect && showAnswers ? " ✓" : "",
+                          bold: true,
+                          color: "2E7D32"
+                        })
+                      ],
+                      indent: { left: 720 }
+                    })
+                  );
+                });
+                
+                // Add explanation (if in teacher mode)
+                if (showAnswers) {
+                  questionParagraphs.push(
+                    new docx.Paragraph({
+                      children: [
+                        new docx.TextRun({
+                          text: "Explanation:",
+                          bold: true
+                        })
+                      ]
+                    }),
+                    new docx.Paragraph({
+                      text: question.explanation,
+                      indent: { left: 720 }
+                    })
+                  );
+                }
+                
+                // Add separator
+                questionParagraphs.push(new docx.Paragraph({}));
+              });
+              
+              // Create a new document with all content in one section
+              const doc = new docx.Document({
+                sections: [{
+                  properties: {},
+                  children: [
+                    // Title
+                    new docx.Paragraph({
+                      text: quiz.title,
+                      heading: docx.HeadingLevel.HEADING_1,
+                      alignment: docx.AlignmentType.CENTER
+                    }),
+                    
+                    // Subtitle
+                    new docx.Paragraph({
+                      text: `${quiz.questions.length} Questions`,
+                      alignment: docx.AlignmentType.CENTER
+                    }),
+                    
+                    // All questions
+                    ...questionParagraphs
+                  ]
+                }]
+              });
+              
+              // Convert to Blob and download
+              const buffer = await docx.Packer.toBuffer(doc);
+              const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' });
+              const url = URL.createObjectURL(blob);
+              const link = document.createElement('a');
+              link.href = url;
+              link.download = `${safeTitle}.docx`;
+              link.click();
+              
+              toast({
+                title: "Word File Downloaded",
+                description: "Microsoft Word (.docx) file has been successfully generated",
+                duration: 5000,
+              });
+              
+              setTimeout(() => URL.revokeObjectURL(url), 100);
+            } catch (error) {
+              console.error("Word document generation error:", error);
+              toast({
+                title: "Export Failed",
+                description: "Word document generation failed. Please try again.",
+                variant: "destructive",
+              });
+            }
+          }).catch(error => {
+            console.error("Word document import error:", error);
+            toast({
+              title: "Export Failed",
+              description: "Word document generation failed. Please try again.",
+              variant: "destructive",
+            });
+          });
           break;
         }
         
@@ -475,149 +561,436 @@ const QuizResults: React.FC<QuizResultsProps> = ({
         }
         
         case 'microsoft-powerpoint': {
-          // PowerPoint export - create HTML structure for PowerPoint
-          const slideCollection: string[] = [];
-          
-          // Add title slide
-          slideCollection.push(`
-            <div style="page-break-after: always;">
-              <h1 style="font-size: 28px; text-align: center;">${quiz.title}</h1>
-              <p style="text-align: center;">${quiz.questions.length} Questions</p>
-            </div>
-          `);
-          
-          // Add question slides
-          quiz.questions.forEach((question, index) => {
-            let questionSlide = `
-              <div style="page-break-after: always;">
-                <h2>Question ${index + 1}</h2>
-                <p>${question.questionText}</p>
-                <ul>
-            `;
+          // 動態導入pptxgenjs，避免SSR問題
+          import('pptxgenjs').then(async (pptxModule) => {
+            const pptx = new pptxModule.default();
             
-            // Add options to the slide
+            // 設置幻燈片大小為16:9寬屏
+            pptx.layout = 'LAYOUT_16x9';
+            
+            // 添加標題幻燈片
+            let titleSlide = pptx.addSlide();
+            
+            // 添加標題
+            titleSlide.addText(quiz.title, {
+              x: 0.5,
+              y: 1.5,
+              w: '90%',
+              h: 1.5,
+              align: 'center',
+              fontSize: 44,
+              color: '2B579A',
+              bold: true
+            });
+            
+            // 添加問題數量
+            titleSlide.addText(`${quiz.questions.length} Questions`, {
+              x: 0.5,
+              y: 3.5,
+              w: '90%',
+              h: 0.5,
+              align: 'center',
+              fontSize: 28,
+              color: '666666'
+            });
+            
+            // 添加生成日期
+            titleSlide.addText(`Generated on ${new Date().toLocaleDateString()}`, {
+              x: 0.5,
+              y: 4.5,
+              w: '90%',
+              h: 0.5,
+              align: 'center',
+              fontSize: 16,
+              color: '666666'
+            });
+            
+            // 為每個問題創建幻燈片
+          quiz.questions.forEach((question, index) => {
+              // 添加新幻燈片
+              const slide = pptx.addSlide();
+              
+              // 添加問題編號和內容
+              slide.addText(`Question ${index + 1}`, {
+                x: 0.5,
+                y: 0.5,
+                w: '90%',
+                h: 0.5,
+                fontSize: 24,
+                color: '2B579A',
+                bold: true
+              });
+              
+              slide.addText(question.questionText, {
+                x: 0.5,
+                y: 1.2,
+                w: '90%',
+                h: 1.0,
+                fontSize: 20,
+                color: '000000',
+                bold: false
+              });
+              
+              // 添加選項
+              question.options.forEach((option, optIndex) => {
+                const isCorrect = option.id === question.correctAnswer;
+                
+                slide.addText(
+                  `${option.id.toUpperCase()}. ${option.text} ${isCorrect && showAnswers ? ' ✓' : ''}`, 
+                  {
+                    x: 1.0,
+                    y: 2.4 + (optIndex * 0.6),
+                    w: '85%',
+                    h: 0.5,
+                    fontSize: 18,
+                    color: isCorrect && showAnswers ? '2E7D32' : '000000',
+                    bold: isCorrect && showAnswers
+                  }
+                );
+              });
+              
+              // 如果是教師模式，添加解釋
+              if (showAnswers) {
+                // 添加說明標題
+                slide.addText('Explanation:', {
+                  x: 0.5,
+                  y: 5.0,
+                  w: '90%',
+                  h: 0.4,
+                  fontSize: 18,
+                  color: '000000',
+                  bold: true
+                });
+                
+                // 添加說明內容
+                slide.addText(question.explanation, {
+                  x: 0.5,
+                  y: 5.5,
+                  w: '90%',
+                  h: 1.2,
+                  fontSize: 16,
+                  color: '000000',
+                  fontFace: 'Calibri'
+                });
+                
+                // 添加左側強調條
+                try {
+                  slide.addShape('rect', {
+                    x: 0.2,
+                    y: 5.5,
+                    w: 0.1,
+                    h: 1.2,
+                    fill: { color: '4472C4' }
+                  });
+                } catch (shapeError) {
+                  console.warn("Unable to add shape, using text box instead:", shapeError);
+                  // Alternative method - add a colored textbox as a rectangle
+                  slide.addText("", {
+                    x: 0.2,
+                    y: 5.5,
+                    w: 0.1,
+                    h: 1.2,
+                    fill: { color: '4472C4' }
+                  });
+                }
+              }
+            });
+            
+            // 生成並下載PowerPoint文件
+            pptx.writeFile({ fileName: `${safeTitle}.pptx` })
+              .then(() => {
+                toast({
+                  title: "PowerPoint File Downloaded",
+                  description: "Microsoft PowerPoint (.pptx) file has been successfully generated",
+                  duration: 5000,
+                });
+              })
+              .catch((err) => {
+                console.error("PowerPoint generation error:", err);
+                toast({
+                  title: "Export Failed",
+                  description: "PowerPoint file generation failed. Please try again.",
+                  variant: "destructive",
+                });
+              });
+          }).catch(error => {
+            console.error("PowerPoint library loading error:", error);
+            toast({
+              title: "Export Failed",
+              description: "PowerPoint functionality failed to load. Please try again.",
+              variant: "destructive",
+            });
+          });
+          break;
+        }
+        
+        case 'google-slides': {
+          // 為 Google Slides 準備適合的 HTML 格式
+          const styles = `
+            <style>
+              body { font-family: Arial, sans-serif; line-height: 1.6; }
+              .quiz-title { font-size: 24px; font-weight: bold; text-align: center; margin-bottom: 20px; }
+              .quiz-subtitle { font-size: 16px; text-align: center; margin-bottom: 30px; color: #666; }
+              .question { margin-bottom: 30px; }
+              .question-text { font-weight: bold; margin-bottom: 10px; }
+              .options { margin-left: 20px; }
+              .option { margin-bottom: 5px; }
+              .correct { color: #34a853; font-weight: bold; }
+              .explanation { background-color: #f8f9fa; padding: 10px; border-left: 4px solid #4285f4; margin-top: 10px; }
+            </style>
+          `;
+
+          // 手動構建更適合 Google Slides 的內容
+          let docContent = `
+            <html>
+            <head>
+              <meta charset="UTF-8">
+              <title>${quiz.title}</title>
+              ${styles}
+            </head>
+            <body>
+              <div class="quiz-title">${quiz.title}</div>
+              <div class="quiz-subtitle">${quiz.questions.length} Questions - Generated on ${new Date().toLocaleDateString()}</div>
+          `;
+
+          // 添加每個問題
+          quiz.questions.forEach((question, index) => {
+            docContent += `
+              <div class="question">
+                <div class="question-text">Question ${index + 1}: ${question.questionText}</div>
+                <div class="options">
+            `;
+
+            // 添加選項
             question.options.forEach(option => {
               const isCorrect = option.id === question.correctAnswer;
-              questionSlide += `
-                <li style="${isCorrect && showAnswers ? 'color: #34a853; font-weight: bold;' : ''}">
-                  ${option.text} ${isCorrect && showAnswers ? ' (Correct)' : ''}
-                </li>
+              docContent += `
+                <div class="option ${isCorrect && showAnswers ? 'correct' : ''}">
+                  ${option.id.toUpperCase()}. ${option.text} ${isCorrect && showAnswers ? ' ✓' : ''}
+                </div>
               `;
             });
             
-            questionSlide += `</ul>`;
+            docContent += `</div>`;
             
-            // Add explanation if in teacher mode
+            // 如果是教師模式，顯示解釋
             if (showAnswers) {
-              questionSlide += `
-                <div style="margin-top: 20px; padding: 10px; background-color: #f3f4f6; border: 1px solid #e5e7eb;">
+              docContent += `
+                <div class="explanation">
                   <strong>Explanation:</strong> ${question.explanation}
                 </div>
               `;
             }
             
-            questionSlide += `</div>`;
-            slideCollection.push(questionSlide);
+            docContent += `</div>`;
           });
-          
-          // Create the full presentation HTML
-          const presentationContent = `
-            <html>
-              <head>
-                <meta charset="utf-8">
-                <title>${quiz.title}</title>
-                <style>
-                  body { font-family: Arial, sans-serif; }
-                  div { margin-bottom: 30px; }
-                </style>
-              </head>
-              <body>
-                ${slideCollection.join('')}
+
+          docContent += `
               </body>
             </html>
           `;
           
-          // Create a Blob and download link
-          const blob = new Blob([presentationContent], { type: 'application/vnd.ms-powerpoint' });
-          const url = URL.createObjectURL(blob);
-          const link = document.createElement('a');
-          link.href = url;
-          link.download = `${filename}.ppt`;
-          link.click();
+          // Open Google Slides in a new tab
+          window.open('https://docs.google.com/presentation/create', '_blank');
           
-          // Clean up
-          setTimeout(() => URL.revokeObjectURL(url), 100);
+          // Copy HTML content to clipboard and notify user
+          try {
+            const type = "text/html";
+            const blob = new Blob([docContent], { type });
+            const data = [new ClipboardItem({ [type]: blob })];
+            
+            navigator.clipboard.write(data).then(() => {
+              toast({
+                title: "Content Copied",
+                description: "Please use Ctrl+V (or Cmd+V) in Google Slides to paste with formatting",
+                duration: 8000,
+              });
+            }).catch(async (err) => {
+              console.error("HTML clipboard operation failed:", err);
+              
+              // Fallback: Copy plain text
+              const plainText = quiz.title + "\n\n" + 
+                quiz.questions.map((q, i) => 
+                  `Question ${i+1}: ${q.questionText}\n` + 
+                  q.options.map(o => `${o.id.toUpperCase()}. ${o.text}${o.id === q.correctAnswer && showAnswers ? ' ✓' : ''}`).join('\n') + 
+                  (showAnswers ? `\n\nExplanation: ${q.explanation}` : '')
+                ).join('\n\n');
+              
+              await navigator.clipboard.writeText(plainText);
+              
+          toast({
+                title: "Text Content Copied",
+                description: "HTML copy failed. Plain text version has been copied. Please paste in Google Slides.",
+                duration: 8000,
+              });
+            });
+          } catch (err) {
+            console.error("Clipboard operation failed:", err);
+            
+            // Final fallback
+            const plainText = quiz.title + "\n\n" + 
+              quiz.questions.map((q, i) => 
+                `Question ${i+1}: ${q.questionText}\n` + 
+                q.options.map(o => `${o.id.toUpperCase()}. ${o.text}${o.id === q.correctAnswer && showAnswers ? ' ✓' : ''}`).join('\n') + 
+                (showAnswers ? `\n\nExplanation: ${q.explanation}` : '')
+              ).join('\n\n');
+            
+            try {
+              navigator.clipboard.writeText(plainText);
+            toast({
+                title: "Text Content Copied",
+                description: "Please paste the content in Google Slides using Ctrl+V (or Cmd+V)",
+                duration: 5000,
+              });
+            } catch (finalErr) {
+              toast({
+                title: "Copy Failed",
+                description: "Unable to copy content automatically. Please create your quiz manually.",
+                variant: "destructive",
+                duration: 5000,
+              });
+            }
+          }
+          
           break;
         }
         
-        case 'google-slides':
-          // Redirect to Google Slides
-          window.open('https://slides.google.com/create', '_blank');
-          
-          // Show help toast
-          toast({
-            title: "Opening Google Slides",
-            description: "Copy and paste your quiz content from the clipboard into the new presentation.",
+        case 'google-forms': {
+          // 為 Google Forms 準備適合的 HTML 格式
+          const styles = `
+            <style>
+              body { font-family: Arial, sans-serif; line-height: 1.6; }
+              .quiz-title { font-size: 24px; font-weight: bold; text-align: center; margin-bottom: 20px; }
+              .quiz-subtitle { font-size: 16px; text-align: center; margin-bottom: 30px; color: #666; }
+              .question { margin-bottom: 30px; }
+              .question-text { font-weight: bold; margin-bottom: 10px; }
+              .options { margin-left: 20px; }
+              .option { margin-bottom: 5px; }
+              .correct { color: #34a853; font-weight: bold; }
+              .explanation { background-color: #f8f9fa; padding: 10px; border-left: 4px solid #4285f4; margin-top: 10px; }
+            </style>
+          `;
+
+          // 手動構建更適合 Google Forms 的內容
+          let docContent = `
+            <html>
+            <head>
+              <meta charset="UTF-8">
+              <title>${quiz.title}</title>
+              ${styles}
+            </head>
+            <body>
+              <div class="quiz-title">${quiz.title}</div>
+              <div class="quiz-subtitle">${quiz.questions.length} Questions - Generated on ${new Date().toLocaleDateString()}</div>
+          `;
+
+          // 添加每個問題
+          quiz.questions.forEach((question, index) => {
+            docContent += `
+              <div class="question">
+                <div class="question-text">Question ${index + 1}: ${question.questionText}</div>
+                <div class="options">
+            `;
+
+            // 添加選項
+            question.options.forEach(option => {
+              const isCorrect = option.id === question.correctAnswer;
+              docContent += `
+                <div class="option ${isCorrect && showAnswers ? 'correct' : ''}">
+                  ${option.id.toUpperCase()}. ${option.text} ${isCorrect && showAnswers ? ' ✓' : ''}
+                </div>
+              `;
+            });
+
+            docContent += `</div>`;
+
+            // 如果是教師模式，顯示解釋
+            if (showAnswers) {
+              docContent += `
+                <div class="explanation">
+                  <strong>Explanation:</strong> ${question.explanation}
+                </div>
+              `;
+            }
+
+            docContent += `</div>`;
           });
+
+          docContent += `
+            </body>
+            </html>
+          `;
+
+          // Open Google Forms in a new tab
+          window.open('https://docs.google.com/forms/create', '_blank');
           
-          // Copy to clipboard
+          // Copy HTML content to clipboard and notify user
           try {
-            await navigator.clipboard.writeText(element.innerText);
+            const type = "text/html";
+            const blob = new Blob([docContent], { type });
+            const data = [new ClipboardItem({ [type]: blob })];
+            
+            navigator.clipboard.write(data).then(() => {
             toast({
               title: "Content Copied",
-              description: "Quiz content has been copied to clipboard. Create slides from this content.",
+                description: "Please use Ctrl+V (or Cmd+V) in Google Forms to paste with formatting",
+                duration: 8000,
+              });
+            }).catch(async (err) => {
+              console.error("HTML clipboard operation failed:", err);
+              
+              // Fallback: Copy plain text
+              const plainText = quiz.title + "\n\n" + 
+                quiz.questions.map((q, i) => 
+                  `Question ${i+1}: ${q.questionText}\n` + 
+                  q.options.map(o => `${o.id.toUpperCase()}. ${o.text}${o.id === q.correctAnswer && showAnswers ? ' ✓' : ''}`).join('\n') + 
+                  (showAnswers ? `\n\nExplanation: ${q.explanation}` : '')
+                ).join('\n\n');
+              
+              await navigator.clipboard.writeText(plainText);
+              
+              toast({
+                title: "Text Content Copied",
+                description: "HTML copy failed. Plain text version has been copied. Please paste in Google Forms.",
+                duration: 8000,
+              });
             });
           } catch (err) {
-            console.error("Failed to copy text: ", err);
-          }
-          break;
-          
-        case 'google-forms':
-          // Prepare Google Forms URL with prefilled form data
-          const formContent = encodeURIComponent(`
-            ${quiz.title}
+            console.error("Clipboard operation failed:", err);
             
-            ${quiz.questions.map((q, i) => `
-              Question ${i + 1}: ${q.questionText}
-              Options: ${q.options.map(o => o.text).join(', ')}
-              Correct Answer: ${q.options.find(o => o.id === q.correctAnswer)?.text || ''}
-              Explanation: ${q.explanation}
-            `).join('\n\n')}
-          `);
-          
-          window.open('https://forms.google.com/create', '_blank');
-          
-          // Show help toast
-          toast({
-            title: "Opening Google Forms",
-            description: "A new tab with Google Forms has been opened. Create your quiz using the form builder.",
-          });
-          
-          // Copy to clipboard
-          try {
-            const formattedContent = quiz.questions.map((q, i) => `
-              Question ${i + 1}: ${q.questionText}
-              Options: ${q.options.map(o => o.text).join(', ')}
-              Correct Answer: ${q.options.find(o => o.id === q.correctAnswer)?.text || ''}
-              Explanation: ${q.explanation}
-            `).join('\n\n');
+            // Final fallback
+            const plainText = quiz.title + "\n\n" + 
+              quiz.questions.map((q, i) => 
+                `Question ${i+1}: ${q.questionText}\n` + 
+                q.options.map(o => `${o.id.toUpperCase()}. ${o.text}${o.id === q.correctAnswer && showAnswers ? ' ✓' : ''}`).join('\n') + 
+                (showAnswers ? `\n\nExplanation: ${q.explanation}` : '')
+              ).join('\n\n');
             
-            await navigator.clipboard.writeText(formattedContent);
-            toast({
-              title: "Content Copied",
-              description: "Quiz questions have been copied to clipboard. Paste them into Google Forms.",
-            });
-          } catch (err) {
-            console.error("Failed to copy text: ", err);
+            try {
+              navigator.clipboard.writeText(plainText);
+              toast({
+                title: "Text Content Copied",
+                description: "Please paste the content in Google Forms using Ctrl+V (or Cmd+V)",
+                duration: 5000,
+              });
+            } catch (finalErr) {
+              toast({
+                title: "Copy Failed",
+                description: "Unable to copy content automatically. Please create your quiz manually.",
+                variant: "destructive",
+                duration: 5000,
+              });
+            }
           }
-          break;
           
-        case 'pdf':
-        default:
+          break;
+        }
+          
+        case 'pdf': {
           // PDF export options
           const exportOptions = {
             margin: [10, 10, 10, 10],
-            filename: `${filename}.pdf`,
+            filename: `${safeTitle}.pdf`,
             image: { type: 'jpeg', quality: 0.98 },
             html2canvas: { scale: 2, useCORS: true },
             jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' }
@@ -647,14 +1020,25 @@ const QuizResults: React.FC<QuizResultsProps> = ({
           element.appendChild(styleFixForPDF);
           
           // Generate and download the PDF
+          try {
           await html2pdfLib().from(element).set(exportOptions).save();
-          break;
-      }
       
       toast({
-        title: "Export Complete",
-        description: `Your quiz has been exported as ${exportFormat.toUpperCase()}.`,
-      });
+              title: "PDF File Downloaded",
+              description: "PDF file has been successfully generated",
+              duration: 5000,
+            });
+          } catch (pdfError) {
+            console.error("PDF generation error:", pdfError);
+            toast({
+              title: "Export Failed",
+              description: "PDF file generation failed. Please try again.",
+              variant: "destructive",
+            });
+          }
+          break;
+        }
+      }
     } catch (error) {
       console.error("Export error:", error);
       toast({
@@ -671,10 +1055,10 @@ const QuizResults: React.FC<QuizResultsProps> = ({
   const handleGenerateStudentVersion = () => {
     setShowAnswers(!showAnswers);
     toast({
-      title: showAnswers ? "Student version activated" : "Teacher version activated",
+      title: showAnswers ? "Student Version Activated" : "Teacher Version Activated",
       description: showAnswers 
         ? "Answers are now hidden. Ready for students." 
-        : "Answers are now visible. Teacher mode."
+        : "Answers are now visible. Teacher mode activated."
     });
   };
 
@@ -952,10 +1336,7 @@ const QuizResults: React.FC<QuizResultsProps> = ({
                     <div className="absolute right-0 mt-2 w-56 bg-white rounded-md shadow-lg z-50 border border-gray-200" ref={exportMenuRef}>
                       <div className="py-1">
                         <button
-                          onClick={() => {
-                            setExportFormat('microsoft-word');
-                            handleExport();
-                          }}
+                          onClick={() => handleExport('microsoft-word')}
                           className="flex items-center px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 w-full"
                         >
                           <svg xmlns="http://www.w3.org/2000/svg" viewBox="-0.12979372698077785 0 32.12979372698078 32" className="mr-2 size-4">
@@ -974,10 +1355,7 @@ const QuizResults: React.FC<QuizResultsProps> = ({
                           Microsoft Word
                         </button>
                         <button
-                          onClick={() => {
-                            setExportFormat('google-docs');
-                            handleExport();
-                          }}
+                          onClick={() => handleExport('google-docs')}
                           className="flex items-center px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 w-full"
                         >
                           <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1818.2 2500" className="mr-2 size-4">
@@ -990,10 +1368,7 @@ const QuizResults: React.FC<QuizResultsProps> = ({
                           Google Docs
                         </button>
                         <button
-                          onClick={() => {
-                            setExportFormat('microsoft-powerpoint');
-                            handleExport();
-                          }}
+                          onClick={() => handleExport('microsoft-powerpoint')}
                           className="flex items-center px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 w-full"
                         >
                           <svg xmlns="http://www.w3.org/2000/svg" viewBox="-0.12979372698077785 0 32.152389301176754 32" className="mr-2 size-4">
@@ -1011,10 +1386,7 @@ const QuizResults: React.FC<QuizResultsProps> = ({
                           Microsoft PowerPoint
                         </button>
                         <button
-                          onClick={() => {
-                            setExportFormat('google-slides');
-                            handleExport();
-                          }}
+                          onClick={() => handleExport('google-slides')}
                           className="flex items-center px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 w-full"
                         >
                           <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 66" className="mr-2 size-4">
@@ -1025,10 +1397,7 @@ const QuizResults: React.FC<QuizResultsProps> = ({
                           Google Slides
                         </button>
                         <button
-                          onClick={() => {
-                            setExportFormat('google-forms');
-                            handleExport();
-                          }}
+                          onClick={() => handleExport('google-forms')}
                           className="flex items-center px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 w-full"
                         >
                           <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1904.8 2500" className="mr-2 size-4">
@@ -1044,10 +1413,7 @@ const QuizResults: React.FC<QuizResultsProps> = ({
                           Google Forms
                         </button>
                         <button
-                          onClick={() => {
-                            setExportFormat('pdf');
-                            handleExport();
-                          }}
+                          onClick={() => handleExport('pdf')}
                           className="flex items-center px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 w-full"
                         >
                           <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 75.320129 92.604164" className="mr-2 size-4">
