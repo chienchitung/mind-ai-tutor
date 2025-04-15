@@ -1,4 +1,4 @@
-import { createClientComponentClient } from '@supabase/auth-helpers-nextjs';
+import { supabase } from './supabase';
 import type { Database } from '@/types/supabase';
 
 type Student = Database['public']['Tables']['students']['Row'];
@@ -24,7 +24,6 @@ interface ClassSubjectPerformance {
 }
 
 export async function getStudentProgress(studentId: string): Promise<Progress[]> {
-  const supabase = createClientComponentClient<Database>();
   const { data, error } = await supabase
     .from('progress')
     .select('*')
@@ -44,7 +43,6 @@ export async function addProgressEntry(
   score: number,
   notes: string
 ): Promise<Progress> {
-  const supabase = createClientComponentClient<Database>();
   const { data, error } = await supabase
     .from('progress')
     .insert([
@@ -108,7 +106,6 @@ function calculateTrend(scores: number[]): 'improving' | 'declining' | 'stable' 
 }
 
 export async function getClassStats() {
-  const supabase = createClientComponentClient<Database>();
   const { data: students, error: studentsError } = await supabase
     .from('students')
     .select('*');

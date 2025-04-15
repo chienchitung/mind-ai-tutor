@@ -13,6 +13,7 @@ import { TimeSpentChart } from './components/TimeSpentChart';
 import { CompletionRateChart } from './components/CompletionRateChart';
 import { LearningTimeline } from './components/LearningTimeline';
 import { CategoryDistribution } from './components/CategoryDistribution';
+import { ExportButton } from './components/ExportButton';
 
 // Define LearningRecord type based on the Supabase schema
 interface LearningRecord {
@@ -195,7 +196,8 @@ export default function ReportsPage() {
                         mostRecentRecord.start_time;
       
       if (dateField) {
-        lastActive = new Date(dateField).toISOString();
+        // 使用as進行類型斷言
+        lastActive = new Date(dateField).toISOString() as any;
       }
     }
 
@@ -246,6 +248,11 @@ export default function ReportsPage() {
     }
   };
 
+  // Get the student name for display and export
+  const selectedStudentName = selectedStudent 
+    ? students.find(s => s.id === selectedStudent)?.name || ''
+    : '';
+
   if (loading && !learningRecords.length) {
     return (
       <div className="flex h-64 items-center justify-center">
@@ -275,10 +282,11 @@ export default function ReportsPage() {
             selectedStudent={selectedStudent}
             onSelectStudent={setSelectedStudent}
           />
-          <Button variant="outline" size="sm" disabled={!learningRecords.length}>
-            <Download className="mr-2 h-4 w-4" />
-            Export Data
-          </Button>
+          <ExportButton 
+            records={learningRecords}
+            studentName={selectedStudentName}
+            disabled={loading}
+          />
         </div>
       </div>
 
