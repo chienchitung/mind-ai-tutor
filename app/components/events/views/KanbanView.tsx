@@ -402,7 +402,13 @@ export function KanbanView() {
     
     // 批量更新資料庫中受影響的事件
     eventsToUpdate.forEach(eventToUpdate => {
-      updateEvent(eventToUpdate);
+      try {
+        updateEvent(eventToUpdate).catch(error => {
+          console.error(`Failed to update event ${eventToUpdate.id}:`, error);
+        });
+      } catch (error) {
+        console.error(`Error updating event ${eventToUpdate.id}:`, error);
+      }
     });
     
     // 清理拖曳相關的視覺提示

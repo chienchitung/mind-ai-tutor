@@ -67,12 +67,12 @@ export function EventFormDialog({ open, onOpenChange, initialEvent, mode = 'crea
     setFormData(prev => ({ ...prev, [name]: value }));
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
     try {
       if (isEditing && initialEvent) {
-        updateEvent({
+        await updateEvent({
           ...initialEvent,
           ...formData
         });

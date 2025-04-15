@@ -392,17 +392,13 @@ const FeedbackPage = () => {
                   
                   <div className="flex justify-end mt-4">
                     <Button 
-                      className={cn(
-                        buttonVariants({ 
-                          variant: feedback.status === "Unresponded" ? "default" : "outline",
-                          size: "sm"
-                        }),
-                        "flex items-center gap-1"
-                      )}
+                      variant={feedback.status === "Unresponded" ? "default" : "outline"}
+                      size="sm"
                       onClick={() => handleRespondToFeedback(feedback.id)}
+                      className="flex items-center gap-2 px-4 py-2"
                     >
                       <MessageSquare className="h-4 w-4" />
-                      {feedback.status === "Unresponded" ? "Respond" : "View Conversation"}
+                      <span className="whitespace-nowrap">{feedback.status === "Unresponded" ? "Respond" : "View Conversation"}</span>
                     </Button>
                   </div>
                 </CardContent>
@@ -459,17 +455,13 @@ const FeedbackPage = () => {
                   
                   <div className="flex justify-end mt-4">
                     <Button 
-                      className={cn(
-                        buttonVariants({ 
-                          variant: "default",
-                          size: "sm"
-                        }),
-                        "flex items-center gap-1"
-                      )}
+                      variant="default"
+                      size="sm"
                       onClick={() => handleRespondToFeedback(feedback.id)}
+                      className="flex items-center gap-2 px-4 py-2"
                     >
                       <MessageSquare className="h-4 w-4" />
-                      Respond
+                      <span className="whitespace-nowrap">Respond</span>
                     </Button>
                   </div>
                 </CardContent>
@@ -526,17 +518,13 @@ const FeedbackPage = () => {
                   
                   <div className="flex justify-end mt-4">
                     <Button 
-                      className={cn(
-                        buttonVariants({ 
-                          variant: "outline",
-                          size: "sm"
-                        }),
-                        "flex items-center gap-1"
-                      )}
+                      variant="outline"
+                      size="sm"
                       onClick={() => handleRespondToFeedback(feedback.id)}
+                      className="flex items-center gap-2 px-4 py-2"
                     >
                       <MessageSquare className="h-4 w-4" />
-                      View Conversation
+                      <span className="whitespace-nowrap">View Conversation</span>
                     </Button>
                   </div>
                 </CardContent>
