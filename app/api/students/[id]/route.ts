@@ -1,36 +1,20 @@
-import { createServerClient } from '@supabase/ssr';
-import { cookies } from 'next/headers';
+import { createClient } from '@supabase/supabase-js';
 import { NextResponse } from 'next/server';
-import { NextRequest } from 'next/server';
 
-export async function GET(
-  request: NextRequest,
-  context: { params: { id: string } }
-) {
+type Params = { params: { id: string } };
+
+// 創建 Supabase 客戶端
+const supabase = createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL!,
+  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+);
+
+export async function GET(request: Request, { params }: Params) {
   try {
-    const cookieStore = await cookies();
-    const supabase = createServerClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-      {
-        cookies: {
-          get(name: string) {
-            return cookieStore.get(name)?.value;
-          },
-          set(name: string, value: string, options: any) {
-            cookieStore.set(name, value, options);
-          },
-          remove(name: string, options: any) {
-            cookieStore.set(name, '', options);
-          },
-        },
-      }
-    );
-
     const { data: student, error } = await supabase
       .from('Student')
       .select('*')
-      .eq('id', context.params.id)
+      .eq('id', params.id)
       .single();
 
     if (error) {
@@ -49,36 +33,14 @@ export async function GET(
   }
 }
 
-export async function PUT(
-  request: NextRequest,
-  context: { params: { id: string } }
-) {
+export async function PUT(request: Request, { params }: Params) {
   try {
-    const cookieStore = await cookies();
-    const supabase = createServerClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-      {
-        cookies: {
-          get(name: string) {
-            return cookieStore.get(name)?.value;
-          },
-          set(name: string, value: string, options: any) {
-            cookieStore.set(name, value, options);
-          },
-          remove(name: string, options: any) {
-            cookieStore.set(name, '', options);
-          },
-        },
-      }
-    );
-
     const body = await request.json();
 
     const { data, error } = await supabase
       .from('Student')
       .update(body)
-      .eq('id', context.params.id)
+      .eq('id', params.id)
       .select()
       .single();
 
@@ -94,34 +56,12 @@ export async function PUT(
   }
 }
 
-export async function DELETE(
-  request: NextRequest,
-  context: { params: { id: string } }
-) {
+export async function DELETE(request: Request, { params }: Params) {
   try {
-    const cookieStore = await cookies();
-    const supabase = createServerClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-      {
-        cookies: {
-          get(name: string) {
-            return cookieStore.get(name)?.value;
-          },
-          set(name: string, value: string, options: any) {
-            cookieStore.set(name, value, options);
-          },
-          remove(name: string, options: any) {
-            cookieStore.set(name, '', options);
-          },
-        },
-      }
-    );
-
     const { error } = await supabase
       .from('Student')
       .delete()
-      .eq('id', context.params.id);
+      .eq('id', params.id);
 
     if (error) {
       console.error('Error deleting student:', error);
