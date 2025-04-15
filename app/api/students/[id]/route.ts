@@ -1,8 +1,12 @@
 import { createServerClient } from '@supabase/ssr';
 import { cookies } from 'next/headers';
 import { NextResponse } from 'next/server';
+import { NextRequest } from 'next/server';
 
-export async function GET(context: { params: { id: string } }) {
+export async function GET(
+  request: NextRequest,
+  { params }: { params: { id: string } }
+) {
   try {
     const cookieStore = await cookies();
     const supabase = createServerClient(
@@ -26,7 +30,7 @@ export async function GET(context: { params: { id: string } }) {
     const { data: student, error } = await supabase
       .from('Student')
       .select('*')
-      .eq('id', context.params.id)
+      .eq('id', params.id)
       .single();
 
     if (error) {
@@ -45,7 +49,10 @@ export async function GET(context: { params: { id: string } }) {
   }
 }
 
-export async function PUT(context: { params: { id: string } }, request: Request) {
+export async function PUT(
+  request: Request,
+  { params }: { params: { id: string } }
+) {
   try {
     const cookieStore = await cookies();
     const supabase = createServerClient(
@@ -71,7 +78,7 @@ export async function PUT(context: { params: { id: string } }, request: Request)
     const { data, error } = await supabase
       .from('Student')
       .update(body)
-      .eq('id', context.params.id)
+      .eq('id', params.id)
       .select()
       .single();
 
@@ -87,7 +94,10 @@ export async function PUT(context: { params: { id: string } }, request: Request)
   }
 }
 
-export async function DELETE(context: { params: { id: string } }) {
+export async function DELETE(
+  request: Request,
+  { params }: { params: { id: string } }
+) {
   try {
     const cookieStore = await cookies();
     const supabase = createServerClient(
@@ -111,7 +121,7 @@ export async function DELETE(context: { params: { id: string } }) {
     const { error } = await supabase
       .from('Student')
       .delete()
-      .eq('id', context.params.id);
+      .eq('id', params.id);
 
     if (error) {
       console.error('Error deleting student:', error);
