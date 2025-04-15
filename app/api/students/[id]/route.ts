@@ -5,7 +5,7 @@ import { NextRequest } from 'next/server';
 
 export async function GET(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  context: { params: { id: string } }
 ) {
   try {
     const cookieStore = await cookies();
@@ -30,7 +30,7 @@ export async function GET(
     const { data: student, error } = await supabase
       .from('Student')
       .select('*')
-      .eq('id', params.id)
+      .eq('id', context.params.id)
       .single();
 
     if (error) {
@@ -50,8 +50,8 @@ export async function GET(
 }
 
 export async function PUT(
-  request: Request,
-  { params }: { params: { id: string } }
+  request: NextRequest,
+  context: { params: { id: string } }
 ) {
   try {
     const cookieStore = await cookies();
@@ -78,7 +78,7 @@ export async function PUT(
     const { data, error } = await supabase
       .from('Student')
       .update(body)
-      .eq('id', params.id)
+      .eq('id', context.params.id)
       .select()
       .single();
 
@@ -95,8 +95,8 @@ export async function PUT(
 }
 
 export async function DELETE(
-  request: Request,
-  { params }: { params: { id: string } }
+  request: NextRequest,
+  context: { params: { id: string } }
 ) {
   try {
     const cookieStore = await cookies();
@@ -121,7 +121,7 @@ export async function DELETE(
     const { error } = await supabase
       .from('Student')
       .delete()
-      .eq('id', params.id);
+      .eq('id', context.params.id);
 
     if (error) {
       console.error('Error deleting student:', error);
