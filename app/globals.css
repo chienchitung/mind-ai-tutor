@@ -1,0 +1,147 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+ 
+@layer base {
+  :root {
+    --background: 0 0% 100%;
+    --foreground: 222.2 84% 4.9%;
+
+    --card: 0 0% 100%;
+    --card-foreground: 222.2 84% 4.9%;
+ 
+    --popover: 0 0% 100%;
+    --popover-foreground: 222.2 84% 4.9%;
+ 
+    --primary: 222.2 47.4% 11.2%;
+    --primary-foreground: 210 40% 98%;
+ 
+    --secondary: 210 40% 96.1%;
+    --secondary-foreground: 222.2 47.4% 11.2%;
+ 
+    --muted: 210 40% 96.1%;
+    --muted-foreground: 215.4 16.3% 46.9%;
+ 
+    --accent: 210 40% 96.1%;
+    --accent-foreground: 222.2 47.4% 11.2%;
+ 
+    --destructive: 0 84.2% 60.2%;
+    --destructive-foreground: 210 40% 98%;
+
+    --border: 214.3 31.8% 91.4%;
+    --input: 214.3 31.8% 91.4%;
+    --ring: 222.2 84% 4.9%;
+ 
+    --radius: 0.5rem;
+  }
+ 
+  .dark {
+    --background: 222.2 84% 4.9%;
+    --foreground: 210 40% 98%;
+ 
+    --card: 222.2 84% 4.9%;
+    --card-foreground: 210 40% 98%;
+ 
+    --popover: 222.2 84% 4.9%;
+    --popover-foreground: 210 40% 98%;
+ 
+    --primary: 210 40% 98%;
+    --primary-foreground: 222.2 47.4% 11.2%;
+ 
+    --secondary: 217.2 32.6% 17.5%;
+    --secondary-foreground: 210 40% 98%;
+ 
+    --muted: 217.2 32.6% 17.5%;
+    --muted-foreground: 215 20.2% 65.1%;
+ 
+    --accent: 217.2 32.6% 17.5%;
+    --accent-foreground: 210 40% 98%;
+ 
+    --destructive: 0 62.8% 30.6%;
+    --destructive-foreground: 210 40% 98%;
+ 
+    --border: 217.2 32.6% 17.5%;
+    --input: 217.2 32.6% 17.5%;
+    --ring: 212.7 26.8% 83.9%;
+  }
+}
+ 
+@layer base {
+  * {
+    border-color: hsl(var(--border));
+  }
+  body {
+    background-color: hsl(var(--background));
+    color: hsl(var(--foreground));
+  }
+}
+
+/* 日期範圍選擇器自定義樣式 */
+.rdp-custom .rdp-day_range_middle {
+  background-color: #e0f2fe !important;
+  border-radius: 0 !important;
+  color: #0369a1 !important;
+}
+
+.rdp-custom [aria-selected='true'] {
+  background-color: #60a5fa !important;
+}
+
+.rdp-custom .rdp-day_range_start,
+.rdp-custom .rdp-day_range_end {
+  background-color: #3b82f6 !important;
+  color: white !important;
+  border-radius: 9999px !important;
+  position: relative;
+  z-index: 10;
+}
+
+/* 創建連續的選擇背景效果 */
+.rdp-custom [data-selected='true']:not([data-outside='true']) {
+  background-color: #e0f2fe !important;
+  color: #0369a1 !important;
+}
+
+.rdp-custom [data-range='start']:not([data-outside='true']),
+.rdp-custom [data-range='end']:not([data-outside='true']) {
+  background-color: #3b82f6 !important;
+  color: white !important;
+}
+
+/* 日期範圍中間的連續背景樣式 */
+.rdp-custom [data-range='middle']:not([data-outside='true']) {
+  background-color: #e0f2fe !important;
+  border-radius: 0 !important;
+  color: #0369a1 !important;
+}
+
+.rdp-custom .rdp-caption {
+  padding: 0.5rem 0;
+  margin-top: 8px;
+}
+
+/* 隱藏原始導航控件 */
+.rdp-custom .rdp-nav {
+  display: none !important;
+}
+
+/* 強化日期連續選擇的視覺效果 */
+.rdp-custom .rdp-tbody {
+  position: relative;
+}
+
+.rdp-custom .rdp-cell[data-selected="true"] {
+  position: relative;
+  background-color: #e0f2fe !important;
+}
+
+.rdp-custom .rdp-cell[data-selected="true"]::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: #e0f2fe;
+  z-index: -1;
+} 
