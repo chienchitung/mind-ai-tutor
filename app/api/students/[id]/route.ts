@@ -7,7 +7,8 @@ const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
 );
 
-// Next.js 15 推薦的路由處理函數參數格式
+// 使用官方建議的參數格式
+// 注意第一個參數是 request: NextRequest，第二個參數是一個物件，其中包含 params 屬性
 export async function GET(
   request: NextRequest,
   { params }: { params: { id: string } }
