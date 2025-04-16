@@ -1,7 +1,11 @@
 import { createClient } from '@supabase/supabase-js';
-import { NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 
-type Params = { params: { id: string } };
+type RouteContext = {
+  params: {
+    id: string;
+  };
+};
 
 // 創建 Supabase 客戶端
 const supabase = createClient(
@@ -9,7 +13,7 @@ const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
 );
 
-export async function GET(request: Request, { params }: Params) {
+export async function GET(request: NextRequest, { params }: any) {
   try {
     const { data: student, error } = await supabase
       .from('Student')
@@ -33,7 +37,7 @@ export async function GET(request: Request, { params }: Params) {
   }
 }
 
-export async function PUT(request: Request, { params }: Params) {
+export async function PUT(request: NextRequest, { params }: any) {
   try {
     const body = await request.json();
 
@@ -49,6 +53,10 @@ export async function PUT(request: Request, { params }: Params) {
       return NextResponse.json({ error: error.message }, { status: 500 });
     }
 
+    if (!data) {
+      return NextResponse.json({ error: 'Student not found' }, { status: 404 });
+    }
+
     return NextResponse.json(data);
   } catch (error) {
     console.error('Unexpected error:', error);
@@ -56,7 +64,7 @@ export async function PUT(request: Request, { params }: Params) {
   }
 }
 
-export async function DELETE(request: Request, { params }: Params) {
+export async function DELETE(request: NextRequest, { params }: any) {
   try {
     const { error } = await supabase
       .from('Student')
@@ -68,9 +76,9 @@ export async function DELETE(request: Request, { params }: Params) {
       return NextResponse.json({ error: error.message }, { status: 500 });
     }
 
-    return NextResponse.json({ message: 'Student deleted successfully' });
+    return NextResponse.json({ success: true });
   } catch (error) {
     console.error('Unexpected error:', error);
     return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 });
   }
-} 
+}
