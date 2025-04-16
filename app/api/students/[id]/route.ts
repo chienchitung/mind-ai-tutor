@@ -1,5 +1,5 @@
 import { createClient } from '@supabase/supabase-js';
-import { NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 
 // 創建 Supabase 客戶端
 const supabase = createClient(
@@ -7,17 +7,16 @@ const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
 );
 
-// 使用 Next.js 15 的標準 context 參數格式
+// Next.js 15 推薦的路由處理函數參數格式
 export async function GET(
-  request: Request,
-  context: { params: { id: string } }
+  request: NextRequest,
+  { params }: { params: { id: string } }
 ) {
   try {
-    const { id } = context.params;
     const { data: student, error } = await supabase
       .from('Student')
       .select('*')
-      .eq('id', id)
+      .eq('id', params.id)
       .single();
     
     if (error) {
@@ -35,16 +34,15 @@ export async function GET(
 }
 
 export async function PUT(
-  request: Request,
-  context: { params: { id: string } }
+  request: NextRequest,
+  { params }: { params: { id: string } }
 ) {
   try {
-    const { id } = context.params;
     const body = await request.json();
     const { data, error } = await supabase
       .from('Student')
       .update(body)
-      .eq('id', id)
+      .eq('id', params.id)
       .select()
       .single();
     
@@ -60,15 +58,14 @@ export async function PUT(
 }
 
 export async function DELETE(
-  request: Request,
-  context: { params: { id: string } }
+  request: NextRequest,
+  { params }: { params: { id: string } }
 ) {
   try {
-    const { id } = context.params;
     const { error } = await supabase
       .from('Student')
       .delete()
-      .eq('id', id);
+      .eq('id', params.id);
       
     if (error) {
       console.error('Error deleting student:', error);
