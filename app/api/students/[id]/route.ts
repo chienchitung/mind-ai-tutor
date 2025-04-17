@@ -7,23 +7,23 @@ const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
 );
 
-interface RouteContext {
-  params: {
-    id: string;
-  };
+// 定義參數類型 (使用 Next.js 15.3.0 要求的類型格式)
+interface RouteParams {
+  id: string;
 }
 
 export async function GET(
-  request: NextRequest,
-  context: RouteContext
+  request: NextRequest, // Keep NextRequest for consistency if needed, or change to Request if preferred
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const id = (await params).id;
     const { data: student, error } = await supabase
-      .from('Student')
+      .from('students')
       .select('*')
-      .eq('id', context.params.id)
+      .eq('id', id) // Use the awaited id
       .single();
-    
+
     if (error) {
       console.error('Error fetching student:', error);
       return NextResponse.json({ error: error.message }, { status: 500 });
@@ -39,18 +39,19 @@ export async function GET(
 }
 
 export async function PUT(
-  request: NextRequest,
-  context: RouteContext
+  request: NextRequest, // Keep NextRequest for consistency if needed, or change to Request if preferred
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const id = (await params).id;
     const body = await request.json();
     const { data, error } = await supabase
-      .from('Student')
+      .from('students')
       .update(body)
-      .eq('id', context.params.id)
+      .eq('id', id) // Use the awaited id
       .select()
       .single();
-    
+
     if (error) {
       console.error('Error updating student:', error);
       return NextResponse.json({ error: error.message }, { status: 500 });
@@ -63,15 +64,16 @@ export async function PUT(
 }
 
 export async function DELETE(
-  request: NextRequest,
-  context: RouteContext
+  request: NextRequest, // Keep NextRequest for consistency if needed, or change to Request if preferred
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const id = (await params).id;
     const { error } = await supabase
-      .from('Student')
+      .from('students')
       .delete()
-      .eq('id', context.params.id);
-      
+      .eq('id', id); // Use the awaited id
+
     if (error) {
       console.error('Error deleting student:', error);
       return NextResponse.json({ error: error.message }, { status: 500 });

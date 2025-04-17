@@ -32,21 +32,50 @@ const subjects = [
   'Music',
 ];
 
-export default function EditStudentPage({ params }: { params: { id: string } }) {
+// Define the expected params type
+interface EditStudentPageParams {
+  id: string;
+}
+
+// Update the component props to expect a Promise for params
+export default function EditStudentPage({ params: paramsPromise }: { params: Promise<EditStudentPageParams> }) {
   const [loading, setLoading] = useState(true);
   const [updating, setUpdating] = useState(false);
   const [student, setStudent] = useState<Student | null>(null);
+  const [pageParams, setPageParams] = useState<EditStudentPageParams | null>(null); // State to hold resolved params
   const router = useRouter();
   const { toast } = useToast();
   const supabase = createClientComponentClient<Database>();
 
   useEffect(() => {
+    // Resolve the params promise when the component mounts
+    const resolveParams = async () => {
+      try {
+        const resolvedParams = await paramsPromise;
+        setPageParams(resolvedParams);
+      } catch (error) {
+        console.error("Error resolving page params:", error);
+        toast({
+          title: 'Error',
+          description: 'Could not load page parameters.',
+          variant: 'destructive',
+        });
+      }
+    };
+    resolveParams();
+  }, [paramsPromise, toast]);
+
+  useEffect(() => {
+    // Fetch student data only after params are resolved
+    if (!pageParams) return;
+
     const fetchStudent = async () => {
+      setLoading(true); // Set loading true when fetching starts
       try {
         const { data, error } = await supabase
           .from('students')
           .select('*')
-          .eq('id', params.id)
+          .eq('id', pageParams.id) // Use resolved id from state
           .single();
 
         if (error) {
@@ -66,11 +95,11 @@ export default function EditStudentPage({ params }: { params: { id: string } }) 
     };
 
     fetchStudent();
-  }, [supabase, params.id, toast]);
+  }, [supabase, pageParams, toast]); // Depend on resolved pageParams
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!student) return;
+    if (!student || !pageParams) return; // Ensure pageParams is available
 
     setUpdating(true);
     try {
@@ -83,7 +112,7 @@ export default function EditStudentPage({ params }: { params: { id: string } }) 
           subjects: student.subjects,
           status: student.status,
         })
-        .eq('id', student.id);
+        .eq('id', student.id); // student.id should be correct here
 
       if (error) {
         throw error;
@@ -94,7 +123,7 @@ export default function EditStudentPage({ params }: { params: { id: string } }) 
         description: 'Student updated successfully',
       });
 
-      router.push(`/students/${params.id}`);
+      router.push(`/students/${pageParams.id}`); // Use resolved id from state for navigation
     } catch (error: any) {
       toast({
         title: 'Error',
@@ -120,7 +149,7 @@ export default function EditStudentPage({ params }: { params: { id: string } }) 
     });
   };
 
-  if (loading) {
+  if (loading || !pageParams) { // Show loading also if params haven't resolved yet
     return (
       <div className="flex h-[400px] items-center justify-center">
         <p>Loading student details...</p>
@@ -222,7 +251,7 @@ export default function EditStudentPage({ params }: { params: { id: string } }) 
           <Button
             type="button"
             variant="outline"
-            onClick={() => router.push(`/students/${params.id}`)}
+            onClick={() => router.push(`/students/${pageParams.id}`)} // Use resolved id from state
           >
             Cancel
           </Button>
@@ -233,4 +262,4 @@ export default function EditStudentPage({ params }: { params: { id: string } }) 
       </form>
     </div>
   );
-} 
+}
