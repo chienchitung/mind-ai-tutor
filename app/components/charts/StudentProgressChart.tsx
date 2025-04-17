@@ -40,7 +40,8 @@ export function StudentProgressChart({
   progress,
   subject,
 }: StudentProgressChartProps) {
-  const chartRef = useRef<ChartJS>(null);
+  // Correct the useRef type argument to be specific to 'line' chart from chart.js
+  const chartRef = useRef<ChartJS<'line'>>(null);
 
   const filteredProgress = subject
     ? progress.filter((p) => p.subject === subject)
@@ -118,4 +119,4 @@ function getRandomColor() {
     '#FF9F40',
   ];
   return colors[Math.floor(Math.random() * colors.length)];
-} 
+}

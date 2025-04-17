@@ -26,21 +26,51 @@ import type { Database } from '@/types/supabase';
 
 type Student = Database['public']['Tables']['students']['Row'];
 
-export default function StudentPage({ params }: { params: { id: string } }) {
+// Define the expected params type
+interface StudentPageParams {
+  id: string;
+}
+
+// Update the component props to expect a Promise for params
+export default function StudentPage({ params: paramsPromise }: { params: Promise<StudentPageParams> }) {
   const [student, setStudent] = useState<Student | null>(null);
   const [loading, setLoading] = useState(true);
   const [deleting, setDeleting] = useState(false);
+  const [pageParams, setPageParams] = useState<StudentPageParams | null>(null); // State to hold resolved params
   const router = useRouter();
   const { toast } = useToast();
   const supabase = createClientComponentClient<Database>();
 
   useEffect(() => {
+    // Resolve the params promise when the component mounts
+    const resolveParams = async () => {
+      try {
+        const resolvedParams = await paramsPromise;
+        setPageParams(resolvedParams);
+      } catch (error) {
+        console.error("Error resolving page params:", error);
+        toast({
+          title: 'Error',
+          description: 'Could not load page parameters.',
+          variant: 'destructive',
+        });
+        // Optionally redirect or show an error state
+      }
+    };
+    resolveParams();
+  }, [paramsPromise, toast]);
+
+  useEffect(() => {
+    // Fetch student data only after params are resolved
+    if (!pageParams) return;
+
     const fetchStudent = async () => {
+      setLoading(true); // Ensure loading is true when fetch starts
       try {
         const { data, error } = await supabase
           .from('students')
           .select('*')
-          .eq('id', params.id)
+          .eq('id', pageParams.id) // Use resolved id from state
           .single();
 
         if (error) {
@@ -60,19 +90,21 @@ export default function StudentPage({ params }: { params: { id: string } }) {
     };
 
     fetchStudent();
-  }, [supabase, params.id, toast]);
+  }, [supabase, pageParams, toast]); // Depend on resolved pageParams
 
   const handleEdit = () => {
-    router.push(`/students/${params.id}/edit`);
+    if (!pageParams) return; // Ensure pageParams is available
+    router.push(`/students/${pageParams.id}/edit`); // Use resolved id from state
   };
 
   const handleDelete = async () => {
+    if (!pageParams) return; // Ensure pageParams is available
     setDeleting(true);
     try {
       const { error } = await supabase
         .from('students')
         .delete()
-        .eq('id', params.id);
+        .eq('id', pageParams.id); // Use resolved id from state
 
       if (error) {
         throw error;
@@ -95,7 +127,7 @@ export default function StudentPage({ params }: { params: { id: string } }) {
     }
   };
 
-  if (loading) {
+  if (loading || !pageParams) { // Show loading also if params haven't resolved yet
     return (
       <div className="flex h-[400px] items-center justify-center">
         <p>Loading student details...</p>
@@ -130,13 +162,18 @@ export default function StudentPage({ params }: { params: { id: string } }) {
                 </AlertDialogDescription>
               </AlertDialogHeader>
               <AlertDialogFooter>
-                <AlertDialogCancel>Cancel</AlertDialogCancel>
-                <AlertDialogAction
-                  onClick={handleDelete}
-                  disabled={deleting}
-                  className="bg-red-600 hover:bg-red-700"
-                >
-                  {deleting ? 'Deleting...' : 'Delete'}
+                <AlertDialogCancel asChild>
+                  <Button variant="outline">Cancel</Button>
+                </AlertDialogCancel>
+                <AlertDialogAction asChild>
+                  <Button
+                    onClick={handleDelete}
+                    disabled={deleting}
+                    variant="destructive"
+                    className="bg-red-600 hover:bg-red-700"
+                  >
+                    {deleting ? 'Deleting...' : 'Delete'}
+                  </Button>
                 </AlertDialogAction>
               </AlertDialogFooter>
             </AlertDialogContent>
@@ -207,4 +244,4 @@ export default function StudentPage({ params }: { params: { id: string } }) {
       </div>
     </div>
   );
-} 
+}

@@ -46,7 +46,7 @@ export default function LoginPage() {
     try {
       setIsLoading(true);
       
-      const { error } = await supabase.auth.signInWithPassword({
+      const { data, error } = await supabase.auth.signInWithPassword({
         email,
         password,
       });
@@ -60,7 +60,17 @@ export default function LoginPage() {
         description: 'Welcome back!',
       });
       
-      router.push('/dashboard');
+      // 確保資料存在且用戶已認證
+      if (data?.user) {
+        // 強制重新整理資料後再導向
+        await supabase.auth.refreshSession();
+        
+        // 短暫延遲確保 cookie 已設置
+        setTimeout(() => {
+          console.log('Redirecting to dashboard...');
+          window.location.href = '/dashboard';  // 使用直接跳轉而不是 router.push
+        }, 500);
+      }
     } catch (error: any) {
       toast({
         title: 'Login failed',
@@ -113,15 +123,17 @@ export default function LoginPage() {
           <CardDescription>Enter your email to sign in to your account</CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
-          <form onSubmit={handleLogin} className="space-y-4">
+          <form onSubmit={handleLogin} className="space-y-4" autoComplete="on">
             <div className="space-y-2">
               <Label htmlFor="email">Email</Label>
               <Input 
                 id="email" 
+                name="email"
                 placeholder="name@example.com" 
                 type="email" 
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
+                autoComplete="username"
                 required
               />
             </div>
@@ -137,10 +149,12 @@ export default function LoginPage() {
               </div>
               <Input 
                 id="password" 
+                name="password"
                 placeholder="••••••••" 
                 type="password" 
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
+                autoComplete="current-password"
                 required
               />
             </div>
@@ -177,7 +191,7 @@ export default function LoginPage() {
         <CardFooter className="flex flex-col space-y-4">
           <div className="text-center text-sm text-muted-foreground">
             Don&apos;t have an account?{' '}
-            <Link href="/register" className="text-primary font-medium hover:underline">
+            <Link href="/signup" className="text-primary font-medium hover:underline">
               Sign up
             </Link>
           </div>
@@ -185,4 +199,4 @@ export default function LoginPage() {
       </Card>
     </div>
   );
-} 
+}

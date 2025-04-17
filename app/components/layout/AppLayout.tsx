@@ -25,9 +25,21 @@ export function AppLayout({ children }: AppLayoutProps) {
   useEffect(() => {
     const checkAuth = async () => {
       try {
+        // Get the current session first (for cookie-based auth)
+        const { data: { session } } = await supabase.auth.getSession();
+        
+        // If session exists, we're authenticated
+        if (session) {
+          setIsAuthenticated(true);
+          setIsLoading(false);
+          return;
+        }
+        
+        // Fallback to getUser method
         const { data: { user } } = await supabase.auth.getUser();
         
         if (!user) {
+          console.log('No authenticated user found, redirecting to login');
           toast({
             title: 'Authentication required',
             description: 'Please sign in to access this page',

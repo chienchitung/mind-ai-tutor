@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useCallback } from "react";
 import { Sidebar } from "./Sidebar";
 import { PageTransition } from "./PageTransition";
 import { usePathname } from "next/navigation";
@@ -57,61 +57,49 @@ export function PageLayout({ children }: PageLayoutProps) {
   const pathname = usePathname();
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
   const [isMobile, setIsMobile] = useState(false);
-  
-  // 檢測客戶端螢幕尺寸
-  useEffect(() => {
-    const checkMobile = () => {
+
+  // 使用 useCallback 優化檢測行動裝置的函數
+  const checkMobile = useCallback(() => {
+    if (typeof window !== 'undefined') {
       const isMobileView = window.innerWidth < 768;
       setIsMobile(isMobileView);
       if (isMobileView) {
         setIsSidebarCollapsed(true);
       }
-    };
-    
-    // 初始檢查
-    if (typeof window !== 'undefined') {
-      checkMobile();
-      window.addEventListener('resize', checkMobile);
-      return () => window.removeEventListener('resize', checkMobile);
     }
   }, []);
-  
-  // Check if we're on a page that has its own sidebar layout
-  const hasDedicatedLayout = pathname.startsWith('/dashboard') || 
-                            pathname.startsWith('/students') || 
-                            pathname.startsWith('/lessons') || 
-                            pathname.startsWith('/courses') ||
-                            pathname.startsWith('/activities') ||
-                            pathname.startsWith('/reports') ||
-                            pathname.startsWith('/settings');
-  
-  // 處理側邊欄折疊狀態變更
-  const handleSidebarCollapse = (collapsed: boolean) => {
-    setIsSidebarCollapsed(collapsed);
-  };
-  
-  // 計算側邊欄寬度
-  const sidebarWidth = isMobile ? 0 : (isSidebarCollapsed ? 70 : 256);
-  
-  // 確保在導航時正確清理
-  useEffect(() => {
-    // 清理函數
-    return () => {
-      // 清理事件監聽器
-      const cleanup = () => {
-        // 移除所有事件監聽器
-        const events = ['resize', 'scroll', 'click', 'touchstart', 'touchmove'];
-        events.forEach(event => {
-          window.removeEventListener(event, () => {});
-        });
-      };
 
-      // 使用 requestAnimationFrame 確保在下一幀執行清理
-      if (typeof window !== 'undefined') {
-        requestAnimationFrame(cleanup);
-      }
-    };
-  }, []);
+  // 統一的 resize 事件處理
+  useEffect(() => {
+    // 初始檢查
+    checkMobile();
+
+    // 只添加一個 resize 事件監聽器
+    if (typeof window !== 'undefined') {
+      window.addEventListener('resize', checkMobile);
+      
+      // 清理函數
+      return () => {
+        window.removeEventListener('resize', checkMobile);
+      };
+    }
+  }, [checkMobile]);
+
+  const hasDedicatedLayout = pathname.startsWith('/dashboard') ||
+    pathname.startsWith('/students') ||
+    pathname.startsWith('/lessons') ||
+    pathname.startsWith('/activities') ||
+    pathname.startsWith('/reports') ||
+    pathname.startsWith('/settings');
+
+  const handleSidebarCollapse = (collapsed: boolean) => {
+    // 在行動裝置上強制保持折疊狀態
+    if (!isMobile) {
+      setIsSidebarCollapsed(collapsed);
+    }
+  };
+
+  const sidebarWidth = isMobile ? 0 : (isSidebarCollapsed ? 70 : 256);
 
   if (hasDedicatedLayout) {
     return <>{children}</>;
@@ -120,19 +108,21 @@ export function PageLayout({ children }: PageLayoutProps) {
   return (
     <ErrorBoundary>
       <div className="flex min-h-screen bg-background">
-        {/* Only render the sidebar if we're NOT on a page with its own layout */}
-        <Sidebar 
-          className={isSidebarCollapsed ? 'w-[70px]' : 'w-64'} 
-          onCollapseChange={handleSidebarCollapse}
-        />
-        
-        <main 
-          style={{ 
+        {/* 在非行動裝置時才渲染側邊欄 */}
+        {!isMobile && (
+          <Sidebar
+            className={isSidebarCollapsed ? 'w-[70px]' : 'w-64'}
+            onCollapseChange={handleSidebarCollapse}
+          />
+        )}
+
+        <main
+          style={{
             marginLeft: isMobile ? '0' : `${sidebarWidth}px`,
             transition: 'margin-left 0.3s ease-in-out',
-            width: `calc(100% - ${sidebarWidth}px)`
+            width: isMobile ? '100%' : `calc(100% - ${sidebarWidth}px)`
           }}
-          className="h-full"
+          className="h-full flex-1"
         >
           <div className="h-full overflow-auto">
             <div className="mx-auto px-4 md:px-6 py-4 pb-8 max-w-7xl">
@@ -145,4 +135,4 @@ export function PageLayout({ children }: PageLayoutProps) {
       </div>
     </ErrorBoundary>
   );
-} 
+}

@@ -1,6 +1,6 @@
 'use client';
 
-import { Language } from '@/contexts/LanguageContext';
+import type { Language } from '@/app/contexts/LanguageContext';
 
 // Define translation types
 type TranslationKey = 'all' | 'clear' | 'apply' | 'view_all' | 'view_details' | 'search' | 
@@ -157,4 +157,4 @@ export const formatTimeAgo = (date: Date | number | string, language: Language):
   if (hours < 24) return t('hours_ago', { n: hours });
   if (days === 1) return t('day_ago');
   return t('days_ago', { n: days });
-}; 
+};

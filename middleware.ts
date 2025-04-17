@@ -42,23 +42,44 @@ export async function middleware(request: NextRequest) {
       pathname.startsWith('/favicon.ico') ||
       pathname.startsWith('/public') ||
       pathname === '/login' ||
-      pathname === '/register' ||
-      pathname === '/'
+      pathname === '/signup' ||
+      pathname === '/' ||
+      pathname === '/auth/callback' ||
+      pathname === '/forgot-password' ||
+      pathname === '/reset-password'
     ) {
       return NextResponse.next();
     }
     
-    // Get the session cookie from the request
-    const sessionCookie = request.cookies.get('sb-vuibtitfdhzoxsytzrjo-auth-token');
+    // Get all cookies
+    const allCookies = request.cookies.getAll();
     
-    // If there's no session cookie and the route requires auth, redirect to login
-    if (!sessionCookie && (pathname.startsWith('/api') || pathname.startsWith('/students') || pathname.startsWith('/dashboard'))) {
+    // Look for any authentication related cookies with broader criteria
+    const authCookies = allCookies.filter(cookie => 
+      cookie.name.includes('-auth-token') || 
+      cookie.name.includes('supabase.auth') ||
+      cookie.name.includes('sb-') ||
+      cookie.name.includes('_auth_token')
+    );
+    
+    if (process.env.NODE_ENV === 'production' && pathname === '/dashboard') {
+      console.log('Debug - All cookies in production:', allCookies.map(c => c.name));
+      console.log('Debug - Auth cookies found:', authCookies.length);
+    }
+    
+    // If there are no auth cookies and the route requires auth, redirect to login
+    if (authCookies.length === 0 && (pathname.startsWith('/api') || pathname.startsWith('/students') || pathname.startsWith('/dashboard'))) {
+      // For debugging in production
+      if (process.env.NODE_ENV === 'production') {
+        console.log('Redirecting to login. No auth cookies found.');
+      }
+      
       const url = new URL('/login', request.url);
       return NextResponse.redirect(url);
     }
     
-    if (sessionCookie && pathname === '/login') {
-      // Redirect to dashboard if session cookie exists and route is login
+    if (authCookies.length > 0 && pathname === '/login') {
+      // Redirect to dashboard if auth cookies exist and route is login
       const url = new URL('/dashboard', request.url);
       return NextResponse.redirect(url);
     }
@@ -81,4 +102,4 @@ export const config = {
      */
     '/((?!_next/static|_next/image|favicon.ico|public).*)',
   ],
-}; 
+};

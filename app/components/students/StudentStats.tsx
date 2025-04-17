@@ -10,7 +10,7 @@ interface StudentStatsProps {
 export function StudentStats({ students }: StudentStatsProps) {
   // Calculate statistics for cards
   const totalStudents = students.length;
-  const activeStudents = students.filter(s => s.progress > 0 && s.progress < 100).length;
+  const activeStudents = students.filter(s => s.progress != null && s.progress > 0 && s.progress < 100).length;
   const completedStudents = students.filter(s => s.progress === 100).length;
   
   return (
@@ -20,4 +20,4 @@ export function StudentStats({ students }: StudentStatsProps) {
       <StudentCard title="Completed" count={completedStudents} />
     </div>
   );
-} 
+}

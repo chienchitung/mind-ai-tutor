@@ -20,7 +20,9 @@ export const supabase = createClient<Database>(
   {
     auth: {
       autoRefreshToken: true,
-      persistSession: true
+      persistSession: true,
+      detectSessionInUrl: true, // Required for OAuth via URL
+      storageKey: 'supabase.auth.token' // Custom storage key to be consistent
     }
   }
 );
