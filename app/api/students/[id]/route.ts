@@ -1,84 +1,103 @@
-import { createClient } from '@supabase/supabase-js';
-import { NextRequest, NextResponse } from 'next/server';
+import { createRouteHandlerClient } from '@supabase/auth-helpers-nextjs';
+import { cookies } from 'next/headers';
+import { NextResponse } from 'next/server';
 
-type RouteContext = {
-  params: {
-    id: string;
-  };
-};
-
-// 創建 Supabase 客戶端
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-);
-
-export async function GET(request: NextRequest, { params }: any) {
+export async function GET(
+  request: Request,
+  { params }: { params: { id: string } }
+) {
   try {
+    const supabase = createRouteHandlerClient({ cookies });
     const { data: student, error } = await supabase
-      .from('Student')
+      .from('students')
       .select('*')
       .eq('id', params.id)
       .single();
 
     if (error) {
-      console.error('Error fetching student:', error);
-      return NextResponse.json({ error: error.message }, { status: 500 });
+      return NextResponse.json(
+        { error: 'Failed to fetch student' },
+        { status: 500 }
+      );
     }
 
     if (!student) {
-      return NextResponse.json({ error: 'Student not found' }, { status: 404 });
+      return NextResponse.json(
+        { error: 'Student not found' },
+        { status: 404 }
+      );
     }
 
     return NextResponse.json(student);
   } catch (error) {
-    console.error('Unexpected error:', error);
-    return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 });
+    return NextResponse.json(
+      { error: 'Internal server error' },
+      { status: 500 }
+    );
   }
 }
 
-export async function PUT(request: NextRequest, { params }: any) {
+export async function PUT(
+  request: Request,
+  { params }: { params: { id: string } }
+) {
   try {
-    const body = await request.json();
+    const supabase = createRouteHandlerClient({ cookies });
+    const json = await request.json();
 
-    const { data, error } = await supabase
-      .from('Student')
-      .update(body)
+    const { data: student, error } = await supabase
+      .from('students')
+      .update(json)
       .eq('id', params.id)
       .select()
       .single();
 
     if (error) {
-      console.error('Error updating student:', error);
-      return NextResponse.json({ error: error.message }, { status: 500 });
+      return NextResponse.json(
+        { error: 'Failed to update student' },
+        { status: 500 }
+      );
     }
 
-    if (!data) {
-      return NextResponse.json({ error: 'Student not found' }, { status: 404 });
+    if (!student) {
+      return NextResponse.json(
+        { error: 'Student not found' },
+        { status: 404 }
+      );
     }
 
-    return NextResponse.json(data);
+    return NextResponse.json(student);
   } catch (error) {
-    console.error('Unexpected error:', error);
-    return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 });
+    return NextResponse.json(
+      { error: 'Internal server error' },
+      { status: 500 }
+    );
   }
 }
 
-export async function DELETE(request: NextRequest, { params }: any) {
+export async function DELETE(
+  request: Request,
+  { params }: { params: { id: string } }
+) {
   try {
+    const supabase = createRouteHandlerClient({ cookies });
     const { error } = await supabase
-      .from('Student')
+      .from('students')
       .delete()
       .eq('id', params.id);
 
     if (error) {
-      console.error('Error deleting student:', error);
-      return NextResponse.json({ error: error.message }, { status: 500 });
+      return NextResponse.json(
+        { error: 'Failed to delete student' },
+        { status: 500 }
+      );
     }
 
     return NextResponse.json({ success: true });
   } catch (error) {
-    console.error('Unexpected error:', error);
-    return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 });
+    return NextResponse.json(
+      { error: 'Internal server error' },
+      { status: 500 }
+    );
   }
-}
+} 
