@@ -42,7 +42,7 @@ export async function middleware(request: NextRequest) {
       pathname.startsWith('/favicon.ico') ||
       pathname.startsWith('/public') ||
       pathname === '/login' ||
-      pathname === '/register' ||
+      pathname === '/signup' ||
       pathname === '/'
     ) {
       return NextResponse.next();
@@ -81,4 +81,4 @@ export const config = {
      */
     '/((?!_next/static|_next/image|favicon.ico|public).*)',
   ],
-}; 
+};

@@ -5,11 +5,11 @@ import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { supabase } from '../../lib/supabase';
 
-interface RegisterLayoutProps {
+interface SignUpLayoutProps {
   children: React.ReactNode;
 }
 
-export default function RegisterLayout({ children }: RegisterLayoutProps) {
+export default function SignUpLayout({ children }: SignUpLayoutProps) {
   const [isLoading, setIsLoading] = useState(true);
   const router = useRouter();
 
@@ -48,4 +48,4 @@ export default function RegisterLayout({ children }: RegisterLayoutProps) {
       <Toaster />
     </div>
   );
-} 
+}

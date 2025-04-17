@@ -11,7 +11,7 @@ import { useToast } from '@/hooks/use-toast';
 import Link from 'next/link';
 import { supabase } from '../../lib/supabase';
 
-export default function RegisterPage() {
+export default function SignUpPage() {
   const [firstName, setFirstName] = useState('');
   const [lastName, setLastName] = useState('');
   const [email, setEmail] = useState('');
@@ -21,7 +21,7 @@ export default function RegisterPage() {
   const router = useRouter();
   const { toast } = useToast();
 
-  const handleRegister = async (e: React.FormEvent) => {
+  const handleSignUp = async (e: React.FormEvent) => {
     e.preventDefault();
     
     if (!firstName || !lastName || !email || !password || !confirmPassword) {
@@ -76,14 +76,14 @@ export default function RegisterPage() {
       if (data?.user?.confirmed_at) {
         // Email already confirmed, proceed to dashboard
         toast({
-          title: 'Registration successful',
+          title: 'Sign up successful',
           description: 'Welcome to MindAiTutor!',
         });
         router.push('/dashboard');
       } else {
         // Email confirmation required
         toast({
-          title: 'Registration successful',
+          title: 'Sign up successful',
           description: 'Please check your email to verify your account. You will be redirected to the login page.',
           duration: 5000,
         });
@@ -96,8 +96,8 @@ export default function RegisterPage() {
       
     } catch (error: any) {
       toast({
-        title: 'Registration failed',
-        description: error.message || 'Failed to register. Please try again.',
+        title: 'Sign up failed',
+        description: error.message || 'Failed to sign up. Please try again.',
         variant: 'destructive',
       });
     } finally {
@@ -125,8 +125,8 @@ export default function RegisterPage() {
       }
     } catch (error: any) {
       toast({
-        title: 'Registration failed',
-        description: error.message || 'Failed to register with Google. Please try again.',
+        title: 'Sign up failed',
+        description: error.message || 'Failed to sign up with Google. Please try again.',
         variant: 'destructive',
       });
       setIsLoading(false);
@@ -146,7 +146,7 @@ export default function RegisterPage() {
           <CardDescription>Enter your details to sign up</CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
-          <form onSubmit={handleRegister} className="space-y-4">
+          <form onSubmit={handleSignUp} className="space-y-4">
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label htmlFor="firstName">First name</Label>
