@@ -32,15 +32,7 @@ const subjects = [
   'Music',
 ];
 
-// 使用正確的 NextJS 15 客戶端組件參數類型
-type PageProps = {
-  params: {
-    id: string;
-  };
-  searchParams?: Record<string, string | string[] | undefined>;
-}
-
-export default function EditStudentPage({ params }: PageProps) {
+export default function EditStudentPage({ params }: { params: { id: string } }) {
   const [loading, setLoading] = useState(true);
   const [updating, setUpdating] = useState(false);
   const [student, setStudent] = useState<Student | null>(null);
