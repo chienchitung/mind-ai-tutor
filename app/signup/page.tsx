@@ -146,15 +146,17 @@ export default function SignUpPage() {
           <CardDescription>Enter your details to sign up</CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
-          <form onSubmit={handleSignUp} className="space-y-4">
+          <form onSubmit={handleSignUp} className="space-y-4" autoComplete="on">
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label htmlFor="firstName">First name</Label>
                 <Input 
                   id="firstName" 
+                  name="given-name"
                   placeholder="John" 
                   value={firstName}
                   onChange={(e) => setFirstName(e.target.value)}
+                  autoComplete="given-name"
                   required
                 />
               </div>
@@ -162,9 +164,11 @@ export default function SignUpPage() {
                 <Label htmlFor="lastName">Last name</Label>
                 <Input 
                   id="lastName" 
+                  name="family-name"
                   placeholder="Doe" 
                   value={lastName}
                   onChange={(e) => setLastName(e.target.value)}
+                  autoComplete="family-name"
                   required
                 />
               </div>
@@ -173,10 +177,12 @@ export default function SignUpPage() {
               <Label htmlFor="email">Email</Label>
               <Input 
                 id="email" 
+                name="email"
                 placeholder="name@example.com" 
                 type="email" 
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
+                autoComplete="username"
                 required
               />
             </div>
@@ -184,10 +190,12 @@ export default function SignUpPage() {
               <Label htmlFor="password">Password</Label>
               <Input 
                 id="password" 
+                name="password"
                 placeholder="••••••••" 
                 type="password" 
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
+                autoComplete="new-password"
                 required
               />
             </div>
@@ -195,10 +203,12 @@ export default function SignUpPage() {
               <Label htmlFor="confirmPassword">Confirm Password</Label>
               <Input 
                 id="confirmPassword" 
+                name="confirm-password"
                 placeholder="••••••••" 
                 type="password" 
                 value={confirmPassword}
                 onChange={(e) => setConfirmPassword(e.target.value)}
+                autoComplete="new-password"
                 required
               />
             </div>

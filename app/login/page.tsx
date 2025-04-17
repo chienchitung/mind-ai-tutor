@@ -113,15 +113,17 @@ export default function LoginPage() {
           <CardDescription>Enter your email to sign in to your account</CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
-          <form onSubmit={handleLogin} className="space-y-4">
+          <form onSubmit={handleLogin} className="space-y-4" autoComplete="on">
             <div className="space-y-2">
               <Label htmlFor="email">Email</Label>
               <Input 
                 id="email" 
+                name="email"
                 placeholder="name@example.com" 
                 type="email" 
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
+                autoComplete="username"
                 required
               />
             </div>
@@ -137,10 +139,12 @@ export default function LoginPage() {
               </div>
               <Input 
                 id="password" 
+                name="password"
                 placeholder="••••••••" 
                 type="password" 
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
+                autoComplete="current-password"
                 required
               />
             </div>
