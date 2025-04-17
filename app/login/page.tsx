@@ -9,7 +9,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
 import Link from 'next/link';
-import { supabase } from '../../lib/supabase';
+import { supabase, setSupabaseCookies } from '../../lib/supabase';
 
 export default function LoginPage() {
   const [email, setEmail] = useState('');
@@ -46,6 +46,9 @@ export default function LoginPage() {
     try {
       setIsLoading(true);
       
+      // 登入前清除可能存在的舊會話
+      await supabase.auth.signOut();
+      
       const { data, error } = await supabase.auth.signInWithPassword({
         email,
         password,
@@ -62,14 +65,25 @@ export default function LoginPage() {
       
       // 確保資料存在且用戶已認證
       if (data?.user) {
-        // 強制重新整理資料後再導向
+        console.log('Login successful, user ID:', data.user.id);
+        console.log('Session:', data.session);
+        
+        // 強制刷新會話，確保 cookie 設置正確
         await supabase.auth.refreshSession();
         
-        // 短暫延遲確保 cookie 已設置
-        setTimeout(() => {
-          console.log('Redirecting to dashboard...');
-          window.location.href = '/dashboard';  // 使用直接跳轉而不是 router.push
-        }, 500);
+        // 檢查 cookie 是否設置成功
+        const { data: sessionData } = await supabase.auth.getSession();
+        console.log('After refresh - Session exists:', !!sessionData.session);
+        
+        // 使用自定義函數設置 cookie
+        if (sessionData.session) {
+          const cookiesSet = setSupabaseCookies(sessionData.session);
+          console.log('Cookies manually set:', cookiesSet);
+        }
+        
+        // 使用硬性重定向而非 router.push
+        console.log('Redirecting to dashboard...');
+        window.location.href = '/dashboard';
       }
     } catch (error: any) {
       toast({
