@@ -81,9 +81,9 @@ export default function LoginPage() {
           console.log('Cookies manually set:', cookiesSet);
         }
         
-        // 使用硬性重定向而非 router.push
+        // 使用 router.push 進行重定向
         console.log('Redirecting to dashboard...');
-        window.location.href = '/dashboard';
+        router.push('/dashboard');
       }
     } catch (error: any) {
       toast({
