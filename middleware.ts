@@ -43,22 +43,27 @@ export async function middleware(request: NextRequest) {
       pathname.startsWith('/public') ||
       pathname === '/login' ||
       pathname === '/signup' ||
-      pathname === '/'
+      pathname === '/' ||
+      pathname === '/auth/callback' ||
+      pathname === '/forgot-password' ||
+      pathname === '/reset-password'
     ) {
       return NextResponse.next();
     }
     
-    // Get the session cookie from the request
-    const sessionCookie = request.cookies.get('sb-vuibtitfdhzoxsytzrjo-auth-token');
+    // Get all auth cookies instead of looking for a specific one
+    const authCookies = request.cookies.getAll().filter(cookie => 
+      cookie.name.includes('-auth-token')
+    );
     
-    // If there's no session cookie and the route requires auth, redirect to login
-    if (!sessionCookie && (pathname.startsWith('/api') || pathname.startsWith('/students') || pathname.startsWith('/dashboard'))) {
+    // If there are no auth cookies and the route requires auth, redirect to login
+    if (authCookies.length === 0 && (pathname.startsWith('/api') || pathname.startsWith('/students') || pathname.startsWith('/dashboard'))) {
       const url = new URL('/login', request.url);
       return NextResponse.redirect(url);
     }
     
-    if (sessionCookie && pathname === '/login') {
-      // Redirect to dashboard if session cookie exists and route is login
+    if (authCookies.length > 0 && pathname === '/login') {
+      // Redirect to dashboard if auth cookies exist and route is login
       const url = new URL('/dashboard', request.url);
       return NextResponse.redirect(url);
     }

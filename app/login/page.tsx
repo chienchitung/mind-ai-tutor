@@ -46,7 +46,7 @@ export default function LoginPage() {
     try {
       setIsLoading(true);
       
-      const { error } = await supabase.auth.signInWithPassword({
+      const { data, error } = await supabase.auth.signInWithPassword({
         email,
         password,
       });
@@ -60,7 +60,17 @@ export default function LoginPage() {
         description: 'Welcome back!',
       });
       
-      router.push('/dashboard');
+      // 確保資料存在且用戶已認證
+      if (data?.user) {
+        // 強制重新整理資料後再導向
+        await supabase.auth.refreshSession();
+        
+        // 短暫延遲確保 cookie 已設置
+        setTimeout(() => {
+          console.log('Redirecting to dashboard...');
+          window.location.href = '/dashboard';  // 使用直接跳轉而不是 router.push
+        }, 500);
+      }
     } catch (error: any) {
       toast({
         title: 'Login failed',
