@@ -1,103 +1,84 @@
-import { createRouteHandlerClient } from '@supabase/auth-helpers-nextjs';
-import { cookies } from 'next/headers';
-import { NextResponse } from 'next/server';
+import { createClient } from '@supabase/supabase-js';
+import { NextRequest, NextResponse } from 'next/server';
+
+// 創建 Supabase 客戶端
+const supabase = createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL!,
+  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+);
+
+interface RouteContext {
+  params: {
+    id: string;
+  };
+}
 
 export async function GET(
-  request: Request,
-  { params }: { params: { id: string } }
+  request: NextRequest,
+  context: RouteContext
 ) {
   try {
-    const supabase = createRouteHandlerClient({ cookies });
     const { data: student, error } = await supabase
-      .from('students')
+      .from('Student')
       .select('*')
-      .eq('id', params.id)
+      .eq('id', context.params.id)
       .single();
-
+    
     if (error) {
-      return NextResponse.json(
-        { error: 'Failed to fetch student' },
-        { status: 500 }
-      );
+      console.error('Error fetching student:', error);
+      return NextResponse.json({ error: error.message }, { status: 500 });
     }
-
     if (!student) {
-      return NextResponse.json(
-        { error: 'Student not found' },
-        { status: 404 }
-      );
+      return NextResponse.json({ error: 'Student not found' }, { status: 404 });
     }
-
     return NextResponse.json(student);
   } catch (error) {
-    return NextResponse.json(
-      { error: 'Internal server error' },
-      { status: 500 }
-    );
+    console.error('Unexpected error:', error);
+    return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 });
   }
 }
 
 export async function PUT(
-  request: Request,
-  { params }: { params: { id: string } }
+  request: NextRequest,
+  context: RouteContext
 ) {
   try {
-    const supabase = createRouteHandlerClient({ cookies });
-    const json = await request.json();
-
-    const { data: student, error } = await supabase
-      .from('students')
-      .update(json)
-      .eq('id', params.id)
+    const body = await request.json();
+    const { data, error } = await supabase
+      .from('Student')
+      .update(body)
+      .eq('id', context.params.id)
       .select()
       .single();
-
+    
     if (error) {
-      return NextResponse.json(
-        { error: 'Failed to update student' },
-        { status: 500 }
-      );
+      console.error('Error updating student:', error);
+      return NextResponse.json({ error: error.message }, { status: 500 });
     }
-
-    if (!student) {
-      return NextResponse.json(
-        { error: 'Student not found' },
-        { status: 404 }
-      );
-    }
-
-    return NextResponse.json(student);
+    return NextResponse.json(data);
   } catch (error) {
-    return NextResponse.json(
-      { error: 'Internal server error' },
-      { status: 500 }
-    );
+    console.error('Unexpected error:', error);
+    return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 });
   }
 }
 
 export async function DELETE(
-  request: Request,
-  { params }: { params: { id: string } }
+  request: NextRequest,
+  context: RouteContext
 ) {
   try {
-    const supabase = createRouteHandlerClient({ cookies });
     const { error } = await supabase
-      .from('students')
+      .from('Student')
       .delete()
-      .eq('id', params.id);
-
+      .eq('id', context.params.id);
+      
     if (error) {
-      return NextResponse.json(
-        { error: 'Failed to delete student' },
-        { status: 500 }
-      );
+      console.error('Error deleting student:', error);
+      return NextResponse.json({ error: error.message }, { status: 500 });
     }
-
-    return NextResponse.json({ success: true });
+    return NextResponse.json({ message: 'Student deleted successfully' });
   } catch (error) {
-    return NextResponse.json(
-      { error: 'Internal server error' },
-      { status: 500 }
-    );
+    console.error('Unexpected error:', error);
+    return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 });
   }
-} 
+}
