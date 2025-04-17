@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import type { Database } from '@/types/supabase';
+import type { Session } from '@supabase/supabase-js';
 
 // Use environment variables instead of hardcoded values
 const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -70,23 +71,47 @@ export async function middleware(request: NextRequest) {
     // Get all cookies
     const allCookies = request.cookies.getAll();
     
-    // Look for any authentication related cookies with broader criteria
+    // 詳細記錄所有 cookie 來診斷問題
+    if (isProduction && pathname === '/dashboard') {
+      console.log(`[Middleware] All cookies (${allCookies.length}): ${allCookies.map(c => c.name).join(', ')}`);
+    }
+    
+    // 擴展認證 cookie 檢測，使用更廣泛的匹配條件
     const authCookies = allCookies.filter(cookie => 
       cookie.name.includes('-auth-token') || 
       cookie.name.includes('supabase.auth') ||
       cookie.name.includes('sb-') ||
-      cookie.name.includes('_auth_token')
+      cookie.name.includes('_auth_token') ||
+      cookie.name.includes('access_token') ||
+      cookie.name.includes('refresh_token') ||
+      cookie.name.toLowerCase().includes('auth') ||
+      cookie.name.toLowerCase().includes('session')
     );
     
+    // 嘗試使用 Supabase 直接檢查認證狀態
+    let supabaseSession: Session | null = null;
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      supabaseSession = session;
+      if (isProduction && pathname === '/dashboard') {
+        console.log(`[Middleware] Supabase session check: ${session ? 'Valid session' : 'No session'}`);
+      }
+    } catch (error) {
+      console.error('[Middleware] Error checking Supabase session:', error);
+    }
+    
+    // 組合認證檢查：cookie 或 Supabase 會話
+    const isAuthenticated = authCookies.length > 0 || supabaseSession !== null;
+    
     if (isProduction) {
-      console.log(`[Middleware] Path: ${pathname}, Auth cookies found: ${authCookies.length}`);
+      console.log(`[Middleware] Path: ${pathname}, Auth check result: ${isAuthenticated ? 'Authenticated' : 'Not authenticated'}`);
       if (authCookies.length > 0) {
         console.log(`[Middleware] Auth cookie names: ${authCookies.map(c => c.name).join(', ')}`);
       }
     }
     
-    // 對於需要身份驗證的路由，檢查是否有有效的認證 cookie
-    if (authCookies.length === 0 && (pathname.startsWith('/api') || pathname.startsWith('/students') || pathname.startsWith('/dashboard'))) {
+    // 對於需要身份驗證的路由，檢查是否有有效的認證
+    if (!isAuthenticated && (pathname.startsWith('/api') || pathname.startsWith('/students') || pathname.startsWith('/dashboard'))) {
       if (isProduction) {
         console.log(`[Middleware] Unauthorized access to ${pathname}, redirecting to login`);
       }
@@ -94,12 +119,13 @@ export async function middleware(request: NextRequest) {
       // 重要：這裡必須使用重定向，因為我們需要實際改變 URL 到登入頁
       // 雖然會出現 307，但這是必要的安全措施
       const url = new URL('/login', request.url);
+      // 將原始 URL 作為參數傳遞，以便登入後重定向回來
+      url.searchParams.set('redirect', pathname);
       return NextResponse.redirect(url, { status: 302 });
     }
     
     // 這個條件檢查是否用戶已經登入但嘗試訪問登入頁
-    // 標準的登入流程不會進入這裡，這只是防止已登入用戶再次訪問登入頁
-    if (authCookies.length > 0 && pathname === '/login') {
+    if (isAuthenticated && pathname === '/login') {
       if (isProduction) {
         console.log('[Middleware] Authenticated user accessing login, redirecting to dashboard');
       }
@@ -111,7 +137,8 @@ export async function middleware(request: NextRequest) {
 
     return NextResponse.next();
   } catch (error) {
-    console.error('Middleware error: ', error);
+    console.error('[Middleware] Critical error:', error);
+    // 出錯時為了安全，我們依然返回 next() 讓請求繼續
     return NextResponse.next();
   }
 }
