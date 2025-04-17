@@ -13,7 +13,48 @@ if (!SUPABASE_URL || !SUPABASE_ANON_KEY) {
 
 export async function middleware(request: NextRequest) {
   try {
-    // Initialize Supabase
+    // Get the pathname from the URL
+    const pathname = request.nextUrl.pathname;
+    const isProduction = process.env.NODE_ENV === 'production';
+    
+    // 日誌：記錄環境和請求路徑
+    if (isProduction) {
+      console.log(`[Middleware] Environment: ${process.env.NODE_ENV}, Path: ${pathname}`);
+    }
+    
+    // 檢查 /auth/callback 路徑 - 這個路徑需要特殊處理，避免重定向循環
+    if (pathname === '/auth/callback') {
+      // 對於 auth callback，我們總是直接放行，不做任何重定向
+      if (isProduction) console.log('[Middleware] Auth callback detected, passing through');
+      return NextResponse.next();
+    }
+
+    // 使用 URL 重寫代替重定向，這樣可以保持原始 URL 但顯示不同內容
+    if (pathname === '/courses' || pathname.startsWith('/courses/')) {
+      const url = request.nextUrl.clone();
+      url.pathname = pathname.replace('/courses', '/digital-games');
+      if (isProduction) console.log(`[Middleware] Rewriting ${pathname} to ${url.pathname}`);
+      return NextResponse.rewrite(url); // 使用 rewrite 替代 redirect
+    }
+    
+    // Skip auth check for public routes
+    if (
+      pathname.startsWith('/_next') ||
+      pathname.startsWith('/favicon.ico') ||
+      pathname.startsWith('/public') ||
+      pathname === '/login' ||
+      pathname === '/signup' ||
+      pathname === '/' ||
+      pathname === '/forgot-password' ||
+      pathname === '/reset-password'
+    ) {
+      if (isProduction && !pathname.startsWith('/_next')) {
+        console.log(`[Middleware] Public route detected: ${pathname}, passing through`);
+      }
+      return NextResponse.next();
+    }
+    
+    // 初始化 Supabase - 只在需要時才初始化，提高效率
     const supabase = createClient<Database>(
       SUPABASE_URL || '',
       SUPABASE_ANON_KEY || '', 
@@ -25,31 +66,6 @@ export async function middleware(request: NextRequest) {
         },
       }
     );
-
-    // Get the pathname from the URL
-    const pathname = request.nextUrl.pathname;
-    
-    // 使用 URL 重寫代替重定向，這樣可以保持原始 URL 但顯示不同內容
-    if (pathname === '/courses' || pathname.startsWith('/courses/')) {
-      const url = request.nextUrl.clone();
-      url.pathname = pathname.replace('/courses', '/digital-games');
-      return NextResponse.rewrite(url); // 使用 rewrite 替代 redirect，這會維持原始 URL 但顯示不同內容
-    }
-    
-    // Skip auth check for public routes
-    if (
-      pathname.startsWith('/_next') ||
-      pathname.startsWith('/favicon.ico') ||
-      pathname.startsWith('/public') ||
-      pathname === '/login' ||
-      pathname === '/signup' ||
-      pathname === '/' ||
-      pathname === '/auth/callback' ||
-      pathname === '/forgot-password' ||
-      pathname === '/reset-password'
-    ) {
-      return NextResponse.next();
-    }
     
     // Get all cookies
     const allCookies = request.cookies.getAll();
@@ -62,27 +78,37 @@ export async function middleware(request: NextRequest) {
       cookie.name.includes('_auth_token')
     );
     
-    if (process.env.NODE_ENV === 'production' && pathname === '/dashboard') {
-      console.log('Debug - All cookies in production:', allCookies.map(c => c.name));
-      console.log('Debug - Auth cookies found:', authCookies.length);
+    if (isProduction) {
+      console.log(`[Middleware] Path: ${pathname}, Auth cookies found: ${authCookies.length}`);
+      if (authCookies.length > 0) {
+        console.log(`[Middleware] Auth cookie names: ${authCookies.map(c => c.name).join(', ')}`);
+      }
     }
     
-    // 對於需要身份驗證的路由，我們仍然需要使用重定向
-    // 因為這是安全需求，我們不能顯示未授權用戶請求的內容
+    // 對於需要身份驗證的路由，檢查是否有有效的認證 cookie
     if (authCookies.length === 0 && (pathname.startsWith('/api') || pathname.startsWith('/students') || pathname.startsWith('/dashboard'))) {
-      // For debugging in production
-      if (process.env.NODE_ENV === 'production') {
-        console.log('Redirecting to login. No auth cookies found.');
+      if (isProduction) {
+        console.log(`[Middleware] Unauthorized access to ${pathname}, redirecting to login`);
       }
       
+      // 使用 rewrite 替代 redirect 來避免 307 狀態碼
+      // 注意：這是一個不太標準的方法，但可能有助於解決你的問題
+      const response = NextResponse.next();
+      response.cookies.set('intended_redirect', pathname); // 保存原始目標，以便登錄後重定向回去
+      
+      // 嘗試使用 rewrite 替代 redirect 來減少 307 狀態
       const url = new URL('/login', request.url);
-      return NextResponse.redirect(url, { status: 302 }); // 必須重定向以保護未授權訪問
+      return NextResponse.rewrite(url);
     }
     
     if (authCookies.length > 0 && pathname === '/login') {
-      // 已登入用戶訪問登入頁面，重定向到儀表板
+      if (isProduction) {
+        console.log('[Middleware] Authenticated user accessing login, redirecting to dashboard');
+      }
+      
+      // 已登入用戶訪問登入頁面，使用 rewrite 而不是 redirect
       const url = new URL('/dashboard', request.url);
-      return NextResponse.redirect(url, { status: 302 }); // 必須重定向以避免已登入用戶重複登入
+      return NextResponse.rewrite(url);
     }
 
     return NextResponse.next();
