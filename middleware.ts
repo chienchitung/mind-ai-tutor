@@ -29,11 +29,11 @@ export async function middleware(request: NextRequest) {
     // Get the pathname from the URL
     const pathname = request.nextUrl.pathname;
     
-    // Redirect /courses to /digital-games
+    // 使用 URL 重寫代替重定向，這樣可以保持原始 URL 但顯示不同內容
     if (pathname === '/courses' || pathname.startsWith('/courses/')) {
       const url = request.nextUrl.clone();
       url.pathname = pathname.replace('/courses', '/digital-games');
-      return NextResponse.redirect(url);
+      return NextResponse.rewrite(url); // 使用 rewrite 替代 redirect，這會維持原始 URL 但顯示不同內容
     }
     
     // Skip auth check for public routes
@@ -67,7 +67,8 @@ export async function middleware(request: NextRequest) {
       console.log('Debug - Auth cookies found:', authCookies.length);
     }
     
-    // If there are no auth cookies and the route requires auth, redirect to login
+    // 對於需要身份驗證的路由，我們仍然需要使用重定向
+    // 因為這是安全需求，我們不能顯示未授權用戶請求的內容
     if (authCookies.length === 0 && (pathname.startsWith('/api') || pathname.startsWith('/students') || pathname.startsWith('/dashboard'))) {
       // For debugging in production
       if (process.env.NODE_ENV === 'production') {
@@ -75,13 +76,13 @@ export async function middleware(request: NextRequest) {
       }
       
       const url = new URL('/login', request.url);
-      return NextResponse.redirect(url);
+      return NextResponse.redirect(url, { status: 302 }); // 必須重定向以保護未授權訪問
     }
     
     if (authCookies.length > 0 && pathname === '/login') {
-      // Redirect to dashboard if auth cookies exist and route is login
+      // 已登入用戶訪問登入頁面，重定向到儀表板
       const url = new URL('/dashboard', request.url);
-      return NextResponse.redirect(url);
+      return NextResponse.redirect(url, { status: 302 }); // 必須重定向以避免已登入用戶重複登入
     }
 
     return NextResponse.next();
