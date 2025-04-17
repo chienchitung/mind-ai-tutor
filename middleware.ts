@@ -42,7 +42,7 @@ export async function middleware(request: NextRequest) {
       pathname.startsWith('/_next') ||
       pathname.startsWith('/favicon.ico') ||
       pathname.startsWith('/public') ||
-      pathname === '/login' ||
+      pathname === '/login' ||  // 讓登入頁正常通過
       pathname === '/signup' ||
       pathname === '/' ||
       pathname === '/forgot-password' ||
@@ -91,24 +91,22 @@ export async function middleware(request: NextRequest) {
         console.log(`[Middleware] Unauthorized access to ${pathname}, redirecting to login`);
       }
       
-      // 使用 rewrite 替代 redirect 來避免 307 狀態碼
-      // 注意：這是一個不太標準的方法，但可能有助於解決你的問題
-      const response = NextResponse.next();
-      response.cookies.set('intended_redirect', pathname); // 保存原始目標，以便登錄後重定向回去
-      
-      // 嘗試使用 rewrite 替代 redirect 來減少 307 狀態
+      // 重要：這裡必須使用重定向，因為我們需要實際改變 URL 到登入頁
+      // 雖然會出現 307，但這是必要的安全措施
       const url = new URL('/login', request.url);
-      return NextResponse.rewrite(url);
+      return NextResponse.redirect(url, { status: 302 });
     }
     
+    // 這個條件檢查是否用戶已經登入但嘗試訪問登入頁
+    // 標準的登入流程不會進入這裡，這只是防止已登入用戶再次訪問登入頁
     if (authCookies.length > 0 && pathname === '/login') {
       if (isProduction) {
         console.log('[Middleware] Authenticated user accessing login, redirecting to dashboard');
       }
       
-      // 已登入用戶訪問登入頁面，使用 rewrite 而不是 redirect
+      // 這裡使用重定向是必要的，因為登入後用戶應該真正前往儀表板
       const url = new URL('/dashboard', request.url);
-      return NextResponse.rewrite(url);
+      return NextResponse.redirect(url, { status: 302 });
     }
 
     return NextResponse.next();
