@@ -8,7 +8,6 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
 import Link from 'next/link';
-import { supabase } from '../../lib/supabase';
 
 export default function ForgotPasswordPage() {
   const [email, setEmail] = useState('');
@@ -31,7 +30,12 @@ export default function ForgotPasswordPage() {
     try {
       setIsLoading(true);
       
-      const { error } = await supabase.auth.resetPasswordForEmail(email, {
+      const { supabase } = await import('@/lib/supabase');
+      const supabaseClient = supabase();
+      
+      const supabaseWithTypes: any = supabaseClient;
+      
+      const { error } = await supabaseWithTypes.auth.resetPasswordForEmail(email, {
         redirectTo: `${window.location.origin}/reset-password`,
       });
       
