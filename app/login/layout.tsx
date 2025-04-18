@@ -46,7 +46,7 @@ export default function LoginLayout({ children }: LoginLayoutProps) {
   }
 
   return (
-    <div className="min-h-screen bg-muted/30">
+    <div className="min-h-screen bg-muted/30 py-4">
       {children}
       <Toaster />
     </div>
