@@ -291,22 +291,24 @@ export function Sidebar({
                     className="flex items-center w-full px-0 justify-start"
                   >
                     <Avatar className="h-9 w-9 mr-3">
-                      {user && user.app_metadata?.provider === 'google' && (user.user_metadata?.avatar_url || user.user_metadata?.picture) ? (
+                      {user && (user.user_metadata?.avatar_url || user.user_metadata?.picture) ? (
                         <AvatarImage src={user.user_metadata?.avatar_url || user.user_metadata?.picture} alt="User" />
                       ) : (
                         <AvatarFallback className="bg-gray-200 text-gray-700">
-                          {user?.user_metadata?.full_name 
-                            ? `${user.user_metadata.full_name.split(' ')[0][0]}${user.user_metadata.full_name.split(' ')[1]?.[0] || ''}`
-                            : typeof user?.email === 'string' 
-                              ? user.email.charAt(0).toUpperCase() 
-                              : 'U'}
+                          {user?.user_metadata?.first_name && user?.user_metadata?.last_name
+                            ? `${user.user_metadata.first_name[0]}${user.user_metadata.last_name[0]}`
+                            : user?.user_metadata?.full_name 
+                              ? `${user.user_metadata.full_name.split(' ')[0][0]}${user.user_metadata.full_name.split(' ')[1]?.[0] || ''}`
+                              : typeof user?.email === 'string' 
+                                ? user.email.charAt(0).toUpperCase() 
+                                : 'U'}
                         </AvatarFallback>
                       )}
                     </Avatar>
                     
                     <div className="flex flex-col text-sm text-left">
                       <span className="font-medium text-gray-900">
-                        {user?.user_metadata?.full_name || user?.email?.split('@')[0] || 'User'}
+                        {user?.user_metadata?.full_name || user?.user_metadata?.name || user?.email?.split('@')[0] || 'User'}
                       </span>
                       <span className="text-xs text-gray-500">
                         {user?.user_metadata?.subscription_plan || 'Free plan'}
@@ -371,15 +373,17 @@ export function Sidebar({
                 >
                   {user ? (
                     <Avatar className="h-full w-full">
-                      {user.app_metadata?.provider === 'google' && (user.user_metadata?.avatar_url || user.user_metadata?.picture) ? (
+                      {(user.user_metadata?.avatar_url || user.user_metadata?.picture) ? (
                         <AvatarImage src={user.user_metadata?.avatar_url || user.user_metadata?.picture} alt="User" />
                       ) : (
                         <AvatarFallback className="bg-gray-200 text-gray-700">
-                          {user?.user_metadata?.full_name 
-                            ? `${user.user_metadata.full_name.split(' ')[0][0]}${user.user_metadata.full_name.split(' ')[1]?.[0] || ''}`
-                            : typeof user.email === 'string' 
-                              ? user.email.charAt(0).toUpperCase() 
-                              : 'U'}
+                          {user?.user_metadata?.first_name && user?.user_metadata?.last_name
+                            ? `${user.user_metadata.first_name[0]}${user.user_metadata.last_name[0]}`
+                            : user?.user_metadata?.full_name 
+                              ? `${user.user_metadata.full_name.split(' ')[0][0]}${user.user_metadata.full_name.split(' ')[1]?.[0] || ''}`
+                              : typeof user?.email === 'string' 
+                                ? user.email.charAt(0).toUpperCase() 
+                                : 'U'}
                         </AvatarFallback>
                       )}
                     </Avatar>

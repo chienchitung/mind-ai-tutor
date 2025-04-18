@@ -1,4 +1,3 @@
-import { supabase } from './supabase';
 import type { Database } from '@/types/supabase';
 
 type Student = Database['public']['Tables']['students']['Row'];
@@ -24,7 +23,11 @@ interface ClassSubjectPerformance {
 }
 
 export async function getStudentProgress(studentId: string): Promise<Progress[]> {
-  const { data, error } = await supabase
+  // 動態導入 supabase 函數
+  const { supabase } = await import('@/lib/supabase');
+  const supabaseClient = supabase();
+  
+  const { data, error } = await supabaseClient
     .from('progress')
     .select('*')
     .eq('student_id', studentId)
@@ -43,7 +46,11 @@ export async function addProgressEntry(
   score: number,
   notes: string
 ): Promise<Progress> {
-  const { data, error } = await supabase
+  // 動態導入 supabase 函數
+  const { supabase } = await import('@/lib/supabase');
+  const supabaseClient = supabase();
+  
+  const { data, error } = await supabaseClient
     .from('progress')
     .insert([
       {
@@ -106,7 +113,11 @@ function calculateTrend(scores: number[]): 'improving' | 'declining' | 'stable' 
 }
 
 export async function getClassStats() {
-  const { data: students, error: studentsError } = await supabase
+  // 動態導入 supabase 函數
+  const { supabase } = await import('@/lib/supabase');
+  const supabaseClient = supabase();
+  
+  const { data: students, error: studentsError } = await supabaseClient
     .from('students')
     .select('*');
 
@@ -114,7 +125,7 @@ export async function getClassStats() {
     throw new Error('Failed to fetch students');
   }
 
-  const { data: progress, error: progressError } = await supabase
+  const { data: progress, error: progressError } = await supabaseClient
     .from('progress')
     .select('*');
 

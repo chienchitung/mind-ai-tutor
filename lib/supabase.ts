@@ -6,7 +6,7 @@ const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL as string;
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY as string;
 
 // This check ensures we provide helpful messages when credentials are missing
-if (!supabaseUrl || !supabaseAnonKey) {
+if (typeof window !== 'undefined' && (!supabaseUrl || !supabaseAnonKey)) {
   if (!supabaseUrl) console.error('Missing environment variable: NEXT_PUBLIC_SUPABASE_URL');
   if (!supabaseAnonKey) console.error('Missing environment variable: NEXT_PUBLIC_SUPABASE_ANON_KEY');
   
@@ -48,13 +48,6 @@ export const supabase = () => {
   
   return supabaseClient;
 };
-
-// 為了向後兼容，提供一個直接的 supabase 實例
-if (typeof window !== 'undefined') {
-  // 這個導出會在導入時立即執行
-  // 不推薦使用，但是保留為了向後兼容
-  console.warn('Please use the supabase() function instead of direct import to avoid multiple instances');
-}
 
 // Validate environment variables
 if (typeof window !== 'undefined' && (!supabaseUrl || !supabaseAnonKey)) {
