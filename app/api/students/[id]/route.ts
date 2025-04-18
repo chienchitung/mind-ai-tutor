@@ -1,11 +1,6 @@
-import { createClient } from '@supabase/supabase-js';
+import { createServerClient } from '@supabase/ssr';
+import { cookies } from 'next/headers';
 import { NextRequest, NextResponse } from 'next/server';
-
-// 創建 Supabase 客戶端
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-);
 
 // 定義參數類型 (使用 Next.js 15.3.0 要求的類型格式)
 interface RouteParams {
@@ -13,15 +8,34 @@ interface RouteParams {
 }
 
 export async function GET(
-  request: NextRequest, // Keep NextRequest for consistency if needed, or change to Request if preferred
+  request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const cookieStore = await cookies();
+    const supabase = createServerClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+      {
+        cookies: {
+          get(name: string) {
+            return cookieStore.get(name)?.value;
+          },
+          set(name: string, value: string, options: any) {
+            cookieStore.set({ name, value, ...options });
+          },
+          remove(name: string, options: any) {
+            cookieStore.set({ name, value: '', ...options });
+          },
+        },
+      }
+    );
+
     const id = (await params).id;
     const { data: student, error } = await supabase
       .from('students')
       .select('*')
-      .eq('id', id) // Use the awaited id
+      .eq('id', id)
       .single();
 
     if (error) {
@@ -39,16 +53,35 @@ export async function GET(
 }
 
 export async function PUT(
-  request: NextRequest, // Keep NextRequest for consistency if needed, or change to Request if preferred
+  request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const cookieStore = await cookies();
+    const supabase = createServerClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+      {
+        cookies: {
+          get(name: string) {
+            return cookieStore.get(name)?.value;
+          },
+          set(name: string, value: string, options: any) {
+            cookieStore.set({ name, value, ...options });
+          },
+          remove(name: string, options: any) {
+            cookieStore.set({ name, value: '', ...options });
+          },
+        },
+      }
+    );
+
     const id = (await params).id;
     const body = await request.json();
     const { data, error } = await supabase
       .from('students')
       .update(body)
-      .eq('id', id) // Use the awaited id
+      .eq('id', id)
       .select()
       .single();
 
@@ -64,15 +97,34 @@ export async function PUT(
 }
 
 export async function DELETE(
-  request: NextRequest, // Keep NextRequest for consistency if needed, or change to Request if preferred
+  request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const cookieStore = await cookies();
+    const supabase = createServerClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+      {
+        cookies: {
+          get(name: string) {
+            return cookieStore.get(name)?.value;
+          },
+          set(name: string, value: string, options: any) {
+            cookieStore.set({ name, value, ...options });
+          },
+          remove(name: string, options: any) {
+            cookieStore.set({ name, value: '', ...options });
+          },
+        },
+      }
+    );
+
     const id = (await params).id;
     const { error } = await supabase
       .from('students')
       .delete()
-      .eq('id', id); // Use the awaited id
+      .eq('id', id);
 
     if (error) {
       console.error('Error deleting student:', error);

@@ -6,7 +6,6 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 import { PageHeader } from '../components/ui/page-header';
 import { Check, X } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
-import { supabase } from '../../lib/supabase';
 import { useEffect } from 'react';
 
 interface PlanFeature {
@@ -23,6 +22,14 @@ interface Plan {
   recommended?: boolean;
 }
 
+// 定義 Supabase 客戶端類型，避免類型錯誤
+interface SupabaseClientWithAuth {
+  auth: {
+    getUser: () => Promise<{data: {user: any}}>;
+    updateUser: (options: {data: any}) => Promise<{error: any}>;
+  }
+};
+
 export default function SubscriptionPage() {
   const [user, setUser] = useState<any>(null);
   const [currentPlan, setCurrentPlan] = useState('Free plan');
@@ -32,7 +39,14 @@ export default function SubscriptionPage() {
   useEffect(() => {
     const getUser = async () => {
       try {
-        const { data: { user } } = await supabase.auth.getUser();
+        // 動態導入 supabase 函數
+        const { supabase } = await import('@/lib/supabase');
+        const supabaseClient = supabase();
+        
+        // 明確轉換類型
+        const supabaseWithTypes = supabaseClient as unknown as SupabaseClientWithAuth;
+        
+        const { data: { user } } = await supabaseWithTypes.auth.getUser();
         if (user) {
           setUser(user);
           setCurrentPlan(user.user_metadata?.subscription_plan || 'Free plan');
@@ -121,9 +135,16 @@ export default function SubscriptionPage() {
     try {
       setIsLoading(true);
 
+      // 動態導入 supabase 函數
+      const { supabase } = await import('@/lib/supabase');
+      const supabaseClient = supabase();
+      
+      // 顯式轉換類型以解決類型檢查問題
+      const supabaseWithTypes = supabaseClient as unknown as SupabaseClientWithAuth;
+
       // In a real app, this would integrate with a payment processor
       // For now, we'll just update the user metadata
-      const { error } = await supabase.auth.updateUser({
+      const { error } = await supabaseWithTypes.auth.updateUser({
         data: {
           subscription_plan: `${planName} plan`
         }

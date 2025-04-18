@@ -9,7 +9,6 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
 import Link from 'next/link';
-import { createClient } from '@/app/lib/supabase';
 
 export default function SignUpPage() {
   const [firstName, setFirstName] = useState('');
@@ -24,7 +23,13 @@ export default function SignUpPage() {
   
   useEffect(() => {
     // 在客戶端創建 Supabase 客戶端
-    setSupabase(createClient());
+    const initializeSupabase = async () => {
+      const { supabase } = await import('@/lib/supabase');
+      const client = supabase();
+      setSupabase(client);
+    };
+    
+    initializeSupabase();
   }, []);
 
   const handleSignUp = async (e: React.FormEvent) => {

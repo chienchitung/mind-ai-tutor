@@ -9,7 +9,6 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
 import Link from 'next/link';
-import { createClient } from '@/app/lib/supabase';
 
 export default function LoginPage() {
   const [email, setEmail] = useState('');
@@ -21,11 +20,12 @@ export default function LoginPage() {
 
   useEffect(() => {
     // 創建 Supabase 客戶端
-    const client = createClient();
-    setSupabase(client);
-    
-    // Check if user is already logged in
-    const checkUser = async () => {
+    const initializeSupabase = async () => {
+      const { supabase } = await import('@/lib/supabase');
+      const client = supabase();
+      setSupabase(client);
+      
+      // Check if user is already logged in
       const { data: { user } } = await client.auth.getUser();
       
       if (user) {
@@ -33,7 +33,7 @@ export default function LoginPage() {
       }
     };
     
-    checkUser();
+    initializeSupabase();
   }, [router]);
 
   const handleLogin = async (e: React.FormEvent) => {

@@ -2,7 +2,8 @@
 
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { v4 as uuidv4 } from 'uuid';
-import { supabase } from '@/lib/supabase';
+// 移除直接導入
+// import { supabase } from '@/lib/supabase';
 
 // Types
 export type EventPriority = 'low' | 'medium' | 'high';
@@ -485,4 +486,18 @@ export const EventProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       {children}
     </EventContext.Provider>
   );
-}; 
+};
+
+// 定義 Supabase 客戶端類型
+interface SupabaseClientWithAuth {
+  auth: {
+    getUser: () => Promise<{data: {user: any}}>;
+  };
+  from: (table: string) => {
+    select: (columns?: string) => any;
+    insert: (data: any) => any;
+    update: (data: any) => any;
+    delete: () => any;
+    eq: (column: string, value: any) => any;
+  };
+} 

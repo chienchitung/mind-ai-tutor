@@ -34,6 +34,12 @@ export function createClient() {
   } as any;
 }
 
+// 創建 Supabase 客戶端單例的導出函數
+// 這是應用程序中使用的主要方法
+export const supabase = () => {
+  return createClient();
+};
+
 // Create a server client for server-side components
 export async function getServerClient() {
   const { cookies } = await import('next/headers');

@@ -1,7 +1,6 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { createClient } from '@supabase/supabase-js';
 import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -9,10 +8,6 @@ import { Label } from '@/components/ui/label';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { useToast } from '@/hooks/use-toast';
 import type { Database } from '@/types/supabase';
-
-// Hardcoded values from .env.local
-const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL!;
-const SUPABASE_ANON_KEY = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
 
 type Profile = Database['public']['Tables']['profiles']['Row'];
 
@@ -22,31 +17,24 @@ export default function ProfilePage() {
   const [updating, setUpdating] = useState(false);
   const router = useRouter();
   const { toast } = useToast();
-  
-  // Use direct Supabase client
-  const supabase = createClient<Database>(SUPABASE_URL, SUPABASE_ANON_KEY, {
-    auth: {
-      persistSession: true,
-      autoRefreshToken: true,
-      detectSessionInUrl: true,
-    }
-  });
 
   useEffect(() => {
     const fetchProfile = async () => {
       try {
-        console.log("Fetching profile using URL:", SUPABASE_URL);
+        // 動態導入 supabase 函數
+        const { supabase } = await import('@/lib/supabase');
+        const supabaseClient = supabase();
         
         const {
           data: { user },
-        } = await supabase.auth.getUser();
+        } = await supabaseClient.auth.getUser();
 
         if (!user) {
           router.push('/login');
           return;
         }
 
-        const { data, error } = await supabase
+        const { data, error } = await supabaseClient
           .from('profiles')
           .select('*')
           .eq('user_id', user.id)
@@ -77,7 +65,11 @@ export default function ProfilePage() {
 
     setUpdating(true);
     try {
-      const { error } = await supabase
+      // 動態導入 supabase 函數
+      const { supabase } = await import('@/lib/supabase');
+      const supabaseClient = supabase();
+      
+      const { error } = await supabaseClient
         .from('profiles')
         .update({
           full_name: profile.full_name,

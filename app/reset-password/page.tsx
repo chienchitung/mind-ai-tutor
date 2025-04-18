@@ -8,7 +8,6 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
 import Link from 'next/link';
-import { supabase } from '../../lib/supabase';
 
 export default function ResetPasswordPage() {
   const [password, setPassword] = useState('');
@@ -19,7 +18,19 @@ export default function ResetPasswordPage() {
 
   useEffect(() => {
     const checkUser = async () => {
-      const { data: { user } } = await supabase.auth.getUser();
+      const { supabase } = await import('@/lib/supabase');
+      const supabaseClient = supabase();
+      
+      type SupabaseClientWithAuth = {
+        auth: {
+          getUser: () => Promise<{data: {user: any}}>;
+          updateUser: (options: {password: string}) => Promise<{error: any}>;
+        }
+      };
+      
+      const supabaseWithTypes = supabaseClient as unknown as SupabaseClientWithAuth;
+      
+      const { data: { user } } = await supabaseWithTypes.auth.getUser();
       if (!user) {
         toast({
           title: 'Invalid Reset Link',
@@ -57,7 +68,19 @@ export default function ResetPasswordPage() {
     try {
       setIsLoading(true);
       
-      const { error } = await supabase.auth.updateUser({
+      const { supabase } = await import('@/lib/supabase');
+      const supabaseClient = supabase();
+      
+      type SupabaseClientWithAuth = {
+        auth: {
+          getUser: () => Promise<{data: {user: any}}>;
+          updateUser: (options: {password: string}) => Promise<{error: any}>;
+        }
+      };
+      
+      const supabaseWithTypes = supabaseClient as unknown as SupabaseClientWithAuth;
+      
+      const { error } = await supabaseWithTypes.auth.updateUser({
         password: password
       });
       

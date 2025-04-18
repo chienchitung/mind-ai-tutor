@@ -3,7 +3,6 @@
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
-import { createClient } from '@supabase/supabase-js';
 import {
   User,
   Bell,
@@ -24,29 +23,20 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { useToast } from '@/hooks/use-toast';
 import type { Database } from '@/types/supabase';
 
-// Hardcoded values from .env.local
-const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL!;
-const SUPABASE_ANON_KEY = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
-
 export function Navbar() {
   const [user, setUser] = useState<any>(null);
   const pathname = usePathname();
   const router = useRouter();
   const { toast } = useToast();
-  
-  // Use direct Supabase client
-  const supabase = createClient<Database>(SUPABASE_URL, SUPABASE_ANON_KEY, {
-    auth: {
-      persistSession: true,
-      autoRefreshToken: true,
-      detectSessionInUrl: true,
-    }
-  });
 
   useEffect(() => {
     const getUser = async () => {
       try {
-        const { data, error } = await supabase.auth.getUser();
+        // 動態導入 supabase 函數
+        const { supabase } = await import('@/lib/supabase');
+        const supabaseClient = supabase();
+        
+        const { data, error } = await supabaseClient.auth.getUser();
         
         if (error) {
           console.error('Error fetching user:', error);
@@ -66,10 +56,11 @@ export function Navbar() {
 
   const handleSignOut = async () => {
     try {
-      // Clear the session cookie
-      document.cookie = 'supabase-auth-token=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT';
+      // 動態導入 supabase 函數
+      const { supabase } = await import('@/lib/supabase');
+      const supabaseClient = supabase();
       
-      await supabase.auth.signOut();
+      await supabaseClient.auth.signOut();
       toast({
         title: 'Signed out successfully',
         description: 'You have been signed out of your account.',
