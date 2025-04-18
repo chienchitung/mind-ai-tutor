@@ -1,6 +1,7 @@
-import { createClient } from '@supabase/supabase-js';
+import { createBrowserClient } from '@supabase/ssr';
 import type { Database } from '@/types/supabase';
 
+// 環境變數
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL as string;
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY as string;
 
@@ -16,46 +17,25 @@ if (!supabaseUrl || !supabaseAnonKey) {
 // 確定當前環境
 const isLocalhost = typeof window !== 'undefined' && window.location.hostname === 'localhost';
 
-// Create a single instance of the Supabase client with options
-export const supabase = createClient<Database>(
-  supabaseUrl || '',
-  supabaseAnonKey || '',
-  {
-    auth: {
-      autoRefreshToken: true,
-      persistSession: true,
-      detectSessionInUrl: true, // Required for OAuth via URL
-      storageKey: 'supabase.auth.token', // Custom storage key to be consistent
-      // 使用新版 Supabase 客戶端支持的會話配置
-      flowType: 'pkce', // 推薦的認證流程，更安全
-    }
-  }
-);
+// 確保只創建一個 Supabase 客戶端實例
+let supabaseClient: ReturnType<typeof createBrowserClient> | null = null;
 
-// 自定義函數來手動設置 Supabase cookie - 在登入頁面使用
-export const setSupabaseCookies = (session: any) => {
-  if (!session) return false;
+// 創建 Supabase 客戶端單例
+export const supabase = () => {
+  if (supabaseClient) return supabaseClient;
   
-  try {
-    // 在當前域名上設置 cookie
-    const secureFlag = !isLocalhost ? '; Secure' : '';
-    const domain = isLocalhost ? 'localhost' : window.location.hostname;
-    
-    document.cookie = `sb-access-token=${session.access_token}; Domain=${domain}; Path=/; Max-Age=28800; SameSite=Lax${secureFlag}`;
-    document.cookie = `sb-refresh-token=${session.refresh_token}; Domain=${domain}; Path=/; Max-Age=604800; SameSite=Lax${secureFlag}`;
-    
-    console.log('Supabase cookies set manually');
-    return true;
-  } catch (error) {
-    console.error('Error setting Supabase cookies manually:', error);
-    return false;
+  // 客戶端只能在瀏覽器中初始化
+  if (typeof window === 'undefined') {
+    throw new Error('This method should only be called in the browser');
   }
-};
-
-// 初始化時進行會話檢查並輸出日誌，幫助調試
-if (typeof window !== 'undefined') {
-  // 檢查現有會話
-  supabase.auth.getSession().then(({ data, error }) => {
+  
+  supabaseClient = createBrowserClient(
+    supabaseUrl || '',
+    supabaseAnonKey || '',
+  );
+  
+  // 初始化時進行會話檢查並輸出日誌，幫助調試
+  supabaseClient.auth.getSession().then(({ data, error }) => {
     if (error) {
       console.error('Error checking Supabase session:', error);
     } else {
@@ -65,6 +45,15 @@ if (typeof window !== 'undefined') {
       }
     }
   });
+  
+  return supabaseClient;
+};
+
+// 為了向後兼容，提供一個直接的 supabase 實例
+if (typeof window !== 'undefined') {
+  // 這個導出會在導入時立即執行
+  // 不推薦使用，但是保留為了向後兼容
+  console.warn('Please use the supabase() function instead of direct import to avoid multiple instances');
 }
 
 // Validate environment variables

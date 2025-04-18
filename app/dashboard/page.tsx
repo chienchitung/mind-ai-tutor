@@ -12,7 +12,6 @@ import {
   BarChart2,
   Calendar
 } from 'lucide-react';
-import { supabase } from '../../lib/supabase';
 import { useEvents, EventProvider, Event } from '@/contexts/EventContext';
 import { format, compareDesc } from 'date-fns';
 import { TourGuide } from '@/components/TourGuide';
@@ -93,9 +92,13 @@ function DashboardContent() {
       try {
         let allActivities: Activity[] = [];
         
+        // 動態導入 supabase 函數以避免服務器端渲染問題
+        const { supabase } = await import('../../lib/supabase');
+        const supabaseClient = supabase();
+        
         // 1. Fetch recent lessons data
         try {
-          const { data: lessonsData, error: lessonsError } = await supabase
+          const { data: lessonsData, error: lessonsError } = await supabaseClient
             .from('lessons')
             .select('id, title, updated_at')
             .order('updated_at', { ascending: false })
@@ -119,7 +122,7 @@ function DashboardContent() {
         
         // 2. Fetch events data
         try {
-          const { data: eventsData, error: eventsError } = await supabase
+          const { data: eventsData, error: eventsError } = await supabaseClient
             .from('events')
             .select('id, title, created_at')
             .order('created_at', { ascending: false })
@@ -143,7 +146,7 @@ function DashboardContent() {
         
         // 3. Fetch feedback data
         try {
-          const { data: feedbackData, error: feedbackError } = await supabase
+          const { data: feedbackData, error: feedbackError } = await supabaseClient
             .from('feedback')
             .select('id, student_name, created_at')
             .order('created_at', { ascending: false })

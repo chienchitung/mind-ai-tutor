@@ -10,7 +10,6 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { MessageSquare, Star, Download, Calendar, Loader2 } from "lucide-react";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
-import { supabase } from "@/lib/supabase";
 import ExcelJS from 'exceljs';
 import { useToast } from '@/hooks/use-toast';
 import { cn } from "@/lib/utils";
@@ -46,8 +45,12 @@ const FeedbackPage = () => {
       try {
         setIsLoading(true);
         
-        // Fetch feedback data from Supabase
-        const { data: supabaseData, error } = await supabase
+        // 動態導入 supabase 函數
+        const { supabase } = await import('@/lib/supabase');
+        const supabaseClient = supabase();
+        
+        // 使用 supabaseClient 而不是直接使用 supabase
+        const { data: supabaseData, error } = await supabaseClient
           .from('feedback')
           .select(`
             id,

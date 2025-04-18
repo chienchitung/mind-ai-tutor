@@ -17,7 +17,6 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useForm } from 'react-hook-form';
 import * as z from 'zod';
-import { supabase } from '@/lib/supabase';
 import { generatePracticeExercise } from '@/lib/gemini';
 
 // Form schema for lesson creation
@@ -124,7 +123,14 @@ export default function LessonsPage() {
       try {
         console.log("Fetching lessons from lessons table");
         
-        const { data, error } = await supabase
+        // 動態導入 supabase 函數
+        const { supabase } = await import('@/lib/supabase');
+        const supabaseClient = supabase();
+        
+        // 使用 as any 臨時解決類型問題
+        const supabaseWithTypes = supabaseClient as any;
+        
+        const { data, error } = await supabaseWithTypes
           .from('lessons')
           .select('*');
           
@@ -223,6 +229,13 @@ export default function LessonsPage() {
 
   const onSubmit = async (values: z.infer<typeof lessonFormSchema>) => {
     try {
+      // 動態導入 supabase 函數
+      const { supabase } = await import('@/lib/supabase');
+      const supabaseClient = supabase();
+      
+      // 使用 as any 臨時解決類型問題
+      const supabaseWithTypes = supabaseClient as any;
+      
       // Convert topics string to array
       const topicsArray = values.topics.split(',').map(topic => topic.trim());
       
@@ -258,7 +271,7 @@ export default function LessonsPage() {
 
       if (editingLesson) {
         // First try updating with all fields
-        let response = await supabase
+        let response = await supabaseWithTypes
           .from('lessons')
           .update(lessonData)
           .eq('id', editingLesson.id);
@@ -268,7 +281,7 @@ export default function LessonsPage() {
           console.warn('Encountered schema mismatch, trying with basic fields only:', response.error);
           
           // Try again with just the basic fields
-          response = await supabase
+          response = await supabaseWithTypes
             .from('lessons')
             .update(basicLessonData)
             .eq('id', editingLesson.id);
@@ -309,7 +322,7 @@ export default function LessonsPage() {
         };
         
         // First try inserting with all fields
-        let response = await supabase
+        let response = await supabaseWithTypes
           .from('lessons')
           .insert([fullData]);
 
@@ -323,7 +336,7 @@ export default function LessonsPage() {
             created_at: new Date().toISOString()
           };
           
-          response = await supabase
+          response = await supabaseWithTypes
             .from('lessons')
             .insert([basicData]);
             
@@ -378,8 +391,15 @@ export default function LessonsPage() {
     try {
       setIsLoading(true);
       
+      // 動態導入 supabase 函數
+      const { supabase } = await import('@/lib/supabase');
+      const supabaseClient = supabase();
+      
+      // 使用 as any 臨時解決類型問題
+      const supabaseWithTypes = supabaseClient as any;
+      
       // Delete the lesson from Supabase
-      const { error } = await supabase
+      const { error } = await supabaseWithTypes
         .from('lessons')
         .delete()
         .eq('id', lessonId);

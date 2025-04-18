@@ -9,7 +9,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
 import Link from 'next/link';
-import { supabase, setSupabaseCookies } from '../../lib/supabase';
+import { createClient } from '@/app/lib/supabase';
 
 export default function LoginPage() {
   const [email, setEmail] = useState('');
@@ -17,11 +17,16 @@ export default function LoginPage() {
   const [isLoading, setIsLoading] = useState(false);
   const router = useRouter();
   const { toast } = useToast();
+  const [supabase, setSupabase] = useState<any>(null);
 
   useEffect(() => {
+    // 創建 Supabase 客戶端
+    const client = createClient();
+    setSupabase(client);
+    
     // Check if user is already logged in
     const checkUser = async () => {
-      const { data: { user } } = await supabase.auth.getUser();
+      const { data: { user } } = await client.auth.getUser();
       
       if (user) {
         router.push('/dashboard');
@@ -33,6 +38,11 @@ export default function LoginPage() {
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
+    
+    if (!supabase) {
+      console.error('Supabase client not initialized');
+      return;
+    }
     
     if (!email || !password) {
       toast({
@@ -46,9 +56,7 @@ export default function LoginPage() {
     try {
       setIsLoading(true);
       
-      // 登入前清除可能存在的舊會話
-      await supabase.auth.signOut();
-      
+      // 使用 Supabase 進行登入
       const { data, error } = await supabase.auth.signInWithPassword({
         email,
         password,
@@ -65,24 +73,8 @@ export default function LoginPage() {
       
       // 確保資料存在且用戶已認證
       if (data?.user) {
-        console.log('Login successful, user ID:', data.user.id);
-        console.log('Session:', data.session);
-        
-        // 強制刷新會話，確保 cookie 設置正確
-        await supabase.auth.refreshSession();
-        
-        // 檢查 cookie 是否設置成功
-        const { data: sessionData } = await supabase.auth.getSession();
-        console.log('After refresh - Session exists:', !!sessionData.session);
-        
-        // 使用自定義函數設置 cookie
-        if (sessionData.session) {
-          const cookiesSet = setSupabaseCookies(sessionData.session);
-          console.log('Cookies manually set:', cookiesSet);
-        }
-        
         // 使用 router.push 進行重定向
-        console.log('Redirecting to dashboard...');
+        router.refresh(); // 刷新頁面以更新身份驗證狀態
         router.push('/dashboard');
       }
     } catch (error: any) {
@@ -97,22 +89,47 @@ export default function LoginPage() {
   };
 
   const handleGoogleLogin = async () => {
+    if (!supabase) {
+      console.error('Supabase client not initialized');
+      return;
+    }
+    
     try {
       setIsLoading(true);
       
-      const { error } = await supabase.auth.signInWithOAuth({
+      // 獲取當前 URL 中的 redirect 參數，如果有的話
+      const urlParams = new URLSearchParams(window.location.search);
+      const redirectPath = urlParams.get('redirect') || '/dashboard';
+      
+      const { data, error } = await supabase.auth.signInWithOAuth({
         provider: 'google',
         options: {
-          redirectTo: `${window.location.origin}/auth/callback`,
+          redirectTo: window.location.origin + '/auth/callback',
           queryParams: {
             access_type: 'offline',
             prompt: 'consent',
+            redirect: redirectPath
           }
         }
       });
       
       if (error) {
+        console.error('Google login error:', error);
         throw error;
+      }
+      
+      // 記錄重定向 URL 並提示用戶正在重定向
+      console.log('Google sign in initiated, redirect URL:', data?.url);
+      
+      // 顯示轉場提示，避免使用者覺得頁面凍結
+      toast({
+        title: 'Redirecting to Google',
+        description: 'You will now be redirected to Google for authentication.',
+      });
+      
+      // 客戶端重定向到 Google 授權頁面
+      if (data?.url) {
+        window.location.href = data.url;
       }
     } catch (error: any) {
       toast({

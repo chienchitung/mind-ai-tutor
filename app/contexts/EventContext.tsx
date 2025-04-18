@@ -324,28 +324,28 @@ export const EventProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     const loadData = async () => {
       setIsLoading(true);
       try {
-        // Load tags
-        const { data: tagsData, error: tagsError } = await supabase
-          .from('event_tags')
-          .select('id, name, color');
-          
-        if (tagsError) throw tagsError;
-        setTags(tagsData || []);
+        // 動態導入 supabase 函數以避免服務器端渲染問題
+        const { supabase } = await import('@/lib/supabase');
+        const supabaseClient = supabase();
         
-        // Load events with their tags
-        const { data: eventsData, error: eventsError } = await supabase
-          .from('events_with_tags')
-          .select('*');
-          
-        if (eventsError) throw eventsError;
+        const { data, error } = await supabaseClient.from('events').select('*');
         
-        const mappedEvents = (eventsData || []).map(mapSupabaseEventToEvent);
-        setEvents(mappedEvents);
+        if (error) {
+          setError(error.message);
+          setIsLoading(false);
+          return;
+        }
         
-        setIsLoading(false);
-      } catch (err) {
-        console.error("Error loading data:", err);
-        setError('Failed to load events');
+        // Transform Supabase data to Event objects
+        const supabaseEvents = data?.map(mapSupabaseEventToEvent) || [];
+        
+        // For now, combine with sample events for demo purposes
+        const combinedEvents = [...SAMPLE_EVENTS, ...supabaseEvents];
+        setEvents(combinedEvents);
+      } catch (err: any) {
+        console.error('Error loading data:', err);
+        setError(err.message || 'Failed to load events');
+      } finally {
         setIsLoading(false);
       }
     };
@@ -356,53 +356,45 @@ export const EventProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   // Add a new event
   const addEvent = async (eventData: Omit<Event, 'id' | 'createdAt' | 'updatedAt' | 'tags' | 'attachments'> & { tagIds: string[] }) => {
     try {
-      // Insert the event into the events table
-      const { data: newEvent, error } = await supabase
-        .from('events')
-        .insert({
-          title: eventData.title,
-          description: eventData.description,
-          type: eventData.type,
-          status: eventData.status,
-          priority: eventData.priority,
-          position: eventData.position,
-          start_date: eventData.startDate,
-          end_date: eventData.endDate
-        })
-        .select()
-        .single();
+      // 動態導入 supabase 函數以避免服務器端渲染問題
+      const { supabase } = await import('@/lib/supabase');
+      const supabaseClient = supabase();
       
-      if (error) throw error;
-      
-      // If tags are provided, link them to the event
-      if (eventData.tagIds && eventData.tagIds.length > 0) {
-        const tagLinks = eventData.tagIds.map(tagId => ({
-          event_id: newEvent.id,
-          tag_id: tagId
-        }));
+      const now = new Date().toISOString();
+      const selectedTags = eventData.tagIds
+        ? tags.filter(tag => eventData.tagIds.includes(tag.id))
+        : [];
         
-        const { error: tagsError } = await supabase
-          .from('events_tags')
-          .insert(tagLinks);
-          
-        if (tagsError) throw tagsError;
-      }
+      const newEvent: Event = {
+        id: uuidv4(),
+        ...eventData,
+        tags: selectedTags,
+        attachments: [],
+        createdAt: now,
+        updatedAt: now,
+      };
       
-      // Fetch the complete event with tags
-      const { data: eventWithTags, error: fetchError } = await supabase
-        .from('events_with_tags')
-        .select('*')
-        .eq('id', newEvent.id)
-        .single();
-        
-      if (fetchError) throw fetchError;
+      // Save to Supabase
+      const { error } = await supabaseClient.from('events').insert({
+        id: newEvent.id,
+        title: newEvent.title,
+        description: newEvent.description,
+        type: newEvent.type,
+        status: newEvent.status,
+        priority: newEvent.priority,
+        position: newEvent.position,
+        start_date: newEvent.startDate,
+        end_date: newEvent.endDate,
+        tags: JSON.stringify(newEvent.tags),
+        created_at: newEvent.createdAt,
+        updated_at: newEvent.updatedAt,
+      });
       
-      // Update the local state
-      const mappedEvent = mapSupabaseEventToEvent(eventWithTags);
-      setEvents(prev => [...prev, mappedEvent]);
+      if (error) throw new Error(error.message);
       
-    } catch (err) {
-      console.error("Error adding event:", err);
+      setEvents([...events, newEvent]);
+    } catch (err: any) {
+      console.error('Error adding event:', err);
       throw err;
     }
   };
@@ -410,68 +402,34 @@ export const EventProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   // Update an existing event
   const updateEvent = async (event: Event) => {
     try {
-      // Create update object with correct column names
-      const updateData: Record<string, any> = {};
+      // 動態導入 supabase 函數以避免服務器端渲染問題
+      const { supabase } = await import('@/lib/supabase');
+      const supabaseClient = supabase();
       
-      if (event.title !== undefined) updateData.title = event.title;
-      if (event.description !== undefined) updateData.description = event.description;
-      if (event.type !== undefined) updateData.type = event.type;
-      if (event.status !== undefined) updateData.status = event.status;
-      if (event.priority !== undefined) updateData.priority = event.priority;
-      if (event.position !== undefined) updateData.position = event.position;
-      if (event.startDate !== undefined) updateData.start_date = event.startDate;
-      if (event.endDate !== undefined) updateData.end_date = event.endDate;
+      const updatedEvent = {
+        ...event,
+        updatedAt: new Date().toISOString(),
+      };
       
-      // Only update if there's data to update
-      if (Object.keys(updateData).length > 0) {
-        const { error } = await supabase
-          .from('events')
-          .update(updateData)
-          .eq('id', event.id);
-          
-        if (error) throw error;
-      }
+      // Save to Supabase
+      const { error } = await supabaseClient.from('events').update({
+        title: updatedEvent.title,
+        description: updatedEvent.description,
+        type: updatedEvent.type,
+        status: updatedEvent.status,
+        priority: updatedEvent.priority,
+        position: updatedEvent.position,
+        start_date: updatedEvent.startDate,
+        end_date: updatedEvent.endDate,
+        tags: JSON.stringify(updatedEvent.tags),
+        updated_at: updatedEvent.updatedAt,
+      }).eq('id', updatedEvent.id);
       
-      // If tags are provided, update the event-tag relationships
-      if (event.tags && event.tags.length > 0) {
-        // First remove all existing tag links
-        const { error: deleteError } = await supabase
-          .from('events_tags')
-          .delete()
-          .eq('event_id', event.id);
-          
-        if (deleteError) throw deleteError;
-        
-        // Then add the new ones
-        const tagLinks = event.tags.map(tag => ({
-          event_id: event.id,
-          tag_id: tag.id
-        }));
-        
-        const { error: insertError } = await supabase
-          .from('events_tags')
-          .insert(tagLinks);
-          
-        if (insertError) throw insertError;
-      }
+      if (error) throw new Error(error.message);
       
-      // Fetch the updated event with tags
-      const { data: updatedEvent, error: fetchError } = await supabase
-        .from('events_with_tags')
-        .select('*')
-        .eq('id', event.id)
-        .single();
-        
-      if (fetchError) throw fetchError;
-      
-      // Update the local state
-      const mappedEvent = mapSupabaseEventToEvent(updatedEvent);
-      setEvents(prev => prev.map(event => 
-        event.id === mappedEvent.id ? mappedEvent : event
-      ));
-      
-    } catch (err) {
-      console.error("Error updating event:", err);
+      setEvents(events.map(e => e.id === updatedEvent.id ? updatedEvent : e));
+    } catch (err: any) {
+      console.error('Error updating event:', err);
       throw err;
     }
   };
@@ -479,18 +437,18 @@ export const EventProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   // Delete an event
   const deleteEvent = async (id: string) => {
     try {
-      const { error } = await supabase
-        .from('events')
-        .delete()
-        .eq('id', id);
-        
-      if (error) throw error;
+      // 動態導入 supabase 函數以避免服務器端渲染問題
+      const { supabase } = await import('@/lib/supabase');
+      const supabaseClient = supabase();
       
-      // Update local state
-      setEvents(prev => prev.filter(event => event.id !== id));
+      // Delete from Supabase
+      const { error } = await supabaseClient.from('events').delete().eq('id', id);
       
-    } catch (err) {
-      console.error("Error deleting event:", err);
+      if (error) throw new Error(error.message);
+      
+      setEvents(events.filter(e => e.id !== id));
+    } catch (err: any) {
+      console.error('Error deleting event:', err);
       throw err;
     }
   };

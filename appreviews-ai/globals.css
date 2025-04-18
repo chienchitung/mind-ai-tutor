@@ -1,0 +1,40 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* 將字體導入移到最上方 */
+@import url('https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700&display=swap');
+
+:root {
+  --background: #ffffff;
+  --foreground: #171717;
+  --bg-color-light: #f9f9f9;
+  --bg-color-dark: #1a1a1a;
+}
+
+[data-theme='dark'] {
+  --background: #0a0a0a;
+  --foreground: #ededed;
+}
+
+body {
+  color: var(--foreground);
+  background: var(--background);
+  font-family: 'Noto Sans TC', sans-serif;
+}
+
+/* 使用 data-theme 屬性來控制深色模式 */
+[data-theme='dark'] body {
+  background-color: var(--bg-color-dark);
+  color: var(--foreground);
+}
+
+/* 添加過渡效果 */
+body {
+  transition: background-color 0.3s ease, color 0.3s ease;
+}
+
+/* 確保下拉選單的過渡效果 */
+.dropdown-transition {
+  transition: opacity 0.2s ease, transform 0.2s ease;
+}

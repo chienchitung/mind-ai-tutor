@@ -14,7 +14,6 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 import { Badge } from '@/components/ui/badge';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import Link from 'next/link';
-import { supabase } from '@/lib/supabase';
 import type { Student } from '../types/student';
 import { buttonVariants } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
@@ -40,7 +39,10 @@ export default function StudentsPage() {
       try {
         console.log("Fetching students from learning_records_view");
         
-        const { data, error } = await supabase
+        const { supabase } = await import('@/lib/supabase');
+        const supabaseClient = supabase();
+        
+        const { data, error } = await supabaseClient
           .from('learning_records_view')
           .select('*');
           
@@ -67,7 +69,7 @@ export default function StudentsPage() {
             }
             return acc;
           }, {} as Record<string, Student>)
-        );
+        ) as Student[];
         
         if (uniqueStudents.length > 0) {
           setStudents(uniqueStudents);

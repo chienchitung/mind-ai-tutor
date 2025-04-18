@@ -5,7 +5,6 @@ import { useRouter } from 'next/navigation';
 import { Sidebar } from '@/components/layout/Sidebar';
 import { PageTransition } from '@/components/layout/PageTransition';
 import { useToast } from '@/hooks/use-toast';
-import { supabase } from '../../../lib/supabase';
 import { Button } from '@/components/ui/button';
 import { Menu } from 'lucide-react';
 
@@ -23,9 +22,13 @@ export function AppLayout({ children }: AppLayoutProps) {
   const { toast } = useToast();
 
   useEffect(() => {
+    // 檢查身份驗證狀態
     const checkAuth = async () => {
       try {
-        // Get the current session first (for cookie-based auth)
+        const { createClient } = await import('@/app/lib/supabase');
+        const supabase = createClient();
+        
+        // 檢查會話
         const { data: { session } } = await supabase.auth.getSession();
         
         // If session exists, we're authenticated

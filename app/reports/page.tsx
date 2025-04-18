@@ -5,7 +5,8 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Loader2, Download, BarChart2, Clock, Calendar, Sparkles } from 'lucide-react';
-import { supabase } from '../../lib/supabase';
+// 移除直接導入
+// import { supabase } from '../../lib/supabase';
 // Temporarily remove Gemini to simplify setup
 // import { generateLearningAnalysis } from '../../lib/gemini';
 import { StudentSelector } from './components/StudentSelector';
@@ -58,8 +59,12 @@ export default function ReportsPage() {
       try {
         console.log('Fetching students from learning_records_view...');
         
+        // 動態導入 supabase 函數
+        const { supabase } = await import('../../lib/supabase');
+        const supabaseClient = supabase();
+        
         // Try to fetch from the view
-        const { data, error } = await supabase
+        const { data, error } = await supabaseClient
           .from('learning_records_view')
           .select('student_id, student_name')
           .order('student_name');
@@ -75,7 +80,7 @@ export default function ReportsPage() {
         const uniqueStudents = Array.from(
           new Map((data || []).map(item => [item.student_id, { id: item.student_id, name: item.student_name }]))
             .values()
-        );
+        ) as { id: string; name: string }[];
         
         console.log('Unique students found:', uniqueStudents);
         setStudents(uniqueStudents);
@@ -99,8 +104,12 @@ export default function ReportsPage() {
     const fetchLearningRecords = async () => {
       setLoading(true);
       try {
+        // 動態導入 supabase 函數
+        const { supabase } = await import('../../lib/supabase');
+        const supabaseClient = supabase();
+        
         // Try to fetch from the view
-        const { data, error } = await supabase
+        const { data, error } = await supabaseClient
           .from('learning_records_view')
           .select('*')
           .eq('student_id', selectedStudent);

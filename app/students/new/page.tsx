@@ -1,7 +1,6 @@
 'use client';
 
 import { useState } from 'react';
-import { createClientComponentClient } from '@supabase/auth-helpers-nextjs';
 import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -40,14 +39,16 @@ export default function NewStudentPage() {
   });
   const router = useRouter();
   const { toast } = useToast();
-  const supabase = createClientComponentClient<Database>();
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
 
     try {
-      const { error } = await supabase.from('students').insert({
+      const { supabase } = await import('@/lib/supabase');
+      const supabaseClient = supabase();
+      
+      const { error } = await supabaseClient.from('students').insert({
         name: formData.name,
         email: formData.email,
         grade: parseInt(formData.grade),

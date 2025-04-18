@@ -9,7 +9,6 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
 import Link from 'next/link';
-import { supabase } from '../../lib/supabase';
 
 export default function RegisterPage() {
   const [firstName, setFirstName] = useState('');
@@ -45,7 +44,11 @@ export default function RegisterPage() {
     try {
       setIsLoading(true);
       
-      const { data, error } = await supabase.auth.signUp({
+      // 動態導入 supabase 函數
+      const { supabase } = await import('../../lib/supabase');
+      const supabaseClient = supabase();
+      
+      const { data, error } = await supabaseClient.auth.signUp({
         email,
         password,
         options: {
@@ -109,10 +112,21 @@ export default function RegisterPage() {
     try {
       setIsLoading(true);
       
-      const { error } = await supabase.auth.signInWithOAuth({
+      // 動態導入 supabase 函數
+      const { supabase } = await import('../../lib/supabase');
+      const supabaseClient = supabase();
+      
+      // 登入前清除可能存在的舊會話，避免衝突
+      await supabaseClient.auth.signOut();
+      
+      // 獲取當前 URL 中的 redirect 參數，如果有的話
+      const urlParams = new URLSearchParams(window.location.search);
+      const redirectPath = urlParams.get('redirect') || '/dashboard';
+      
+      const { data, error } = await supabaseClient.auth.signInWithOAuth({
         provider: 'google',
         options: {
-          redirectTo: `${window.location.origin}/auth/callback`,
+          redirectTo: `${window.location.origin}/auth/callback?redirect=${encodeURIComponent(redirectPath)}`,
           queryParams: {
             access_type: 'offline',
             prompt: 'consent',
@@ -121,7 +135,22 @@ export default function RegisterPage() {
       });
       
       if (error) {
+        console.error('Google registration error:', error);
         throw error;
+      }
+      
+      // 記錄重定向 URL 並提示用戶正在重定向
+      console.log('Google sign up initiated, redirect URL:', data?.url);
+      
+      // 顯示轉場提示，避免使用者覺得頁面凍結
+      toast({
+        title: 'Redirecting to Google',
+        description: 'You will now be redirected to Google for authentication.',
+      });
+      
+      // 客戶端重定向到 Google 授權頁面
+      if (data?.url) {
+        window.location.href = data.url;
       }
     } catch (error: any) {
       toast({

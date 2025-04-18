@@ -14,7 +14,6 @@ import { useToast } from '@/hooks/use-toast';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useForm } from 'react-hook-form';
 import * as z from 'zod';
-import { supabase } from '@/lib/supabase';
 
 // Form schema for digital game creation
 const digitalGameFormSchema = z.object({
@@ -73,8 +72,15 @@ export default function DigitalGamesPage() {
     const fetchData = async () => {
       setIsLoading(true);
       try {
+        // 動態導入 supabase 函數
+        const { supabase } = await import('@/lib/supabase');
+        const supabaseClient = supabase();
+        
+        // 使用 as any 臨時解決類型問題
+        const supabaseWithTypes = supabaseClient as any;
+        
         // Fetch lessons for selection
-        const { data: lessonsData, error: lessonsError } = await supabase
+        const { data: lessonsData, error: lessonsError } = await supabaseWithTypes
           .from('lessons')
           .select('id, title, description, duration, level');
           
@@ -83,7 +89,7 @@ export default function DigitalGamesPage() {
         }
         
         // Fetch digital games
-        const { data: gamesData, error: gamesError } = await supabase
+        const { data: gamesData, error: gamesError } = await supabaseWithTypes
           .from('digital_games')
           .select('*');
           
@@ -137,8 +143,15 @@ export default function DigitalGamesPage() {
 
   const onSubmit = async (values: z.infer<typeof digitalGameFormSchema>) => {
     try {
+      // 動態導入 supabase 函數
+      const { supabase } = await import('@/lib/supabase');
+      const supabaseClient = supabase();
+      
+      // 使用 as any 臨時解決類型問題
+      const supabaseWithTypes = supabaseClient as any;
+      
       // Get the current user
-      const { data: { user }, error: userError } = await supabase.auth.getUser();
+      const { data: { user }, error: userError } = await supabaseWithTypes.auth.getUser();
       
       if (userError) throw userError;
       if (!user) throw new Error('User not authenticated');
@@ -154,7 +167,7 @@ export default function DigitalGamesPage() {
 
       if (editingGame) {
         // Update existing game
-          const { error } = await supabase
+          const { error } = await supabaseWithTypes
             .from('digital_games')
             .update(gameData)
           .eq('id', editingGame.id)
@@ -176,7 +189,7 @@ export default function DigitalGamesPage() {
         });
       } else {
         // Create new game
-          const { data, error } = await supabase
+          const { data, error } = await supabaseWithTypes
             .from('digital_games')
           .insert([gameData])
           .select()
@@ -207,12 +220,19 @@ export default function DigitalGamesPage() {
 
   const deleteGame = async (gameId: string) => {
     try {
-      const { data: { user }, error: userError } = await supabase.auth.getUser();
+      // 動態導入 supabase 函數
+      const { supabase } = await import('@/lib/supabase');
+      const supabaseClient = supabase();
+      
+      // 使用 as any 臨時解決類型問題
+      const supabaseWithTypes = supabaseClient as any;
+      
+      const { data: { user }, error: userError } = await supabaseWithTypes.auth.getUser();
       
       if (userError) throw userError;
       if (!user) throw new Error('User not authenticated');
 
-      const { error } = await supabase
+      const { error } = await supabaseWithTypes
         .from('digital_games')
         .delete()
         .eq('id', gameId)

@@ -13,7 +13,6 @@ import { Badge } from "@/components/ui/badge";
 import { ModernDateRangePicker } from "@/components/ui/modern-date-range-picker";
 import { DateRange } from "react-day-picker";
 import { useToast } from "@/components/ui/use-toast";
-import { supabase } from "@/lib/supabase";
 import { 
   GraduationCap, 
   BookOpen, 
@@ -134,9 +133,16 @@ function ActivitiesPageContent() {
         setIsLoading(true);
         let allActivities: Activity[] = [];
         
+        // 動態導入 supabase 函數
+        const { supabase } = await import('@/lib/supabase');
+        const supabaseClient = supabase();
+        
+        // 使用 as any 臨時解決類型問題
+        const supabaseWithTypes = supabaseClient as any;
+        
         // 1. Fetch lessons data and convert to activities
         try {
-          const { data: lessonsData, error: lessonsError } = await supabase
+          const { data: lessonsData, error: lessonsError } = await supabaseWithTypes
             .from('lessons')
             .select('id, title, description, updated_at')
             .order('updated_at', { ascending: false });
@@ -166,7 +172,7 @@ function ActivitiesPageContent() {
         
         // 2. Fetch events data (reminders)
         try {
-          const { data: eventsData, error: eventsError } = await supabase
+          const { data: eventsData, error: eventsError } = await supabaseWithTypes
             .from('events')
             .select('id, title, description, created_at, type')
             .order('created_at', { ascending: false });
@@ -196,7 +202,7 @@ function ActivitiesPageContent() {
         
         // 3. Fetch feedback data
         try {
-          const { data: feedbackData, error: feedbackError } = await supabase
+          const { data: feedbackData, error: feedbackError } = await supabaseWithTypes
             .from('feedback')
             .select('id, content, student_name, course, created_at, status')
             .order('created_at', { ascending: false });

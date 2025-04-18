@@ -3,7 +3,6 @@
 import { Toaster } from '@/components/ui/toaster';
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { supabase } from '../../lib/supabase';
 
 interface LoginLayoutProps {
   children: React.ReactNode;
@@ -17,7 +16,11 @@ export default function LoginLayout({ children }: LoginLayoutProps) {
     // Check if user is already logged in
     const checkUser = async () => {
       try {
-        const { data: { user } } = await supabase.auth.getUser();
+        // 動態導入 supabase 函數以避免服務器端渲染問題
+        const { supabase } = await import('../../lib/supabase');
+        const supabaseClient = supabase();
+        
+        const { data: { user } } = await supabaseClient.auth.getUser();
         
         if (user) {
           // If user is logged in, redirect to dashboard

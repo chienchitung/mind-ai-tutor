@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import Image from 'next/image';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
@@ -9,7 +9,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
 import Link from 'next/link';
-import { supabase } from '../../lib/supabase';
+import { createClient } from '@/app/lib/supabase';
 
 export default function SignUpPage() {
   const [firstName, setFirstName] = useState('');
@@ -20,9 +20,20 @@ export default function SignUpPage() {
   const [isLoading, setIsLoading] = useState(false);
   const router = useRouter();
   const { toast } = useToast();
+  const [supabase, setSupabase] = useState<any>(null);
+  
+  useEffect(() => {
+    // 在客戶端創建 Supabase 客戶端
+    setSupabase(createClient());
+  }, []);
 
   const handleSignUp = async (e: React.FormEvent) => {
     e.preventDefault();
+    
+    if (!supabase) {
+      console.error('Supabase client not initialized');
+      return;
+    }
     
     if (!firstName || !lastName || !email || !password || !confirmPassword) {
       toast({
@@ -106,22 +117,47 @@ export default function SignUpPage() {
   };
 
   const handleGoogleSignUp = async () => {
+    if (!supabase) {
+      console.error('Supabase client not initialized');
+      return;
+    }
+    
     try {
       setIsLoading(true);
       
-      const { error } = await supabase.auth.signInWithOAuth({
+      // 獲取當前 URL 中的 redirect 參數，如果有的話
+      const urlParams = new URLSearchParams(window.location.search);
+      const redirectPath = urlParams.get('redirect') || '/dashboard';
+      
+      const { data, error } = await supabase.auth.signInWithOAuth({
         provider: 'google',
         options: {
-          redirectTo: `${window.location.origin}/auth/callback`,
+          redirectTo: window.location.origin + '/auth/callback',
           queryParams: {
             access_type: 'offline',
             prompt: 'consent',
+            redirect: redirectPath
           }
         }
       });
       
       if (error) {
+        console.error('Google signup error:', error);
         throw error;
+      }
+      
+      // 記錄重定向 URL 並提示用戶正在重定向
+      console.log('Google sign up initiated, redirect URL:', data?.url);
+      
+      // 顯示轉場提示，避免使用者覺得頁面凍結
+      toast({
+        title: 'Redirecting to Google',
+        description: 'You will now be redirected to Google for authentication.',
+      });
+      
+      // 客戶端重定向到 Google 授權頁面
+      if (data?.url) {
+        window.location.href = data.url;
       }
     } catch (error: any) {
       toast({

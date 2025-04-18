@@ -32,7 +32,6 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar';
 import { cn } from '@/lib/utils';
 import { useToast } from '@/hooks/use-toast';
-import { supabase } from '../../../lib/supabase';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -93,7 +92,10 @@ export function Sidebar({
   useEffect(() => {
     const getUser = async () => {
       try {
-        const { data: { user } } = await supabase.auth.getUser();
+        // 動態導入 supabase 函數以避免服務器端渲染問題
+        const { supabase } = await import('../../../lib/supabase');
+        const supabaseClient = supabase();
+        const { data: { user } } = await supabaseClient.auth.getUser();
         setUser(user);
       } catch (error) {
         console.error("Error fetching user:", error);
@@ -105,7 +107,10 @@ export function Sidebar({
 
   const handleSignOut = async () => {
     try {
-      await supabase.auth.signOut();
+      // 動態導入 supabase 函數以避免服務器端渲染問題
+      const { supabase } = await import('../../../lib/supabase');
+      const supabaseClient = supabase();
+      await supabaseClient.auth.signOut();
       toast({
         title: 'Signed out successfully',
         description: 'You have been signed out of your account.',
