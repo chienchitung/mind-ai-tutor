@@ -23,6 +23,8 @@ import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 // Office 文檔生成庫
 import dynamic from 'next/dynamic';
 import pptxgen from "pptxgenjs";
+import { useLanguage } from "@/app/contexts/LanguageContext";
+import { useTranslation } from "@/utils/translations";
 
 // Define the Quiz types
 interface QuizOption {
@@ -80,6 +82,9 @@ const QuizCreator: React.FC<QuizCreatorProps> = ({
   isGenerating,
   onGenerateQuiz
 }) => {
+  const { language } = useLanguage();
+  const { t } = useTranslation(language);
+  
   return (
     <div className="max-w-3xl mx-auto">
       <Card className="bg-gradient-to-r from-indigo-50 to-purple-50 p-8 rounded-xl shadow-lg border-0">
@@ -89,20 +94,20 @@ const QuizCreator: React.FC<QuizCreatorProps> = ({
           </div>
           
           <h1 className="text-3xl font-bold bg-gradient-to-r from-indigo-800 via-purple-700 to-indigo-800 bg-clip-text text-transparent mb-3">
-            AI Quiz Generator
+            {t('ai_quiz_generator')}
           </h1>
           <p className="text-gray-600 text-center max-w-md">
-            Create custom quizzes with AI assistance
+            {t('create_custom_quizzes')}
           </p>
         </div>
 
         <div className="space-y-6">
           <div className="w-full">
-            <Label className="text-sm font-medium mb-2 block text-gray-700">Enter your quiz topic</Label>
+            <Label className="text-sm font-medium mb-2 block text-gray-700">{t('enter_quiz_topic')}</Label>
             <Textarea 
               value={inputContent}
               onChange={(e) => setInputContent(e.target.value)}
-              placeholder="Enter a topic or paste content to generate questions about"
+              placeholder={t('quiz_topic_placeholder')}
               rows={4}
               className="w-full resize-none border-indigo-100 focus:border-indigo-300 focus:ring-1 focus:ring-indigo-300 rounded-lg"
             />
@@ -110,21 +115,21 @@ const QuizCreator: React.FC<QuizCreatorProps> = ({
           
           <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
             <div>
-              <Label className="text-sm font-medium mb-2 block text-gray-700">Question type</Label>
+              <Label className="text-sm font-medium mb-2 block text-gray-700">{t('question_type')}</Label>
               <Select value={questionType} onValueChange={setQuestionType}>
                 <SelectTrigger className="border-indigo-100 focus:border-indigo-300 focus:ring-1 focus:ring-indigo-300">
-                  <SelectValue placeholder="Multiple Choice" />
+                  <SelectValue placeholder={t('multiple_choice')} />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="multiple-choice">Multiple Choice</SelectItem>
-                  <SelectItem value="true-false">True/False</SelectItem>
-                  <SelectItem value="short-answer">Short Answer</SelectItem>
+                  <SelectItem value="multiple-choice">{t('multiple_choice')}</SelectItem>
+                  <SelectItem value="true-false">{t('true_false')}</SelectItem>
+                  <SelectItem value="short-answer">{t('short_answer')}</SelectItem>
                 </SelectContent>
               </Select>
             </div>
             
             <div>
-              <Label className="text-sm font-medium mb-2 block text-gray-700">Number of questions</Label>
+              <Label className="text-sm font-medium mb-2 block text-gray-700">{t('number_of_questions')}</Label>
               <Select value={numQuestions} onValueChange={setNumQuestions}>
                 <SelectTrigger className="border-indigo-100 focus:border-indigo-300 focus:ring-1 focus:ring-indigo-300">
                   <SelectValue placeholder="10" />
@@ -140,11 +145,11 @@ const QuizCreator: React.FC<QuizCreatorProps> = ({
           </div>
           
           <div className="w-full">
-            <Label className="text-sm font-medium mb-2 block text-gray-700">Additional instructions (optional)</Label>
+            <Label className="text-sm font-medium mb-2 block text-gray-700">{t('additional_instructions')}</Label>
             <Textarea 
               value={additionalInstructions}
               onChange={(e) => setAdditionalInstructions(e.target.value)}
-              placeholder="Specify any additional requirements for the quiz (e.g., difficulty level, focus areas)"
+              placeholder={t('additional_instructions_placeholder')}
               rows={3}
               className="w-full border-indigo-100 focus:border-indigo-300 focus:ring-1 focus:ring-indigo-300 rounded-lg"
             />
@@ -152,21 +157,21 @@ const QuizCreator: React.FC<QuizCreatorProps> = ({
           
           <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
             <div>
-              <Label className="text-sm font-medium mb-2 block text-gray-700">Difficulty Level</Label>
+              <Label className="text-sm font-medium mb-2 block text-gray-700">{t('difficulty_level')}</Label>
               <Select value={level} onValueChange={setLevel}>
                 <SelectTrigger className="border-indigo-100 focus:border-indigo-300 focus:ring-1 focus:ring-indigo-300">
-                  <SelectValue placeholder="Select Level" />
+                  <SelectValue placeholder={t('quiz_select_level')} />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="beginner">Beginner</SelectItem>
-                  <SelectItem value="intermediate">Intermediate</SelectItem>
-                  <SelectItem value="advanced">Advanced</SelectItem>
+                  <SelectItem value="beginner">{t('beginner')}</SelectItem>
+                  <SelectItem value="intermediate">{t('intermediate')}</SelectItem>
+                  <SelectItem value="advanced">{t('advanced')}</SelectItem>
                 </SelectContent>
               </Select>
             </div>
             
             <div>
-              <Label className="text-sm font-medium mb-2 block text-gray-700">Output language</Label>
+              <Label className="text-sm font-medium mb-2 block text-gray-700">{t('output_language')}</Label>
               <Select value={outputLanguage} onValueChange={setOutputLanguage}>
                 <SelectTrigger className="border-indigo-100 focus:border-indigo-300 focus:ring-1 focus:ring-indigo-300">
                   <SelectValue placeholder="English" />
@@ -187,12 +192,12 @@ const QuizCreator: React.FC<QuizCreatorProps> = ({
             {isGenerating ? (
               <>
                 <Loader2 className="mr-2 h-5 w-5 animate-spin" />
-                Generating Quiz...
+                {t('generating_quiz')}
               </>
             ) : (
               <>
                 <Sparkles className="mr-2 h-5 w-5" />
-                Generate Quiz
+                {t('generate_quiz')}
               </>
             )}
           </Button>
@@ -200,7 +205,7 @@ const QuizCreator: React.FC<QuizCreatorProps> = ({
           <div className="flex items-center justify-center gap-2 p-3 bg-indigo-50 rounded-lg mt-4">
             <Lightbulb size={16} className="text-amber-500" />
             <p className="text-xs text-gray-600">
-              Powered by Google's Gemini 2.0 AI model
+              {t('powered_by_gemini')}
             </p>
           </div>
         </div>
@@ -235,6 +240,8 @@ const QuizResults: React.FC<QuizResultsProps> = ({
   const { toast } = useToast();
   const [isEditing, setIsEditing] = useState(false);
   const [editedQuestions, setEditedQuestions] = useState<QuizQuestion[]>(quiz.questions);
+  const { language } = useLanguage();
+  const { t } = useTranslation(language);
 
   // Load the HTML2PDF library dynamically
   useEffect(() => {
@@ -354,7 +361,7 @@ const QuizResults: React.FC<QuizResultsProps> = ({
                     new docx.Paragraph({
                       children: [
                         new docx.TextRun({
-                          text: "Explanation:",
+                          text: t('explanation_colon'),
                           bold: true
                         })
                       ]
@@ -482,7 +489,7 @@ const QuizResults: React.FC<QuizResultsProps> = ({
             if (showAnswers) {
               docContent += `
                 <div class="explanation">
-                  <strong>Explanation:</strong> ${question.explanation}
+                  <strong>${t('explanation_colon')}</strong> ${question.explanation}
                 </div>
               `;
             }
@@ -518,7 +525,7 @@ const QuizResults: React.FC<QuizResultsProps> = ({
                 quiz.questions.map((q, i) => 
                   `Question ${i+1}: ${q.questionText}\n` + 
                   q.options.map(o => `${o.id.toUpperCase()}. ${o.text}${o.id === q.correctAnswer && showAnswers ? ' ✓' : ''}`).join('\n') + 
-                  (showAnswers ? `\n\nExplanation: ${q.explanation}` : '')
+                  (showAnswers ? `\n\n${t('explanation_colon')} ${q.explanation}` : '')
                 ).join('\n\n');
               
               await navigator.clipboard.writeText(plainText);
@@ -537,7 +544,7 @@ const QuizResults: React.FC<QuizResultsProps> = ({
               quiz.questions.map((q, i) => 
                 `Question ${i+1}: ${q.questionText}\n` + 
                 q.options.map(o => `${o.id.toUpperCase()}. ${o.text}${o.id === q.correctAnswer && showAnswers ? ' ✓' : ''}`).join('\n') + 
-                (showAnswers ? `\n\nExplanation: ${q.explanation}` : '')
+                (showAnswers ? `\n\n${t('explanation_colon')} ${q.explanation}` : '')
               ).join('\n\n');
             
             try {
@@ -652,7 +659,7 @@ const QuizResults: React.FC<QuizResultsProps> = ({
               // 如果是教師模式，添加解釋
               if (showAnswers) {
                 // 添加說明標題
-                slide.addText('Explanation:', {
+                slide.addText(t('explanation_colon'), {
                   x: 0.5,
                   y: 5.0,
                   w: '90%',
@@ -777,7 +784,7 @@ const QuizResults: React.FC<QuizResultsProps> = ({
             if (showAnswers) {
               docContent += `
                 <div class="explanation">
-                  <strong>Explanation:</strong> ${question.explanation}
+                  <strong>${t('explanation_colon')}</strong> ${question.explanation}
                 </div>
               `;
             }
@@ -813,7 +820,7 @@ const QuizResults: React.FC<QuizResultsProps> = ({
                 quiz.questions.map((q, i) => 
                   `Question ${i+1}: ${q.questionText}\n` + 
                   q.options.map(o => `${o.id.toUpperCase()}. ${o.text}${o.id === q.correctAnswer && showAnswers ? ' ✓' : ''}`).join('\n') + 
-                  (showAnswers ? `\n\nExplanation: ${q.explanation}` : '')
+                  (showAnswers ? `\n\n${t('explanation_colon')} ${q.explanation}` : '')
                 ).join('\n\n');
               
               await navigator.clipboard.writeText(plainText);
@@ -832,7 +839,7 @@ const QuizResults: React.FC<QuizResultsProps> = ({
               quiz.questions.map((q, i) => 
                 `Question ${i+1}: ${q.questionText}\n` + 
                 q.options.map(o => `${o.id.toUpperCase()}. ${o.text}${o.id === q.correctAnswer && showAnswers ? ' ✓' : ''}`).join('\n') + 
-                (showAnswers ? `\n\nExplanation: ${q.explanation}` : '')
+                (showAnswers ? `\n\n${t('explanation_colon')} ${q.explanation}` : '')
               ).join('\n\n');
             
             try {
@@ -908,7 +915,7 @@ const QuizResults: React.FC<QuizResultsProps> = ({
             if (showAnswers) {
               docContent += `
                 <div class="explanation">
-                  <strong>Explanation:</strong> ${question.explanation}
+                  <strong>${t('explanation_colon')}</strong> ${question.explanation}
                 </div>
               `;
             }
@@ -944,7 +951,7 @@ const QuizResults: React.FC<QuizResultsProps> = ({
                 quiz.questions.map((q, i) => 
                   `Question ${i+1}: ${q.questionText}\n` + 
                   q.options.map(o => `${o.id.toUpperCase()}. ${o.text}${o.id === q.correctAnswer && showAnswers ? ' ✓' : ''}`).join('\n') + 
-                  (showAnswers ? `\n\nExplanation: ${q.explanation}` : '')
+                  (showAnswers ? `\n\n${t('explanation_colon')} ${q.explanation}` : '')
                 ).join('\n\n');
               
               await navigator.clipboard.writeText(plainText);
@@ -963,7 +970,7 @@ const QuizResults: React.FC<QuizResultsProps> = ({
               quiz.questions.map((q, i) => 
                 `Question ${i+1}: ${q.questionText}\n` + 
                 q.options.map(o => `${o.id.toUpperCase()}. ${o.text}${o.id === q.correctAnswer && showAnswers ? ' ✓' : ''}`).join('\n') + 
-                (showAnswers ? `\n\nExplanation: ${q.explanation}` : '')
+                (showAnswers ? `\n\n${t('explanation_colon')} ${q.explanation}` : '')
               ).join('\n\n');
             
             try {
@@ -1055,10 +1062,13 @@ const QuizResults: React.FC<QuizResultsProps> = ({
   const handleGenerateStudentVersion = () => {
     setShowAnswers(!showAnswers);
     toast({
-      title: showAnswers ? "Student Version Activated" : "Teacher Version Activated",
+      title: showAnswers 
+        ? t('student_version_activated')
+        : t('teacher_version_activated'),
       description: showAnswers 
-        ? "Answers are now hidden. Ready for students." 
-        : "Answers are now visible. Teacher mode activated."
+        ? t('answers_now_hidden')
+        : `${t('answers_now_visible')} ${t('teacher_mode_activated')}`,
+      duration: 3000,
     });
   };
 
@@ -1149,10 +1159,10 @@ const QuizResults: React.FC<QuizResultsProps> = ({
       }, 500);
       
     } catch (error) {
-      console.error("Print error:", error);
+      console.error('Printing error:', error);
       toast({
-        title: "Print Failed",
-        description: "Failed to print quiz. Please try again.",
+        title: t('error'),
+        description: t('error_printing_quiz'),
         variant: "destructive",
       });
       setIsPrinting(false);
@@ -1228,15 +1238,15 @@ const QuizResults: React.FC<QuizResultsProps> = ({
   const handleAddQuestionAtIndex = (index: number) => {
     const newQuestion: QuizQuestion = {
       id: String(Date.now()),
-      questionText: "New Question",
+      questionText: t('new_question'),
       options: [
-        { id: "a", text: "Option A" },
-        { id: "b", text: "Option B" },
-        { id: "c", text: "Option C" },
-        { id: "d", text: "Option D" }
+        { id: "a", text: t('option_a') },
+        { id: "b", text: t('option_b') },
+        { id: "c", text: t('option_c') },
+        { id: "d", text: t('option_d') }
       ],
       correctAnswer: "a",
-      explanation: "Add explanation here"
+      explanation: t('add_explanation')
     };
     
     const newQuestions = [...editedQuestions];
@@ -1245,8 +1255,8 @@ const QuizResults: React.FC<QuizResultsProps> = ({
     setEditedQuestions(newQuestions);
     
     toast({
-      title: "Question Added",
-      description: "A new question has been added after the selected question.",
+      title: t('success'),
+      description: t('question_added'),
     });
   };
 
@@ -1258,7 +1268,7 @@ const QuizResults: React.FC<QuizResultsProps> = ({
           onClick={onBack}
           className="text-indigo-700 hover:text-indigo-900 hover:bg-indigo-50"
         >
-          <ArrowLeft className="mr-2 h-4 w-4" /> Back to Generator
+          <ArrowLeft className="mr-2 h-4 w-4" /> {t('back_to_generator')}
         </Button>
         
         <div className="flex gap-2">
@@ -1273,7 +1283,7 @@ const QuizResults: React.FC<QuizResultsProps> = ({
                 : "border-indigo-300 text-indigo-700 hover:bg-indigo-50"
             )}
           >
-            Student Version
+            {t('student_version')}
           </Button>
           
           <Button
@@ -1287,7 +1297,7 @@ const QuizResults: React.FC<QuizResultsProps> = ({
                 : "border-indigo-300 text-indigo-700 hover:bg-indigo-50"
             )}
           >
-            Teacher Version
+            {t('teacher_version')}
           </Button>
         </div>
       </div>
@@ -1296,13 +1306,13 @@ const QuizResults: React.FC<QuizResultsProps> = ({
         <Card className="border-0 shadow-lg overflow-hidden">
           <CardHeader className="quiz-header bg-gradient-to-r from-indigo-600 to-purple-600 text-white p-6">
             <h1 className="text-2xl md:text-3xl font-bold text-center">{quiz.title}</h1>
-            <p className="text-center text-white/80">{quiz.questions.length} questions</p>
+            <p className="text-center text-white/80">{t('questions_count', { count: quiz.questions.length })}</p>
           </CardHeader>
           
           <CardContent className="p-6">
             <div className="flex items-center justify-between mb-8 print-hidden">
               <p className="text-indigo-900">
-                Quiz created on {new Date().toLocaleDateString()}
+                {t('quiz_created_on', { date: new Date().toLocaleDateString() })}
               </p>
               <div className="flex gap-3">
                 <Button 
@@ -1313,11 +1323,11 @@ const QuizResults: React.FC<QuizResultsProps> = ({
                 >
                   {isSaving ? (
                     <>
-                      <Loader2 className="mr-2 h-4 w-4 animate-spin" /> Saving...
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" /> {t('saving_quiz')}
                     </>
                   ) : (
                     <>
-                      <Download className="mr-2 h-4 w-4" /> Save Quiz
+                      <Download className="mr-2 h-4 w-4" /> {t('save_quiz')}
                     </>
                   )}
                 </Button>
@@ -1329,7 +1339,7 @@ const QuizResults: React.FC<QuizResultsProps> = ({
                     onClick={() => setShowExportOptions(!showExportOptions)}
                     ref={exportButtonRef}
                   >
-                    <FileDown className="mr-2 h-4 w-4" /> Export
+                    <FileDown className="mr-2 h-4 w-4" /> {t('export_quiz')}
                   </Button>
                   
                   {showExportOptions && (
@@ -1443,7 +1453,7 @@ const QuizResults: React.FC<QuizResultsProps> = ({
                     </>
                   ) : (
                     <>
-                      <Printer className="mr-2 h-4 w-4" /> Print Quiz
+                      <Printer className="mr-2 h-4 w-4" /> {t('print_quiz')}
                     </>
                   )}
                 </Button>
@@ -1454,11 +1464,11 @@ const QuizResults: React.FC<QuizResultsProps> = ({
                 >
                   {isEditing ? (
                     <>
-                      <Save className="mr-2 h-4 w-4" /> Save Quiz
+                      <Save className="mr-2 h-4 w-4" /> {t('save_quiz_changes')}
                     </>
                   ) : (
                     <>
-                      <Edit className="mr-2 h-4 w-4" /> Edit Quiz
+                      <Edit className="mr-2 h-4 w-4" /> {t('edit_quiz')}
                     </>
                   )}
                 </Button>
@@ -1581,7 +1591,7 @@ const QuizResults: React.FC<QuizResultsProps> = ({
                                             </span>
                                             {showAnswers && option.id === question.correctAnswer && (
                                               <span className="ml-auto text-green-600 text-sm font-medium correct-answer-indicator">
-                                                Correct answer
+                                                {t('correct_answer')}
                                               </span>
                                             )}
                                           </div>
@@ -1592,13 +1602,13 @@ const QuizResults: React.FC<QuizResultsProps> = ({
                                   
                                   {(showAnswers || isEditing) && (
                                     <div className="explanation-box bg-indigo-50 border border-indigo-100 rounded p-3 text-indigo-800 text-sm">
-                                      <strong>Explanation:</strong>
+                                      <strong>{t('explanation_colon')}</strong>
                                       {isEditing ? (
                                         <Input
                                           value={question.explanation}
                                           onChange={(e) => handleQuestionEdit(index, 'explanation', e.target.value)}
                                           className="mt-2"
-                                          placeholder="Enter explanation"
+                                          placeholder={t('enter_explanation')}
                                         />
                                       ) : (
                                         <span className="ml-2">{question.explanation}</span>
@@ -1613,10 +1623,10 @@ const QuizResults: React.FC<QuizResultsProps> = ({
                                 <Button
                                   variant="outline"
                                   size="sm"
-                                  onClick={() => handleAddQuestion()}
+                                  onClick={() => handleAddQuestionAtIndex(index)}
                                   className="border-dashed border-gray-300 text-gray-500 hover:text-indigo-600 hover:border-indigo-300"
                                 >
-                                  <Plus className="mr-1 h-3 w-3" /> Add New Question
+                                  <Plus className="mr-1 h-3 w-3" /> {t('add_question')}
                                 </Button>
                               </div>
                             )}
@@ -1638,6 +1648,7 @@ const QuizResults: React.FC<QuizResultsProps> = ({
 
 // Main AIQuizPage component
 export default function AIQuizPage() {
+  const [currentQuiz, setCurrentQuiz] = useState<Quiz | null>(null);
   const [quizzes, setQuizzes] = useState<Quiz[]>([]);
   const [inputContent, setInputContent] = useState("");
   const [questionType, setQuestionType] = useState("multiple-choice");
@@ -1647,10 +1658,11 @@ export default function AIQuizPage() {
   const [level, setLevel] = useState("intermediate");
   const [isGenerating, setIsGenerating] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
-  const [currentQuiz, setCurrentQuiz] = useState<Quiz | null>(null);
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
   const { toast } = useToast();
+  const { language } = useLanguage();
+  const { t } = useTranslation(language);
 
   const handleGenerateQuiz = async () => {
     if (!inputContent.trim()) {
@@ -1686,14 +1698,14 @@ export default function AIQuizPage() {
       setQuizzes([...quizzes, newQuiz]);
       setCurrentQuiz(newQuiz);
       toast({
-        title: "Quiz Generated",
-        description: "Your quiz has been created successfully.",
+        title: t('success'),
+        description: t('quiz_generated'),
       });
     } catch (error) {
       console.error("Quiz generation error:", error);
       toast({
-        title: "Error",
-        description: "Failed to generate quiz. Please try again.",
+        title: t('error'),
+        description: t('error_generating_quiz'),
         variant: "destructive",
       });
     } finally {
@@ -1711,13 +1723,13 @@ export default function AIQuizPage() {
       await new Promise(resolve => setTimeout(resolve, 1000));
       
       toast({
-        title: "Quiz Saved",
-        description: "Your quiz has been saved successfully.",
+        title: t('success'),
+        description: t('quiz_saved'),
       });
     } catch (error) {
       toast({
-        title: "Error",
-        description: "Failed to save quiz. Please try again.",
+        title: t('error'),
+        description: t('error_saving_quiz'),
         variant: "destructive",
       });
     } finally {
@@ -1767,14 +1779,14 @@ export default function AIQuizPage() {
             <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
               <div className="bg-white p-8 rounded-xl shadow-lg flex flex-col items-center max-w-md w-full">
                 <Loader2 className="h-12 w-12 text-indigo-600 animate-spin mb-4" />
-                <h3 className="text-xl font-semibold mb-2">Generating Your Quiz</h3>
+                <h3 className="text-xl font-semibold mb-2">{t('generating')}</h3>
                 <p className="text-gray-500 text-center mb-4">
-                  This may take a moment as our AI crafts personalized questions for you...
+                  {t('generating_description')}
                 </p>
                 <div className="w-full bg-gray-200 rounded-full h-2 mb-2">
                   <div className="bg-indigo-600 h-2 rounded-full animate-pulse" style={{ width: '90%' }}></div>
                 </div>
-                <p className="text-xs text-gray-400">Powered by Google's Gemini AI</p>
+                <p className="text-xs text-gray-400">{t('powered_by')}</p>
               </div>
             </div>
           )}
@@ -1798,7 +1810,7 @@ export default function AIQuizPage() {
           
           {quizzes.length > 0 && !currentQuiz && (
             <div className="space-y-4 mt-8 max-w-3xl mx-auto">
-              <h2 className="text-2xl font-bold text-indigo-900">Your Recent Quizzes</h2>
+              <h2 className="text-2xl font-bold text-indigo-900">{t('recent_quizzes')}</h2>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 {quizzes.map((quiz) => (
                   <div 
@@ -1812,12 +1824,12 @@ export default function AIQuizPage() {
                     </div>
                     <div className="p-4 flex justify-between items-center">
                       <p className="text-gray-600">
-                        Created on {quiz.createdAt?.toLocaleDateString()}
+                        {t('created_on', { date: quiz.createdAt?.toLocaleDateString() || '-' })}
                       </p>
                       <button 
                         className="text-indigo-600 hover:text-indigo-800 font-medium flex items-center group-hover:translate-x-1 transition-transform"
                       >
-                        View Quiz <ArrowRight className="ml-1 h-4 w-4" />
+                        {t('view_quiz')} <ArrowRight className="ml-1 h-4 w-4" />
                       </button>
                     </div>
                   </div>

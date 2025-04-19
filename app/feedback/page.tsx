@@ -14,6 +14,8 @@ import ExcelJS from 'exceljs';
 import { useToast } from '@/hooks/use-toast';
 import { cn } from "@/lib/utils";
 import { badgeVariants } from "@/components/ui/badge";
+import { useLanguage } from "@/app/contexts/LanguageContext";
+import { useTranslation } from "@/utils/translations";
 
 // Define feedback data type
 interface FeedbackItem {
@@ -27,7 +29,8 @@ interface FeedbackItem {
   content: string;
   date: string;
   fullDate: string;
-  status: "Unresponded" | "Responded";
+  status: string;
+  rawStatus: string;
   rating: number;
 }
 
@@ -38,6 +41,8 @@ const FeedbackPage = () => {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const { toast } = useToast();
+  const { language } = useLanguage();
+  const { t } = useTranslation(language);
 
   // Fetch feedback data from Supabase
   useEffect(() => {
@@ -73,40 +78,8 @@ const FeedbackPage = () => {
         let dataToProcess = supabaseData;
         
         if (!supabaseData || supabaseData.length === 0) {
-          console.warn('No data returned from Supabase, using backup mock data');
-          // Use mock data if no data returned
-          dataToProcess = [
-            {
-              id: "1",
-              student_name: "John Smith",
-              student_initials: "JS",
-              course: "Data Analysis Course",
-              content: "The course is very clear, but I need more examples to understand some concepts.",
-              rating: 4,
-              created_at: "2024-04-03T00:00:00.000Z",
-              status: "not_responded"
-            },
-            {
-              id: "2",
-              student_name: "Lisa Wang",
-              student_initials: "LW",
-              course: "JavaScript Introduction",
-              content: "I'm having some difficulty with the functions section. Could you provide more practice problems?",
-              rating: 3,
-              created_at: "2024-04-02T00:00:00.000Z",
-              status: "responded"
-            },
-            {
-              id: "3",
-              student_name: "David Chen",
-              student_initials: "DC",
-              course: "Excel Basics Course",
-              content: "Thank you very much for teaching these useful skills. They've been a great help in my work!",
-              rating: 5,
-              created_at: "2024-04-01T00:00:00.000Z",
-              status: "responded"
-            }
-          ];
+          console.warn('No data returned from Supabase');
+          dataToProcess = [];
         }
         
         // Transform the data to match our FeedbackItem interface
@@ -139,7 +112,8 @@ const FeedbackPage = () => {
             content: itemAny.content,
             date: relativeTime,
             fullDate: createdAt.toISOString().split('T')[0],
-            status: itemAny.status === 'not_responded' ? 'Unresponded' : 'Responded',
+            status: itemAny.status === 'not_responded' ? t('unresponded') : t('responded'),
+            rawStatus: itemAny.status,
             rating: itemAny.rating
           };
         });
@@ -211,14 +185,14 @@ const FeedbackPage = () => {
       window.URL.revokeObjectURL(url);
 
       toast({
-        title: "Success",
-        description: "Feedback data exported successfully",
+        title: t('success'),
+        description: t('feedback_exported'),
       });
     } catch (error) {
       console.error('Error exporting to Excel:', error);
       toast({
-        title: "Error",
-        description: "Failed to export feedback data",
+        title: t('error'),
+        description: t('failed_export_feedback'),
         variant: "destructive",
       });
     }
@@ -235,8 +209,8 @@ const FeedbackPage = () => {
   };
   
   // Display status badge
-  const renderStatusBadge = (status: string) => {
-    const isNotResponded = status === "Unresponded";
+  const renderStatusBadge = (status: string, rawStatus: string) => {
+    const isNotResponded = rawStatus === 'not_responded';
     return (
       <div className={cn(
         badgeVariants({ 
@@ -263,7 +237,7 @@ const FeedbackPage = () => {
     return (
       <div className="flex flex-col items-center justify-center h-[50vh]">
         <Loader2 className="h-8 w-8 animate-spin text-primary mb-4" />
-        <p className="text-muted-foreground">Loading feedback data...</p>
+        <p className="text-muted-foreground">{t('loading_feedback_data')}</p>
       </div>
     );
   }
@@ -274,56 +248,8 @@ const FeedbackPage = () => {
       <div className="flex flex-col items-center justify-center h-[50vh]">
         <p className="text-destructive mb-4">{error}</p>
         <Button onClick={() => window.location.reload()}>
-          Try Again
+          {t('try_again')}
         </Button>
-        <div className="mt-4">
-          <Button 
-            className={cn(
-              buttonVariants({ 
-                variant: "outline"
-              })
-            )}
-            onClick={() => {
-              // Fallback to mock data when fetch fails
-              setError(null);
-              
-              const mockData: FeedbackItem[] = [
-                {
-                  id: "mock-1",
-                  student: { 
-                    name: "John Doe",
-                    avatar: "/avatars/default.png", 
-                    initials: "JD" 
-                  },
-                  course: "Mock Course 1",
-                  content: "This is mock feedback content for demonstration purposes when API calls fail.",
-                  date: "3 hours ago",
-                  fullDate: "2024-04-03",
-                  status: "Unresponded",
-                  rating: 4
-                },
-                {
-                  id: "mock-2",
-                  student: { 
-                    name: "Jane Smith", 
-                    avatar: "/avatars/default.png", 
-                    initials: "JS" 
-                  },
-                  course: "Mock Course 2",
-                  content: "Another example of mock feedback when the database connection fails.",
-                  date: "1 day ago",
-                  fullDate: "2024-04-02",
-                  status: "Responded",
-                  rating: 5
-                }
-              ];
-              
-              setFeedbackData(mockData);
-            }}
-          >
-            Use Demo Data
-          </Button>
-        </div>
       </div>
     );
   }
@@ -332,25 +258,25 @@ const FeedbackPage = () => {
     <div className="container mx-auto py-6 space-y-6">
       <div className="flex justify-between items-center">
         <div className="flex items-center gap-2">
-          <h1 className="text-2xl font-bold tracking-tight">Student Feedback</h1>
+          <h1 className="text-2xl font-bold tracking-tight">{t('student_feedback')}</h1>
         </div>
         <Button onClick={downloadExcelData} className="flex items-center gap-2">
           <Download className="h-4 w-4" />
-          Export to Excel
+          {t('export_to_excel')}
         </Button>
       </div>
       
       <Tabs defaultValue="all">
         <TabsList className="mb-6">
-          <TabsTrigger value="all">All Feedback</TabsTrigger>
-          <TabsTrigger value="unresponded">Unresponded</TabsTrigger>
-          <TabsTrigger value="responded">Responded</TabsTrigger>
+          <TabsTrigger value="all">{t('all_feedback')}</TabsTrigger>
+          <TabsTrigger value="unresponded">{t('unresponded')}</TabsTrigger>
+          <TabsTrigger value="responded">{t('responded')}</TabsTrigger>
         </TabsList>
         
         <TabsContent value="all" className="space-y-4">
           {feedbackData.length === 0 ? (
             <div className="text-center py-10">
-              <p className="text-muted-foreground">No feedback data available</p>
+              <p className="text-muted-foreground">{t('no_feedback_data')}</p>
             </div>
           ) : (
             feedbackData.map((feedback: FeedbackItem) => (
@@ -367,7 +293,7 @@ const FeedbackPage = () => {
                     </div>
                   </div>
                   <div className="flex flex-col items-end">
-                    {renderStatusBadge(feedback.status)}
+                    {renderStatusBadge(feedback.status, feedback.rawStatus)}
                     <div className="flex items-center text-xs text-muted-foreground mt-1">
                       <TooltipProvider>
                         <Tooltip>
@@ -378,7 +304,7 @@ const FeedbackPage = () => {
                             </div>
                           </TooltipTrigger>
                           <TooltipContent>
-                            <p>Feedback Date: {feedback.fullDate}</p>
+                            <p>{t('feedback_date')} {feedback.fullDate}</p>
                           </TooltipContent>
                         </Tooltip>
                       </TooltipProvider>
@@ -395,13 +321,13 @@ const FeedbackPage = () => {
                   
                   <div className="flex justify-end mt-4">
                     <Button 
-                      variant={feedback.status === "Unresponded" ? "default" : "outline"}
+                      variant={feedback.rawStatus === 'not_responded' ? "default" : "outline"}
                       size="sm"
                       onClick={() => handleRespondToFeedback(feedback.id)}
                       className="flex items-center gap-2 px-4 py-2"
                     >
                       <MessageSquare className="h-4 w-4" />
-                      <span className="whitespace-nowrap">{feedback.status === "Unresponded" ? "Respond" : "View Conversation"}</span>
+                      <span className="whitespace-nowrap">{feedback.rawStatus === 'not_responded' ? t('respond') : t('view_conversation')}</span>
                     </Button>
                   </div>
                 </CardContent>
@@ -411,12 +337,12 @@ const FeedbackPage = () => {
         </TabsContent>
         
         <TabsContent value="unresponded" className="space-y-4">
-          {feedbackData.filter((f: FeedbackItem) => f.status === "Unresponded").length === 0 ? (
+          {feedbackData.filter((f: FeedbackItem) => f.rawStatus === 'not_responded').length === 0 ? (
             <div className="text-center py-10">
-              <p className="text-muted-foreground">No unresponded feedback</p>
+              <p className="text-muted-foreground">{t('no_unresponded_feedback')}</p>
             </div>
           ) : (
-            feedbackData.filter((f: FeedbackItem) => f.status === "Unresponded").map((feedback: FeedbackItem) => (
+            feedbackData.filter((f: FeedbackItem) => f.rawStatus === 'not_responded').map((feedback: FeedbackItem) => (
               <Card key={feedback.id} className="hover:bg-muted/10 transition-colors">
                 <CardHeader className="flex flex-row items-start justify-between space-y-0 pb-2">
                   <div className="flex items-center space-x-4">
@@ -430,7 +356,7 @@ const FeedbackPage = () => {
                     </div>
                   </div>
                   <div className="flex flex-col items-end">
-                    {renderStatusBadge(feedback.status)}
+                    {renderStatusBadge(feedback.status, feedback.rawStatus)}
                     <div className="flex items-center text-xs text-muted-foreground mt-1">
                       <TooltipProvider>
                         <Tooltip>
@@ -441,7 +367,7 @@ const FeedbackPage = () => {
                             </div>
                           </TooltipTrigger>
                           <TooltipContent>
-                            <p>Feedback Date: {feedback.fullDate}</p>
+                            <p>{t('feedback_date')} {feedback.fullDate}</p>
                           </TooltipContent>
                         </Tooltip>
                       </TooltipProvider>
@@ -464,7 +390,7 @@ const FeedbackPage = () => {
                       className="flex items-center gap-2 px-4 py-2"
                     >
                       <MessageSquare className="h-4 w-4" />
-                      <span className="whitespace-nowrap">Respond</span>
+                      <span className="whitespace-nowrap">{t('respond')}</span>
                     </Button>
                   </div>
                 </CardContent>
@@ -474,12 +400,12 @@ const FeedbackPage = () => {
         </TabsContent>
         
         <TabsContent value="responded" className="space-y-4">
-          {feedbackData.filter((f: FeedbackItem) => f.status === "Responded").length === 0 ? (
+          {feedbackData.filter((f: FeedbackItem) => f.rawStatus === 'responded').length === 0 ? (
             <div className="text-center py-10">
-              <p className="text-muted-foreground">No responded feedback</p>
+              <p className="text-muted-foreground">{t('no_responded_feedback')}</p>
             </div>
           ) : (
-            feedbackData.filter((f: FeedbackItem) => f.status === "Responded").map((feedback: FeedbackItem) => (
+            feedbackData.filter((f: FeedbackItem) => f.rawStatus === 'responded').map((feedback: FeedbackItem) => (
               <Card key={feedback.id} className="hover:bg-muted/10 transition-colors">
                 <CardHeader className="flex flex-row items-start justify-between space-y-0 pb-2">
                   <div className="flex items-center space-x-4">
@@ -493,7 +419,7 @@ const FeedbackPage = () => {
                     </div>
                   </div>
                   <div className="flex flex-col items-end">
-                    {renderStatusBadge(feedback.status)}
+                    {renderStatusBadge(feedback.status, feedback.rawStatus)}
                     <div className="flex items-center text-xs text-muted-foreground mt-1">
                       <TooltipProvider>
                         <Tooltip>
@@ -504,7 +430,7 @@ const FeedbackPage = () => {
                             </div>
                           </TooltipTrigger>
                           <TooltipContent>
-                            <p>Feedback Date: {feedback.fullDate}</p>
+                            <p>{t('feedback_date')} {feedback.fullDate}</p>
                           </TooltipContent>
                         </Tooltip>
                       </TooltipProvider>
@@ -527,7 +453,7 @@ const FeedbackPage = () => {
                       className="flex items-center gap-2 px-4 py-2"
                     >
                       <MessageSquare className="h-4 w-4" />
-                      <span className="whitespace-nowrap">View Conversation</span>
+                      <span className="whitespace-nowrap">{t('view_conversation')}</span>
                     </Button>
                   </div>
                 </CardContent>

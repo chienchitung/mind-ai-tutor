@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { PageHeader } from '@/components/layout/PageHeader';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -16,18 +16,6 @@ import { useForm } from 'react-hook-form';
 import * as z from 'zod';
 import { useLanguage } from '@/app/contexts/LanguageContext';
 import { useTranslation } from '@/utils/translations';
-
-// Form schema for digital game creation
-const digitalGameFormSchema = z.object({
-  title: z.string().min(1, "Title is required"),
-  description: z.string().min(1, "Description is required"),
-  url: z.string().url("Please enter a valid URL"),
-  thumbnailUrl: z.union([
-    z.string().url("Please enter a valid URL for the thumbnail"),
-    z.string().length(0)
-  ]).optional(),
-  lessonIds: z.array(z.string()).max(5, "You can select up to 5 lessons").optional(),
-});
 
 interface Lesson {
   id: string;
@@ -58,6 +46,34 @@ export default function DigitalGamesPage() {
   const { toast } = useToast();
   const { language } = useLanguage();
   const { t } = useTranslation(language);
+
+  // Form schema with translated validation messages
+  const digitalGameFormSchema = z.object({
+    title: z.string().min(1, t('title') + " " + t('exercise_required')),
+    description: z.string().min(1, t('description') + " " + t('exercise_required')),
+    url: z.string().url(t('enter_url')),
+    thumbnailUrl: z.union([
+      z.string().url(t('enter_thumbnail_url')),
+      z.string().length(0)
+    ]).optional(),
+    lessonIds: z.array(z.string()).max(5, t('maximum_lessons_selected')).optional(),
+  });
+
+  // Create translated levels for use in UI
+  const translatedLevels = useMemo(() => ({
+    beginner: t('beginner'),
+    intermediate: t('intermediate'),
+    advanced: t('advanced')
+  }), [t]);
+  
+  // Function to translate level text
+  const translateLevel = (level: string) => {
+    const lowerLevel = level.toLowerCase();
+    return lowerLevel === 'beginner' ? translatedLevels.beginner :
+           lowerLevel === 'intermediate' ? translatedLevels.intermediate :
+           lowerLevel === 'advanced' ? translatedLevels.advanced :
+           level;
+  };
 
   // Form setup
   const form = useForm<z.infer<typeof digitalGameFormSchema>>({
@@ -105,8 +121,8 @@ export default function DigitalGamesPage() {
         setDigitalGames(gamesData || []);
       } catch (error: any) {
         toast({
-          title: 'Error fetching data',
-          description: error.message || 'Failed to load data. Please try again later.',
+          title: t('error'),
+          description: error.message || t('error_fetch_data'),
           variant: 'destructive',
         });
         console.error('Error fetching data:', error);
@@ -188,9 +204,9 @@ export default function DigitalGamesPage() {
           );
           
           toast({
-          title: 'Success',
-          description: 'Digital game updated successfully',
-        });
+            title: t('success'),
+            description: t('game_updated'),
+          });
       } else {
         // Create new game
           const { data, error } = await supabaseWithTypes
@@ -204,9 +220,9 @@ export default function DigitalGamesPage() {
         setDigitalGames(prev => [...prev, data]);
           
           toast({
-          title: 'Success',
-          description: 'Digital game created successfully',
-        });
+            title: t('success'),
+            description: t('game_created'),
+          });
       }
 
       setShowEditForm(false);
@@ -214,8 +230,8 @@ export default function DigitalGamesPage() {
       form.reset();
     } catch (error: any) {
       toast({
-        title: 'Error',
-        description: error.message || 'Failed to save digital game',
+        title: t('error'),
+        description: error.message || t('error_save_game'),
         variant: 'destructive',
       });
       console.error('Error saving game:', error);
@@ -247,13 +263,13 @@ export default function DigitalGamesPage() {
       setDigitalGames(prev => prev.filter(game => game.id !== gameId));
       
       toast({
-        title: 'Success',
-        description: 'Digital game deleted successfully',
+        title: t('success'),
+        description: t('game_deleted'),
       });
     } catch (error: any) {
       toast({
-        title: 'Error',
-        description: error.message || 'Failed to delete digital game',
+        title: t('error'),
+        description: error.message || t('error_delete_game'),
         variant: 'destructive',
       });
     }
@@ -281,7 +297,7 @@ export default function DigitalGamesPage() {
     <div className="space-y-6">
       <PageHeader
         heading={t('digital_games')}
-        text="Browse and manage digital games linked to lessons."
+        text={t('manage_games')}
         actions={
           !showEditForm && (
             <Button onClick={() => {
@@ -381,7 +397,7 @@ export default function DigitalGamesPage() {
                         <FormItem>
                           <FormLabel>{t('title')}</FormLabel>
                           <FormControl>
-                            <Input placeholder="Enter game title" {...field} />
+                            <Input placeholder={t('enter_game_title')} {...field} />
                           </FormControl>
                           <FormMessage />
                         </FormItem>
@@ -395,7 +411,7 @@ export default function DigitalGamesPage() {
                         <FormItem>
                           <FormLabel>{t('url')}</FormLabel>
                           <FormControl>
-                            <Input placeholder="https://..." {...field} />
+                            <Input placeholder={t('enter_url')} {...field} />
                           </FormControl>
                           <FormMessage />
                         </FormItem>
@@ -411,7 +427,7 @@ export default function DigitalGamesPage() {
                         <FormLabel>{t('description')}</FormLabel>
                         <FormControl>
                           <Textarea 
-                            placeholder="Enter game description" 
+                            placeholder={t('enter_game_description')} 
                             className="min-h-24"
                             {...field} 
                           />
@@ -428,7 +444,7 @@ export default function DigitalGamesPage() {
                       <FormItem>
                         <FormLabel>{t('thumbnail_url')} ({t('optional')})</FormLabel>
                         <FormControl>
-                          <Input placeholder="https://..." {...field} />
+                          <Input placeholder={t('enter_thumbnail_url')} {...field} />
                         </FormControl>
                         <FormMessage />
                       </FormItem>
@@ -474,7 +490,7 @@ export default function DigitalGamesPage() {
                         <>
                           <div className="relative">
                             <Input 
-                              placeholder="Search lessons..." 
+                              placeholder={t('search_lessons')} 
                               className="mb-2"
                               onChange={(e) => {
                                 const searchValue = e.target.value.toLowerCase();
@@ -509,9 +525,9 @@ export default function DigitalGamesPage() {
                                     </div>
                                     <div className="flex items-center gap-2 text-xs text-muted-foreground mt-1">
                                       <Clock className="h-3 w-3" />
-                                      <span>{lesson.duration}m</span>
+                                      <span>{lesson.duration}{t('minutes')}</span>
                                       <Badge variant="outline" className="text-xs">
-                                        {lesson.level}
+                                        {translateLevel(lesson.level)}
                                       </Badge>
                                     </div>
                                   </div>
@@ -534,15 +550,15 @@ export default function DigitalGamesPage() {
                           
                           {selectedLessons.length >= 5 && (
                             <p className="text-xs text-amber-600 mt-2 flex items-center">
-                              <span className="mr-1">Maximum of 5 lessons selected</span>
+                              <span className="mr-1">{t('maximum_lessons_selected')}</span>
                             </p>
                           )}
                         </>
                       ) : (
                         <div className="text-center py-4 text-muted-foreground">
                           <Book className="h-8 w-8 mx-auto mb-2 opacity-50" />
-                          <p>No lessons available</p>
-                          <p className="text-xs mt-1">Create lessons first to link them to games</p>
+                          <p>{t('no_lessons_available')}</p>
+                          <p className="text-xs mt-1">{t('create_lessons_first')}</p>
                         </div>
                       )}
                     </div>
@@ -561,7 +577,7 @@ export default function DigitalGamesPage() {
                       {t('cancel')}
                     </Button>
                     <Button type="submit">
-                      {editingGame ? 'Update Game' : 'Create Game'}
+                      {editingGame ? t('update_game') : t('create_game')}
                     </Button>
                   </div>
                 </form>
@@ -572,9 +588,9 @@ export default function DigitalGamesPage() {
               {digitalGames.length === 0 ? (
                 <div className="text-center py-10">
                   <Gamepad2 className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
-                  <h3 className="text-lg font-medium mb-2">No digital games yet</h3>
+                  <h3 className="text-lg font-medium mb-2">{t('no_games_yet')}</h3>
                   <p className="text-muted-foreground mb-4">
-                    Add your first digital game to get started
+                    {t('add_first_game')}
                   </p>
                   <Button onClick={() => {
                     setEditingGame(null);
@@ -613,7 +629,7 @@ export default function DigitalGamesPage() {
                         <div className="space-y-2">
                           {game.lesson_ids && game.lesson_ids.length > 0 && (
                             <div className="space-y-1">
-                              <p className="text-sm font-medium">Linked Lessons:</p>
+                              <p className="text-sm font-medium">{t('associated_lessons')}:</p>
                               <div className="flex flex-wrap gap-1">
                                 {game.lesson_ids.map(lessonId => {
                                   const lesson = lessons.find(l => l.id === lessonId);

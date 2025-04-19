@@ -124,8 +124,8 @@ export function CommandMenu() {
   ];
 
   return (
-    <CommandDialog open={open} onOpenChange={setOpen}>
-      <CommandInput placeholder={`${t('search')}... (${t('try_typing')}: settings)`} />
+    <CommandDialog open={open} onOpenChange={setOpen} aria-label={t('command_menu')}>
+      <CommandInput placeholder={`${t('search')}...`} />
       <CommandList>
         <CommandEmpty>{t('no_results_found')}</CommandEmpty>
         

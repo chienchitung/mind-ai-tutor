@@ -21,22 +21,6 @@ import { generatePracticeExercise } from '@/lib/gemini';
 import { useLanguage } from '@/app/contexts/LanguageContext';
 import { useTranslation } from '@/utils/translations';
 
-// Form schema for lesson creation
-const lessonFormSchema = z.object({
-  title: z.string().min(1, "Title is required"),
-  description: z.string().min(1, "Description is required"),
-  duration: z.number().min(1, "Duration must be at least 1 minute"),
-  level: z.string().min(1, "Level is required"),
-  topics: z.string().min(1, "At least one topic is required"),
-  geniallyLink: z.string().url("Please enter a valid URL").optional(),
-  teachingContent: z.string().min(1, "Teaching content summary is required"),
-  practiceExercises: z.array(z.object({
-    question: z.string().min(1, "Question is required"),
-    answer: z.string().min(1, "Answer is required"),
-    explanation: z.string().min(1, "Explanation is required")
-  })).min(1, "At least one practice exercise is required")
-});
-
 interface PracticeExercise {
   question: string;
   answer: string;
@@ -117,6 +101,22 @@ export default function LessonsPage() {
   const [showEditForm, setShowEditForm] = useState(false);
   const { language } = useLanguage();
   const { t } = useTranslation(language);
+
+  // Form schema with translated validation messages
+  const lessonFormSchema = z.object({
+    title: z.string().min(1, t('title') + " " + t('exercise_required')),
+    description: z.string().min(1, t('description') + " " + t('exercise_required')),
+    duration: z.number().min(1, t('duration') + " " + t('exercise_required')),
+    level: z.string().min(1, t('level') + " " + t('exercise_required')),
+    topics: z.string().min(1, t('topics') + " " + t('exercise_required')),
+    geniallyLink: z.string().url(t('enter_genially_url')).optional(),
+    teachingContent: z.string().min(1, t('create_exercise') + " " + t('exercise_required')),
+    practiceExercises: z.array(z.object({
+      question: z.string().min(1, t('question') + " " + t('exercise_required')),
+      answer: z.string().min(1, t('answer') + " " + t('exercise_required')),
+      explanation: z.string().min(1, t('explanation') + " " + t('exercise_required'))
+    })).min(1, t('exercise_required'))
+  });
 
   // 使用useMemo緩存轉換函數的結果
   const translatedLevels = useMemo(() => ({
@@ -403,7 +403,7 @@ export default function LessonsPage() {
       console.error('Error saving lesson:', error);
       toast({
         title: `${t(editingLesson ? 'lesson_error_update' : 'lesson_error_create')}`,
-        description: error.message || 'There was an error. Please try again.',
+        description: error.message || t('try_again'),
         variant: 'destructive'
       });
     }
