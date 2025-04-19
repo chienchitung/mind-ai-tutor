@@ -57,76 +57,9 @@ export interface EventView {
 }
 
 // Mock data
-const SAMPLE_TAGS: EventTag[] = [
-  { id: '1', name: 'Important', color: '#ef4444' },
-  { id: '2', name: 'Course', color: '#3b82f6' },
-  { id: '3', name: 'Workshop', color: '#8b5cf6' },
-  { id: '4', name: 'Meeting', color: '#10b981' },
-  { id: '5', name: 'In Progress', color: '#f59e0b' },
-];
+const SAMPLE_TAGS: EventTag[] = [];
 
-const SAMPLE_EVENTS: Event[] = [
-  {
-    id: '1',
-    title: 'New Course Launch',
-    description: 'Launch of the new course for Spring 2024',
-    type: 'course',
-    status: 'to_do',
-    priority: 'high',
-    position: 0,
-    startDate: '2024-04-15',
-    endDate: '2024-04-20',
-    tags: [SAMPLE_TAGS[1]],
-    attachments: [],
-    createdAt: '2024-04-15T08:00:00Z',
-    updatedAt: '2024-04-15T08:00:00Z'
-  },
-  {
-    id: '2',
-    title: 'Student Onboarding',
-    description: 'New student onboarding session',
-    type: 'meeting',
-    status: 'to_do',
-    priority: 'medium',
-    position: 0,
-    startDate: '2024-04-10',
-    endDate: '2024-04-15',
-    tags: [SAMPLE_TAGS[3]],
-    attachments: [],
-    createdAt: '2024-04-10T09:00:00Z',
-    updatedAt: '2024-04-10T09:00:00Z'
-  },
-  {
-    id: '3',
-    title: 'Excel Workshop',
-    description: 'Advanced Excel techniques workshop',
-    type: 'workshop',
-    status: 'to_do',
-    priority: 'medium',
-    position: 0,
-    startDate: '2024-04-20',
-    endDate: '2024-04-22',
-    tags: [SAMPLE_TAGS[2]],
-    attachments: [],
-    createdAt: '2024-04-12T11:00:00Z',
-    updatedAt: '2024-04-12T11:00:00Z'
-  },
-  {
-    id: '4',
-    title: 'Progress Review',
-    description: 'Quarterly progress review meeting',
-    type: 'meeting',
-    status: 'to_do',
-    priority: 'high',
-    position: 0,
-    startDate: '2024-04-23',
-    endDate: '2024-04-25',
-    tags: [SAMPLE_TAGS[3], SAMPLE_TAGS[0]],
-    attachments: [],
-    createdAt: '2024-04-15T13:00:00Z',
-    updatedAt: '2024-04-15T13:00:00Z'
-  }
-];
+const SAMPLE_EVENTS: Event[] = [];
 
 const DEFAULT_VIEWS: EventView[] = [
   {
@@ -329,20 +262,39 @@ export const EventProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         const { supabase } = await import('@/lib/supabase');
         const supabaseClient = supabase();
         
-        const { data, error } = await supabaseClient.from('events').select('*');
+        // Fetch events
+        const { data: eventsData, error: eventsError } = await supabaseClient.from('events').select('*');
         
-        if (error) {
-          setError(error.message);
+        if (eventsError) {
+          setError(eventsError.message);
           setIsLoading(false);
           return;
         }
         
-        // Transform Supabase data to Event objects
-        const supabaseEvents = data?.map(mapSupabaseEventToEvent) || [];
+        // Fetch tags
+        const { data: tagsData, error: tagsError } = await supabaseClient.from('event_tags').select('*');
         
-        // For now, combine with sample events for demo purposes
-        const combinedEvents = [...SAMPLE_EVENTS, ...supabaseEvents];
-        setEvents(combinedEvents);
+        if (tagsError) {
+          setError(tagsError.message);
+          setIsLoading(false);
+          return;
+        }
+        
+        // Transform tags data
+        const formattedTags: EventTag[] = tagsData?.map((tag: any) => ({
+          id: tag.id,
+          name: tag.name,
+          color: tag.color
+        })) || [];
+        
+        // Set tags
+        setTags(formattedTags);
+        
+        // Transform Supabase data to Event objects
+        const supabaseEvents = eventsData?.map(mapSupabaseEventToEvent) || [];
+        
+        // Set events from database only
+        setEvents(supabaseEvents);
       } catch (err: any) {
         console.error('Error loading data:', err);
         setError(err.message || 'Failed to load events');
@@ -362,12 +314,13 @@ export const EventProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       const supabaseClient = supabase();
       
       const now = new Date().toISOString();
+      const eventId = uuidv4();
       const selectedTags = eventData.tagIds
         ? tags.filter(tag => eventData.tagIds.includes(tag.id))
         : [];
         
       const newEvent: Event = {
-        id: uuidv4(),
+        id: eventId,
         ...eventData,
         tags: selectedTags,
         attachments: [],
@@ -377,7 +330,7 @@ export const EventProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       
       // Save to Supabase
       const { error } = await supabaseClient.from('events').insert({
-        id: newEvent.id,
+        id: eventId,  // Explicitly include the ID
         title: newEvent.title,
         description: newEvent.description,
         type: newEvent.type,
@@ -436,19 +389,37 @@ export const EventProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   // Delete an event
   const deleteEvent = async (id: string) => {
     try {
+      // First update the UI
+      setEvents(events.filter(e => e.id !== id));
+      
       // 動態導入 supabase 函數以避免服務器端渲染問題
       const { supabase } = await import('@/lib/supabase');
       const supabaseClient = supabase();
       
-      // Delete from Supabase
-      const { error } = await supabaseClient.from('events').delete().eq('id', id);
-      
-      if (error) throw new Error(error.message);
-      
-      setEvents(events.filter(e => e.id !== id));
+      // Validate if the ID exists in the database before trying to delete
+      const { data: checkEvent } = await supabaseClient
+        .from('events')
+        .select('id')
+        .eq('id', id)
+        .single();
+        
+      // Only attempt deletion if the event exists in the database
+      if (checkEvent) {
+        // Delete from Supabase
+        const { error } = await supabaseClient.from('events').delete().eq('id', id);
+        
+        if (error) {
+          console.error('Error deleting from database:', error.message);
+          // If deletion from database fails, restore the event in the UI
+          const eventToRestore = events.find(e => e.id === id);
+          if (eventToRestore) {
+            setEvents(prev => [...prev, eventToRestore]);
+          }
+        }
+      }
     } catch (err: any) {
       console.error('Error deleting event:', err);
-      throw err;
+      // Don't rethrow the error since we've already updated the UI
     }
   };
 
