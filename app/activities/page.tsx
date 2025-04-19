@@ -416,7 +416,7 @@ function ActivitiesPageContent() {
             <Select value={filterType} onValueChange={setFilterType}>
               <SelectTrigger className="w-[150px]">
                 <Filter className="w-4 h-4 mr-2" />
-                {t('filter')}
+                {t('activities_filter')}
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">{t('all')}</SelectItem>
@@ -448,7 +448,7 @@ function ActivitiesPageContent() {
               className="px-2 sm:px-3 h-9 w-full sm:w-auto"
             >
               <X className="w-4 h-4 mr-2" />
-              {t('clear_filters')}
+              {t('activities_clear_filters')}
             </Button>
           </div>
           

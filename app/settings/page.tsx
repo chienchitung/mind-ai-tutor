@@ -11,6 +11,8 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
 import { User, Mail, CreditCard } from 'lucide-react';
+import { useLanguage } from '@/app/contexts/LanguageContext';
+import { useTranslation } from '@/utils/translations';
 
 // 定義 Supabase 客戶端類型，避免類型錯誤
 interface SupabaseClientWithAuth {
@@ -27,6 +29,8 @@ export default function SettingsPage() {
   const [lastName, setLastName] = useState('');
   const [email, setEmail] = useState('');
   const { toast } = useToast();
+  const { language } = useLanguage();
+  const { t } = useTranslation(language);
   
   // Fetch user data
   useEffect(() => {
@@ -161,12 +165,12 @@ export default function SettingsPage() {
       });
 
       toast({
-        title: 'Profile updated',
-        description: 'Your profile information has been updated successfully.'
+        title: t('profile_updated'),
+        description: t('profile_update_success')
       });
     } catch (error: any) {
       toast({
-        title: 'Update failed',
+        title: t('update_failed'),
         description: error.message || 'Failed to update profile. Please try again.',
         variant: 'destructive'
       });
@@ -194,31 +198,31 @@ export default function SettingsPage() {
   return (
     <div className="container mx-auto py-6 space-y-8">
       <PageHeader 
-        heading="Settings" 
-        description="Manage your account settings and preferences."
+        heading={t('settings')} 
+        description={t('manage_settings')}
       />
 
       <Tabs defaultValue="profile" className="w-full">
         <TabsList className="grid w-full grid-cols-3 mb-8">
           <TabsTrigger value="profile" className="flex items-center gap-2">
             <User className="h-4 w-4" />
-            <span>Profile</span>
+            <span>{t('profile')}</span>
           </TabsTrigger>
           <TabsTrigger value="account" className="flex items-center gap-2">
             <Mail className="h-4 w-4" />
-            <span>Account</span>
+            <span>{t('account')}</span>
           </TabsTrigger>
           <TabsTrigger value="billing" className="flex items-center gap-2">
             <CreditCard className="h-4 w-4" />
-            <span>Billing</span>
+            <span>{t('billing')}</span>
           </TabsTrigger>
         </TabsList>
 
         <TabsContent value="profile" className="space-y-6">
           <Card>
             <CardHeader>
-              <CardTitle>Profile Information</CardTitle>
-              <CardDescription>Update your personal information</CardDescription>
+              <CardTitle>{t('profile_information')}</CardTitle>
+              <CardDescription>{t('update_personal_information')}</CardDescription>
             </CardHeader>
             <CardContent className="space-y-6">
               <div className="flex flex-col sm:flex-row gap-6 items-start sm:items-center">
@@ -239,7 +243,7 @@ export default function SettingsPage() {
 
               <div className="grid gap-4 sm:grid-cols-2">
                 <div className="space-y-2">
-                  <Label htmlFor="firstName">First name</Label>
+                  <Label htmlFor="firstName">{t('first_name')}</Label>
                   <Input 
                     id="firstName" 
                     value={firstName} 
@@ -247,7 +251,7 @@ export default function SettingsPage() {
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="lastName">Last name</Label>
+                  <Label htmlFor="lastName">{t('last_name')}</Label>
                   <Input 
                     id="lastName" 
                     value={lastName} 
@@ -257,7 +261,7 @@ export default function SettingsPage() {
               </div>
 
               <Button onClick={handleUpdateProfile} disabled={isLoading}>
-                {isLoading ? 'Updating...' : 'Update Profile'}
+                {t('update_profile')}
               </Button>
             </CardContent>
           </Card>
@@ -266,25 +270,25 @@ export default function SettingsPage() {
         <TabsContent value="account" className="space-y-6">
           <Card>
             <CardHeader>
-              <CardTitle>Account Settings</CardTitle>
-              <CardDescription>Manage your account details and security</CardDescription>
+              <CardTitle>{t('account')}</CardTitle>
+              <CardDescription>{t('manage_account_details')}</CardDescription>
             </CardHeader>
             <CardContent className="space-y-6">
               <div className="space-y-2">
-                <Label htmlFor="email">Email address</Label>
+                <Label htmlFor="email">{t('email')}</Label>
                 <Input id="email" value={email} disabled />
                 <p className="text-sm text-muted-foreground">
-                  Your email address is used for login and notifications
+                  {t('email_used_for')}
                 </p>
             </div>
 
               <div className="space-y-2">
-                <h3 className="text-lg font-medium">Password</h3>
+                <h3 className="text-lg font-medium">{t('password')}</h3>
               <p className="text-sm text-muted-foreground">
-                  Change your password to maintain account security
+                  {t('change_password_description')}
                 </p>
                 <Button variant="outline" onClick={handleChangePassword}>
-                  Change Password
+                  {t('change_password')}
                   </Button>
             </div>
             </CardContent>
@@ -294,25 +298,31 @@ export default function SettingsPage() {
         <TabsContent value="billing" className="space-y-6">
           <Card>
             <CardHeader>
-              <CardTitle>Subscription Plan</CardTitle>
-              <CardDescription>Manage your subscription and billing details</CardDescription>
+              <CardTitle>{t('subscription')}</CardTitle>
+              <CardDescription>{t('manage_subscription')}</CardDescription>
             </CardHeader>
             <CardContent className="space-y-6">
               <div className="flex items-center justify-between p-4 border rounded-lg">
                 <div>
                   <h3 className="text-lg font-medium">
-                    {user?.user_metadata?.subscription_plan || 'Free plan'}
+                    {user?.user_metadata?.subscription_plan === 'Free plan' 
+                      ? t('free_plan') 
+                      : user?.user_metadata?.subscription_plan === 'Pro plan' 
+                        ? t('pro_plan')
+                        : user?.user_metadata?.subscription_plan === 'Enterprise plan'
+                          ? t('enterprise_plan')
+                          : user?.user_metadata?.subscription_plan || t('free_plan')}
                   </h3>
                   <p className="text-sm text-muted-foreground">
                     {user?.user_metadata?.subscription_plan === 'Free plan' 
-                      ? 'Basic features with limited access' 
-                      : 'Full access to all features'}
+                      ? t('basic_features_description')
+                      : t('full_access_description')}
                   </p>
-          </div>
+                </div>
                 <Button variant="outline" onClick={() => window.location.href = '/subscription'}>
-                  Upgrade Plan
+                  {t('upgrade')}
                 </Button>
-        </div>
+              </div>
             </CardContent>
           </Card>
         </TabsContent>

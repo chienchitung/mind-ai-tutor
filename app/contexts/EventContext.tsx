@@ -386,7 +386,6 @@ export const EventProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         position: newEvent.position,
         start_date: newEvent.startDate,
         end_date: newEvent.endDate,
-        tags: JSON.stringify(newEvent.tags),
         created_at: newEvent.createdAt,
         updated_at: newEvent.updatedAt,
       });
@@ -422,7 +421,6 @@ export const EventProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         position: updatedEvent.position,
         start_date: updatedEvent.startDate,
         end_date: updatedEvent.endDate,
-        tags: JSON.stringify(updatedEvent.tags),
         updated_at: updatedEvent.updatedAt,
       }).eq('id', updatedEvent.id);
       

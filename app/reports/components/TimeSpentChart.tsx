@@ -1,6 +1,8 @@
 'use client';
 
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
+import { useLanguage } from '@/app/contexts/LanguageContext';
+import { useTranslation } from '@/utils/translations';
 
 interface LearningRecord {
   id: number;
@@ -21,6 +23,9 @@ interface LearningRecord {
 }
 
 export function TimeSpentChart({ records }: { records: LearningRecord[] }) {
+  const { language } = useLanguage();
+  const { t } = useTranslation(language);
+  
   // Format time in minutes for better readability
   const formatTimeSpent = (seconds: number) => {
     return Math.round(seconds / 60);
@@ -54,12 +59,12 @@ export function TimeSpentChart({ records }: { records: LearningRecord[] }) {
     .map(record => ({
       id: record.lesson_id,
       minutes: formatTimeSpent(calculateTimeSpent(record)),
-      category: record.category || 'Uncategorized'
+      category: record.category || t('uncategorized')
     }));
 
   // If no data, show empty state
   if (!chartData.length) {
-    return <div className="flex items-center justify-center h-full">No time data available</div>;
+    return <div className="flex items-center justify-center h-full">{t('no_learning_data')}</div>;
   }
 
   return (
@@ -74,11 +79,11 @@ export function TimeSpentChart({ records }: { records: LearningRecord[] }) {
         }}
       >
         <CartesianGrid strokeDasharray="3 3" opacity={0.3} />
-        <XAxis dataKey="id" label={{ value: 'Lesson ID', position: 'bottom', offset: 0 }} />
-        <YAxis label={{ value: 'Time (minutes)', angle: -90, position: 'left' }} />
+        <XAxis dataKey="id" label={{ value: t('lesson_id'), position: 'bottom', offset: 0 }} />
+        <YAxis label={{ value: `${t('time')} (${t('minutes_text')})`, angle: -90, position: 'left' }} />
         <Tooltip 
-          formatter={(value) => [`${value} minutes`, 'Time Spent']}
-          labelFormatter={(id) => `Lesson ${id}`}
+          formatter={(value) => [`${value} ${t('minutes_text')}`, t('time_spent_tooltip')]}
+          labelFormatter={(id) => `${t('lesson_text')} ${id}`}
         />
         <Bar dataKey="minutes" fill="#8884d8" />
       </BarChart>

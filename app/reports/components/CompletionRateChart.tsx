@@ -1,6 +1,8 @@
 'use client';
 
 import { PieChart, Pie, Cell, ResponsiveContainer, Legend, Tooltip } from 'recharts';
+import { useLanguage } from '@/app/contexts/LanguageContext';
+import { useTranslation } from '@/utils/translations';
 
 interface LearningStats {
   totalRecords: number;
@@ -13,21 +15,24 @@ interface LearningStats {
 }
 
 export function CompletionRateChart({ stats }: { stats: LearningStats | null }) {
+  const { language } = useLanguage();
+  const { t } = useTranslation(language);
+  
   if (!stats) {
-    return <div className="flex items-center justify-center h-full">No completion data available</div>;
+    return <div className="flex items-center justify-center h-full">{t('no_learning_data')}</div>;
   }
 
   const { completedLessons, totalRecords } = stats;
   const inProgressLessons = totalRecords - completedLessons;
 
   const data = [
-    { name: 'Completed', value: completedLessons, color: '#4ADE80' },
-    { name: 'In Progress', value: inProgressLessons, color: '#FB923C' },
+    { name: t('completed_text'), value: completedLessons, color: '#4ADE80' },
+    { name: t('in_progress_text'), value: inProgressLessons, color: '#FB923C' },
   ];
 
   // If no lessons, show empty state
   if (totalRecords === 0) {
-    return <div className="flex items-center justify-center h-full">No completion data available</div>;
+    return <div className="flex items-center justify-center h-full">{t('no_learning_data')}</div>;
   }
 
   return (
@@ -47,7 +52,7 @@ export function CompletionRateChart({ stats }: { stats: LearningStats | null }) 
             <Cell key={`cell-${index}`} fill={entry.color} />
           ))}
         </Pie>
-        <Tooltip formatter={(value) => [`${value} lessons`, '']} />
+        <Tooltip formatter={(value) => [`${value} ${t('lessons_count')}`, '']} />
         <Legend />
       </PieChart>
     </ResponsiveContainer>

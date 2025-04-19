@@ -310,7 +310,7 @@ export function CalendarView() {
           <Card>
             <CardContent className="p-4">
               <h3 className="font-medium mb-2">
-                {selectedDate ? format(selectedDate, 'EEEE, MMMM d, yyyy') : t('select_date')}
+                {selectedDate ? format(selectedDate, t('selected_date_format')) : t('select_date')}
               </h3>
               
               {selectedDateEvents.length > 0 ? (

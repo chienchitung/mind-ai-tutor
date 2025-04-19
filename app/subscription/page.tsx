@@ -7,6 +7,8 @@ import { PageHeader } from '../components/ui/page-header';
 import { Check, X } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { useEffect } from 'react';
+import { useLanguage } from '@/app/contexts/LanguageContext';
+import { useTranslation } from '@/utils/translations';
 
 interface PlanFeature {
   feature: string;
@@ -35,6 +37,8 @@ export default function SubscriptionPage() {
   const [currentPlan, setCurrentPlan] = useState('Free plan');
   const [isLoading, setIsLoading] = useState(false);
   const { toast } = useToast();
+  const { language } = useLanguage();
+  const { t } = useTranslation(language);
 
   useEffect(() => {
     const getUser = async () => {
@@ -63,45 +67,45 @@ export default function SubscriptionPage() {
     {
       name: 'Free',
       price: '$0',
-      description: 'Basic features for individual teachers',
+      description: t('basic_features'),
       features: [
-        { feature: 'Track up to 30 students', available: true },
-        { feature: 'Basic analytics', available: true },
-        { feature: 'Create up to 5 lessons', available: true },
-        { feature: 'AI-assisted learning tools', available: false },
-        { feature: 'Advanced reporting', available: false },
-        { feature: 'Priority support', available: false },
+        { feature: t('track_students'), available: true },
+        { feature: t('basic_analytics'), available: true },
+        { feature: t('create_lessons'), available: true },
+        { feature: t('ai_assisted_tools'), available: false },
+        { feature: t('advanced_reporting'), available: false },
+        { feature: t('priority_support'), available: false },
       ],
-      buttonText: currentPlan === 'Free plan' ? 'Current Plan' : 'Downgrade',
+      buttonText: currentPlan === 'Free plan' ? t('current_plan') : t('upgrade'),
     },
     {
       name: 'Pro',
       price: '$29',
-      description: 'Advanced features for professional educators',
+      description: t('advanced_features'),
       features: [
-        { feature: 'Unlimited students', available: true },
-        { feature: 'Advanced analytics', available: true },
-        { feature: 'Unlimited lessons', available: true },
-        { feature: 'AI-assisted learning tools', available: true },
-        { feature: 'Advanced reporting', available: true },
-        { feature: 'Priority support', available: false },
+        { feature: t('unlimited_students'), available: true },
+        { feature: t('advanced_analytics'), available: true },
+        { feature: t('unlimited_lessons'), available: true },
+        { feature: t('ai_assisted_tools'), available: true },
+        { feature: t('advanced_reporting'), available: true },
+        { feature: t('priority_support'), available: false },
       ],
-      buttonText: currentPlan === 'Pro plan' ? 'Current Plan' : 'Upgrade',
+      buttonText: currentPlan === 'Pro plan' ? t('current_plan') : t('upgrade'),
       recommended: true,
     },
     {
       name: 'Enterprise',
       price: '$99',
-      description: 'Complete solution for schools and organizations',
+      description: t('complete_solution'),
       features: [
-        { feature: 'Unlimited students', available: true },
-        { feature: 'Advanced analytics', available: true },
-        { feature: 'Unlimited lessons', available: true },
-        { feature: 'AI-assisted learning tools', available: true },
-        { feature: 'Advanced reporting', available: true },
-        { feature: 'Priority support', available: true },
+        { feature: t('unlimited_students'), available: true },
+        { feature: t('advanced_analytics'), available: true },
+        { feature: t('unlimited_lessons'), available: true },
+        { feature: t('ai_assisted_tools'), available: true },
+        { feature: t('advanced_reporting'), available: true },
+        { feature: t('priority_support'), available: true },
       ],
-      buttonText: currentPlan === 'Enterprise plan' ? 'Current Plan' : 'Upgrade',
+      buttonText: currentPlan === 'Enterprise plan' ? t('current_plan') : t('upgrade'),
     },
   ];
 
@@ -110,24 +114,24 @@ export default function SubscriptionPage() {
 
     if (planName === 'Free' && currentPlan === 'Free plan') {
       toast({
-        title: 'Already on Free plan',
-        description: 'You are already using the Free plan.',
+        title: `${t('already_on')} ${t('free_plan')}`,
+        description: `${t('already_using')} ${t('free_plan')}.`,
       });
       return;
     }
 
     if (planName === 'Pro' && currentPlan === 'Pro plan') {
       toast({
-        title: 'Already on Pro plan',
-        description: 'You are already using the Pro plan.',
+        title: `${t('already_on')} ${t('pro_plan')}`,
+        description: `${t('already_using')} ${t('pro_plan')}.`,
       });
       return;
     }
 
     if (planName === 'Enterprise' && currentPlan === 'Enterprise plan') {
       toast({
-        title: 'Already on Enterprise plan',
-        description: 'You are already using the Enterprise plan.',
+        title: `${t('already_on')} ${t('enterprise_plan')}`,
+        description: `${t('already_using')} ${t('enterprise_plan')}.`,
       });
       return;
     }
@@ -154,14 +158,20 @@ export default function SubscriptionPage() {
 
       setCurrentPlan(`${planName} plan`);
 
+      const planTranslationKey = planName === 'Free' 
+        ? 'free_plan' 
+        : planName === 'Pro' 
+          ? 'pro_plan' 
+          : 'enterprise_plan';
+
       toast({
-        title: 'Plan updated',
-        description: `You are now on the ${planName} plan.`,
+        title: t('plan_updated'),
+        description: `${t('now_on')} ${t(planTranslationKey)}.`,
       });
     } catch (error: any) {
       toast({
-        title: 'Error updating plan',
-        description: error.message || 'Failed to update subscription plan.',
+        title: t('error_updating_plan'),
+        description: error.message || t('failed_update_plan'),
         variant: 'destructive',
       });
     } finally {
@@ -172,8 +182,8 @@ export default function SubscriptionPage() {
   return (
     <div className="container mx-auto py-6 space-y-8">
       <PageHeader 
-        heading="Subscription Plans" 
-        description="Choose the plan that best fits your needs"
+        heading={t('subscription_plans')} 
+        description={t('choose_plan')}
       />
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
@@ -184,14 +194,14 @@ export default function SubscriptionPage() {
           >
             {plan.recommended && (
               <div className="bg-primary text-primary-foreground text-center py-1 text-sm font-medium">
-                Recommended
+                {t('recommended')}
               </div>
             )}
             <CardHeader>
-              <CardTitle>{plan.name}</CardTitle>
+              <CardTitle>{t(plan.name.toLowerCase() as any)}</CardTitle>
               <div className="flex items-baseline mt-2">
                 <span className="text-3xl font-bold">{plan.price}</span>
-                <span className="ml-1 text-muted-foreground">/month</span>
+                <span className="ml-1 text-muted-foreground">{t('per_month')}</span>
               </div>
               <CardDescription>{plan.description}</CardDescription>
             </CardHeader>
@@ -218,7 +228,7 @@ export default function SubscriptionPage() {
                 disabled={isLoading || currentPlan === `${plan.name} plan`}
                 onClick={() => handlePlanChange(plan.name)}
               >
-                {isLoading ? 'Processing...' : plan.buttonText}
+                {isLoading ? t('processing') : plan.buttonText}
               </Button>
             </CardFooter>
           </Card>
@@ -226,12 +236,12 @@ export default function SubscriptionPage() {
       </div>
 
       <div className="mt-10 text-center max-w-2xl mx-auto">
-        <h3 className="text-lg font-semibold mb-2">Need a custom plan?</h3>
+        <h3 className="text-lg font-semibold mb-2">{t('custom_plan')}</h3>
         <p className="text-muted-foreground mb-4">
-          If you need a custom plan for your school or organization, please contact our sales team.
+          {t('custom_plan_description')}
         </p>
         <Button variant="outline" onClick={() => window.open('mailto:sales@mindaitutor.com')}>
-          Contact Sales
+          {t('contact_sales')}
         </Button>
       </div>
     </div>

@@ -3,6 +3,8 @@
 import { Button } from '@/components/ui/button';
 import { Download } from 'lucide-react';
 import { exportLearningRecordsToCsv } from '../../utils/csv-export';
+import { useLanguage } from '@/app/contexts/LanguageContext';
+import { useTranslation } from '@/utils/translations';
 
 // Define minimal interface for records
 interface LearningRecord {
@@ -28,6 +30,9 @@ interface ExportButtonProps {
 }
 
 export function ExportButton({ records, studentName, disabled = false }: ExportButtonProps) {
+  const { language } = useLanguage();
+  const { t } = useTranslation(language);
+  
   const handleExport = () => {
     if (records.length === 0) return;
     const safeStudentName = studentName || 'unknown';
@@ -42,7 +47,7 @@ export function ExportButton({ records, studentName, disabled = false }: ExportB
       onClick={handleExport}
     >
       <Download className="mr-2 h-4 w-4" />
-      Export Data
+      {t('export_data')}
     </Button>
   );
 } 

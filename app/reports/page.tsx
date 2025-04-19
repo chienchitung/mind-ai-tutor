@@ -15,6 +15,8 @@ import { CompletionRateChart } from './components/CompletionRateChart';
 import { LearningTimeline } from './components/LearningTimeline';
 import { CategoryDistribution } from './components/CategoryDistribution';
 import { ExportButton } from './components/ExportButton';
+import { useLanguage } from '@/app/contexts/LanguageContext';
+import { useTranslation } from '@/utils/translations';
 
 // Define LearningRecord type based on the Supabase schema
 interface LearningRecord {
@@ -52,6 +54,8 @@ export default function ReportsPage() {
   const [learningRecords, setLearningRecords] = useState<LearningRecord[]>([]);
   const [learningStats, setLearningStats] = useState<LearningStats | null>(null);
   const [loading, setLoading] = useState(false);
+  const { language } = useLanguage();
+  const { t } = useTranslation(language);
 
   // Fetch students list
   useEffect(() => {
@@ -282,8 +286,8 @@ export default function ReportsPage() {
     <div className="w-full space-y-6 pb-8">
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-8">
         <div>
-          <h1 className="text-2xl font-bold">Learning Reports</h1>
-          <p className="text-muted-foreground">Analyze student learning patterns and achievements</p>
+          <h1 className="text-2xl font-bold">{t('learning_reports')}</h1>
+          <p className="text-muted-foreground">{t('analyze_learning_patterns')}</p>
         </div>
         <div className="flex gap-2">
           <StudentSelector
@@ -303,11 +307,11 @@ export default function ReportsPage() {
         <Card>
           <CardContent className="flex flex-col items-center justify-center p-6 h-64">
             <BarChart2 className="h-12 w-12 text-muted-foreground mb-4 opacity-50" />
-            <h3 className="text-xl font-medium mb-2">No Learning Data Available</h3>
+            <h3 className="text-xl font-medium mb-2">{t('no_learning_data')}</h3>
             <p className="text-muted-foreground text-center max-w-md mb-8">
               {selectedStudent 
-                ? "This student doesn't have any learning records yet."
-                : "Please select a student to view their learning reports."}
+                ? t('no_records_yet')
+                : t('select_student_prompt')}
             </p>
           </CardContent>
         </Card>
@@ -318,13 +322,13 @@ export default function ReportsPage() {
             <Card>
               <CardContent className="p-4 md:p-6">
                 <div className="flex items-center justify-between">
-                  <p className="text-sm text-muted-foreground">Total Learning Time</p>
+                  <p className="text-sm text-muted-foreground">{t('total_learning_time')}</p>
                   <Clock className="h-4 w-4 text-muted-foreground" />
                 </div>
                 <div className="mt-3">
                   <h3 className="text-2xl font-bold">{formatTime(learningStats?.totalTimeSpent || 0)}</h3>
                   <p className="text-xs text-muted-foreground mt-1">
-                    Avg {formatTime(learningStats?.averageTimePerLesson || 0)} per lesson
+                    {t('avg_per_lesson', { time: formatTime(learningStats?.averageTimePerLesson || 0) })}
                   </p>
                 </div>
               </CardContent>
@@ -333,7 +337,7 @@ export default function ReportsPage() {
             <Card>
               <CardContent className="p-4 md:p-6">
                 <div className="flex items-center justify-between">
-                  <p className="text-sm text-muted-foreground">Completion Rate</p>
+                  <p className="text-sm text-muted-foreground">{t('completion_rate')}</p>
                   <BarChart2 className="h-4 w-4 text-muted-foreground" />
                 </div>
                 <div className="mt-3">
@@ -341,7 +345,7 @@ export default function ReportsPage() {
                     {learningStats?.completionRate.toFixed(1)}%
                   </h3>
                   <p className="text-xs text-muted-foreground mt-1">
-                    {learningStats?.completedLessons || 0} of {learningStats?.totalRecords || 0} lessons
+                    {t('of_lessons', { total: learningStats?.totalRecords || 0 })}
                   </p>
                 </div>
               </CardContent>
@@ -350,15 +354,15 @@ export default function ReportsPage() {
             <Card>
               <CardContent className="p-4 md:p-6">
                 <div className="flex items-center justify-between">
-                  <p className="text-sm text-muted-foreground">Last Activity</p>
+                  <p className="text-sm text-muted-foreground">{t('last_activity')}</p>
                   <Calendar className="h-4 w-4 text-muted-foreground" />
                 </div>
                 <div className="mt-3">
                   <h3 className="text-lg font-bold">
-                    {learningStats?.lastActive ? formatDate(learningStats.lastActive) : 'N/A'}
+                    {learningStats?.lastActive ? formatDate(learningStats.lastActive) : t('not_available')}
                   </h3>
                   <p className="text-xs text-muted-foreground mt-1">
-                    {learningRecords.length} total sessions
+                    {learningRecords.length} {t('total_sessions')}
                   </p>
                 </div>
               </CardContent>
@@ -367,7 +371,7 @@ export default function ReportsPage() {
             <Card>
               <CardContent className="p-4 md:p-6">
                 <div className="flex items-center justify-between">
-                  <p className="text-sm text-muted-foreground">Primary Category</p>
+                  <p className="text-sm text-muted-foreground">{t('primary_category')}</p>
                   <Sparkles className="h-4 w-4 text-muted-foreground" />
                 </div>
                 <div className="mt-3">
@@ -378,13 +382,13 @@ export default function ReportsPage() {
                           .sort(([, a], [, b]) => b - a)[0][0]}
                       </h3>
                       <p className="text-xs text-muted-foreground mt-1">
-                        {Object.keys(learningStats.categoryCounts).length} categories total
+                        {Object.keys(learningStats.categoryCounts).length} {t('categories_total')}
                       </p>
                     </>
                   ) : (
                     <>
-                      <h3 className="text-lg font-bold">None</h3>
-                      <p className="text-xs text-muted-foreground mt-1">No categories found</p>
+                      <h3 className="text-lg font-bold">{t('uncategorized')}</h3>
+                      <p className="text-xs text-muted-foreground mt-1">{t('no_categories')}</p>
                     </>
                   )}
                 </div>
@@ -395,18 +399,18 @@ export default function ReportsPage() {
           {/* Data Visualization Tabs */}
           <Tabs defaultValue="time-spent" className="w-full">
             <TabsList className="mb-4">
-              <TabsTrigger value="time-spent">Time Distribution</TabsTrigger>
-              <TabsTrigger value="completion">Completion Rates</TabsTrigger>
-              <TabsTrigger value="timeline">Learning Timeline</TabsTrigger>
-              <TabsTrigger value="categories">Categories</TabsTrigger>
+              <TabsTrigger value="time-spent">{t('time_distribution')}</TabsTrigger>
+              <TabsTrigger value="completion">{t('completion_rates')}</TabsTrigger>
+              <TabsTrigger value="timeline">{t('learning_timeline')}</TabsTrigger>
+              <TabsTrigger value="categories">{t('categories')}</TabsTrigger>
             </TabsList>
             
             <TabsContent value="time-spent" className="mt-0">
               <Card>
                 <CardHeader>
-                  <CardTitle>Learning Time Distribution</CardTitle>
+                  <CardTitle>{t('learning_time_distribution')}</CardTitle>
                   <CardDescription>
-                    Analysis of time spent on different lessons
+                    {t('time_spent_analysis')}
                   </CardDescription>
                 </CardHeader>
                 <CardContent className="h-96">
@@ -418,9 +422,9 @@ export default function ReportsPage() {
             <TabsContent value="completion" className="mt-0">
               <Card>
                 <CardHeader>
-                  <CardTitle>Lesson Completion Analysis</CardTitle>
+                  <CardTitle>{t('lesson_completion_analysis')}</CardTitle>
                   <CardDescription>
-                    Tracking completed vs. in-progress lessons
+                    {t('completion_vs_progress')}
                   </CardDescription>
                 </CardHeader>
                 <CardContent className="h-96">
@@ -432,9 +436,9 @@ export default function ReportsPage() {
             <TabsContent value="timeline" className="mt-0">
               <Card>
                 <CardHeader>
-                  <CardTitle>Learning Activity Timeline</CardTitle>
+                  <CardTitle>{t('learning_activity_timeline')}</CardTitle>
                   <CardDescription>
-                    Chronological view of learning sessions
+                    {t('chronological_view')}
                   </CardDescription>
                 </CardHeader>
                 <CardContent className="h-96">
@@ -446,9 +450,9 @@ export default function ReportsPage() {
             <TabsContent value="categories" className="mt-0">
               <Card>
                 <CardHeader>
-                  <CardTitle>Category Distribution</CardTitle>
+                  <CardTitle>{t('category_distribution')}</CardTitle>
                   <CardDescription>
-                    Breakdown of lessons by category
+                    {t('lessons_by_category')}
                   </CardDescription>
                 </CardHeader>
                 <CardContent className="h-96">
@@ -461,9 +465,9 @@ export default function ReportsPage() {
           {/* Recent Records */}
           <Card>
             <CardHeader>
-              <CardTitle>Recent Learning Activities</CardTitle>
+              <CardTitle>{t('recent_learning')}</CardTitle>
               <CardDescription>
-                Latest {Math.min(5, learningRecords.length)} learning sessions
+                {t('latest_sessions', { count: Math.min(5, learningRecords.length) })}
               </CardDescription>
             </CardHeader>
             <CardContent>
@@ -471,12 +475,12 @@ export default function ReportsPage() {
                 <table className="w-full">
                   <thead>
                     <tr className="text-left border-b">
-                      <th className="p-2 text-sm font-medium text-muted-foreground">Lesson ID</th>
-                      <th className="p-2 text-sm font-medium text-muted-foreground">Started</th>
-                      <th className="p-2 text-sm font-medium text-muted-foreground">Completed</th>
-                      <th className="p-2 text-sm font-medium text-muted-foreground">Time Spent</th>
-                      <th className="p-2 text-sm font-medium text-muted-foreground">Category</th>
-                      <th className="p-2 text-sm font-medium text-muted-foreground">Status</th>
+                      <th className="p-2 text-sm font-medium text-muted-foreground">{t('lesson_id')}</th>
+                      <th className="p-2 text-sm font-medium text-muted-foreground">{t('started')}</th>
+                      <th className="p-2 text-sm font-medium text-muted-foreground">{t('completed')}</th>
+                      <th className="p-2 text-sm font-medium text-muted-foreground">{t('time_spent')}</th>
+                      <th className="p-2 text-sm font-medium text-muted-foreground">{t('category')}</th>
+                      <th className="p-2 text-sm font-medium text-muted-foreground">{t('status')}</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -488,14 +492,14 @@ export default function ReportsPage() {
                           {getEndTime(record) ? formatDate(getEndTime(record)) : '-'}
                         </td>
                         <td className="p-2 text-sm">{formatTime(getDuration(record))}</td>
-                        <td className="p-2 text-sm">{record.category || 'Uncategorized'}</td>
+                        <td className="p-2 text-sm">{record.category || t('uncategorized')}</td>
                         <td className="p-2 text-sm">
                           <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs ${
                             getEndTime(record)
                               ? 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400'
                               : 'bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-400'
                           }`}>
-                            {getEndTime(record) ? 'Completed' : 'In Progress'}
+                            {getEndTime(record) ? t('completed') : t('in_progress')}
                           </span>
                         </td>
                       </tr>

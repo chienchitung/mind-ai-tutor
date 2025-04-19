@@ -1,6 +1,8 @@
 'use client';
 
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
+import { useLanguage } from '@/app/contexts/LanguageContext';
+import { useTranslation } from '@/utils/translations';
 
 interface LearningRecord {
   id: number;
@@ -21,8 +23,11 @@ interface LearningRecord {
 }
 
 export function LearningTimeline({ records }: { records: LearningRecord[] }) {
+  const { language } = useLanguage();
+  const { t } = useTranslation(language);
+  
   if (!records || records.length === 0) {
-    return <div className="flex items-center justify-center h-full">No timeline data available</div>;
+    return <div className="flex items-center justify-center h-full">{t('no_learning_data')}</div>;
   }
 
   // Get date field (fallback to alternatives with taipei fields prioritized)
@@ -58,7 +63,7 @@ export function LearningTimeline({ records }: { records: LearningRecord[] }) {
   const recordsWithDates = records.filter(record => getDateField(record));
   
   if (recordsWithDates.length === 0) {
-    return <div className="flex items-center justify-center h-full">No date information available for timeline</div>;
+    return <div className="flex items-center justify-center h-full">{t('no_learning_data')}</div>;
   }
 
   // Format date for chart display
@@ -111,16 +116,16 @@ export function LearningTimeline({ records }: { records: LearningRecord[] }) {
         <CartesianGrid strokeDasharray="3 3" opacity={0.3} />
         <XAxis 
           dataKey="date" 
-          label={{ value: 'Date', position: 'bottom', offset: 0 }}
+          label={{ value: t('date'), position: 'bottom', offset: 0 }}
           tickFormatter={formatDate}
         />
         <YAxis 
-          label={{ value: 'Time (minutes)', angle: -90, position: 'left' }}
+          label={{ value: `${t('time')} (${t('minutes_text')})`, angle: -90, position: 'left' }}
         />
         <Tooltip
-          labelFormatter={(label) => `Date: ${label}`}
+          labelFormatter={(label) => `${t('date')}: ${label}`}
           formatter={(value, name) => {
-            if (name === 'minutes') return [`${value} minutes`, 'Time Spent'];
+            if (name === 'minutes') return [`${value} ${t('minutes_text')}`, t('time_spent_tooltip')];
             return [value, name];
           }}
         />

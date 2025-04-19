@@ -46,6 +46,9 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { EventFormDialog } from "../EventFormDialog";
 import { cn } from "@/lib/utils";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { useLanguage } from "@/app/contexts/LanguageContext";
+import { useTranslation } from "@/utils/translations";
 
 type TimelineViewMode = 'week' | 'month';
 
@@ -60,12 +63,17 @@ interface EventPosition {
 
 export function TimelineView() {
   const { events, updateEvent, deleteEvent } = useEvents();
+  const { language } = useLanguage();
+  const { t } = useTranslation(language);
   const [focusDate, setFocusDate] = useState(new Date());
   const [viewMode, setViewMode] = useState<TimelineViewMode>('week');
   const [timelineEvents, setTimelineEvents] = useState<Event[]>([]);
   const [positionedEvents, setPositionedEvents] = useState<EventPosition[]>([]);
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [editingEvent, setEditingEvent] = useState<Event | null>(null);
+  const [selectedDayEvents, setSelectedDayEvents] = useState<Event[]>([]);
+  const [isEventListOpen, setIsEventListOpen] = useState(false);
+  const [selectedDate, setSelectedDate] = useState<Date | null>(null);
   
   // 獲取當前視圖的日期範圍
   const getDateRange = () => {
@@ -230,6 +238,15 @@ export function TimelineView() {
     }
   };
   
+  // 新增：處理點擊「+X more」的函數
+  const handleShowMoreEvents = (day: Date, events: Event[], e: React.MouseEvent) => {
+    setSelectedDate(day);
+    setSelectedDayEvents(events);
+    setIsEventListOpen(true);
+    // 阻止事件冒泡，防止觸發父元素的點擊事件
+    e.stopPropagation();
+  };
+  
   return (
     <div className="flex flex-col space-y-4">
       {/* Timeline header */}
@@ -239,7 +256,7 @@ export function TimelineView() {
             <ChevronLeft className="h-4 w-4" />
           </Button>
           <Button variant="outline" size="sm" onClick={navigateToday}>
-            Today
+            {t('today')}
           </Button>
           <Button variant="outline" size="sm" onClick={navigateNext}>
             <ChevronRight className="h-4 w-4" />
@@ -249,8 +266,8 @@ export function TimelineView() {
         
         <Tabs value={viewMode} onValueChange={(value) => setViewMode(value as TimelineViewMode)}>
           <TabsList>
-            <TabsTrigger value="week">Week</TabsTrigger>
-            <TabsTrigger value="month">Month</TabsTrigger>
+            <TabsTrigger value="week">{t('week')}</TabsTrigger>
+            <TabsTrigger value="month">{t('month')}</TabsTrigger>
           </TabsList>
         </Tabs>
       </div>
@@ -279,13 +296,23 @@ export function TimelineView() {
           
           {viewMode === 'month' && (
             <>
-              <div className="py-2 px-2 text-center font-medium text-xs">Mon</div>
-              <div className="py-2 px-2 text-center font-medium text-xs">Tue</div>
-              <div className="py-2 px-2 text-center font-medium text-xs">Wed</div>
-              <div className="py-2 px-2 text-center font-medium text-xs">Thu</div>
-              <div className="py-2 px-2 text-center font-medium text-xs">Fri</div>
-              <div className="py-2 px-2 text-center font-medium text-xs">Sat</div>
-              <div className="py-2 px-2 text-center font-medium text-xs">Sun</div>
+              {days.slice(0, 7).map((day, idx) => (
+                <div 
+                  key={idx} 
+                  className={cn(
+                    "py-2 px-2 text-center font-medium border-r last:border-r-0",
+                    isSameDay(day, today) ? "bg-blue-50" : ""
+                  )}
+                >
+                  <div className="text-sm">{format(day, 'EEE')}</div>
+                  <div className={cn(
+                    "inline-flex items-center justify-center h-6 w-6 rounded-full text-sm",
+                    isSameDay(day, today) ? "bg-blue-500 text-white" : ""
+                  )}>
+                    {format(day, 'd')}
+                  </div>
+                </div>
+              ))}
             </>
           )}
         </div>
@@ -419,6 +446,9 @@ export function TimelineView() {
                   return isSameDay(eventStartDate, day);
                 });
               
+              // 所有相關事件，同時包括當日開始的單日和跨日事件
+              const allDayEvents = [...dayEvents, ...multiDayEventsForDay.map(pe => pe.event)];
+              
               return (
                 <div 
                   key={idx} 
@@ -487,10 +517,16 @@ export function TimelineView() {
                       ))
                     }
                     
-                    {/* 顯示"更多"提示 */}
+                    {/* 顯示"更多"提示 - 使其可點擊 */}
                     {(dayEvents.length + multiDayEventsForDay.length > 2 || 
                       (multiDayEventsForDay.length > 0 && dayEvents.length > 1)) && (
-                      <div className="text-xs text-gray-500 pl-1">
+                      <div 
+                        className="text-xs text-gray-500 pl-1 cursor-pointer hover:text-gray-700 hover:bg-gray-100 rounded px-1"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleShowMoreEvents(day, allDayEvents, e);
+                        }}
+                      >
                         +{dayEvents.length + multiDayEventsForDay.length - 
                            (multiDayEventsForDay.length > 0 ? 1 : 2)} more
                       </div>
@@ -510,6 +546,66 @@ export function TimelineView() {
           initialEvent={editingEvent}
           mode="edit"
         />
+      )}
+      
+      {/* 事件列表對話框 */}
+      {isEventListOpen && selectedDate && (
+        <Dialog open={isEventListOpen} onOpenChange={setIsEventListOpen}>
+          <DialogContent className="sm:max-w-md">
+            <DialogHeader>
+              <DialogTitle>
+                {selectedDate ? format(selectedDate, t('selected_date_format')) : t('events')}
+              </DialogTitle>
+              <DialogDescription>
+                {t('all_events_for_this_day')}
+              </DialogDescription>
+            </DialogHeader>
+            <div className="max-h-[60vh] overflow-y-auto p-1">
+              <div className="space-y-2">
+                {selectedDayEvents.map(event => (
+                  <Card key={event.id} className="hover:shadow-md cursor-pointer" onClick={() => {
+                    setIsEventListOpen(false);
+                    handleEditEvent(event);
+                  }}>
+                    <CardContent className="p-3">
+                      <div className="flex items-center gap-2">
+                        {typeIcons[event.type]}
+                        <span className="font-medium">{event.title}</span>
+                        <Badge className={cn(
+                          "ml-auto",
+                          event.status === 'to_do' ? "bg-blue-100 text-blue-800" : 
+                          event.status === 'in_progress' ? "bg-amber-100 text-amber-800" : 
+                          "bg-green-100 text-green-800"
+                        )}>
+                          {t(event.status)}
+                        </Badge>
+                      </div>
+                      {event.description && (
+                        <p className="text-sm text-gray-500 mt-1 line-clamp-2">{event.description}</p>
+                      )}
+                      <div className="flex items-center text-xs text-gray-500 mt-2">
+                        <Clock className="h-3 w-3 mr-1" />
+                        <span>
+                          {format(new Date(event.startDate), "MMM dd")}
+                          {!isSameDay(new Date(event.startDate), new Date(event.endDate)) && 
+                           ` - ${format(new Date(event.endDate), "MMM dd")}`}
+                        </span>
+                      </div>
+                    </CardContent>
+                  </Card>
+                ))}
+                {selectedDayEvents.length === 0 && (
+                  <div className="text-center py-4 text-gray-500">{t('no_events_for_this_day')}</div>
+                )}
+              </div>
+            </div>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setIsEventListOpen(false)}>
+                {t('close')}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
       )}
     </div>
   );
