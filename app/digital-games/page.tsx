@@ -14,6 +14,8 @@ import { useToast } from '@/hooks/use-toast';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useForm } from 'react-hook-form';
 import * as z from 'zod';
+import { useLanguage } from '@/app/contexts/LanguageContext';
+import { useTranslation } from '@/utils/translations';
 
 // Form schema for digital game creation
 const digitalGameFormSchema = z.object({
@@ -54,6 +56,8 @@ export default function DigitalGamesPage() {
   const [editingGame, setEditingGame] = useState<DigitalGame | null>(null);
   const [selectedLessons, setSelectedLessons] = useState<string[]>([]);
   const { toast } = useToast();
+  const { language } = useLanguage();
+  const { t } = useTranslation(language);
 
   // Form setup
   const form = useForm<z.infer<typeof digitalGameFormSchema>>({
@@ -276,7 +280,7 @@ export default function DigitalGamesPage() {
   return (
     <div className="space-y-6">
       <PageHeader
-        heading="Digital Games"
+        heading={t('digital_games')}
         text="Browse and manage digital games linked to lessons."
         actions={
           !showEditForm && (
@@ -287,20 +291,20 @@ export default function DigitalGamesPage() {
               form.reset();
             }}>
               <PlusCircle className="mr-2 h-4 w-4" />
-              Add Digital Game
+              {t('create_game')}
             </Button>
           )
         }
       />
       
       {isLoading ? (
-        <div className="text-center py-10">Loading digital games...</div>
+        <div className="text-center py-10">{t('loading_games')}</div>
       ) : (
         <>
           {showEditForm ? (
             <>
               <div className="mb-6 flex justify-between items-center">
-                <h2 className="text-xl font-semibold">{editingGame ? 'Edit Digital Game' : 'Add Digital Game'}</h2>
+                <h2 className="text-xl font-semibold">{editingGame ? t('edit_game') : t('create_game')}</h2>
                 <Button 
                   variant="outline" 
                   size="sm" 
@@ -310,7 +314,7 @@ export default function DigitalGamesPage() {
                     form.reset();
                   }}
                 >
-                  Cancel
+                  {t('cancel')}
                 </Button>
               </div>
               
@@ -342,12 +346,12 @@ export default function DigitalGamesPage() {
                           <div className="mt-2">
                             <a href={editingGame.url} target="_blank" rel="noopener noreferrer" className="text-blue-600 flex items-center hover:underline">
                               <ExternalLink className="h-3 w-3 mr-1" />
-                              Game URL
+                              {t('url')}
                             </a>
                           </div>
                           {editingGame.lesson_ids && editingGame.lesson_ids.length > 0 && (
                             <div className="space-y-1 mt-4">
-                              <p className="text-sm font-medium">Linked Lessons:</p>
+                              <p className="text-sm font-medium">{t('associated_lessons')}:</p>
                               <div className="flex flex-wrap gap-2">
                                 {editingGame.lesson_ids.map(lessonId => {
                                   const lesson = lessons.find(l => l.id === lessonId);
@@ -375,7 +379,7 @@ export default function DigitalGamesPage() {
                       name="title"
                       render={({ field }) => (
                         <FormItem>
-                          <FormLabel>Title</FormLabel>
+                          <FormLabel>{t('title')}</FormLabel>
                           <FormControl>
                             <Input placeholder="Enter game title" {...field} />
                           </FormControl>
@@ -389,7 +393,7 @@ export default function DigitalGamesPage() {
                       name="url"
                       render={({ field }) => (
                         <FormItem>
-                          <FormLabel>Game URL</FormLabel>
+                          <FormLabel>{t('url')}</FormLabel>
                           <FormControl>
                             <Input placeholder="https://..." {...field} />
                           </FormControl>
@@ -404,7 +408,7 @@ export default function DigitalGamesPage() {
                     name="description"
                     render={({ field }) => (
                       <FormItem>
-                        <FormLabel>Description</FormLabel>
+                        <FormLabel>{t('description')}</FormLabel>
                         <FormControl>
                           <Textarea 
                             placeholder="Enter game description" 
@@ -422,7 +426,7 @@ export default function DigitalGamesPage() {
                     name="thumbnailUrl"
                     render={({ field }) => (
                       <FormItem>
-                        <FormLabel>Thumbnail URL (optional)</FormLabel>
+                        <FormLabel>{t('thumbnail_url')} ({t('optional')})</FormLabel>
                         <FormControl>
                           <Input placeholder="https://..." {...field} />
                         </FormControl>
@@ -432,11 +436,11 @@ export default function DigitalGamesPage() {
                   />
                   
                   <div className="space-y-2">
-                    <FormLabel>Link to Lessons (max 5)</FormLabel>
+                    <FormLabel>{t('associated_lessons')} ({t('max')} 5)</FormLabel>
                     <div className="grid gap-2 border rounded-md p-4 bg-muted/20">
                       {selectedLessons.length > 0 && (
                         <div className="mb-3">
-                          <p className="text-sm font-medium mb-2">Selected Lessons ({selectedLessons.length}/5):</p>
+                          <p className="text-sm font-medium mb-2">{t('selected_lessons')} ({selectedLessons.length}/5):</p>
                           <div className="flex flex-wrap gap-2">
                             {selectedLessons.map(lessonId => {
                               const lesson = lessons.find(l => l.id === lessonId);
@@ -554,7 +558,7 @@ export default function DigitalGamesPage() {
                         form.reset();
                       }}
                     >
-                      Cancel
+                      {t('cancel')}
                     </Button>
                     <Button type="submit">
                       {editingGame ? 'Update Game' : 'Create Game'}
@@ -577,7 +581,7 @@ export default function DigitalGamesPage() {
                     setShowEditForm(true);
                   }}>
                     <PlusCircle className="mr-2 h-4 w-4" />
-                    Add Digital Game
+                    {t('create_game')}
                   </Button>
                 </div>
               ) : (
@@ -630,7 +634,7 @@ export default function DigitalGamesPage() {
                           <Button variant="outline" size="sm" asChild>
                             <a href={game.url} target="_blank" rel="noopener noreferrer">
                               <ExternalLink className="mr-2 h-4 w-4" />
-                              Play Game
+                              {t('play_game')}
                             </a>
                           </Button>
                           <div className="flex gap-2">

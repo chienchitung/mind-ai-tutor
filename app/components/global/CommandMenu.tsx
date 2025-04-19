@@ -25,7 +25,7 @@ import {
   MessageSquare,
   Wand2 
 } from "lucide-react";
-import { useLanguage } from "@/contexts/LanguageContext";
+import { useLanguage } from "@/app/contexts/LanguageContext";
 import { useTranslation } from "@/utils/translations";
 
 interface NavItem {
@@ -63,61 +63,61 @@ export function CommandMenu() {
   const navItems: NavItem[] = [
     {
       icon: Home,
-      name: 'Dashboard',
+      name: t('dashboard'),
       path: "/dashboard",
       keywords: "home main dashboard overview analytics charts",
     },
     {
       icon: Users,
-      name: 'Students',
+      name: t('students'),
       path: "/students",
       keywords: "learners pupils education users",
     },
     {
       icon: Bell,
-      name: 'Activities',
+      name: t('activities'),
       path: "/activities",
       keywords: "activities notifications alerts feed updates",
     },
     {
       icon: BookOpen,
-      name: 'Lessons',
+      name: t('lessons'),
       path: "/lessons",
       keywords: "courses curriculum teaching learning excel genially",
     },
     {
       icon: Gamepad2,
-      name: 'Digital Games',
+      name: t('digital_games'),
       path: "/digital-games",
       keywords: "games interactive learning education digital",
     },
     {
       icon: Wand2,
-      name: 'AI Quiz',
+      name: t('ai_quiz'),
       path: "/ai-quiz",
       keywords: "quiz questions assessment test ai artificial intelligence gemini",
     },
     {
       icon: MessageSquare,
-      name: 'Feedback',
+      name: t('feedback'),
       path: "/feedback",
       keywords: "comments reviews assessment evaluation",
     },
     {
       icon: Calendar,
-      name: 'Events',
+      name: t('events'),
       path: "/events",
       keywords: "events activities calendar schedule",
     },
     {
       icon: BarChart3,
-      name: 'Reports',
+      name: t('reports'),
       path: "/reports",
       keywords: "statistics data charts metrics progress insights reporting",
     },
     {
       icon: Settings,
-      name: 'Settings',
+      name: t('settings'),
       path: "/settings",
       keywords: "preferences appearance configuration theme language font",
     },

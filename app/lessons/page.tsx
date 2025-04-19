@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { createClient } from '@supabase/supabase-js';
 import { PageHeader } from '@/components/layout/PageHeader';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
@@ -18,6 +18,8 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { useForm } from 'react-hook-form';
 import * as z from 'zod';
 import { generatePracticeExercise } from '@/lib/gemini';
+import { useLanguage } from '@/app/contexts/LanguageContext';
+import { useTranslation } from '@/utils/translations';
 
 // Form schema for lesson creation
 const lessonFormSchema = z.object({
@@ -82,6 +84,18 @@ style.textContent = `
     50% { opacity: 1; }
     100% { opacity: 0; }
   }
+  
+  .content-transition {
+    transition: opacity 0.3s ease-in-out;
+  }
+  
+  .content-enter {
+    opacity: 0;
+  }
+  
+  .content-enter-active {
+    opacity: 1;
+  }
 `;
 if (typeof document !== 'undefined') {
   document.head.appendChild(style);
@@ -101,7 +115,16 @@ export default function LessonsPage() {
   const [expandedLessons, setExpandedLessons] = useState<{ [key: string]: boolean }>({});
   const [expandedExercises, setExpandedExercises] = useState<{ [key: string]: boolean }>({});
   const [showEditForm, setShowEditForm] = useState(false);
+  const { language } = useLanguage();
+  const { t } = useTranslation(language);
 
+  // 使用useMemo緩存轉換函數的結果
+  const translatedLevels = useMemo(() => ({
+    beginner: t('beginner'),
+    intermediate: t('intermediate'),
+    advanced: t('advanced')
+  }), [t]);
+  
   // Form setup
   const form = useForm<z.infer<typeof lessonFormSchema>>({
     resolver: zodResolver(lessonFormSchema),
@@ -119,7 +142,7 @@ export default function LessonsPage() {
 
   useEffect(() => {
     const fetchLessons = async () => {
-      setIsLoading(true);
+      if (!isLoading) setIsLoading(true);
       try {
         console.log("Fetching lessons from lessons table");
         
@@ -154,26 +177,30 @@ export default function LessonsPage() {
           }));
           setLessons(processedData);
         } else {
-          // Fallback to sample data if no real data is available
-          setLessons(createSampleLessons());
+          // 如果沒有數據，使用空數組而不是示例數據
+          setLessons([]);
         }
       } catch (error) {
         toast({
-          title: 'Error fetching lessons',
-          description: 'Failed to load lesson data. Please try again later.',
+          title: t('lesson_error'),
+          description: t('lesson_error_fetch'),
           variant: 'destructive',
         });
         console.error('Error fetching lessons:', error);
         
-        // Set sample data on error for demonstration purposes
-        setLessons(createSampleLessons());
+        // 使用空數組而不是示例數據
+        setLessons([]);
       } finally {
-        setIsLoading(false);
+        // 使用setTimeout略微延遲清除加載狀態，以便避免內容閃爍
+        setTimeout(() => {
+          setIsLoading(false);
+        }, 100);
       }
     };
 
     fetchLessons();
-  }, [toast]);
+    // 只在組件掛載時獲取數據，避免不必要的重新獲取
+  }, []);
 
   useEffect(() => {
     if (editingLesson) {
@@ -309,8 +336,8 @@ export default function LessonsPage() {
         ));
 
         toast({
-          title: 'Lesson updated',
-          description: 'Your lesson has been updated successfully.'
+          title: t('lesson_updated'),
+          description: t('lesson_update_success')
         });
         
         setShowEditForm(false);
@@ -362,8 +389,8 @@ export default function LessonsPage() {
         setLessons(prev => [...prev, newLesson as Lesson]);
         
         toast({
-          title: 'Lesson created',
-          description: 'Your lesson has been created successfully.'
+          title: t('lesson_created'),
+          description: t('lesson_create_success')
         });
         
         setShowEditForm(false);
@@ -375,7 +402,7 @@ export default function LessonsPage() {
     } catch (error: any) {
       console.error('Error saving lesson:', error);
       toast({
-        title: `Failed to ${editingLesson ? 'update' : 'create'} lesson`,
+        title: `${t(editingLesson ? 'lesson_error_update' : 'lesson_error_create')}`,
         description: error.message || 'There was an error. Please try again.',
         variant: 'destructive'
       });
@@ -384,7 +411,7 @@ export default function LessonsPage() {
 
   // Add delete lesson function after the onSubmit function
   const deleteLesson = async (lessonId: string) => {
-    if (!confirm("Are you sure you want to delete this lesson? This action cannot be undone.")) {
+    if (!confirm(t('delete_lesson_confirm'))) {
       return;
     }
     
@@ -412,13 +439,13 @@ export default function LessonsPage() {
       setLessons(lessons.filter(lesson => lesson.id !== lessonId));
       
       toast({
-        title: 'Lesson deleted',
-        description: 'The lesson has been successfully deleted.',
+        title: t('lesson_deleted'),
+        description: t('lesson_delete_success'),
       });
     } catch (error: any) {
       toast({
-        title: 'Error deleting lesson',
-        description: error.message || 'There was an error deleting the lesson.',
+        title: t('lesson_error_delete'),
+        description: error.message || t('lesson_error_delete_msg'),
         variant: 'destructive',
       });
       console.error('Error deleting lesson:', error);
@@ -426,104 +453,6 @@ export default function LessonsPage() {
       setIsLoading(false);
     }
   };
-
-  // Create sample lesson data for demonstration
-  function createSampleLessons(): Lesson[] {
-    return [
-      {
-        id: '1',
-        title: 'Introduction to Algebra',
-        description: 'Learn the fundamentals of algebraic expressions and equations.',
-        duration: 45,
-        level: 'Beginner',
-        topics: ['Algebra', 'Mathematics', 'Equations'],
-        genially_link: 'https://view.genial.ly/sample-algebra',
-        teaching_content: 'Algebra is the branch of mathematics that uses letters and symbols to represent numbers and quantities in formulas and equations. Key concepts include variables, constants, expressions, and equations. Remember that unlike arithmetic, algebraic expressions can remain in an unsolved form with variables.',
-        practice_exercises: [
-          {
-            question: 'Solve for x: 2x + 5 = 15',
-            answer: 'x = 5',
-            explanation: 'The solution to the equation 2x + 5 = 15 is x = 5. This is found by isolating x on one side of the equation and solving for x.'
-          },
-          {
-            question: 'Simplify the expression: 3(x + 2) - 4',
-            answer: '3x + 2',
-            explanation: 'The expression 3(x + 2) - 4 simplifies to 3x + 2. This is found by distributing the 3 to both terms inside the parentheses and then subtracting 4.'
-          }
-        ],
-        created_at: new Date().toISOString(),
-      },
-      {
-        id: '2',
-        title: 'Advanced Geometry',
-        description: 'Explore complex geometric concepts and applications.',
-        duration: 60,
-        level: 'Intermediate',
-        topics: ['Geometry', 'Mathematics', 'Shapes'],
-        genially_link: 'https://view.genial.ly/sample-geometry',
-        teaching_content: 'Advanced geometry builds on basic principles to explore complex shapes and spatial relationships. Important theorems include the Pythagorean theorem, the law of sines and cosines, and properties of special quadrilaterals. Area and volume formulas are essential for solving practical problems.',
-        practice_exercises: [
-          {
-            question: 'Find the area of a triangle with sides 5, 6, and 7 units.',
-            answer: 'Area = 14.7 square units (using Heron\'s formula)',
-            explanation: 'The area of a triangle with sides 5, 6, and 7 units can be found using Heron\'s formula. First, calculate the semi-perimeter (s) of the triangle: s = (5 + 6 + 7) / 2 = 9. Then, use Heron\'s formula to find the area: A = sqrt(s(s-a)(s-b)(s-c)), where a, b, and c are the lengths of the sides. Plugging in the values, we get A = sqrt(9(9-5)(9-6)(9-7)) = sqrt(9 * 4 * 3 * 2) = sqrt(216) = 14.7 square units.'
-          },
-          {
-            question: 'In a right triangle, if one leg is 8 units and the hypotenuse is 17 units, what is the length of the other leg?',
-            answer: '15 units (using the Pythagorean theorem)',
-            explanation: 'The length of the other leg in a right triangle can be found using the Pythagorean theorem. The Pythagorean theorem states that in a right triangle, the square of the length of the hypotenuse (c) is equal to the sum of the squares of the lengths of the other two sides (a and b). In this case, c = 17 units and one leg (a) = 8 units. To find the length of the other leg (b), we can rearrange the equation to b = sqrt(c^2 - a^2). Plugging in the values, we get b = sqrt(17^2 - 8^2) = sqrt(289 - 64) = sqrt(225) = 15 units.'
-          }
-        ],
-        created_at: new Date().toISOString(),
-      },
-      {
-        id: '3',
-        title: 'Physics Fundamentals',
-        description: 'Understand the basic principles of physics and motion.',
-        duration: 50,
-        level: 'Beginner',
-        topics: ['Physics', 'Science', 'Motion'],
-        genially_link: 'https://view.genial.ly/sample-physics',
-        teaching_content: 'Physics fundamentals include Newton\'s three laws of motion, which describe the relationship between an object and the forces acting upon it. The first law (inertia) states that an object at rest stays at rest, and an object in motion stays in motion unless acted upon by an external force. The second law defines force as mass times acceleration (F=ma). The third law states that for every action, there is an equal and opposite reaction.',
-        practice_exercises: [
-          {
-            question: 'A 2 kg object experiences a net force of 10 N. What is its acceleration?',
-            answer: '5 m/s² (using F = ma)',
-            explanation: 'The acceleration of an object can be found using Newton\'s second law of motion, F = ma. In this case, the net force (F) is 10 N and the mass (m) is 2 kg. To find the acceleration (a), we can rearrange the equation to a = F / m. Plugging in the values, we get a = 10 N / 2 kg = 5 m/s².'
-          },
-          {
-            question: 'An object is thrown upward with an initial velocity of 20 m/s. How high will it go? (g = 9.8 m/s²)',
-            answer: '20.4 meters (using v² = v₀² + 2ad with final velocity = 0)',
-            explanation: 'The height an object will reach when thrown upward can be found using the kinematic equations. In this case, the initial velocity (v₀) is 20 m/s, the final velocity (v) is 0 m/s (since the object reaches its maximum height and stops), and the acceleration (a) is -9.8 m/s² (due to gravity). To find the height (d), we can use the equation v² = v₀² + 2ad. Plugging in the values, we get 0² = 20² + 2(-9.8)d. Solving for d, we get d = 20² / (2 * 9.8) = 400 / 19.6 = 20.4 meters.'
-          }
-        ],
-        created_at: new Date().toISOString(),
-      },
-      {
-        id: '4',
-        title: 'Chemistry Lab Techniques',
-        description: 'Master essential laboratory techniques for chemistry experiments.',
-        duration: 75,
-        level: 'Advanced',
-        topics: ['Chemistry', 'Science', 'Laboratory'],
-        genially_link: 'https://view.genial.ly/sample-chemistry',
-        teaching_content: 'Chemistry lab techniques include titration, distillation, filtration, and chromatography. Safety is paramount - always wear appropriate protective equipment and follow proper waste disposal procedures. Accuracy in measurement is critical for valid results, so learn to read instruments correctly and understand significant figures.',
-        practice_exercises: [
-          {
-            question: 'In a titration, 25.0 mL of 0.1 M HCl is neutralized by 20.0 mL of NaOH solution. What is the molarity of the NaOH solution?',
-            answer: '0.125 M NaOH (using M₁V₁ = M₂V₂)',
-            explanation: 'The molarity of a solution can be found using the formula M₁V₁ = M₂V₂, where M₁ and V₁ are the molarity and volume of the initial solution, and M₂ and V₂ are the molarity and volume of the final solution. In this case, M₁ = 0.1 M, V₁ = 25.0 mL, and V₂ = 20.0 mL. To find M₂, we can rearrange the equation to M₂ = (M₁V₁) / V₂. Plugging in the values, we get M₂ = (0.1 M * 25.0 mL) / 20.0 mL = 0.125 M.'
-          },
-          {
-            question: 'What technique would you use to separate a mixture of pigments from a plant extract?',
-            answer: 'Chromatography (either column, thin-layer, or paper chromatography)',
-            explanation: 'Chromatography is a technique used to separate mixtures of substances that have different affinities for a stationary phase and a mobile phase. In this case, the pigments in the plant extract have different affinities for the mobile phase (the solvent) and the stationary phase (the paper or column). The different affinities cause the pigments to travel at different speeds, allowing them to be separated.'
-          }
-        ],
-        created_at: new Date().toISOString(),
-      },
-    ];
-  }
 
   function getLevelColor(level: string) {
     switch (level.toLowerCase()) {
@@ -536,6 +465,15 @@ export default function LessonsPage() {
       default:
         return 'bg-gray-50 text-gray-700 border-gray-200';
     }
+  }
+
+  // Function to translate level text with memoized translations
+  function translateLevel(level: string) {
+    const lowerLevel = level.toLowerCase();
+    return lowerLevel === 'beginner' ? translatedLevels.beginner :
+           lowerLevel === 'intermediate' ? translatedLevels.intermediate :
+           lowerLevel === 'advanced' ? translatedLevels.advanced :
+           level;
   }
 
   const toggleLessonExpand = (lessonId: string) => {
@@ -555,8 +493,8 @@ export default function LessonsPage() {
   return (
     <div className="space-y-6">
       <PageHeader
-        heading="Lessons"
-        text="Browse and manage educational lessons for your students."
+        heading={t('lessons')}
+        text={t('manage_lessons')}
         actions={
           <div className="flex space-x-2">
             <div className="bg-muted rounded-md p-1 flex">
@@ -567,7 +505,7 @@ export default function LessonsPage() {
                 onClick={() => setViewMode('grid')}
               >
                 <Grid className="h-4 w-4" />
-                <span className="sr-only">Grid view</span>
+                <span className="sr-only">{t('grid_view')}</span>
               </Button>
               <Button
                 variant={viewMode === 'list' ? 'default' : 'ghost'}
@@ -576,7 +514,7 @@ export default function LessonsPage() {
                 onClick={() => setViewMode('list')}
               >
                 <List className="h-4 w-4" />
-                <span className="sr-only">List view</span>
+                <span className="sr-only">{t('list_view')}</span>
               </Button>
             </div>
             {!showEditForm && (
@@ -589,7 +527,7 @@ export default function LessonsPage() {
                 }}
               >
             <PlusCircle className="mr-2 h-4 w-4" />
-            Create Lesson
+            {t('create_lesson')}
           </Button>
             )}
           </div>
@@ -597,15 +535,15 @@ export default function LessonsPage() {
       />
       
       {isLoading ? (
-        <div className="flex justify-center py-8">
-          <p>Loading lesson data...</p>
+        <div className="flex justify-center items-center py-20 min-h-[60vh]">
+          <p className="text-lg">{t('loading_lessons')}</p>
         </div>
       ) : (
-        <>
+        <div className="content-transition">
           {showEditForm ? (
-            <>
+            <div className="min-h-[60vh]">
               <div className="mb-6 flex justify-between items-center">
-                <h2 className="text-xl font-semibold">{editingLesson ? 'Edit Lesson' : 'Create New Lesson'}</h2>
+                <h2 className="text-xl font-semibold">{editingLesson ? t('edit_lesson') : t('create_lesson')}</h2>
                 <Button 
                   variant="outline" 
                   size="sm" 
@@ -616,7 +554,7 @@ export default function LessonsPage() {
                     setPracticeExercises([{ question: "", answer: "", explanation: "" }]);
                   }}
                 >
-                  Cancel
+                  {t('cancel')}
                 </Button>
               </div>
               
@@ -630,7 +568,7 @@ export default function LessonsPage() {
               <CardContent>
                 <div className="flex items-center gap-2 text-sm text-muted-foreground mb-3">
                   <Clock className="h-4 w-4" />
-                        <span>{editingLesson.duration}m</span>
+                        <span>{editingLesson.duration}{t('minutes')}</span>
                       </div>
                       <div className="flex flex-wrap gap-2 mb-4">
                         {Array.isArray(editingLesson.topics) ? editingLesson.topics.map((topic) => (
@@ -640,13 +578,13 @@ export default function LessonsPage() {
                         )) : null}
                       </div>
                       <Badge variant="outline" className={getLevelColor(editingLesson.level)}>
-                        {editingLesson.level}
+                        {translateLevel(editingLesson.level)}
                       </Badge>
                       {editingLesson.genially_link && (
                         <div className="mt-3 text-sm text-blue-600">
                           <a href={editingLesson.genially_link} target="_blank" rel="noopener noreferrer" className="flex items-center hover:underline">
                             <ExternalLink className="h-3 w-3 mr-1" />
-                            View Genially Presentation
+                            {t('view_presentation')}
                           </a>
                         </div>
                       )}
@@ -663,9 +601,9 @@ export default function LessonsPage() {
                       name="title"
                       render={({ field }: { field: any }) => (
                         <FormItem>
-                          <FormLabel>Title</FormLabel>
+                          <FormLabel>{t('title')}</FormLabel>
                           <FormControl>
-                            <Input placeholder="Enter lesson title" {...field} />
+                            <Input placeholder={t('enter_lesson_title')} {...field} />
                           </FormControl>
                           <FormMessage />
                         </FormItem>
@@ -678,7 +616,7 @@ export default function LessonsPage() {
                         name="duration"
                         render={({ field }: { field: any }) => (
                           <FormItem>
-                            <FormLabel>Duration (minutes)</FormLabel>
+                            <FormLabel>{t('duration')} ({t('minutes')})</FormLabel>
                             <FormControl>
                               <Input 
                                 type="number" 
@@ -696,17 +634,20 @@ export default function LessonsPage() {
                         name="level"
                         render={({ field }: { field: any }) => (
                           <FormItem>
-                            <FormLabel>Level</FormLabel>
-                            <Select onValueChange={field.onChange} defaultValue={field.value}>
+                            <FormLabel>{t('level')}</FormLabel>
+                            <Select
+                              onValueChange={field.onChange}
+                              defaultValue={field.value}
+                            >
                               <FormControl>
                                 <SelectTrigger>
-                                  <SelectValue placeholder="Select level" />
+                                  <SelectValue placeholder={t('select_level')} />
                                 </SelectTrigger>
                               </FormControl>
                               <SelectContent>
-                                <SelectItem value="Beginner">Beginner</SelectItem>
-                                <SelectItem value="Intermediate">Intermediate</SelectItem>
-                                <SelectItem value="Advanced">Advanced</SelectItem>
+                                <SelectItem value="Beginner">{t('beginner')}</SelectItem>
+                                <SelectItem value="Intermediate">{t('intermediate')}</SelectItem>
+                                <SelectItem value="Advanced">{t('advanced')}</SelectItem>
                               </SelectContent>
                             </Select>
                             <FormMessage />
@@ -721,10 +662,10 @@ export default function LessonsPage() {
                     name="description"
                     render={({ field }: { field: any }) => (
                       <FormItem>
-                        <FormLabel>Description</FormLabel>
+                        <FormLabel>{t('description')}</FormLabel>
                         <FormControl>
                           <Textarea 
-                            placeholder="Describe the lesson content" 
+                            placeholder={t('describe_lesson')}
                             {...field} 
                           />
                         </FormControl>
@@ -739,10 +680,10 @@ export default function LessonsPage() {
                       name="topics"
                       render={({ field }: { field: any }) => (
                         <FormItem>
-                          <FormLabel>Topics (comma-separated)</FormLabel>
+                          <FormLabel>{t('topics')} ({t('comma_separated')})</FormLabel>
                           <FormControl>
                             <Input 
-                              placeholder="e.g. Mathematics, Algebra, Equations" 
+                              placeholder={t('topics_placeholder')}
                               {...field} 
                             />
                           </FormControl>
@@ -756,10 +697,10 @@ export default function LessonsPage() {
                       name="geniallyLink"
                       render={({ field }: { field: any }) => (
                         <FormItem>
-                          <FormLabel>Genially Link</FormLabel>
+                          <FormLabel>{t('genially_link')}</FormLabel>
                           <FormControl>
                             <Input 
-                              placeholder="Enter Genially presentation URL" 
+                              placeholder={t('enter_genially_url')}
                               {...field} 
                             />
                           </FormControl>
@@ -774,10 +715,10 @@ export default function LessonsPage() {
                     name="teachingContent"
                     render={({ field }: { field: any }) => (
                       <FormItem>
-                        <FormLabel>Create Exercise</FormLabel>
+                        <FormLabel>{t('create_exercise')}</FormLabel>
                         <FormControl>
                           <Textarea 
-                            placeholder="Enter a summary of the teaching content" 
+                            placeholder={t('enter_teaching_summary')}
                             {...field} 
                           />
                         </FormControl>
@@ -795,8 +736,8 @@ export default function LessonsPage() {
                         const level = form.getValues("level");
                         if (!content) {
                           toast({
-                            title: "Content Required",
-                            description: "Please enter teaching content first",
+                            title: t('content_required'),
+                            description: t('enter_teaching_content_first'),
                             variant: "destructive",
                           });
                           return;
@@ -810,8 +751,8 @@ export default function LessonsPage() {
                           form.setValue("practiceExercises", [exercise]);
                         } catch (error) {
                           toast({
-                            title: "Generation Failed",
-                            description: "Failed to generate practice exercise. Please try again.",
+                            title: t('generation_failed'),
+                            description: t('failed_generate_exercise'),
                             variant: "destructive",
                           });
                         } finally {
@@ -822,13 +763,13 @@ export default function LessonsPage() {
                       <Wand2 className="mr-2 h-4 w-4" />
                       {isGenerating ? (
                         <span className="inline-flex items-center">
-                          Generating
+                          {t('generating')}
                           <span className="ml-1 animate-[dots_1.5s_infinite]">.</span>
                           <span className="ml-0.5 animate-[dots_1.5s_infinite_0.2s]">.</span>
                           <span className="ml-0.5 animate-[dots_1.5s_infinite_0.4s]">.</span>
                         </span>
                       ) : (
-                        "Generate Exercise"
+                        t('generate_exercise')
                       )}
                     </Button>
                   </div>
@@ -839,10 +780,10 @@ export default function LessonsPage() {
                     render={({ field }) => (
                       <FormItem>
                         <div className="flex items-center justify-between">
-                          <FormLabel>Practice Exercise</FormLabel>
+                          <FormLabel>{t('practice_exercises')}</FormLabel>
                           {form.formState.errors.practiceExercises && (
                             <p className="text-sm font-medium text-destructive">
-                              At least one practice exercise is required
+                              {t('exercise_required')}
                             </p>
                           )}
                         </div>
@@ -850,27 +791,27 @@ export default function LessonsPage() {
                           <div className="p-4 border rounded-md bg-muted/20">
                             <div className="space-y-4">
                               <div>
-                                <FormLabel className="text-sm">Question</FormLabel>
+                                <FormLabel className="text-sm">{t('question')}</FormLabel>
                                 <Textarea 
-                                  placeholder="Enter the question"
+                                  placeholder={t('enter_question')}
                                   value={practiceExercises[0]?.question || ""}
                                   onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) => updatePracticeExercise(0, 'question', e.target.value)}
                                   className="resize-none"
                                 />
                               </div>
                               <div>
-                                <FormLabel className="text-sm">Answer</FormLabel>
+                                <FormLabel className="text-sm">{t('answer')}</FormLabel>
                                 <Textarea 
-                                  placeholder="Enter the answer"
+                                  placeholder={t('enter_answer')}
                                   value={practiceExercises[0]?.answer || ""}
                                   onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) => updatePracticeExercise(0, 'answer', e.target.value)}
                                   className="resize-none"
                                 />
                               </div>
                               <div>
-                                <FormLabel className="text-sm">Explanation</FormLabel>
+                                <FormLabel className="text-sm">{t('explanation')}</FormLabel>
                                 <Textarea 
-                                  placeholder="Enter the explanation"
+                                  placeholder={t('enter_explanation')}
                                   value={practiceExercises[0]?.explanation || ""}
                                   onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) => updatePracticeExercise(0, 'explanation', e.target.value)}
                                   className="resize-none"
@@ -894,22 +835,22 @@ export default function LessonsPage() {
                         setPracticeExercises([{ question: "", answer: "", explanation: "" }]);
                       }}
                     >
-                      Cancel
+                      {t('cancel')}
                     </Button>
                     <Button type="submit">
-                      {editingLesson ? 'Save Changes' : 'Create Lesson'}
+                      {editingLesson ? t('save_changes') : t('create_lesson')}
                     </Button>
                   </div>
                 </form>
               </Form>
-            </>
+            </div>
           ) : (
-            <>
+            <div>
               {/* Grid View */}
               {viewMode === 'grid' && (
-                <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+                <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3 min-h-[60vh]">
                   {lessons.map((lesson) => (
-                    <Card key={lesson.id} className="flex flex-col h-full">
+                    <Card key={lesson.id} className="flex flex-col h-full min-h-[15rem]">
                       <CardHeader className="pb-2">
                         <CardTitle className="text-xl">{lesson.title}</CardTitle>
                         <CardDescription className="line-clamp-2">
@@ -919,8 +860,8 @@ export default function LessonsPage() {
                       <CardContent className="flex-grow">
                         <div className="flex items-center gap-2 text-sm text-muted-foreground mb-3">
                           <Clock className="h-4 w-4" />
-                          <span>{lesson.duration}m</span>
-                </div>
+                          <span>{lesson.duration}{t('minutes')}</span>
+                        </div>
                 <div className="flex flex-wrap gap-2 mb-4">
                   {Array.isArray(lesson.topics) ? lesson.topics.map((topic) => (
                     <Badge key={topic} variant="outline" className="bg-muted/50">
@@ -929,13 +870,13 @@ export default function LessonsPage() {
                   )) : null}
                 </div>
                 <Badge variant="outline" className={getLevelColor(lesson.level)}>
-                  {lesson.level}
+                  {translateLevel(lesson.level)}
                 </Badge>
                         {lesson.genially_link && (
                           <div className="mt-3 text-sm text-blue-600">
                             <a href={lesson.genially_link} target="_blank" rel="noopener noreferrer" className="flex items-center hover:underline">
                               <ExternalLink className="h-3 w-3 mr-1" />
-                              View Genially Presentation
+                              {t('view_presentation')}
                             </a>
                           </div>
                         )}
@@ -949,7 +890,7 @@ export default function LessonsPage() {
                     onClick={() => deleteLesson(lesson.id)}
                   >
                     <Trash2 className="h-4 w-4 mr-1" />
-                    Delete
+                    {t('delete')}
                   </Button>
                           <div className="flex space-x-1">
                             <Button 
@@ -964,7 +905,7 @@ export default function LessonsPage() {
                               }}
                             >
                               <Pencil className="mr-2 h-4 w-4" />
-                              Edit
+                              {t('edit')}
                             </Button>
                           </div>
                 </div>
@@ -976,16 +917,16 @@ export default function LessonsPage() {
               
               {/* List View */}
               {viewMode === 'list' && (
-                <div className="space-y-4">
+                <div className="space-y-4 min-h-[60vh]">
                   {lessons.map((lesson) => (
-                    <Card key={lesson.id}>
+                    <Card key={lesson.id} className="min-h-[6rem]">
                       <div className="p-6">
                         <div className="flex items-start justify-between">
                           <div className="space-y-1 flex-1">
                             <div className="flex items-center">
                               <h3 className="text-lg font-medium mr-2">{lesson.title}</h3>
                               <Badge variant="outline" className={getLevelColor(lesson.level)}>
-                                {lesson.level}
+                                {translateLevel(lesson.level)}
                               </Badge>
                             </div>
                             <p className="text-muted-foreground line-clamp-2">
@@ -996,7 +937,7 @@ export default function LessonsPage() {
                             {/* Duration */}
                             <div className="flex items-center text-sm text-muted-foreground">
                               <Clock className="h-4 w-4 mr-1" />
-                              <span>{lesson.duration}m</span>
+                              <span>{lesson.duration}{t('minutes')}</span>
                             </div>
 
                             {/* Edit button */}
@@ -1012,7 +953,7 @@ export default function LessonsPage() {
                               }}
                             >
                               <Pencil className="h-4 w-4 mr-1" />
-                              Edit
+                              {t('edit')}
                             </Button>
 
                             {/* Delete button */}
@@ -1023,7 +964,7 @@ export default function LessonsPage() {
                               onClick={() => deleteLesson(lesson.id)}
                             >
                               <Trash2 className="h-4 w-4 mr-1" />
-                              Delete
+                              {t('delete')}
                             </Button>
                           </div>
                         </div>
@@ -1034,9 +975,9 @@ export default function LessonsPage() {
                   ))}
                 </div>
               )}
-            </>
+            </div>
           )}
-        </>
+        </div>
       )}
     </div>
   );

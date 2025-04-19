@@ -6,6 +6,8 @@ import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Progress } from "@/components/ui/progress";
 import { StudentStatusBadge } from "./StudentStatusBadge";
 import { Student } from "@/types/student";
+import { useLanguage } from "@/app/contexts/LanguageContext";
+import { useTranslation } from "@/utils/translations";
 
 interface StudentsTableProps {
   students: Student[];
@@ -13,10 +15,13 @@ interface StudentsTableProps {
 }
 
 export function StudentsTable({ students, selectedTab }: StudentsTableProps) {
+  const { language } = useLanguage();
+  const { t } = useTranslation(language);
+  
   const columns: ColumnDef<Student>[] = [
     {
       accessorKey: "name",
-      header: "Name",
+      header: t('name'),
       cell: ({ row }) => {
         const student = row.original;
         if (!student) return <div>N/A</div>;
@@ -42,7 +47,7 @@ export function StudentsTable({ students, selectedTab }: StudentsTableProps) {
     },
     {
       accessorKey: "enrolled",
-      header: "Enrolled",
+      header: t('enrolled'),
       cell: ({ row }) => {
         const enrolledValue = row.getValue("enrolled");
         if (!enrolledValue) return <div>N/A</div>;
@@ -51,7 +56,7 @@ export function StudentsTable({ students, selectedTab }: StudentsTableProps) {
           const date = new Date(enrolledValue as string);
           return (
             <div className="text-sm">
-              {date.toLocaleDateString()}
+              {date.toLocaleDateString(language === 'zh-TW' ? 'zh-TW' : 'en-US')}
             </div>
           );
         } catch (e) {
@@ -61,7 +66,7 @@ export function StudentsTable({ students, selectedTab }: StudentsTableProps) {
     },
     {
       accessorKey: "progress",
-      header: "Progress",
+      header: t('progress'),
       cell: ({ row }) => {
         const progress = row.getValue("progress") as number || 0;
         const student = row.original;
@@ -85,7 +90,7 @@ export function StudentsTable({ students, selectedTab }: StudentsTableProps) {
     },
     {
       accessorKey: "status",
-      header: "Status",
+      header: t('status'),
       cell: ({ row }) => {
         const progress = row.original?.progress ?? 0;
         return <StudentStatusBadge progress={progress} />;
@@ -109,7 +114,7 @@ export function StudentsTable({ students, selectedTab }: StudentsTableProps) {
       columns={columns}
       data={filteredStudents}
       searchColumn="name"
-      searchPlaceholder="Search by name..."
+      searchPlaceholder={t('search_by_name')}
     />
   );
 } 

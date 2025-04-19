@@ -4,7 +4,7 @@ import "./globals.css";
 import { PageLayout } from "@/components/layout/PageLayout";
 import { Providers } from "@/components/providers";
 import { Toaster } from '@/components/ui/toaster';
-import { LanguageProvider } from "@/contexts/LanguageContext";
+import { LanguageProvider } from "@/app/contexts/LanguageContext";
 
 const inter = Inter({ subsets: ["latin"] });
 
@@ -19,7 +19,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <html lang="en" suppressHydrationWarning>
+    <html lang="zh-TW" suppressHydrationWarning>
       <body className={inter.className} suppressHydrationWarning>
         <LanguageProvider>
           <Providers>

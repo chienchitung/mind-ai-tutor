@@ -3,11 +3,23 @@
 import { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { X } from 'lucide-react';
+import { useLanguage } from '@/app/contexts/LanguageContext';
+import { useTranslation } from '@/utils/translations';
+
+// Define the possible translation keys to make TypeScript happy
+type TranslationKey = 
+  | 'navigation_menu' | 'navigation_menu_desc'
+  | 'dashboard_overview' | 'dashboard_overview_desc'
+  | 'student_management_title' | 'student_management_tour_desc'
+  | 'lessons_tour_title' | 'lessons_tour_desc'
+  | 'digital_games_tour_title' | 'digital_games_tour_desc'
+  | 'learning_analytics_tour_title' | 'learning_analytics_tour_desc'
+  | 'step' | 'of' | 'previous' | 'next' | 'finish';
 
 interface TourStep {
   target: string;
-  title: string;
-  content: string;
+  titleKey: TranslationKey;
+  contentKey: TranslationKey;
   placement?: 'top' | 'bottom' | 'left' | 'right';
 }
 
@@ -19,38 +31,38 @@ interface TourGuideProps {
 const tourSteps: TourStep[] = [
   {
     target: '[data-tour="sidebar"]',
-    title: 'Navigation Menu',
-    content: 'Access different sections of the platform: Dashboard for overview, Students for management, Activities for tracking, Lessons for content, Digital Games for interactive learning, and Reports for analytics.',
+    titleKey: 'navigation_menu',
+    contentKey: 'navigation_menu_desc',
     placement: 'right'
   },
   {
     target: '[data-tour="stats"]',
-    title: 'Dashboard Overview',
-    content: 'Here you can see key metrics about your learning platform, including active students, completed lessons, and overall progress.',
+    titleKey: 'dashboard_overview',
+    contentKey: 'dashboard_overview_desc',
     placement: 'bottom'
   },
   {
     target: '[data-tour="student-management"]',
-    title: 'Student Management',
-    content: 'Manage your students, track their progress, and view individual performance metrics.',
+    titleKey: 'student_management_title',
+    contentKey: 'student_management_tour_desc',
     placement: 'right'
   },
   {
     target: '[data-tour="lessons"]',
-    title: 'Lessons',
-    content: 'Create and manage your lessons, including interactive content and assessments.',
+    titleKey: 'lessons_tour_title',
+    contentKey: 'lessons_tour_desc',
     placement: 'right'
   },
   {
     target: '[data-tour="digital-games"]',
-    title: 'Digital Games',
-    content: 'Access interactive learning games and educational content to enhance student engagement.',
+    titleKey: 'digital_games_tour_title',
+    contentKey: 'digital_games_tour_desc',
     placement: 'top'
   },
   {
     target: '[data-tour="analytics"]',
-    title: 'Learning Analytics',
-    content: 'Get detailed insights into student performance and learning patterns.',
+    titleKey: 'learning_analytics_tour_title',
+    contentKey: 'learning_analytics_tour_desc',
     placement: 'top'
   }
 ];
@@ -62,6 +74,8 @@ export function TourGuide({ isOpen, onClose }: TourGuideProps) {
     width: typeof window !== 'undefined' ? window.innerWidth : 0,
     height: typeof window !== 'undefined' ? window.innerHeight : 0
   });
+  const { language } = useLanguage();
+  const { t } = useTranslation(language);
 
   useEffect(() => {
     const handleResize = () => {
@@ -216,22 +230,22 @@ export function TourGuide({ isOpen, onClose }: TourGuideProps) {
         </button>
         
         <div className="mb-4">
-          <h3 className="text-lg font-semibold mb-2">{step.title}</h3>
-          <p className="text-sm text-gray-600">{step.content}</p>
+          <h3 className="text-lg font-semibold mb-2">{t(tourSteps[currentStep].titleKey)}</h3>
+          <p className="text-sm text-gray-600">{t(tourSteps[currentStep].contentKey)}</p>
         </div>
 
         <div className="flex justify-between items-center">
           <div className="text-sm text-gray-500">
-            Step {currentStep + 1} of {tourSteps.length}
+            {t('step')} {currentStep + 1} {t('of')} {tourSteps.length}
           </div>
           <div className="flex gap-2">
             {currentStep > 0 && (
               <Button variant="outline" size="sm" onClick={handlePrevious}>
-                Previous
+                {t('previous')}
               </Button>
             )}
             <Button size="sm" onClick={handleNext}>
-              {currentStep === tourSteps.length - 1 ? 'Finish' : 'Next'}
+              {currentStep === tourSteps.length - 1 ? t('finish') : t('next')}
             </Button>
           </div>
         </div>

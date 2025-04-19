@@ -17,6 +17,8 @@ import Link from 'next/link';
 import type { Student } from '../types/student';
 import { buttonVariants } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
+import { useLanguage } from '@/app/contexts/LanguageContext';
+import { useTranslation } from '@/utils/translations';
 
 // Helper function to get initials from name
 function getInitials(name: string): string {
@@ -32,6 +34,8 @@ export default function StudentsPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [selectedTab, setSelectedTab] = useState<"all" | "active">("all");
   const { toast } = useToast();
+  const { language } = useLanguage();
+  const { t } = useTranslation(language);
 
   useEffect(() => {
     const fetchStudents = async () => {
@@ -118,17 +122,17 @@ export default function StudentsPage() {
   async function exportToExcel() {
     try {
       const workbook = new ExcelJS.Workbook();
-      const worksheet = workbook.addWorksheet('Students');
+      const worksheet = workbook.addWorksheet(t('students'));
 
       // Add headers
-      worksheet.addRow(['Name', 'Email', 'Status', 'Enrolled Date', 'Progress']);
+      worksheet.addRow([t('name'), t('email'), t('status'), t('enrolled'), t('progress')]);
 
       // Add data
       students.forEach((student: Student) => {
         worksheet.addRow([
           student.name,
           student.email,
-          student.status || 'Active',
+          student.status || t('active_students'),
           student.enrolled ? new Date(student.enrolled).toLocaleDateString() : 'N/A',
           `${student.progress || 0}%`
         ]);
@@ -179,8 +183,8 @@ export default function StudentsPage() {
   return (
     <div className="space-y-6">
       <PageHeader
-        heading="Students"
-        text="Manage your students and track their progress."
+        heading={t('students')}
+        text={t('manage_students')}
         actions={
           <Button 
             onClick={exportToExcel}
@@ -191,14 +195,14 @@ export default function StudentsPage() {
             )}
           >
             <Download className="mr-2 h-4 w-4" />
-            Export to Excel
+            {t('export_to_excel')}
           </Button>
         }
       />
       
       {isLoading ? (
         <div className="flex justify-center py-8">
-          <p>Loading student data...</p>
+          <p>{t('loading_student_data')}</p>
         </div>
       ) : (
         <>

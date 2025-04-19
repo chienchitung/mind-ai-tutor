@@ -15,6 +15,8 @@ import {
 import { useEvents, EventProvider, Event } from '@/contexts/EventContext';
 import { format, compareDesc } from 'date-fns';
 import { TourGuide } from '@/components/TourGuide';
+import { useLanguage } from '@/app/contexts/LanguageContext';
+import { useTranslation } from '@/utils/translations';
 
 // Define Stats type
 type Stats = {
@@ -44,6 +46,8 @@ function DashboardContent() {
   });
   const [recentActivities, setRecentActivities] = useState<Activity[]>([]);
   const { events } = useEvents();
+  const { language } = useLanguage();
+  const { t } = useTranslation(language);
   
   // Sort events by date (newest first)
   const sortedEvents = [...events].sort((a, b) => 
@@ -56,10 +60,10 @@ function DashboardContent() {
     const now = new Date();
     const diffInHours = Math.floor((now.getTime() - date.getTime()) / (1000 * 60 * 60));
     
-    if (diffInHours < 1) return 'Just now';
-    if (diffInHours < 24) return `${diffInHours} hours ago`;
-    if (diffInHours < 48) return 'Yesterday';
-    return `${Math.floor(diffInHours / 24)} days ago`;
+    if (diffInHours < 1) return t('just_now');
+    if (diffInHours < 24) return t('hours_ago', { n: diffInHours });
+    if (diffInHours < 48) return t('yesterday');
+    return t('days_ago', { n: Math.floor(diffInHours / 24) });
   };
 
   useEffect(() => {
@@ -267,19 +271,19 @@ function DashboardContent() {
     <div className="w-full space-y-6 pb-8">
       {/* Welcome banner */}
       <div className="bg-primary/10 rounded-lg p-4 md:p-6">
-        <h2 className="text-xl md:text-2xl font-bold mb-2">Welcome to Your Learning Hub</h2>
+        <h2 className="text-xl md:text-2xl font-bold mb-2">{t('welcome_title')}</h2>
         <p className="text-muted-foreground mb-4">
-          Use tools and resources to manage students, courses, and track learning progress.
+          {t('welcome_description')}
         </p>
         <div className="flex flex-wrap gap-3">
           <Button variant="default" className="bg-[#0f172a]" asChild>
             <a href="/lessons">
-              Get Started
+              {t('get_started')}
               <ArrowUpRight className="ml-2 h-4 w-4" />
             </a>
           </Button>
           <Button variant="outline" onClick={() => setShowTour(true)}>
-            Take a Tour
+            {t('take_tour')}
           </Button>
         </div>
       </div>
@@ -288,7 +292,7 @@ function DashboardContent() {
       <div className="grid gap-3 grid-cols-2 lg:grid-cols-4" data-tour="stats">
         <Card className="bg-white border border-gray-200">
           <CardContent className="p-4 md:p-6">
-            <p className="text-sm text-muted-foreground">Active Students</p>
+            <p className="text-sm text-muted-foreground">{t('active_students')}</p>
             <div className="flex items-baseline justify-between mt-1">
               <h3 className="text-2xl md:text-3xl font-bold">{stats.activeStudents}</h3>
               <span className="text-green-500 text-xs md:text-sm">+12%</span>
@@ -298,7 +302,7 @@ function DashboardContent() {
         
         <Card className="bg-white border border-gray-200">
           <CardContent className="p-4 md:p-6">
-            <p className="text-sm text-muted-foreground">Completed Lessons</p>
+            <p className="text-sm text-muted-foreground">{t('completed_lessons')}</p>
             <div className="flex items-baseline justify-between mt-1">
               <h3 className="text-2xl md:text-3xl font-bold">{stats.completedLessons}</h3>
               <span className="text-green-500 text-xs md:text-sm">+8%</span>
@@ -308,7 +312,7 @@ function DashboardContent() {
         
         <Card className="bg-white border border-gray-200">
           <CardContent className="p-4 md:p-6">
-            <p className="text-sm text-muted-foreground">Active Courses</p>
+            <p className="text-sm text-muted-foreground">{t('active_courses')}</p>
             <div className="flex items-baseline justify-between mt-1">
               <h3 className="text-2xl md:text-3xl font-bold">{stats.activeCourses}</h3>
               <span className="text-green-500 text-xs md:text-sm">+4%</span>
@@ -318,7 +322,7 @@ function DashboardContent() {
         
         <Card className="bg-white border border-gray-200">
           <CardContent className="p-4 md:p-6">
-            <p className="text-sm text-muted-foreground">Avg. Completion Rate</p>
+            <p className="text-sm text-muted-foreground">{t('avg_completion_rate')}</p>
             <div className="flex items-baseline justify-between mt-1">
               <h3 className="text-2xl md:text-3xl font-bold">{stats.completionRate}</h3>
               <span className="text-green-500 text-xs md:text-sm">+2%</span>
@@ -336,12 +340,12 @@ function DashboardContent() {
                 <Users className="h-5 w-5 text-gray-500" />
               </div>
             </div>
-            <h3 className="text-lg font-medium mb-1">Student Management</h3>
-            <p className="text-sm text-muted-foreground">Manage student accounts and progress</p>
+            <h3 className="text-lg font-medium mb-1">{t('student_management')}</h3>
+            <p className="text-sm text-muted-foreground">{t('student_management_desc')}</p>
             <div className="mt-auto pt-4">
               <Button variant="outline" className="w-full justify-between" asChild>
                 <a href="/students">
-                  View <ArrowUpRight className="h-4 w-4" />
+                  {t('view')} <ArrowUpRight className="h-4 w-4" />
                 </a>
               </Button>
             </div>
@@ -355,12 +359,12 @@ function DashboardContent() {
                 <BookOpen className="h-5 w-5 text-gray-500" />
               </div>
             </div>
-            <h3 className="text-lg font-medium mb-1">Lessons</h3>
-            <p className="text-sm text-muted-foreground">Create and view lessons</p>
+            <h3 className="text-lg font-medium mb-1">{t('lessons_title')}</h3>
+            <p className="text-sm text-muted-foreground">{t('lessons_desc')}</p>
             <div className="mt-auto pt-4">
               <Button variant="outline" className="w-full justify-between" asChild>
                 <a href="/lessons">
-                  View <ArrowUpRight className="h-4 w-4" />
+                  {t('view')} <ArrowUpRight className="h-4 w-4" />
                 </a>
               </Button>
             </div>
@@ -374,12 +378,12 @@ function DashboardContent() {
                 <GraduationCap className="h-5 w-5 text-gray-500" />
               </div>
             </div>
-            <h3 className="text-lg font-medium mb-1">Digital Games</h3>
-            <p className="text-sm text-muted-foreground">Organize courses and tutorials</p>
+            <h3 className="text-lg font-medium mb-1">{t('digital_games_title')}</h3>
+            <p className="text-sm text-muted-foreground">{t('digital_games_desc')}</p>
             <div className="mt-auto pt-4">
               <Button variant="outline" className="w-full justify-between" asChild>
                 <a href="/digital-games">
-                  View <ArrowUpRight className="h-4 w-4" />
+                  {t('view')} <ArrowUpRight className="h-4 w-4" />
                 </a>
               </Button>
             </div>
@@ -393,12 +397,12 @@ function DashboardContent() {
                 <BarChart2 className="h-5 w-5 text-gray-500" />
               </div>
             </div>
-            <h3 className="text-lg font-medium mb-1">Learning Analytics</h3>
-            <p className="text-sm text-muted-foreground">Track learning progress and insights</p>
+            <h3 className="text-lg font-medium mb-1">{t('learning_analytics')}</h3>
+            <p className="text-sm text-muted-foreground">{t('learning_analytics_desc')}</p>
             <div className="mt-auto pt-4">
               <Button variant="outline" className="w-full justify-between" asChild>
                 <a href="/reports">
-                  View <ArrowUpRight className="h-4 w-4" />
+                  {t('view')} <ArrowUpRight className="h-4 w-4" />
                 </a>
               </Button>
             </div>
@@ -413,16 +417,16 @@ function DashboardContent() {
           <CardHeader className="flex flex-row items-center justify-between p-4 md:p-6 pb-2">
             <CardTitle className="text-lg md:text-xl flex items-center gap-2">
               <Calendar className="h-5 w-5" />
-              Upcoming Events
+              {t('upcoming_events')}
             </CardTitle>
             <Button variant="ghost" size="sm" className="text-sm gap-1" asChild>
               <a href="/events">
-                View All <ArrowUpRight className="h-4 w-4" />
+                {t('view_all')} <ArrowUpRight className="h-4 w-4" />
               </a>
             </Button>
           </CardHeader>
           <CardDescription className="px-4 md:px-6">
-            Scheduled events for the next 14 days
+            {t('upcoming_events_desc')}
           </CardDescription>
           <CardContent className="p-4 md:p-6 pt-4">
             <div className="space-y-3">
@@ -442,7 +446,7 @@ function DashboardContent() {
                 ))
               ) : (
                 <div className="text-center py-6 text-muted-foreground">
-                  No upcoming events scheduled.
+                  {t('no_upcoming_events')}
                 </div>
               )}
             </div>
@@ -452,15 +456,15 @@ function DashboardContent() {
         {/* Recent activities - UPDATED WITH REAL-TIME DATA */}
         <Card>
           <CardHeader className="flex flex-row items-center justify-between p-4 md:p-6 pb-2">
-            <CardTitle className="text-lg md:text-xl">Recent Activity</CardTitle>
+            <CardTitle className="text-lg md:text-xl">{t('recent_activity')}</CardTitle>
             <Button variant="ghost" size="sm" className="text-sm gap-1" asChild>
               <a href="/activities">
-                View All <ArrowUpRight className="h-4 w-4" />
+                {t('view_all')} <ArrowUpRight className="h-4 w-4" />
               </a>
             </Button>
           </CardHeader>
           <CardDescription className="px-4 md:px-6">
-            Latest platform activities
+            {t('recent_activity_desc')}
           </CardDescription>
           <CardContent className="p-4 md:p-6 pt-4">
             {activitiesLoading ? (

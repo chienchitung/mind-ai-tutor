@@ -46,6 +46,8 @@ import {
   DropdownMenuRadioGroup,
   DropdownMenuRadioItem,
 } from '@/components/ui/dropdown-menu';
+import { useLanguage, type Language } from '@/app/contexts/LanguageContext';
+import { useTranslation } from '@/utils/translations';
 
 interface SidebarProps {
   className?: string;
@@ -63,7 +65,8 @@ export function Sidebar({
   const [user, setUser] = useState<any>(null);
   const [isCollapsed, setIsCollapsed] = useState(false);
   const [isMobile, setIsMobile] = useState(false);
-  const [language, setLanguage] = useState<string>("en");
+  const { language, setLanguage } = useLanguage();
+  const { t } = useTranslation(language);
   const pathname = usePathname();
   const router = useRouter();
   const { toast } = useToast();
@@ -112,15 +115,15 @@ export function Sidebar({
       const supabaseClient = supabase();
       await supabaseClient.auth.signOut();
       toast({
-        title: 'Signed out successfully',
-        description: 'You have been signed out of your account.',
+        title: t('signed_out_successfully'),
+        description: t('signed_out_description'),
       });
       // Redirect to login page
       window.location.href = '/login';
     } catch (error) {
       toast({
-        title: 'Error signing out',
-        description: 'There was a problem signing out of your account.',
+        title: t('error_signing_out'),
+        description: t('error_signing_out_description'),
         variant: 'destructive',
       });
     }
@@ -145,57 +148,57 @@ export function Sidebar({
     router.push(path);
   };
 
-  const changeLanguage = (value: string) => {
+  const changeLanguage = (value: Language) => {
     setLanguage(value);
     toast({
-      title: value === 'en' ? 'Language changed' : '語言已更改',
-      description: value === 'en' ? 'English is now active' : '繁體中文現在已啟用',
+      title: t('language_changed'),
+      description: t('language_changed_description')
     });
   };
 
   const navigation = [
     {
-      name: 'Dashboard',
+      name: t('dashboard'),
       href: '/dashboard',
       icon: LayoutDashboard,
     },
     {
-      name: 'Students',
+      name: t('students'),
       href: '/students',
       icon: Users,
     },
     {
-      name: 'Activities',
+      name: t('activities'),
       href: '/activities',
       icon: Bell,
     },
     {
-      name: 'Lessons',
+      name: t('lessons'),
       href: '/lessons',
       icon: BookOpen,
     },
     {
-      name: 'Digital Games',
+      name: t('digital_games'),
       href: '/digital-games',
       icon: Gamepad2,
     },
     {
-      name: 'AI Quiz',
+      name: t('ai_quiz'),
       href: '/ai-quiz',
       icon: Wand2,
     },
     {
-      name: 'Feedback',
+      name: t('feedback'),
       href: '/feedback',
       icon: MessageSquare,
     },
     {
-      name: 'Events',
+      name: t('events'),
       href: '/events',
       icon: Calendar,
     },
     {
-      name: 'Reports',
+      name: t('reports'),
       href: '/reports',
       icon: BarChart3,
     },
@@ -335,17 +338,17 @@ export function Sidebar({
                   <DropdownMenuGroup>
                     <DropdownMenuItem onClick={() => handleNavigate('/settings')}>
                       <Settings className="mr-2 h-4 w-4" />
-                      <span>Settings</span>
+                      <span>{t('settings')}</span>
                     </DropdownMenuItem>
 
                     <DropdownMenuSub>
                       <DropdownMenuSubTrigger>
                         <Globe className="mr-2 h-4 w-4" />
-                        <span>Language</span>
-                        <span className="ml-auto text-xs rounded-full bg-muted px-2 py-0.5">BETA</span>
+                        <span>{t('language')}</span>
+                        <span className="ml-auto text-xs rounded-full bg-muted px-2 py-0.5">{t('beta')}</span>
                       </DropdownMenuSubTrigger>
                       <DropdownMenuSubContent>
-                        <DropdownMenuRadioGroup value={language} onValueChange={changeLanguage}>
+                        <DropdownMenuRadioGroup value={language} onValueChange={(value: string) => changeLanguage(value as Language)}>
                           <DropdownMenuRadioItem value="en">
                             English
                             {language === "en" && <Check className="ml-auto h-4 w-4" />}
@@ -360,13 +363,13 @@ export function Sidebar({
 
                     <DropdownMenuItem onClick={() => handleNavigate('/subscription')}>
                       <CreditCard className="mr-2 h-4 w-4" />
-                      <span>Subscription</span>
+                      <span>{t('subscription')}</span>
                     </DropdownMenuItem>
                   </DropdownMenuGroup>
                   <DropdownMenuSeparator />
                   <DropdownMenuItem onClick={handleSignOut}>
                     <LogOut className="mr-2 h-4 w-4" />
-                    <span>Log out</span>
+                    <span>{t('log_out')}</span>
                   </DropdownMenuItem>
                 </DropdownMenuContent>
               </DropdownMenu>
@@ -413,17 +416,17 @@ export function Sidebar({
                 <DropdownMenuGroup>
                   <DropdownMenuItem onClick={() => handleNavigate('/settings')}>
                     <Settings className="mr-2 h-4 w-4" />
-                    <span>Settings</span>
+                    <span>{t('settings')}</span>
                   </DropdownMenuItem>
 
                   <DropdownMenuSub>
                     <DropdownMenuSubTrigger>
                       <Globe className="mr-2 h-4 w-4" />
-                      <span>Language</span>
-                      <span className="ml-auto text-xs rounded-full bg-muted px-2 py-0.5">BETA</span>
+                      <span>{t('language')}</span>
+                      <span className="ml-auto text-xs rounded-full bg-muted px-2 py-0.5">{t('beta')}</span>
                     </DropdownMenuSubTrigger>
                     <DropdownMenuSubContent>
-                      <DropdownMenuRadioGroup value={language} onValueChange={changeLanguage}>
+                      <DropdownMenuRadioGroup value={language} onValueChange={(value: string) => changeLanguage(value as Language)}>
                         <DropdownMenuRadioItem value="en">
                           English
                           {language === "en" && <Check className="ml-auto h-4 w-4" />}
@@ -438,13 +441,13 @@ export function Sidebar({
 
                   <DropdownMenuItem onClick={() => handleNavigate('/subscription')}>
                     <CreditCard className="mr-2 h-4 w-4" />
-                    <span>Subscription</span>
+                    <span>{t('subscription')}</span>
                   </DropdownMenuItem>
                 </DropdownMenuGroup>
                 <DropdownMenuSeparator />
                 <DropdownMenuItem onClick={handleSignOut}>
                   <LogOut className="mr-2 h-4 w-4" />
-                  <span>Log out</span>
+                  <span>{t('log_out')}</span>
                 </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
