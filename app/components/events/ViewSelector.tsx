@@ -4,9 +4,13 @@ import React from "react";
 import { useEvents } from "@/contexts/EventContext";
 import { LayoutList, KanbanSquare, Table2, CalendarDays, GanttChartSquare } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { useLanguage } from "@/app/contexts/LanguageContext";
+import { useTranslation } from "@/utils/translations";
 
 export function ViewSelector() {
   const { activeView, setActiveView } = useEvents();
+  const { language } = useLanguage();
+  const { t } = useTranslation(language);
   
   return (
     <div className="flex items-center space-x-1">
@@ -18,7 +22,7 @@ export function ViewSelector() {
         aria-label="Table View"
       >
         <Table2 className="h-4 w-4 mr-1" />
-        <span>Table</span>
+        <span>{t('table')}</span>
       </Button>
       
       <Button
@@ -29,7 +33,7 @@ export function ViewSelector() {
         aria-label="Kanban View"
       >
         <KanbanSquare className="h-4 w-4 mr-1" />
-        <span>Kanban</span>
+        <span>{t('kanban')}</span>
       </Button>
       
       <Button
@@ -40,7 +44,7 @@ export function ViewSelector() {
         aria-label="Calendar View"
       >
         <CalendarDays className="h-4 w-4 mr-1" />
-        <span>Calendar</span>
+        <span>{t('calendar')}</span>
       </Button>
       
       <Button
@@ -51,7 +55,7 @@ export function ViewSelector() {
         aria-label="Timeline View"
       >
         <GanttChartSquare className="h-4 w-4 mr-1" />
-        <span>Timeline</span>
+        <span>{t('timeline')}</span>
       </Button>
     </div>
   );

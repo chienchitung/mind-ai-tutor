@@ -1,136 +1,144 @@
 'use client';
 
 import React, { useState } from "react";
-import { Search, Filter, Check } from "lucide-react";
 import { useEvents } from "@/contexts/EventContext";
+import { Filter } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
   DropdownMenuContent,
-  DropdownMenuItem,
   DropdownMenuLabel,
+  DropdownMenuRadioGroup,
+  DropdownMenuRadioItem,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
-  DropdownMenuRadioGroup,
-  DropdownMenuRadioItem
 } from "@/components/ui/dropdown-menu";
+import { useLanguage } from "@/app/contexts/LanguageContext";
+import { useTranslation } from "@/utils/translations";
 
 export function EventFilters() {
-  const { activeFilters, setActiveFilters } = useEvents();
-  const [searchValue, setSearchValue] = useState("");
-
+  const { activeFilters, setFilterText, setFilterStatus, setFilterPriority, setFilterType } = useEvents();
+  const { language } = useLanguage();
+  const { t } = useTranslation(language);
+  const [searchText, setSearchText] = useState(activeFilters.text || "");
+  
   const handleSearch = (e: React.ChangeEvent<HTMLInputElement>) => {
-    setSearchValue(e.target.value);
-    
-    // Debounced search
-    const handler = setTimeout(() => {
-      setActiveFilters({ ...activeFilters, search: e.target.value });
-    }, 300);
-    
-    return () => clearTimeout(handler);
+    const value = e.target.value;
+    setSearchText(value);
+    if (setFilterText) setFilterText(value);
   };
-
+  
+  const clearSearch = () => {
+    setSearchText("");
+    if (setFilterText) setFilterText("");
+  };
+  
   const handleStatusFilter = (value: string) => {
-    setActiveFilters({ ...activeFilters, status: value });
+    if (setFilterStatus) setFilterStatus(value === "all" ? "" : value);
   };
-
+  
   const handlePriorityFilter = (value: string) => {
-    setActiveFilters({ ...activeFilters, priority: value });
+    if (setFilterPriority) setFilterPriority(value === "all" ? "" : value);
   };
-
+  
   const handleTypeFilter = (value: string) => {
-    setActiveFilters({ ...activeFilters, type: value });
+    if (setFilterType) setFilterType(value === "all" ? "" : value);
   };
-
+  
   return (
-    <div className="flex items-center gap-2">
-      <div className="relative">
-        <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-        <Input
-          type="search"
-          placeholder="Search events..."
-          className="pl-8 h-9 md:w-[200px] lg:w-[280px]"
-          value={searchValue}
+    <div className="flex items-center space-x-2 mb-4">
+      <div className="relative flex-1">
+        <Input 
+          placeholder={t('search_events')}
+          value={searchText}
           onChange={handleSearch}
         />
+        {searchText && (
+          <button
+            onClick={clearSearch}
+            className="absolute right-2 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600"
+          >
+            &times;
+          </button>
+        )}
       </div>
-
+      
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
           <Button variant="outline" size="sm" className="h-9">
             <Filter className="mr-2 h-4 w-4" />
-            <span>Filter</span>
+            <span>{t('filters')}</span>
           </Button>
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end" className="w-56">
-          <DropdownMenuLabel>Filter by Status</DropdownMenuLabel>
+          <DropdownMenuLabel>{t('select_status')}</DropdownMenuLabel>
           <DropdownMenuRadioGroup
             value={activeFilters.status || "all"}
             onValueChange={handleStatusFilter}
           >
             <DropdownMenuRadioItem value="all">
-              All
+              {t('all')}
             </DropdownMenuRadioItem>
             <DropdownMenuRadioItem value="to_do">
-              To Do
+              {t('to_do')}
             </DropdownMenuRadioItem>
             <DropdownMenuRadioItem value="in_progress">
-              In Progress
+              {t('in_progress')}
             </DropdownMenuRadioItem>
             <DropdownMenuRadioItem value="done">
-              Done
+              {t('done')}
             </DropdownMenuRadioItem>
           </DropdownMenuRadioGroup>
           
           <DropdownMenuSeparator />
           
-          <DropdownMenuLabel>Filter by Priority</DropdownMenuLabel>
+          <DropdownMenuLabel>{t('select_priority')}</DropdownMenuLabel>
           <DropdownMenuRadioGroup
             value={activeFilters.priority || "all"}
             onValueChange={handlePriorityFilter}
           >
             <DropdownMenuRadioItem value="all">
-              All
+              {t('all')}
             </DropdownMenuRadioItem>
             <DropdownMenuRadioItem value="high">
-              High
+              {t('high')}
             </DropdownMenuRadioItem>
             <DropdownMenuRadioItem value="medium">
-              Medium
+              {t('medium')}
             </DropdownMenuRadioItem>
             <DropdownMenuRadioItem value="low">
-              Low
+              {t('low')}
             </DropdownMenuRadioItem>
           </DropdownMenuRadioGroup>
           
           <DropdownMenuSeparator />
           
-          <DropdownMenuLabel>Filter by Type</DropdownMenuLabel>
+          <DropdownMenuLabel>{t('select_type')}</DropdownMenuLabel>
           <DropdownMenuRadioGroup
             value={activeFilters.type || "all"}
             onValueChange={handleTypeFilter}
           >
             <DropdownMenuRadioItem value="all">
-              All
+              {t('all')}
             </DropdownMenuRadioItem>
             <DropdownMenuRadioItem value="course">
-              Course
+              {t('course')}
             </DropdownMenuRadioItem>
             <DropdownMenuRadioItem value="workshop">
-              Workshop
+              {t('workshop')}
             </DropdownMenuRadioItem>
             <DropdownMenuRadioItem value="meeting">
-              Meeting
+              {t('meeting')}
             </DropdownMenuRadioItem>
             <DropdownMenuRadioItem value="training">
-              Training
+              {t('training')}
             </DropdownMenuRadioItem>
             <DropdownMenuRadioItem value="planning">
-              Planning
+              {t('planning')}
             </DropdownMenuRadioItem>
             <DropdownMenuRadioItem value="other">
-              Other
+              {t('other')}
             </DropdownMenuRadioItem>
           </DropdownMenuRadioGroup>
         </DropdownMenuContent>

@@ -19,9 +19,13 @@ import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
 import { EventFormDialog } from "@/components/events/EventFormDialog";
+import { useLanguage } from "@/app/contexts/LanguageContext";
+import { useTranslation } from "@/utils/translations";
 
 export function CalendarView() {
   const { events } = useEvents();
+  const { language } = useLanguage();
+  const { t } = useTranslation(language);
   const [currentDate, setCurrentDate] = useState(new Date());
   const [selectedDate, setSelectedDate] = useState<Date | null>(new Date());
   const [isFormOpen, setIsFormOpen] = useState(false);
@@ -133,11 +137,11 @@ export function CalendarView() {
   const getStatusName = (status: string) => {
     switch (status) {
       case 'to_do':
-        return 'To Do';
+        return t('to_do');
       case 'in_progress':
-        return 'In Progress';
+        return t('in_progress');
       case 'done':
-        return 'Done';
+        return t('done');
       default:
         return status;
     }
@@ -169,7 +173,7 @@ export function CalendarView() {
     const calendarGrid: React.ReactNode[] = [];
     
     // 星期頭部
-    const weekdays = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+    const weekdays = [t('sunday'), t('monday'), t('tuesday'), t('wednesday'), t('thursday'), t('friday'), t('saturday')];
     const weekdayHeaders = (
       <div className="grid grid-cols-7 border-b pb-2 mb-2">
         {weekdays.map((day, i) => (
@@ -237,7 +241,7 @@ export function CalendarView() {
             ))}
             {dayEvents.length > 3 && (
               <div className="text-xs text-gray-500 pl-1">
-                +{dayEvents.length - 3} more
+                {t('more', { count: dayEvents.length - 3 })}
               </div>
             )}
           </div>
@@ -292,7 +296,7 @@ export function CalendarView() {
             <ChevronRight className="h-4 w-4" />
           </Button>
           <Button variant="outline" size="sm" onClick={goToToday}>
-            Today
+            {t('today')}
           </Button>
         </div>
       </div>
@@ -306,7 +310,7 @@ export function CalendarView() {
           <Card>
             <CardContent className="p-4">
               <h3 className="font-medium mb-2">
-                {selectedDate ? format(selectedDate, 'EEEE, MMMM d, yyyy') : 'Select a date'}
+                {selectedDate ? format(selectedDate, 'EEEE, MMMM d, yyyy') : t('select_date')}
               </h3>
               
               {selectedDateEvents.length > 0 ? (
@@ -329,7 +333,7 @@ export function CalendarView() {
                           </Badge>
                           
                           <Badge variant="outline" className={getPriorityColor(event.priority)}>
-                            {event.priority.charAt(0).toUpperCase() + event.priority.slice(1)}
+                            {t(event.priority as any)}
                           </Badge>
                           
                           <div className="flex items-center text-xs text-gray-500">
@@ -347,7 +351,7 @@ export function CalendarView() {
                             className="text-xs h-7"
                             onClick={() => handleEventClick(event)}
                           >
-                            View Details
+                            {t('view_details')}
                           </Button>
                         </div>
                       </CardContent>
@@ -356,7 +360,7 @@ export function CalendarView() {
                 </div>
               ) : (
                 <div className="flex items-center justify-center h-32 border rounded-md bg-gray-50">
-                  <p className="text-gray-500">No events on this day</p>
+                  <p className="text-gray-500">{t('no_events_today')}</p>
                 </div>
               )}
             </CardContent>

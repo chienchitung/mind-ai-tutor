@@ -149,10 +149,17 @@ export function Sidebar({
   };
 
   const changeLanguage = (value: Language) => {
+    // 先獲取要切換到的新語言所對應的通知訊息
+    const newLanguageTitle = value === 'en' ? 'Language changed' : '語言已更改';
+    const newLanguageDescription = value === 'en' ? 'English is now active' : '繁體中文現在已啟用';
+    
+    // 然後設置語言
     setLanguage(value);
+    
+    // 使用新語言的訊息顯示通知
     toast({
-      title: t('language_changed'),
-      description: t('language_changed_description')
+      title: newLanguageTitle,
+      description: newLanguageDescription
     });
   };
 

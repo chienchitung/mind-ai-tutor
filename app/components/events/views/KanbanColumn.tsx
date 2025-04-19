@@ -28,6 +28,8 @@ import {
 import { cn } from "@/lib/utils";
 import { useEvents } from "@/contexts/EventContext";
 import { EventFormDialog } from "@/components/events/EventFormDialog";
+import { useLanguage } from "@/app/contexts/LanguageContext";
+import { useTranslation } from "@/utils/translations";
 
 export interface KanbanColumnProps {
   column: EventColumn;
@@ -57,6 +59,8 @@ export function KanbanColumn({
   dragPosition
 }: KanbanColumnProps) {
   const { deleteEvent } = useEvents();
+  const { language } = useLanguage();
+  const { t } = useTranslation(language);
   const [editingEvent, setEditingEvent] = useState<Event | null>(null);
   const [isFormOpen, setIsFormOpen] = useState(false);
 
@@ -104,11 +108,33 @@ export function KanbanColumn({
     }
   };
   
-  // Capitalize first letter of each word
-  const capitalizeWords = (str: string): string => {
-    return str.split(' ').map(word => 
-      word.charAt(0).toUpperCase() + word.slice(1)
-    ).join(' ');
+  // 獲取翻譯的優先級或類型
+  const getTranslation = (key: string): string => {
+    return language === 'zh-TW' ? 
+      {
+        'high': '高',
+        'medium': '中',
+        'low': '低',
+        'course': '課程',
+        'workshop': '工作坊',
+        'training': '訓練',
+        'planning': '規劃',
+        'meeting': '會議',
+        'other': '其他',
+        'edit': '編輯'
+      }[key] || key : 
+      {
+        'high': 'High',
+        'medium': 'Medium',
+        'low': 'Low',
+        'course': 'Course',
+        'workshop': 'Workshop',
+        'training': 'Training',
+        'planning': 'Planning',
+        'meeting': 'Meeting',
+        'other': 'Other',
+        'edit': 'Edit'
+      }[key] || key;
   };
 
   return (
@@ -125,7 +151,7 @@ export function KanbanColumn({
             onDragOver={(e) => onDragOver(e, column.id)}
             onDrop={(e) => onDrop(e, column.id)}
           >
-            Drop here
+            {language === 'zh-TW' ? '拖放至此' : 'Drop here'}
           </div>
         ) : (
           column.events.map((event: Event) => (
@@ -164,10 +190,10 @@ export function KanbanColumn({
               <div className="flex justify-between items-center mt-2">
                 <div className="flex items-center gap-2">
                   <span className={`text-xs px-2 py-1 rounded-full ${getPriorityColor(event.priority)}`}>
-                    {capitalizeWords(event.priority)}
+                    {getTranslation(event.priority)}
                   </span>
                   <Badge variant="secondary" className={`text-xs ${getTypeColor(event.type)}`}>
-                    {capitalizeWords(event.type)}
+                    {getTranslation(event.type)}
                   </Badge>
                   <span className="text-xs text-gray-400">
                     {format(new Date(event.startDate), "MMM dd")} - {format(new Date(event.endDate), "MMM dd")}
@@ -176,7 +202,7 @@ export function KanbanColumn({
                 <EventFormDialog 
                   initialEvent={event} 
                   mode="edit" 
-                  trigger={<button className="text-xs text-blue-500">Edit</button>} 
+                  trigger={<button className="text-xs text-blue-500">{t('edit')}</button>} 
                 />
               </div>
               

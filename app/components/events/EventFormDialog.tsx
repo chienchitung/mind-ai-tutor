@@ -13,6 +13,8 @@ import { Select, SelectContent, SelectGroup, SelectItem, SelectTrigger, SelectVa
 import { Calendar } from "@/components/ui/calendar";
 import { cn } from "@/lib/utils";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { useLanguage } from "@/app/contexts/LanguageContext";
+import { useTranslation } from "@/utils/translations";
 
 interface EventFormDialogProps {
   open?: boolean;
@@ -24,6 +26,8 @@ interface EventFormDialogProps {
 
 export function EventFormDialog({ open, onOpenChange, initialEvent, mode = 'create', trigger }: EventFormDialogProps) {
   const { addEvent, updateEvent } = useEvents();
+  const { language } = useLanguage();
+  const { t } = useTranslation(language);
   const isEditing = mode === 'edit';
   const [sheetOpen, setSheetOpen] = useState(open || false);
   
@@ -115,33 +119,33 @@ export function EventFormDialog({ open, onOpenChange, initialEvent, mode = 'crea
   const sheetContent = (
     <SheetContent className="w-full sm:max-w-md overflow-y-auto">
       <SheetHeader>
-        <SheetTitle>{isEditing ? "Edit Event" : "Add New Event"}</SheetTitle>
+        <SheetTitle>{isEditing ? t('edit_event') : t('add_new_event')}</SheetTitle>
       </SheetHeader>
       
       <ScrollArea className="h-[calc(100vh-8rem)] py-4">
         <form onSubmit={handleSubmit} className="space-y-6 px-6">
           <div className="space-y-4">
             <div className="space-y-2">
-              <Label htmlFor="title">Title</Label>
+              <Label htmlFor="title">{t('title')}</Label>
               <Input
                 id="title"
                 name="title"
                 value={formData.title}
                 onChange={handleInputChange}
-                placeholder="Event title"
+                placeholder={t('event_title')}
                 required
                 className="w-full border border-input rounded-md"
               />
             </div>
             
             <div className="space-y-2">
-              <Label htmlFor="description">Description</Label>
+              <Label htmlFor="description">{t('description')}</Label>
               <Textarea 
                 id="description"
                 name="description"
                 value={formData.description}
                 onChange={handleInputChange}
-                placeholder="Event description" 
+                placeholder={t('event_description')} 
                 rows={3}
                 className="w-full border border-input rounded-md"
               />
@@ -149,41 +153,41 @@ export function EventFormDialog({ open, onOpenChange, initialEvent, mode = 'crea
             
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="space-y-2">
-                <Label htmlFor="type">Type</Label>
+                <Label htmlFor="type">{t('type')}</Label>
                 <Select
                   value={formData.type}
                   onValueChange={handleSelectChange("type")}
                 >
                   <SelectTrigger className="w-full border border-input rounded-md">
-                    <SelectValue placeholder="Select type" />
+                    <SelectValue placeholder={t('select_type')} />
                   </SelectTrigger>
                   <SelectContent>
                     <SelectGroup>
-                      <SelectItem value="course">Course</SelectItem>
-                      <SelectItem value="workshop">Workshop</SelectItem>
-                      <SelectItem value="training">Training</SelectItem>
-                      <SelectItem value="planning">Planning</SelectItem>
-                      <SelectItem value="meeting">Meeting</SelectItem>
-                      <SelectItem value="other">Other</SelectItem>
+                      <SelectItem value="course">{t('course')}</SelectItem>
+                      <SelectItem value="workshop">{t('workshop')}</SelectItem>
+                      <SelectItem value="training">{t('training')}</SelectItem>
+                      <SelectItem value="planning">{t('planning')}</SelectItem>
+                      <SelectItem value="meeting">{t('meeting')}</SelectItem>
+                      <SelectItem value="other">{t('other')}</SelectItem>
                     </SelectGroup>
                   </SelectContent>
                 </Select>
               </div>
               
               <div className="space-y-2">
-                <Label htmlFor="status">Status</Label>
+                <Label htmlFor="status">{t('status')}</Label>
                 <Select
                   value={formData.status}
                   onValueChange={handleSelectChange("status")}
                 >
                   <SelectTrigger className="w-full border border-input rounded-md">
-                    <SelectValue placeholder="Select status" />
+                    <SelectValue placeholder={t('select_status')} />
                   </SelectTrigger>
                   <SelectContent>
                     <SelectGroup>
-                      <SelectItem value="to_do">To Do</SelectItem>
-                      <SelectItem value="in_progress">In Progress</SelectItem>
-                      <SelectItem value="done">Done</SelectItem>
+                      <SelectItem value="to_do">{t('to_do')}</SelectItem>
+                      <SelectItem value="in_progress">{t('in_progress')}</SelectItem>
+                      <SelectItem value="done">{t('done')}</SelectItem>
                     </SelectGroup>
                   </SelectContent>
                 </Select>
@@ -191,19 +195,19 @@ export function EventFormDialog({ open, onOpenChange, initialEvent, mode = 'crea
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="priority">Priority</Label>
+              <Label htmlFor="priority">{t('priority')}</Label>
               <Select
                 value={formData.priority}
                 onValueChange={handleSelectChange("priority")}
               >
                 <SelectTrigger className="w-full border border-input rounded-md">
-                  <SelectValue placeholder="Select priority" />
+                  <SelectValue placeholder={t('select_priority')} />
                 </SelectTrigger>
                 <SelectContent>
                   <SelectGroup>
-                    <SelectItem value="low">Low</SelectItem>
-                    <SelectItem value="medium">Medium</SelectItem>
-                    <SelectItem value="high">High</SelectItem>
+                    <SelectItem value="low">{t('low')}</SelectItem>
+                    <SelectItem value="medium">{t('medium')}</SelectItem>
+                    <SelectItem value="high">{t('high')}</SelectItem>
                   </SelectGroup>
                 </SelectContent>
               </Select>
@@ -211,7 +215,7 @@ export function EventFormDialog({ open, onOpenChange, initialEvent, mode = 'crea
             
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="space-y-2">
-                <Label htmlFor="startDate">Start Date</Label>
+                <Label htmlFor="startDate">{t('start_date')}</Label>
                 <div className="relative">
                   <Input
                     id="startDate"
@@ -225,7 +229,7 @@ export function EventFormDialog({ open, onOpenChange, initialEvent, mode = 'crea
               </div>
               
               <div className="space-y-2">
-                <Label htmlFor="endDate">End Date</Label>
+                <Label htmlFor="endDate">{t('end_date')}</Label>
                 <div className="relative">
                   <Input
                     id="endDate"
@@ -243,11 +247,11 @@ export function EventFormDialog({ open, onOpenChange, initialEvent, mode = 'crea
           <SheetFooter className="flex flex-col-reverse sm:flex-row sm:justify-end sm:space-x-2 px-0">
             <SheetClose asChild>
               <Button type="button" variant="outline">
-                Cancel
+                {t('cancel')}
               </Button>
             </SheetClose>
             <Button type="submit" variant="default">
-              {isEditing ? "Save Changes" : "Add Event"}
+              {isEditing ? t('save_changes') : t('add_event')}
             </Button>
           </SheetFooter>
         </form>

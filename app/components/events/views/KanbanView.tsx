@@ -3,6 +3,8 @@
 import React, { useState, useEffect } from "react";
 import { useEvents, groupEventsByStatus, Event, EventStatus } from "@/contexts/EventContext";
 import { KanbanColumn } from "@/components/events/views/KanbanColumn";
+import { useLanguage } from "@/app/contexts/LanguageContext";
+import { useTranslation } from "@/utils/translations";
 
 // 添加自定義 CSS 樣式，使拖曳更流暢
 const kanbanStyles = `
@@ -39,6 +41,8 @@ const kanbanStyles = `
 
 export function KanbanView() {
   const { events, updateEvent } = useEvents();
+  const { language } = useLanguage();
+  const { t } = useTranslation(language);
   
   // 狀態鍵值映射
   const statusMapping: Record<string, EventStatus> = {
@@ -74,17 +78,17 @@ export function KanbanView() {
     return [
       {
         id: 'to_do',
-        name: 'To Do',
+        name: t('to_do'),
         events: sortedEvents.filter(event => event.status === 'to_do')
       },
       {
         id: 'in_progress',
-        name: 'In Progress',
+        name: t('events_in_progress'),
         events: sortedEvents.filter(event => event.status === 'in_progress')
       },
       {
         id: 'done',
-        name: 'Done',
+        name: t('done'),
         events: sortedEvents.filter(event => event.status === 'done')
       }
     ];

@@ -34,6 +34,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { useLanguage } from "@/app/contexts/LanguageContext";
+import { useTranslation } from "@/utils/translations";
 
 export function EventsFilter() {
   const { 
@@ -49,6 +51,9 @@ export function EventsFilter() {
     filterType, 
     setFilterType 
   } = useEvents();
+  
+  const { language } = useLanguage();
+  const { t } = useTranslation(language);
   
   // Local state to manage UI elements
   const [localFilterText, setLocalFilterText] = useState(filterText || "");
@@ -95,27 +100,27 @@ export function EventsFilter() {
 
   // Options for dropdown filters
   const statusOptions = [
-    { value: "", label: "All Statuses" },
-    { value: "to_do", label: "To Do" },
-    { value: "in_progress", label: "In Progress" },
-    { value: "done", label: "Done" },
+    { value: "", label: t('all_statuses') },
+    { value: "to_do", label: t('to_do') },
+    { value: "in_progress", label: t('in_progress') },
+    { value: "done", label: t('done') },
   ];
 
   const priorityOptions = [
-    { value: "", label: "All Priorities" },
-    { value: "high", label: "High" },
-    { value: "medium", label: "Medium" },
-    { value: "low", label: "Low" },
+    { value: "", label: t('all_priorities') },
+    { value: "high", label: t('high') },
+    { value: "medium", label: t('medium') },
+    { value: "low", label: t('low') },
   ];
 
   const typeOptions = [
-    { value: "", label: "All Types" },
-    { value: "course", label: "Course" },
-    { value: "workshop", label: "Workshop" },
-    { value: "meeting", label: "Meeting" },
-    { value: "planning", label: "Planning" },
-    { value: "training", label: "Training" },
-    { value: "other", label: "Other" },
+    { value: "", label: t('all_types') },
+    { value: "course", label: t('course') },
+    { value: "workshop", label: t('workshop') },
+    { value: "meeting", label: t('meeting') },
+    { value: "planning", label: t('planning') },
+    { value: "training", label: t('training') },
+    { value: "other", label: t('other') },
   ];
 
   return (
@@ -123,7 +128,7 @@ export function EventsFilter() {
       <div className="relative flex-1 min-w-[200px]">
         <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-gray-500" />
         <Input
-          placeholder="Search events..."
+          placeholder={t('search_events')}
           value={localFilterText}
           onChange={handleSearchChange}
           className="pl-8"
@@ -134,7 +139,7 @@ export function EventsFilter() {
         <PopoverTrigger asChild>
           <Button variant="outline" size="sm" className="h-8 gap-1">
             <Tag className="h-3.5 w-3.5" />
-            <span className="hidden sm:inline">Tags</span>
+            <span className="hidden sm:inline">{t('tags')}</span>
             {localSelectedTags.length > 0 && (
               <Badge variant="secondary" className="px-1 font-normal">
                 {localSelectedTags.length}
@@ -216,7 +221,7 @@ export function EventsFilter() {
         <DropdownMenuTrigger asChild>
           <Button variant="outline" size="sm" className="h-8 lg:hidden">
             <Filter className="h-3.5 w-3.5" />
-            <span className="ml-2">Filters</span>
+            <span className="ml-2">{t('filters')}</span>
             {hasActiveFilters && (
               <Badge variant="secondary" className="ml-1 px-1 font-normal">
                 !
@@ -225,7 +230,7 @@ export function EventsFilter() {
           </Button>
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end" className="w-[200px]">
-          <DropdownMenuLabel>Filters</DropdownMenuLabel>
+          <DropdownMenuLabel>{t('filters')}</DropdownMenuLabel>
           <DropdownMenuSeparator />
           <DropdownMenuGroup>
             {/* Type filter for mobile */}
@@ -281,7 +286,7 @@ export function EventsFilter() {
           onClick={clearFilters}
         >
           <X className="h-4 w-4" />
-          <span className="ml-2">Clear Filters</span>
+          <span className="ml-2">{t('clear_filters')}</span>
         </Button>
       )}
     </div>

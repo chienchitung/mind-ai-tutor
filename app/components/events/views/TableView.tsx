@@ -2,6 +2,8 @@
 
 import React, { useState, useEffect } from "react";
 import { useEvents } from "@/contexts/EventContext";
+import { useLanguage } from "@/app/contexts/LanguageContext";
+import { useTranslation } from "@/utils/translations";
 import { 
   ArrowUpDown, 
   MoreHorizontal, 
@@ -55,6 +57,8 @@ import {
 
 export function TableView() {
   const { events, updateEvent, deleteEvent } = useEvents();
+  const { language } = useLanguage();
+  const { t } = useTranslation(language);
   const [sortConfig, setSortConfig] = useState<{ field: string; direction: 'asc' | 'desc' }>({
     field: 'startDate',
     direction: 'asc'
@@ -253,18 +257,18 @@ export function TableView() {
   
   // 獲取事件類型顯示名稱
   const getTypeName = (type: EventType) => {
-    return type.charAt(0).toUpperCase() + type.slice(1);
+    return t(type as any);
   };
   
   // 獲取狀態顯示名稱
   const getStatusName = (status: EventStatus) => {
     switch (status) {
       case 'to_do':
-        return 'To Do';
+        return t('to_do');
       case 'in_progress':
-        return 'In Progress';
+        return t('in_progress');
       case 'done':
-        return 'Done';
+        return t('done');
       default:
         return status;
     }
@@ -282,7 +286,7 @@ export function TableView() {
               className="h-8"
             >
               <X className="h-3.5 w-3.5 mr-1" />
-              <span>Clear Filters</span>
+              <span>{t('events_clear_filters')}</span>
             </Button>
           )}
           
@@ -294,13 +298,13 @@ export function TableView() {
                 className={cn("h-8", hasActiveFilters && "border-blue-500 text-blue-500")}
               >
                 <Filter className="h-3.5 w-3.5 mr-1" />
-                <span>Filter</span>
+                <span>{t('events_filter')}</span>
               </Button>
             </PopoverTrigger>
             <PopoverContent className="w-80">
               <div className="space-y-4">
                 <div>
-                  <h4 className="font-medium mb-2">Type</h4>
+                  <h4 className="font-medium mb-2">{t('type')}</h4>
                   <div className="grid grid-cols-2 gap-2">
                     {eventTypes.map(type => (
                       <div 
@@ -314,14 +318,14 @@ export function TableView() {
                         onClick={() => toggleTypeFilter(type)}
                       >
                         {getTypeIcon(type)}
-                        <span>{getTypeName(type)}</span>
+                        <span>{t(type as any)}</span>
                       </div>
                     ))}
                   </div>
                 </div>
                 
                 <div>
-                  <h4 className="font-medium mb-2">Status</h4>
+                  <h4 className="font-medium mb-2">{t('status')}</h4>
                   <div className="flex flex-wrap gap-2">
                     {eventStatuses.map(status => (
                       <div 
@@ -341,7 +345,7 @@ export function TableView() {
                 </div>
                 
                 <div>
-                  <h4 className="font-medium mb-2">Priority</h4>
+                  <h4 className="font-medium mb-2">{t('priority')}</h4>
                   <div className="flex flex-wrap gap-2">
                     {eventPriorities.map(priority => (
                       <div 
@@ -354,7 +358,7 @@ export function TableView() {
                         )}
                         onClick={() => togglePriorityFilter(priority)}
                       >
-                        {priority}
+                        {t(priority as any)}
                       </div>
                     ))}
                   </div>
@@ -377,7 +381,7 @@ export function TableView() {
               className="h-8"
             >
               <Trash className="h-3.5 w-3.5 mr-1" />
-              <span>Delete {selectedEvents.length} selected</span>
+              <span>{t('delete_selected', { count: selectedEvents.length })}</span>
             </Button>
           )}
         </div>
@@ -399,14 +403,14 @@ export function TableView() {
                   }}
                 />
               </TableHead>
-              <TableHead className="w-12">Icon</TableHead>
+              <TableHead className="w-12">{t('icon')}</TableHead>
               <TableHead>
                 <Button 
                   variant="ghost" 
                   className="p-0 hover:bg-transparent hover:text-primary flex items-center"
                   onClick={() => handleSort('title')}
                 >
-                  Title
+                  {t('title')}
                   <ArrowUpDown className="ml-2 h-4 w-4" />
                 </Button>
               </TableHead>
@@ -416,7 +420,7 @@ export function TableView() {
                   className="p-0 hover:bg-transparent hover:text-primary flex items-center"
                   onClick={() => handleSort('type')}
                 >
-                  Type
+                  {t('type')}
                   <ArrowUpDown className="ml-2 h-4 w-4" />
                 </Button>
               </TableHead>
@@ -426,7 +430,7 @@ export function TableView() {
                   className="p-0 hover:bg-transparent hover:text-primary flex items-center"
                   onClick={() => handleSort('status')}
                 >
-                  Status
+                  {t('status')}
                   <ArrowUpDown className="ml-2 h-4 w-4" />
                 </Button>
               </TableHead>
@@ -436,7 +440,7 @@ export function TableView() {
                   className="p-0 hover:bg-transparent hover:text-primary flex items-center"
                   onClick={() => handleSort('priority')}
                 >
-                  Priority
+                  {t('priority')}
                   <ArrowUpDown className="ml-2 h-4 w-4" />
                 </Button>
               </TableHead>
@@ -446,7 +450,7 @@ export function TableView() {
                   className="p-0 hover:bg-transparent hover:text-primary flex items-center"
                   onClick={() => handleSort('startDate')}
                 >
-                  Date Range
+                  {t('date_range')}
                   <ArrowUpDown className="ml-2 h-4 w-4" />
                 </Button>
               </TableHead>
@@ -457,7 +461,7 @@ export function TableView() {
             {sortedEvents.length === 0 ? (
               <TableRow>
                 <TableCell colSpan={8} className="h-24 text-center">
-                  {hasActiveFilters ? 'No events match the current filters' : 'No events found'}
+                  {hasActiveFilters ? t('no_activities_found') : t('no_upcoming_events')}
                 </TableCell>
               </TableRow>
             ) : (
@@ -485,7 +489,7 @@ export function TableView() {
                     </p>
                   </TableCell>
                   <TableCell className="hidden md:table-cell">
-                    {getTypeName(event.type)}
+                    {t(event.type as any)}
                   </TableCell>
                   <TableCell className="hidden md:table-cell">
                     <Badge variant="secondary" className={cn(getStatusColor(event.status))}>
@@ -494,7 +498,7 @@ export function TableView() {
                   </TableCell>
                   <TableCell className="hidden md:table-cell">
                     <Badge variant="secondary" className={cn(getPriorityColor(event.priority))}>
-                      {event.priority.charAt(0).toUpperCase() + event.priority.slice(1)}
+                      {t(event.priority as any)}
                     </Badge>
                   </TableCell>
                   <TableCell>
@@ -514,7 +518,7 @@ export function TableView() {
                       <DropdownMenuContent align="end">
                         <DropdownMenuItem onClick={() => handleEdit(event)}>
                           <Edit className="mr-2 h-4 w-4" />
-                          <span>Edit</span>
+                          <span>{t('edit')}</span>
                         </DropdownMenuItem>
                         <DropdownMenuSeparator />
                         <DropdownMenuItem
@@ -522,7 +526,7 @@ export function TableView() {
                           className="text-red-600 cursor-pointer focus:text-red-600"
                         >
                           <Trash className="mr-2 h-4 w-4" />
-                          <span>Delete</span>
+                          <span>{t('delete')}</span>
                         </DropdownMenuItem>
                       </DropdownMenuContent>
                     </DropdownMenu>
