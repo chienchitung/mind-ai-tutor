@@ -255,7 +255,7 @@ const translations = {
     short_answer: "Short Answer",
     generating_quiz: "Generating Quiz...",
     generate_quiz: "Generate Quiz",
-    powered_by_gemini: "Powered by Google's Gemini 2.0 AI model",
+    powered_by_gemini: "Powered by Google's Gemini AI model",
     back_to_generator: "Back to generator",
     save_quiz: "Save Quiz",
     saving_quiz: "Saving Quiz...",
@@ -490,6 +490,15 @@ const translations = {
     
     // Reports page translations
     date: "Date",
+
+    // AI Analysis Report translations
+    ai_learning_analysis: "AI Learning Analysis",
+    ai_powered_insights: "AI-powered insights into learning patterns",
+    generate_analysis: "Generate Analysis",
+    regenerate: "Regenerate",
+    ai_analysis_available: "AI Analysis Available",
+    click_generate_for_insights: "Click \"Generate Analysis\" for AI-powered insights based on this student's learning data",
+    analysis_generation_error: "Failed to generate analysis. Please try again later.",
   },
   'zh-TW': {
     // Command menu translations
@@ -742,7 +751,7 @@ const translations = {
     short_answer: "簡答題",
     generating_quiz: "測驗生成中...",
     generate_quiz: "生成測驗",
-    powered_by_gemini: "由 Google Gemini 2.0 AI 模型提供支援",
+    powered_by_gemini: "由 Google Gemini AI 模型提供支援",
     back_to_generator: "返回生成器",
     save_quiz: "儲存測驗",
     saving_quiz: "儲存測驗中...",
@@ -977,6 +986,15 @@ const translations = {
     
     // Reports page translations
     date: "日期",
+
+    // AI Analysis Report translations
+    ai_learning_analysis: "AI學習分析",
+    ai_powered_insights: "AI學習模式洞察",
+    generate_analysis: "生成分析",
+    regenerate: "重新生成",
+    ai_analysis_available: "AI分析可用",
+    click_generate_for_insights: "點擊\"生成分析\"獲取基於學生學習數據的AI智能洞察",
+    analysis_generation_error: "生成分析失敗。請稍後再試。",
   }
 };
 

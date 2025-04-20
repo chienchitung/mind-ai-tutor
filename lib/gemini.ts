@@ -2,7 +2,7 @@ import { GoogleGenerativeAI } from '@google/generative-ai';
 
 // Initialize the Generative AI API
 const apiKey = process.env.NEXT_PUBLIC_GEMINI_API_KEY;
-const model = process.env.NEXT_PUBLIC_GEMINI_MODEL || 'gemini-pro';
+const model = process.env.NEXT_PUBLIC_GEMINI_MODEL || 'gemini-2.0-flash';
 
 if (!apiKey) {
   console.error('Missing Gemini API key. Please check your .env.local file.');
@@ -125,6 +125,43 @@ export async function generateLearningAnalysis(studentData: any) {
     return response.text();
   } catch (error) {
     console.error('Error generating learning analysis:', error);
+    throw error;
+  }
+}
+
+export async function generateDetailedLearningAnalysis(studentData: any) {
+  try {
+    // Use the specific model requested - update to a valid model name
+    const specificModel = 'gemini-2.0-flash';
+    const generativeModel = genAI.getGenerativeModel({ model: specificModel });
+
+    // Check the UI language setting passed from the component
+    const isChineseContent = studentData.language === 'zh-TW';
+
+    const prompt = `
+      I'm an AI tutor assistant analyzing a student's learning data. This is the data for student "${studentData.studentName}":
+
+      ${JSON.stringify(studentData, null, 2)}
+
+      Please provide a comprehensive analysis of this student's learning patterns with the following sections:
+      1. Overall Learning Summary: A brief overview of the student's learning activities
+      2. Time Management Analysis: How the student distributes their learning time
+      3. Subject/Category Focus: Analysis of which areas they spend most time on
+      4. Learning Pattern Insights: Notable patterns in how they approach learning
+      5. Strengths: What the student is doing well based on the data
+      6. Improvement Areas: Specific areas where the student could improve
+      7. Personalized Recommendations: 3-4 actionable suggestions for improving learning outcomes
+
+      ${isChineseContent ? '請使用繁體中文回答。' : 'Please respond in English.'}
+      
+      Format your response in clear paragraphs with section headings.
+    `;
+
+    const result = await generativeModel.generateContent(prompt);
+    const response = await result.response;
+    return response.text();
+  } catch (error) {
+    console.error('Error generating detailed learning analysis:', error);
     throw error;
   }
 }

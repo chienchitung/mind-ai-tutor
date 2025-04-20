@@ -19,11 +19,5 @@
         }
       ]
     }
-  ],
-  "env": {
-    "NEXT_PUBLIC_SUPABASE_URL": "https://vuibtitfdhzoxsytzrjo.supabase.co",
-    "NEXT_PUBLIC_SUPABASE_ANON_KEY": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InZ1aWJ0aXRmZGh6b3hzeXR6cmpvIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDM0Njg4MzcsImV4cCI6MjA1OTA0NDgzN30.CoGR6fQaGDY_vmgF50gFycUGKLjUO29zg6_Y4fFqOx4",
-    "NEXT_PUBLIC_GEMINI_API_KEY": "AIzaSyCoVmSd1zJt7rQPL5A-7fj3T2_8o2sufK4",
-    "NEXT_PUBLIC_GEMINI_MODEL": "gemini-2.0-flash"
-  }
+  ]
 } 

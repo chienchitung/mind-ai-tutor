@@ -17,6 +17,7 @@ import { CategoryDistribution } from './components/CategoryDistribution';
 import { ExportButton } from './components/ExportButton';
 import { useLanguage } from '@/app/contexts/LanguageContext';
 import { useTranslation } from '@/utils/translations';
+import { AIAnalysisReport } from './components/AIAnalysisReport';
 
 // Define LearningRecord type based on the Supabase schema
 interface LearningRecord {
@@ -509,6 +510,13 @@ export default function ReportsPage() {
               </div>
             </CardContent>
           </Card>
+          
+          {/* AI Analysis Report - Add this new section */}
+          <AIAnalysisReport 
+            learningRecords={learningRecords}
+            learningStats={learningStats}
+            selectedStudentName={selectedStudentName}
+          />
         </>
       )}
     </div>
