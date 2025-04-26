@@ -499,6 +499,9 @@ const translations = {
     ai_analysis_available: "AI Analysis Available",
     click_generate_for_insights: "Click \"Generate Analysis\" for AI-powered insights based on this student's learning data",
     analysis_generation_error: "Failed to generate analysis. Please try again later.",
+
+    // Digital Games
+    drag_to_reorder: "Drag to reorder lessons",
   },
   'zh-TW': {
     // Command menu translations
@@ -995,6 +998,9 @@ const translations = {
     ai_analysis_available: "AI分析可用",
     click_generate_for_insights: "點擊\"生成分析\"獲取基於學生學習數據的AI智能洞察",
     analysis_generation_error: "生成分析失敗。請稍後再試。",
+
+    // Digital Games
+    drag_to_reorder: "拖曳以重新排序課程",
   }
 };
 
