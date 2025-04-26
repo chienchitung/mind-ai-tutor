@@ -291,6 +291,20 @@ export default function DigitalGamesPage() {
         user_id: user.id,
       };
 
+      // 確保我們有最新的課程映射
+      const currentGameId = editingGame?.id || "temp-game-id";
+      let currentMapping = gameOrderMappings[currentGameId];
+      
+      // 如果映射不存在或需要更新，則從當前選擇創建一個新的映射
+      if (!currentMapping || Object.keys(currentMapping).length !== selectedLessons.length) {
+        currentMapping = createMappingFromOrder(selectedLessons);
+        // 更新本地狀態
+        setGameOrderMappings((prev) => ({
+          ...prev,
+          [currentGameId]: currentMapping,
+        }));
+      }
+
       if (editingGame) {
         // Update existing game
         const { error } = await supabaseWithTypes
@@ -309,9 +323,6 @@ export default function DigitalGamesPage() {
 
         // 如果正在編輯，儲存目前的排序
         if (user && selectedLessons.length > 0) {
-          const currentMapping =
-            gameOrderMappings[editingGame.id] ||
-            createMappingFromOrder(selectedLessons);
           await updateLessonOrderMapping(
             supabaseWithTypes,
             user.id,
@@ -336,28 +347,20 @@ export default function DigitalGamesPage() {
 
         // 當創建新遊戲時，儲存排序
         if (user && selectedLessons.length > 0 && data) {
-          // 從臨時映射中取得排序或創建新的
-          const tempMapping =
-            gameOrderMappings["temp-game-id"] ||
-            createMappingFromOrder(selectedLessons);
-
-          // 儲存到新遊戲的ID下
+          // 更新映射中的遊戲ID
           await updateLessonOrderMapping(
             supabaseWithTypes,
             user.id,
             data.id,
-            tempMapping,
+            currentMapping,
           );
 
-          // 更新狀態中的映射
+          // 更新本地狀態，使用實際的遊戲ID替換臨時ID
           setGameOrderMappings((prev) => {
             const updated = { ...prev };
-            // 將臨時映射轉移到正式ID
-            if (updated["temp-game-id"]) {
-              updated[data.id] = updated["temp-game-id"];
-              delete updated["temp-game-id"];
-            } else {
-              updated[data.id] = tempMapping;
+            if (updated[currentGameId]) {
+              updated[data.id] = updated[currentGameId];
+              delete updated[currentGameId];
             }
             return updated;
           });
@@ -374,6 +377,7 @@ export default function DigitalGamesPage() {
       setShowEditForm(false);
       setEditingGame(null);
       form.reset();
+      setSelectedLessons([]);
     } catch (error: any) {
       toast({
         title: t("error"),
@@ -401,6 +405,7 @@ export default function DigitalGamesPage() {
       if (userError) throw userError;
       if (!user) throw new Error("User not authenticated");
 
+      // 1. 刪除遊戲本身
       const { error } = await supabaseWithTypes
         .from("digital_games")
         .delete()
@@ -409,7 +414,27 @@ export default function DigitalGamesPage() {
 
       if (error) throw error;
 
+      // 2. 同步刪除對應的 lesson_order_mapping 記錄
+      const { error: mappingError } = await supabaseWithTypes
+        .from("lesson_order_mappings")
+        .delete()
+        .eq("game_id", gameId)
+        .eq("user_id", user.id);
+
+      if (mappingError) {
+        console.error("Error deleting lesson order mapping:", mappingError);
+        // 繼續執行，不中斷流程，因為主要的遊戲已經成功刪除
+      }
+
+      // 3. 更新本地狀態
       setDigitalGames((prev) => prev.filter((game) => game.id !== gameId));
+      
+      // 也從本地映射狀態中移除
+      setGameOrderMappings((prev) => {
+        const updated = { ...prev };
+        delete updated[gameId];
+        return updated;
+      });
 
       toast({
         title: t("success"),
@@ -426,9 +451,33 @@ export default function DigitalGamesPage() {
 
   const handleLessonSelection = (lessonId: string) => {
     setSelectedLessons((prev) => {
+      let newSelection;
+      
       if (prev.includes(lessonId)) {
-        return prev.filter((id) => id !== lessonId);
+        // 移除課程
+        newSelection = prev.filter((id) => id !== lessonId);
+        
+        // 更新當前遊戲的課程順序映射
+        const currentGameId = editingGame?.id || "temp-game-id";
+        setGameOrderMappings((prevMappings) => {
+          const updatedMapping = { ...prevMappings };
+          
+          // 如果存在該遊戲的映射，則更新它
+          if (updatedMapping[currentGameId]) {
+            // 創建新的映射對象，刪除被移除的課程
+            const newMapping = { ...updatedMapping[currentGameId] };
+            delete newMapping[lessonId];
+            
+            // 更新映射，確保序號連續
+            const remainingLessons = newSelection;
+            const reorderedMapping = createMappingFromOrder(remainingLessons);
+            updatedMapping[currentGameId] = reorderedMapping;
+          }
+          
+          return updatedMapping;
+        });
       } else {
+        // 新增課程
         if (prev.length >= 5) {
           toast({
             title: "Maximum lessons reached",
@@ -437,8 +486,26 @@ export default function DigitalGamesPage() {
           });
           return prev;
         }
-        return [...prev, lessonId];
+        newSelection = [...prev, lessonId];
+        
+        // 更新當前遊戲的課程順序映射，為新課程分配序號
+        const currentGameId = editingGame?.id || "temp-game-id";
+        setGameOrderMappings((prevMappings) => {
+          const updatedMapping = { ...prevMappings };
+          
+          // 為新課程分配序號
+          if (!updatedMapping[currentGameId]) {
+            updatedMapping[currentGameId] = {};
+          }
+          
+          // 使用 createMappingFromOrder 確保序號連續
+          updatedMapping[currentGameId] = createMappingFromOrder(newSelection);
+          
+          return updatedMapping;
+        });
       }
+      
+      return newSelection;
     });
   };
 

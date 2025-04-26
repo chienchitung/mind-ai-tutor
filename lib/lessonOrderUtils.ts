@@ -14,6 +14,11 @@ export async function getLessonOrderMapping(
   gameId: string,
 ) {
   try {
+    // 如果 gameId 是 "global"，直接返回預設映射而不查詢資料庫
+    if (gameId === "global") {
+      return createDefaultMapping();
+    }
+
     const { data, error } = await supabaseClient
       .from("lesson_order_mappings")
       .select("mapping")
@@ -22,16 +27,19 @@ export async function getLessonOrderMapping(
       .single();
 
     if (error) {
-      // 資料表不存在或尚未建立時不輸出錯誤，只使用預設值
+      // 先輸出錯誤訊息以便調試
+      console.log("Debug - Error Object:", JSON.stringify(error));
+      
+      // 資料表不存在或尚未建立時不報錯，只返回預設值
       if (
         error.code === "PGRST116" ||
-        error.message.includes("does not exist")
+        (error.message && error.message.includes("does not exist")) ||
+        Object.keys(error).length === 0
       ) {
         return createDefaultMapping();
       }
 
-      // 只有在其他錯誤情況下輸出錯誤日誌
-      console.error("Error fetching lesson order mapping:", error);
+      // 其他錯誤情況同樣返回預設值，避免應用崩潰
       return createDefaultMapping();
     }
 
@@ -52,39 +60,82 @@ export async function updateLessonOrderMapping(
   lessonOrder: Record<string, number>,
 ) {
   try {
-    // Check if mapping exists for user and game
-    const { data: existingMapping } = await supabaseClient
-      .from("lesson_order_mappings")
-      .select("id")
-      .eq("user_id", userId)
-      .eq("game_id", gameId)
-      .single();
-
-    if (existingMapping) {
-      // Update existing mapping
-      const { error } = await supabaseClient
-        .from("lesson_order_mappings")
-        .update({ mapping: lessonOrder })
-        .eq("user_id", userId)
-        .eq("game_id", gameId);
-
-      if (error) throw error;
-    } else {
-      // Create new mapping
-      const { error } = await supabaseClient
-        .from("lesson_order_mappings")
-        .insert([
-          {
-            user_id: userId,
-            game_id: gameId,
-            mapping: lessonOrder,
-          },
-        ]);
-
-      if (error) throw error;
+    // 如果 gameId 是 "global"，不進行任何操作
+    if (gameId === "global") {
+      console.log("Skipping update for global mapping");
+      return true;
     }
 
-    return true;
+    // 記錄操作開始
+    console.log(`Updating lesson order for gameId: ${gameId}`);
+    
+    try {
+      // 先嘗試檢查映射是否存在
+      const { data: existingMapping, error: checkError } = await supabaseClient
+        .from("lesson_order_mappings")
+        .select("id")
+        .eq("user_id", userId)
+        .eq("game_id", gameId)
+        .single();
+
+      // 如果查詢出錯（例如 406 錯誤），直接嘗試創建新記錄
+      if (checkError) {
+        console.log("Error checking existing mapping:", JSON.stringify(checkError));
+        console.log("Attempting to create new mapping directly");
+        
+        const { error: insertError } = await supabaseClient
+          .from("lesson_order_mappings")
+          .insert([
+            {
+              user_id: userId,
+              game_id: gameId,
+              mapping: lessonOrder,
+            },
+          ]);
+
+        if (insertError) {
+          console.error("Failed to create mapping:", JSON.stringify(insertError));
+          return false;
+        }
+        
+        return true;
+      }
+
+      // 存在映射時更新
+      if (existingMapping) {
+        const { error: updateError } = await supabaseClient
+          .from("lesson_order_mappings")
+          .update({ mapping: lessonOrder })
+          .eq("user_id", userId)
+          .eq("game_id", gameId);
+
+        if (updateError) {
+          console.error("Failed to update mapping:", JSON.stringify(updateError));
+          return false;
+        }
+      } else {
+        // 不存在時創建
+        const { error: insertError } = await supabaseClient
+          .from("lesson_order_mappings")
+          .insert([
+            {
+              user_id: userId,
+              game_id: gameId,
+              mapping: lessonOrder,
+            },
+          ]);
+
+        if (insertError) {
+          console.error("Failed to create mapping:", JSON.stringify(insertError));
+          return false;
+        }
+      }
+
+      return true;
+    } catch (innerError) {
+      console.error("Exception during mapping operation:", innerError);
+      return false;
+    }
   } catch (error) {
     console.error("Failed to update lesson order mapping:", error);
     return false;
