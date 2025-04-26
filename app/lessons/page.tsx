@@ -523,7 +523,16 @@ export default function LessonsPage() {
                   setEditingLesson(null);
                   setShowEditForm(true);
                   setPracticeExercises([{ question: "", answer: "", explanation: "" }]);
-                  form.reset();
+                  form.reset({
+                    title: "",
+                    description: "",
+                    duration: 30,
+                    level: "Beginner",
+                    topics: "",
+                    geniallyLink: "",
+                    teachingContent: "",
+                    practiceExercises: [{ question: "", answer: "", explanation: "" }]
+                  });
                 }}
               >
             <PlusCircle className="mr-2 h-4 w-4" />
@@ -550,7 +559,16 @@ export default function LessonsPage() {
                   onClick={() => {
                     setShowEditForm(false);
                     setEditingLesson(null);
-                    form.reset();
+                    form.reset({
+                      title: "",
+                      description: "",
+                      duration: 30,
+                      level: "Beginner",
+                      topics: "",
+                      geniallyLink: "",
+                      teachingContent: "",
+                      practiceExercises: [{ question: "", answer: "", explanation: "" }]
+                    });
                     setPracticeExercises([{ question: "", answer: "", explanation: "" }]);
                   }}
                 >
@@ -831,7 +849,16 @@ export default function LessonsPage() {
                       onClick={() => {
                         setShowEditForm(false);
                         setEditingLesson(null);
-                        form.reset();
+                        form.reset({
+                          title: "",
+                          description: "",
+                          duration: 30,
+                          level: "Beginner",
+                          topics: "",
+                          geniallyLink: "",
+                          teachingContent: "",
+                          practiceExercises: [{ question: "", answer: "", explanation: "" }]
+                        });
                         setPracticeExercises([{ question: "", answer: "", explanation: "" }]);
                       }}
                     >
