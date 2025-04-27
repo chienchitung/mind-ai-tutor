@@ -33,10 +33,33 @@ export function EventFormDialog({ open, onOpenChange, initialEvent, mode = 'crea
   
   // Use the controlled or uncontrolled state
   const handleOpenChange = (newOpen: boolean) => {
-    if (onOpenChange) {
-      onOpenChange(newOpen);
+    if (!newOpen) {
+      // 如果是關閉狀態，先添加動畫類
+      const sheetElement = document.querySelector('.right-side-sheet');
+      if (sheetElement) {
+        sheetElement.setAttribute('data-closing', 'true');
+        // 延遲關閉面板，等待動畫完成
+        setTimeout(() => {
+          if (onOpenChange) {
+            onOpenChange(false);
+          } else {
+            setSheetOpen(false);
+          }
+          sheetElement.removeAttribute('data-closing');
+        }, 300); // 300ms 動畫時間
+      } else {
+        if (onOpenChange) {
+          onOpenChange(false);
+        } else {
+          setSheetOpen(false);
+        }
+      }
     } else {
-      setSheetOpen(newOpen);
+      if (onOpenChange) {
+        onOpenChange(true);
+      } else {
+        setSheetOpen(true);
+      }
     }
   };
 
@@ -117,7 +140,10 @@ export function EventFormDialog({ open, onOpenChange, initialEvent, mode = 'crea
   };
   
   const sheetContent = (
-    <SheetContent className="w-full sm:max-w-md overflow-y-auto">
+    <SheetContent 
+      side="right" 
+      className="w-full sm:max-w-md overflow-y-auto right-side-sheet"
+    >
       <SheetHeader>
         <SheetTitle>{isEditing ? t('edit_event') : t('add_new_event')}</SheetTitle>
       </SheetHeader>

@@ -816,7 +816,7 @@ const translations = {
     planning: "規劃",
     meeting: "會議",
     other: "其他",
-    to_do: "待辦",
+    to_do: "待辦事項",
     events_in_progress: "進行中",
     done: "已完成",
     high: "高",
