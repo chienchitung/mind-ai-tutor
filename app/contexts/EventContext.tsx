@@ -220,16 +220,22 @@ const mapSupabaseEventToEvent = (event: any): Event => {
     id: event.id,
     title: event.title,
     description: event.description || '',
-    type: event.type as EventType,
-    status: event.status as EventStatus,
-    priority: event.priority as EventPriority,
-    position: event.position || 0,
-    startDate: event.start_date,
-    endDate: event.end_date,
+    type: ['course', 'workshop', 'training', 'planning', 'meeting', 'other'].includes(event.type) 
+      ? event.type as EventType 
+      : 'other' as EventType,
+    status: ['to_do', 'in_progress', 'done'].includes(event.status) 
+      ? event.status as EventStatus 
+      : 'to_do' as EventStatus,
+    priority: ['low', 'medium', 'high'].includes(event.priority) 
+      ? event.priority as EventPriority 
+      : 'medium' as EventPriority,
+    position: typeof event.position === 'number' ? event.position : 0,
+    startDate: event.start_date || new Date().toISOString(),
+    endDate: event.end_date || new Date().toISOString(),
     tags: Array.isArray(event.tags) ? event.tags : [],
     attachments: [],
-    createdAt: event.created_at,
-    updatedAt: event.updated_at
+    createdAt: event.created_at || new Date().toISOString(),
+    updatedAt: event.updated_at || new Date().toISOString()
   };
 };
 
@@ -262,42 +268,49 @@ export const EventProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         const { supabase } = await import('@/lib/supabase');
         const supabaseClient = supabase();
         
+        console.log('開始從 Supabase 加載事件數據...');
+        
         // Fetch events
-        const { data: eventsData, error: eventsError } = await supabaseClient.from('events').select('*');
+        const { data: eventsData, error: eventsError } = await supabaseClient
+          .from('events')
+          .select('*')
+          .order('created_at', { ascending: false });
         
         if (eventsError) {
+          console.error('從 Supabase 加載事件失敗:', eventsError.message);
           setError(eventsError.message);
           setIsLoading(false);
           return;
         }
         
-        // Fetch tags
-        const { data: tagsData, error: tagsError } = await supabaseClient.from('event_tags').select('*');
+        console.log(`從 Supabase 加載了 ${eventsData?.length || 0} 個事件`);
         
-        if (tagsError) {
-          setError(tagsError.message);
-          setIsLoading(false);
-          return;
+        // 現在我們使用簡化的數據模型，不需要標籤表
+        // 我們可以設置一個空的標籤數組
+        setTags([]);
+        
+        // 檢查事件數據並轉換
+        if (eventsData && eventsData.length > 0) {
+          // 確保每個事件都有所有必要的字段
+          const supabaseEvents = eventsData.map(event => {
+            // 打印每個事件的關鍵字段以進行調試
+            console.log(`事件 ID: ${event.id}, 標題: ${event.title}, 狀態: ${event.status || '未設置'}`);
+            return mapSupabaseEventToEvent(event);
+          });
+          
+          // 設置事件
+          setEvents(supabaseEvents);
+        } else {
+          console.log('沒有找到事件，設置空數組');
+          setEvents([]);
         }
         
-        // Transform tags data
-        const formattedTags: EventTag[] = tagsData?.map((tag: any) => ({
-          id: tag.id,
-          name: tag.name,
-          color: tag.color
-        })) || [];
+        // 初始化默認視圖
+        setViews(DEFAULT_VIEWS);
         
-        // Set tags
-        setTags(formattedTags);
-        
-        // Transform Supabase data to Event objects
-        const supabaseEvents = eventsData?.map(mapSupabaseEventToEvent) || [];
-        
-        // Set events from database only
-        setEvents(supabaseEvents);
       } catch (err: any) {
-        console.error('Error loading data:', err);
-        setError(err.message || 'Failed to load events');
+        console.error('加載數據時出錯:', err);
+        setError(err.message || '無法加載事件');
       } finally {
         setIsLoading(false);
       }
@@ -319,18 +332,32 @@ export const EventProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         ? tags.filter(tag => eventData.tagIds.includes(tag.id))
         : [];
         
+      // 創建新事件對象，確保所有必要字段都有值
       const newEvent: Event = {
         id: eventId,
-        ...eventData,
+        title: eventData.title,
+        description: eventData.description || '',
+        type: ['course', 'workshop', 'training', 'planning', 'meeting', 'other'].includes(eventData.type)
+          ? eventData.type
+          : 'other' as EventType,
+        status: ['to_do', 'in_progress', 'done'].includes(eventData.status as string)
+          ? eventData.status as EventStatus
+          : 'to_do' as EventStatus,
+        priority: ['low', 'medium', 'high'].includes(eventData.priority as string)
+          ? eventData.priority as EventPriority
+          : 'medium' as EventPriority,
+        position: typeof eventData.position === 'number' ? eventData.position : 0,
+        startDate: eventData.startDate || now,
+        endDate: eventData.endDate || now,
         tags: selectedTags,
         attachments: [],
         createdAt: now,
         updatedAt: now,
       };
       
-      // Save to Supabase
-      const { error } = await supabaseClient.from('events').insert({
-        id: eventId,  // Explicitly include the ID
+      // 保存到 Supabase，確保使用正確的欄位名稱
+      const { data, error } = await supabaseClient.from('events').insert({
+        id: eventId,
         title: newEvent.title,
         description: newEvent.description,
         type: newEvent.type,
@@ -341,11 +368,22 @@ export const EventProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         end_date: newEvent.endDate,
         created_at: newEvent.createdAt,
         updated_at: newEvent.updatedAt,
-      });
+      }).select();
       
-      if (error) throw new Error(error.message);
+      if (error) {
+        console.error('Error adding event to Supabase:', error.message);
+        throw new Error(error.message);
+      }
       
-      setEvents([...events, newEvent]);
+      // 先更新本地狀態以立即顯示新事件
+      setEvents(prev => [...prev, newEvent]);
+      
+      console.log('Event added successfully:', data);
+      
+      // 如果您需要標籤關聯，可以在這裡處理
+      // 現在我們暫時不處理標籤關聯，簡化資料庫結構
+      
+      return data;
     } catch (err: any) {
       console.error('Error adding event:', err);
       throw err;

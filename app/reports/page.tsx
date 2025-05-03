@@ -5,10 +5,6 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Loader2, Download, BarChart2, Clock, Calendar, Sparkles } from 'lucide-react';
-// 移除直接導入
-// import { supabase } from '../../lib/supabase';
-// Temporarily remove Gemini to simplify setup
-// import { generateLearningAnalysis } from '../../lib/gemini';
 import { StudentSelector } from './components/StudentSelector';
 import { TimeSpentChart } from './components/TimeSpentChart';
 import { CompletionRateChart } from './components/CompletionRateChart';
@@ -49,12 +45,20 @@ interface LearningStats {
   lastActive: string | null;
 }
 
+// Add new interface for lesson data
+interface Lesson {
+  id: string;
+  title: string;
+}
+
 export default function ReportsPage() {
   const [selectedStudent, setSelectedStudent] = useState<string | null>(null);
   const [students, setStudents] = useState<{ id: string; name: string }[]>([]);
   const [learningRecords, setLearningRecords] = useState<LearningRecord[]>([]);
   const [learningStats, setLearningStats] = useState<LearningStats | null>(null);
   const [loading, setLoading] = useState(false);
+  // Add state for lessons
+  const [lessons, setLessons] = useState<Lesson[]>([]);
   const { language } = useLanguage();
   const { t } = useTranslation(language);
 
@@ -100,6 +104,32 @@ export default function ReportsPage() {
     };
 
     fetchStudents();
+  }, []);
+
+  // Add a new effect to fetch lessons data
+  useEffect(() => {
+    const fetchLessons = async () => {
+      try {
+        // 動態導入 supabase 函數
+        const { supabase } = await import('../../lib/supabase');
+        const supabaseClient = supabase();
+        
+        const { data, error } = await supabaseClient
+          .from('lessons')
+          .select('id, title');
+
+        if (error) {
+          console.error('Error fetching lessons:', error);
+          return;
+        }
+
+        setLessons(data || []);
+      } catch (error) {
+        console.error('Error in fetchLessons:', error);
+      }
+    };
+
+    fetchLessons();
   }, []);
 
   // Fetch learning records when student is selected
@@ -267,6 +297,32 @@ export default function ReportsPage() {
     ? students.find(s => s.id === selectedStudent)?.name || ''
     : '';
 
+  // Add a function to get lesson title by ID
+  const getLessonTitle = (lessonId: number | string) => {
+    // Convert both IDs to strings for comparison
+    const stringLessonId = String(lessonId);
+    const lesson = lessons.find(l => String(l.id) === stringLessonId);
+    return lesson ? lesson.title : lessonId;
+  };
+
+  // Extract unique course titles in the order they appear in records
+  const getOrderedCourseTitles = () => {
+    const uniqueLessonIds = learningRecords
+      .filter((record, index, self) => 
+        index === self.findIndex(r => r.lesson_id === record.lesson_id)
+      )
+      .map(record => record.lesson_id);
+      
+    return uniqueLessonIds.map(id => {
+      const stringId = String(id);
+      const lesson = lessons.find(l => String(l.id) === stringId);
+      return lesson ? lesson.title : String(id);
+    });
+  };
+  
+  // Get ordered course titles once
+  const orderedCourseTitles = getOrderedCourseTitles();
+
   if (loading && !learningRecords.length) {
     return (
       <div className="flex h-64 items-center justify-center">
@@ -415,7 +471,11 @@ export default function ReportsPage() {
                   </CardDescription>
                 </CardHeader>
                 <CardContent className="h-96">
-                  <TimeSpentChart records={learningRecords} />
+                  <TimeSpentChart 
+                    records={learningRecords} 
+                    lessons={lessons} 
+                    courseOrder={orderedCourseTitles} 
+                  />
                 </CardContent>
               </Card>
             </TabsContent>
@@ -443,7 +503,11 @@ export default function ReportsPage() {
                   </CardDescription>
                 </CardHeader>
                 <CardContent className="h-96">
-                  <LearningTimeline records={learningRecords} />
+                  <LearningTimeline 
+                    records={learningRecords} 
+                    lessons={lessons} 
+                    courseOrder={orderedCourseTitles} 
+                  />
                 </CardContent>
               </Card>
             </TabsContent>
@@ -476,7 +540,7 @@ export default function ReportsPage() {
                 <table className="w-full">
                   <thead>
                     <tr className="text-left border-b">
-                      <th className="p-2 text-sm font-medium text-muted-foreground">{t('lesson_id')}</th>
+                      <th className="p-2 text-sm font-medium text-muted-foreground">{t('lesson_title')}</th>
                       <th className="p-2 text-sm font-medium text-muted-foreground">{t('started')}</th>
                       <th className="p-2 text-sm font-medium text-muted-foreground">{t('completed')}</th>
                       <th className="p-2 text-sm font-medium text-muted-foreground">{t('time_spent')}</th>
@@ -487,7 +551,7 @@ export default function ReportsPage() {
                   <tbody>
                     {learningRecords.slice(0, 5).map((record) => (
                       <tr key={record.id} className="border-b last:border-b-0">
-                        <td className="p-2 text-sm">{record.lesson_id}</td>
+                        <td className="p-2 text-sm">{getLessonTitle(record.lesson_id)}</td>
                         <td className="p-2 text-sm">{formatDate(getStartTime(record))}</td>
                         <td className="p-2 text-sm">
                           {getEndTime(record) ? formatDate(getEndTime(record)) : '-'}
@@ -495,13 +559,21 @@ export default function ReportsPage() {
                         <td className="p-2 text-sm">{formatTime(getDuration(record))}</td>
                         <td className="p-2 text-sm">{record.category || t('uncategorized')}</td>
                         <td className="p-2 text-sm">
-                          <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs ${
-                            getEndTime(record)
-                              ? 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400'
-                              : 'bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-400'
-                          }`}>
-                            {getEndTime(record) ? t('completed') : t('in_progress')}
-                          </span>
+                          {getEndTime(record) ? (
+                            <div className="flex items-center">
+                              <div className="w-2 h-2 rounded-full bg-green-500 mr-2"></div>
+                              <span className="text-green-700 font-medium">
+                                {t('completed')}
+                              </span>
+                            </div>
+                          ) : (
+                            <div className="flex items-center">
+                              <div className="w-2 h-2 rounded-full bg-amber-500 mr-2"></div>
+                              <span className="text-amber-700 font-medium">
+                                {t('in_progress')}
+                              </span>
+                            </div>
+                          )}
                         </td>
                       </tr>
                     ))}

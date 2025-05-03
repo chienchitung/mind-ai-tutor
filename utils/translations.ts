@@ -13,6 +13,7 @@ const translations = {
     quick_actions: "Quick Actions",
     open_genially: "Open Genially",
     command_menu: "Command Menu",
+    lesson_title: "Course Name",
     
     // Navigation items
     dashboard: "Dashboard",
@@ -512,6 +513,7 @@ const translations = {
     quick_actions: "快速操作",
     open_genially: "開啟 Genially",
     command_menu: "指令選單",
+    lesson_title: "課程名稱",
     
     // Navigation items
     dashboard: "儀表板",

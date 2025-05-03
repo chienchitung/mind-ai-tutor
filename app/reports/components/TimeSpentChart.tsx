@@ -3,6 +3,7 @@
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import { useLanguage } from '@/app/contexts/LanguageContext';
 import { useTranslation } from '@/utils/translations';
+import { getLessonNumber } from '@/lib/utils';
 
 interface LearningRecord {
   id: number;
@@ -22,13 +23,33 @@ interface LearningRecord {
   duration?: number;
 }
 
-export function TimeSpentChart({ records }: { records: LearningRecord[] }) {
+// Add interface for Lesson
+interface Lesson {
+  id: string;
+  title: string;
+}
+
+export function TimeSpentChart({ 
+  records, 
+  lessons = [],
+  courseOrder = [] // Array of course titles in the order they should be displayed
+}: { 
+  records: LearningRecord[],
+  lessons?: Lesson[],
+  courseOrder?: string[]
+}) {
   const { language } = useLanguage();
   const { t } = useTranslation(language);
   
   // Format time in minutes for better readability
   const formatTimeSpent = (seconds: number) => {
     return Math.round(seconds / 60);
+  };
+
+  // Function to get lesson title by ID
+  const getLessonTitle = (lessonId: number | string) => {
+    const lesson = lessons.find(l => l.id === lessonId);
+    return lesson ? lesson.title : lessonId;
   };
 
   // Calculate time spent for each record
@@ -52,15 +73,32 @@ export function TimeSpentChart({ records }: { records: LearningRecord[] }) {
     return 0; // Default if no data available
   };
 
+  // Get the course order based on the courseOrder prop or create a default order map
+  const getCourseSortOrder = (title: string | number): number => {
+    if (courseOrder.length === 0) {
+      // Fallback to default order if courseOrder is not provided
+      return 999;
+    }
+    
+    const titleStr = String(title);
+    const index = courseOrder.indexOf(titleStr);
+    return index >= 0 ? index : 999; // If found in the order array, use that index, otherwise put at the end
+  };
+
   // Process data for the chart
   const chartData = records
     .filter(record => calculateTimeSpent(record) > 0) // Filter out records without time data
-    .sort((a, b) => calculateTimeSpent(a) - calculateTimeSpent(b))
-    .map(record => ({
-      id: record.lesson_id,
-      minutes: formatTimeSpent(calculateTimeSpent(record)),
-      category: record.category || t('uncategorized')
-    }));
+    .map(record => {
+      const title = getLessonTitle(record.lesson_id);
+      return {
+        id: record.lesson_id,
+        lessonTitle: title,
+        minutes: formatTimeSpent(calculateTimeSpent(record)),
+        category: record.category || t('uncategorized'),
+        order: getCourseSortOrder(title)
+      };
+    })
+    .sort((a, b) => a.order - b.order); // Sort by order determined from the recent activities
 
   // If no data, show empty state
   if (!chartData.length) {
@@ -79,11 +117,16 @@ export function TimeSpentChart({ records }: { records: LearningRecord[] }) {
         }}
       >
         <CartesianGrid strokeDasharray="3 3" opacity={0.3} />
-        <XAxis dataKey="id" label={{ value: t('lesson_id'), position: 'bottom', offset: 0 }} />
+        <XAxis 
+          dataKey="lessonTitle" 
+          tick={{ fontSize: 12 }}
+          angle={-45}
+          textAnchor="end"
+        />
         <YAxis label={{ value: `${t('time')} (${t('minutes_text')})`, angle: -90, position: 'left' }} />
         <Tooltip 
           formatter={(value) => [`${value} ${t('minutes_text')}`, t('time_spent_tooltip')]}
-          labelFormatter={(id) => `${t('lesson_text')} ${id}`}
+          labelFormatter={(name) => `${t('lesson_text')}: ${name}`}
         />
         <Bar dataKey="minutes" fill="#8884d8" />
       </BarChart>
