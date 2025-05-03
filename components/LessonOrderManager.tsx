@@ -92,7 +92,11 @@ export function LessonOrderManager({
                           variant="ghost" 
                           size="sm" 
                           className="h-6 w-6 p-0 opacity-50 group-hover:opacity-100"
-                          onClick={() => onLessonRemoved(lessonId)}
+                          onClick={(e) => {
+                            e.preventDefault();
+                            e.stopPropagation();
+                            onLessonRemoved(lessonId);
+                          }}
                         >
                           <X className="h-3 w-3" />
                         </Button>

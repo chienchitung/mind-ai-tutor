@@ -282,6 +282,9 @@ export default function DigitalGamesPage() {
       if (userError) throw userError;
       if (!user) throw new Error("User not authenticated");
 
+      // 保存當前編輯的遊戲ID，避免狀態變更導致的副作用
+      const currentEditingGameId = editingGame?.id;
+
       const gameData = {
         title: values.title,
         description: values.description,
@@ -292,7 +295,7 @@ export default function DigitalGamesPage() {
       };
 
       // 確保我們有最新的課程映射
-      const currentGameId = editingGame?.id || "temp-game-id";
+      const currentGameId = currentEditingGameId || "temp-game-id";
       let currentMapping = gameOrderMappings[currentGameId];
       
       // 如果映射不存在或需要更新，則從當前選擇創建一個新的映射
@@ -305,19 +308,19 @@ export default function DigitalGamesPage() {
         }));
       }
 
-      if (editingGame) {
+      if (currentEditingGameId) {
         // Update existing game
         const { error } = await supabaseWithTypes
           .from("digital_games")
           .update(gameData)
-          .eq("id", editingGame.id)
+          .eq("id", currentEditingGameId)
           .eq("user_id", user.id);
 
         if (error) throw error;
 
         setDigitalGames((prev) =>
           prev.map((game) =>
-            game.id === editingGame.id ? { ...game, ...gameData } : game,
+            game.id === currentEditingGameId ? { ...game, ...gameData } : game,
           ),
         );
 
@@ -326,7 +329,7 @@ export default function DigitalGamesPage() {
           await updateLessonOrderMapping(
             supabaseWithTypes,
             user.id,
-            editingGame.id,
+            currentEditingGameId,
             currentMapping,
           );
         }
@@ -457,7 +460,7 @@ export default function DigitalGamesPage() {
         // 移除課程
         newSelection = prev.filter((id) => id !== lessonId);
         
-        // 更新當前遊戲的課程順序映射
+        // 更新當前遊戲的課程順序映射，但跳過資料庫更新
         const currentGameId = editingGame?.id || "temp-game-id";
         setGameOrderMappings((prevMappings) => {
           const updatedMapping = { ...prevMappings };
@@ -476,6 +479,10 @@ export default function DigitalGamesPage() {
           
           return updatedMapping;
         });
+
+        // 不自動更新資料庫 - 刪除課程時不觸發自動更新通知
+        
+        return newSelection;
       } else {
         // 新增課程
         if (prev.length >= 5) {
@@ -509,11 +516,16 @@ export default function DigitalGamesPage() {
     });
   };
 
-  const handleLessonReorder = async (reorderedLessons: string[]) => {
+  const handleLessonReorder = async (reorderedLessons: string[], skipDbUpdate = false) => {
     setSelectedLessons(reorderedLessons);
 
     // 遊戲 ID（如果正在編輯遊戲，使用該遊戲 ID；否則創建一個臨時 ID）
     const currentGameId = editingGame?.id || "temp-game-id";
+
+    // 紀錄呼叫情況，用於偵錯
+    if (skipDbUpdate) {
+      console.log(`handleLessonReorder called with skipDbUpdate=true, lessons: ${reorderedLessons.length}`);
+    }
 
     // 根據重排列的順序創建新的映射
     const newMapping = createMappingFromOrder(reorderedLessons);
@@ -524,8 +536,8 @@ export default function DigitalGamesPage() {
       [currentGameId]: newMapping,
     }));
 
-    // 如果不是臨時 ID（即正在編輯已有遊戲），則保存到資料庫
-    if (currentGameId !== "temp-game-id") {
+    // 如果不是臨時 ID（即正在編輯已有遊戲）並且不是跳過資料庫更新，則保存到資料庫
+    if (currentGameId !== "temp-game-id" && !skipDbUpdate) {
       try {
         // 動態導入 supabase 函數
         const { supabase } = await import("@/lib/supabase");

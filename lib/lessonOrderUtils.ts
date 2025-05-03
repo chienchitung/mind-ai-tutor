@@ -60,6 +60,9 @@ export async function updateLessonOrderMapping(
   lessonOrder: Record<string, number>,
 ) {
   try {
+    console.log(`updateLessonOrderMapping called - gameId: ${gameId}, lessonCount: ${Object.keys(lessonOrder).length}`);
+    console.trace('Call stack trace');
+    
     // 如果 gameId 是 "global"，不進行任何操作
     if (gameId === "global") {
       console.log("Skipping update for global mapping");
