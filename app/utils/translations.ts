@@ -3,14 +3,52 @@
 import type { Language } from '@/app/contexts/LanguageContext';
 
 // Define translation types
-type TranslationKey = 'all' | 'clear' | 'apply' | 'view_all' | 'view_details' | 'search' | 
-  'filter' | 'sort' | 'newest' | 'oldest' | 'read' | 'unread' | 'progress' | 'update' | 
-  'feedback' | 'reminders' | 'achievement' | 'new' | 'activity_feed' | 'search_activities' | 
-  'select_date_range' | 'mark_all_as_read' | 'no_activities_found' | 'try_adjusting_filters' | 
-  'clear_filters' | 'student_completed_lesson' | 'course_content_updated' | 'new_student_feedback' | 
-  'upcoming_deadline' | 'student_earned_badge' | 'view_changes' | 'respond' | 'send_reminder' | 
-  'congratulate' | 'just_now' | 'minute_ago' | 'minutes_ago' | 'hour_ago' | 'hours_ago' | 
-  'day_ago' | 'days_ago' | 'previous_month' | 'next_month';
+type TranslationKey =
+  | 'all'
+  | 'clear'
+  | 'apply'
+  | 'view_all'
+  | 'view_details'
+  | 'search'
+  | 'filter'
+  | 'sort'
+  | 'newest'
+  | 'oldest'
+  | 'read'
+  | 'unread'
+  | 'progress'
+  | 'update'
+  | 'feedback'
+  | 'reminders'
+  | 'achievement'
+  | 'new'
+  | 'activity_feed'
+  | 'search_activities'
+  | 'select_date_range'
+  | 'mark_all_as_read'
+  | 'no_activities_found'
+  | 'try_adjusting_filters'
+  | 'clear_filters'
+  | 'student_completed_lesson'
+  | 'course_content_updated'
+  | 'new_student_feedback'
+  | 'upcoming_deadline'
+  | 'student_earned_badge'
+  | 'view_changes'
+  | 'respond'
+  | 'send_reminder'
+  | 'congratulate'
+  | 'just_now'
+  | 'minute_ago'
+  | 'minutes_ago'
+  | 'hour_ago'
+  | 'hours_ago'
+  | 'day_ago'
+  | 'days_ago'
+  | 'previous_month'
+  | 'next_month'
+  | 'your_choice'
+  | 'correct_and_selected';
 
 // Define translation keys and values
 const translations: Record<Language, Record<TranslationKey, string>> = {
@@ -65,6 +103,8 @@ const translations: Record<Language, Record<TranslationKey, string>> = {
     'days_ago': '{n} days ago',
     'previous_month': 'Previous month',
     'next_month': 'Next month',
+    'your_choice': 'Your Choice',
+    'correct_and_selected': 'Correct & Selected',
   },
   'zh-TW': {
     // Common
@@ -117,6 +157,8 @@ const translations: Record<Language, Record<TranslationKey, string>> = {
     'days_ago': '{n}天前',
     'previous_month': '上個月',
     'next_month': '下個月',
+    'your_choice': '你的選擇',
+    'correct_and_selected': '正確且有選到',
   }
 };
 

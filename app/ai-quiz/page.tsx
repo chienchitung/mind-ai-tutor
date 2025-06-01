@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useRef, useEffect } from "react";
-import { Sparkles, Loader2, Lightbulb, Wand2, ArrowLeft, Download, Edit, ArrowRight, FileDown, Printer, Save, GripVertical, ArrowUp, ArrowDown, Plus } from "lucide-react";
+import { Sparkles, Loader2, Lightbulb, Wand2, ArrowLeft, Download, Edit, ArrowRight, FileDown, Printer, Save, GripVertical, ArrowUp, ArrowDown, Plus, PlayCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
@@ -26,6 +26,9 @@ import pptxgen from "pptxgenjs";
 import { useLanguage } from "@/app/contexts/LanguageContext";
 import { useTranslation } from "@/utils/translations";
 
+// Import text extraction libraries
+import mammoth from 'mammoth';
+
 // Define the Quiz types
 interface QuizOption {
   id: string;
@@ -36,7 +39,8 @@ interface QuizQuestion {
   id: string;
   questionText: string;
   options: QuizOption[];
-  correctAnswer: string;
+  questionType?: 'single' | 'multiple'; // 新增題型欄位
+  correctAnswer: string | string[]; // 支援單選/複選
   explanation: string;
 }
 
@@ -63,7 +67,9 @@ interface QuizCreatorProps {
   level: string;
   setLevel: React.Dispatch<React.SetStateAction<string>>;
   isGenerating: boolean;
-  onGenerateQuiz: () => void;
+  onGenerateQuiz: (files: File[]) => void; // Modified to accept files
+  selectedFiles: File[]; // New prop
+  setSelectedFiles: React.Dispatch<React.SetStateAction<File[]>>; // New prop
 }
 
 const QuizCreator: React.FC<QuizCreatorProps> = ({
@@ -80,10 +86,23 @@ const QuizCreator: React.FC<QuizCreatorProps> = ({
   level,
   setLevel,
   isGenerating,
-  onGenerateQuiz
+  onGenerateQuiz,
+  selectedFiles, // New prop
+  setSelectedFiles // New prop
 }) => {
   const { language } = useLanguage();
   const { t } = useTranslation(language);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+    if (event.target.files) {
+      setSelectedFiles(prevFiles => [...prevFiles, ...Array.from(event.target.files || [])]);
+    }
+  };
+
+  const handleRemoveFile = (fileName: string) => {
+    setSelectedFiles(prevFiles => prevFiles.filter(file => file.name !== fileName));
+  };
   
   return (
     <div className="max-w-3xl mx-auto">
@@ -184,9 +203,49 @@ const QuizCreator: React.FC<QuizCreatorProps> = ({
             </div>
           </div>
           
+          {/* File Upload Section */}
+          <div className="w-full">
+            <Label className="text-sm font-medium mb-2 block text-gray-700">{t('upload_files_label')}</Label>
+            <div className="mt-1 flex justify-center px-6 pt-5 pb-6 border-2 border-indigo-100 border-dashed rounded-md">
+              <div className="space-y-1 text-center">
+                <svg className="mx-auto h-12 w-12 text-gray-400" stroke="currentColor" fill="none" viewBox="0 0 48 48" aria-hidden="true">
+                  <path d="M28 8H12a4 4 0 00-4 4v20m32-12v8m0 0v8a4 4 0 01-4 4H12a4 4 0 01-4-4v-4m32-4l-3.172-3.172a4 4 0 00-5.656 0L28 28M8 32l9.172-9.172a4 4 0 015.656 0L28 28m0 0l4 4m4-24h8m-4-4v8m-12 4h.02" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+                </svg>
+                <div className="flex text-sm text-gray-600 justify-center w-full">
+                  <label
+                    htmlFor="file-upload"
+                    className="relative cursor-pointer bg-white rounded-md font-medium text-indigo-600 hover:text-indigo-500 focus-within:outline-none focus-within:ring-2 focus-within:ring-offset-2 focus-within:ring-indigo-500 w-full flex justify-center"
+                  >
+                    <span className="text-center w-full">{t('upload_files_or_drag_and_drop')}</span>
+                    <input id="file-upload" name="file-upload" type="file" className="sr-only" multiple onChange={handleFileChange} ref={fileInputRef} accept=".jpg,.jpeg,.png,.gif,.doc,.docx,.pdf,.txt"/>
+                  </label>
+                </div>
+                <p className="text-xs text-gray-500">{t('accepted_file_types')}</p>
+              </div>
+            </div>
+            {selectedFiles.length > 0 && (
+              <div className="mt-4">
+                <h4 className="text-sm font-medium text-gray-700 mb-1">{t('selected_files')}</h4>
+                <ul className="list-disc list-inside space-y-1">
+                  {selectedFiles.map(file => (
+                    <li key={file.name} className="text-sm text-gray-600 flex justify-between items-center">
+                      <span>{file.name} ({(file.size / 1024 / 1024).toFixed(2)} MB)</span>
+                      <Button variant="ghost" size="sm" onClick={() => handleRemoveFile(file.name)} className="text-red-500 hover:text-red-700">
+                        {t('remove')}
+                      </Button>
+                    </li>
+                  ))}
+                </ul>
+                <Button variant="outline" size="sm" onClick={() => setSelectedFiles([])} className="mt-2">
+                  {t('clear_files')}
+                </Button>
+              </div>
+            )}
+          </div>
+          
           <Button
             className="w-full py-6 text-lg bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 text-white rounded-xl shadow-md shadow-indigo-200 transition-all duration-300 transform hover:translate-y-[-2px]"
-            onClick={onGenerateQuiz}
+            onClick={() => onGenerateQuiz(selectedFiles)} // Pass selectedFiles to handler
             disabled={isGenerating || !inputContent.trim()}
           >
             {isGenerating ? (
@@ -230,7 +289,7 @@ const QuizResults: React.FC<QuizResultsProps> = ({
 }) => {
   const [isExporting, setIsExporting] = useState(false);
   const [isPrinting, setIsPrinting] = useState(false);
-  const [showAnswers, setShowAnswers] = useState(true);
+  const [showAnswers, setShowAnswers] = useState(false); // Changed initial state to false for student version by default
   const [html2pdfLib, setHtml2pdfLib] = useState<any>(null);
   const [exportFormat, setExportFormat] = useState<string>('pdf');
   const [showExportOptions, setShowExportOptions] = useState(false);
@@ -242,6 +301,10 @@ const QuizResults: React.FC<QuizResultsProps> = ({
   const [editedQuestions, setEditedQuestions] = useState<QuizQuestion[]>(quiz.questions);
   const { language } = useLanguage();
   const { t } = useTranslation(language);
+  const [showQuizInterface, setShowQuizInterface] = useState(false);
+  const [userAnswers, setUserAnswers] = useState<Record<string, string | string[]>>({});
+  const [quizScore, setQuizScore] = useState<number | null>(null);
+  const [showUserReview, setShowUserReview] = useState(false); // New state for user's answer review
 
   // Load the HTML2PDF library dynamically
   useEffect(() => {
@@ -1209,7 +1272,7 @@ const QuizResults: React.FC<QuizResultsProps> = ({
     setIsEditing(!isEditing);
   };
 
-  const handleQuestionEdit = (index: number, field: string, value: string) => {
+  const handleQuestionEdit = (index: number, field: string, value: any) => {
     const newQuestions = [...editedQuestions];
     if (field === 'questionText') {
       newQuestions[index].questionText = value;
@@ -1218,6 +1281,10 @@ const QuizResults: React.FC<QuizResultsProps> = ({
       newQuestions[index].options[optionIndex].text = value;
     } else if (field === 'correctAnswer') {
       newQuestions[index].correctAnswer = value;
+    } else if (field === 'questionType') {
+      newQuestions[index].questionType = value;
+      // 切換題型時，重設正確答案
+      newQuestions[index].correctAnswer = value === 'multiple' ? [] : '';
     } else if (field === 'explanation') {
       newQuestions[index].explanation = value;
     }
@@ -1259,6 +1326,189 @@ const QuizResults: React.FC<QuizResultsProps> = ({
       description: t('question_added'),
     });
   };
+
+  const handleStartQuiz = () => {
+    setShowQuizInterface(true);
+    setUserAnswers({});
+    setQuizScore(null);
+  };
+
+  const handleAnswerChange = (questionId: string, answer: string | string[]) => {
+    setUserAnswers(prev => ({ ...prev, [questionId]: answer }));
+  };
+
+  const handleSubmitQuiz = () => {
+    let score = 0;
+    quiz.questions.forEach(question => {
+      if (userAnswers[question.id] === question.correctAnswer) {
+        score++;
+      }
+    });
+    setQuizScore(score);
+    setShowQuizInterface(false);
+    // setShowUserReview(true); // We will show score first, then user can click to review
+  };
+
+  // Return statement for QuizResults component
+  if (quizScore !== null && !showUserReview) { // Check !showUserReview here
+    return (
+      <div className="container py-8 max-w-4xl mx-auto text-center">
+        <Card className="border-0 shadow-lg overflow-hidden p-8">
+          <h2 className="text-3xl font-bold mb-4">{t('quiz_completed_title')}</h2>
+          <p className="text-xl mb-2">{t('your_score_label')}</p>
+          <p className="text-5xl font-bold text-indigo-600 mb-6">
+            {quizScore} / {quiz.questions.length}
+          </p>
+          <Button onClick={() => {
+            setShowUserReview(true);
+            setQuizScore(null); // Explicitly set quizScore to null here
+          }}>{t('review_my_answers_button')}</Button>
+        </Card>
+      </div>
+    );
+  }
+
+  // New: User Review Interface
+  if (showUserReview) {
+    return (
+      <div className="container py-8 max-w-4xl mx-auto">
+        <Card className="border-0 shadow-lg overflow-hidden">
+          <CardHeader className="quiz-header bg-gradient-to-r from-indigo-600 to-purple-600 text-white p-6">
+            <h1 className="text-2xl md:text-3xl font-bold text-center">Review Your Answers: {quiz.title}</h1>
+          </CardHeader>
+          <CardContent className="p-6">
+            {quiz.questions.map((question, index) => {
+              const userAnswer = userAnswers[question.id];
+              const correctAnswer = question.correctAnswer;
+              const isMultiple = question.questionType === 'multiple';
+              const isCorrect = isMultiple
+                ? Array.isArray(userAnswer) && Array.isArray(correctAnswer) && correctAnswer.every(ans => userAnswer.includes(ans)) && userAnswer.length === correctAnswer.length
+                : userAnswer === correctAnswer;
+
+              return (
+                <div key={question.id} className={`mb-6 pb-6 border-b ${isCorrect ? 'border-green-200' : 'border-red-200'}`}> 
+                  <h3 className="text-lg font-medium text-gray-900 mb-3">
+                    {index + 1}. {question.questionText}
+                  </h3>
+                  <div className="mb-2">
+                    {question.options.map(option => {
+                      const isOptionCorrect = isMultiple
+                        ? Array.isArray(correctAnswer) && correctAnswer.includes(option.id)
+                        : option.id === correctAnswer;
+                      const isOptionSelected = isMultiple
+                        ? Array.isArray(userAnswer) && userAnswer.includes(option.id)
+                        : userAnswer === option.id;
+                      const isBoth = isOptionCorrect && isOptionSelected;
+                      return (
+                        <div
+                          key={option.id}
+                          className={`flex items-center gap-2 p-2 rounded-md mb-1 border ${
+                            isBoth
+                              ? 'bg-green-50 border-green-400'
+                              : isOptionCorrect
+                                ? 'bg-green-50 border-green-200'
+                                : isOptionSelected
+                                  ? 'bg-red-50 border-red-300'
+                                  : 'border-gray-200'
+                          }`}
+                        >
+                          <span className="font-bold">{option.id.toUpperCase()}.</span>
+                          <span>{option.text}</span>
+                          {isOptionCorrect && (
+                            <span className="ml-2 px-2 py-0.5 text-xs rounded bg-green-600 text-white">{t('correct_answer')}</span>
+                          )}
+                          {isOptionSelected && !isOptionCorrect && (
+                            <span className="ml-2 px-2 py-0.5 text-xs rounded bg-red-500 text-white">{t('your_choice')}</span>
+                          )}
+                          {isBoth && (
+                            <span className="ml-2 px-2 py-0.5 text-xs rounded bg-green-700 text-white">{t('correct_and_selected')}</span>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                  {/* Added explanation display below */}
+                  <div className="mt-2 p-3 bg-gray-50 border border-gray-200 rounded text-sm text-gray-700">
+                    <strong>{t('explanation_colon')}</strong> {question.explanation}
+                  </div>
+                </div>
+              );
+            })}
+            <Button onClick={() => {
+              setShowUserReview(false);
+              setQuizScore(null); // Ensure score is reset to show main quiz view
+            }} className="w-full py-3 text-lg mt-4">
+              {t('back_to_quiz_overview_button')}
+            </Button>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
+  if (showQuizInterface) {
+    return (
+      <div className="container py-8 max-w-4xl mx-auto">
+        <Card className="border-0 shadow-lg overflow-hidden">
+          <CardHeader className="quiz-header bg-gradient-to-r from-indigo-600 to-purple-600 text-white p-6">
+            <h1 className="text-2xl md:text-3xl font-bold text-center">{quiz.title}</h1>
+          </CardHeader>
+          <CardContent className="p-6">
+            {quiz.questions.map((question, index) => (
+              <div key={question.id} className="mb-6 pb-6 border-b border-gray-200">
+                <h3 className="text-lg font-medium text-gray-900 mb-3">
+                  {index + 1}. {question.questionText}
+                </h3>
+                {question.questionType === 'multiple' ? (
+                  // 複選題
+                  <div className="flex flex-col gap-2">
+                    {question.options.map(option => {
+                      const checked = Array.isArray(userAnswers[question.id]) ? userAnswers[question.id].includes(option.id) : false;
+                      return (
+                        <label key={option.id} className="flex items-center gap-2 p-2 hover:bg-gray-50 rounded-md cursor-pointer">
+                          <input
+                            type="checkbox"
+                            checked={checked}
+                            onChange={e => {
+                              const prevArr = userAnswers[question.id];
+                              let prev: string[] = Array.isArray(prevArr) ? [...prevArr] : [];
+                              if (e.target.checked) {
+                                prev.push(option.id);
+                              } else {
+                                prev = prev.filter(id => id !== option.id);
+                              }
+                              handleAnswerChange(question.id, prev);
+                            }}
+                          />
+                          <span>{option.text}</span>
+                        </label>
+                      );
+                    })}
+                  </div>
+                ) : (
+                  // 單選題
+                  <RadioGroup 
+                    value={typeof userAnswers[question.id] === 'string' ? userAnswers[question.id] as string : ""} 
+                    onValueChange={(value) => handleAnswerChange(question.id, value)}
+                  >
+                    {question.options.map(option => (
+                      <div key={option.id} className="flex items-center space-x-2 p-2 hover:bg-gray-50 rounded-md">
+                        <RadioGroupItem value={option.id} id={`${question.id}-${option.id}`} />
+                        <Label htmlFor={`${question.id}-${option.id}`} className="cursor-pointer w-full">
+                          {option.text}
+                        </Label>
+                      </div>
+                    ))}
+                  </RadioGroup>
+                )}
+              </div>
+            ))}
+            <Button onClick={handleSubmitQuiz} className="w-full py-3 text-lg mt-4">{t('submit_quiz_button')}</Button>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
 
   return (
     <div className="container py-8 max-w-4xl mx-auto">
@@ -1444,18 +1694,12 @@ const QuizResults: React.FC<QuizResultsProps> = ({
                 <Button
                   variant="outline"
                   className="border-indigo-300 text-indigo-700"
-                  onClick={handlePrintQuiz}
-                  disabled={isPrinting}
+                  onClick={handleStartQuiz}
+                  // disabled={isPrinting} // Removed disabled state related to printing
                 >
-                  {isPrinting ? (
                     <>
-                      <Loader2 className="mr-2 h-4 w-4 animate-spin" /> Preparing...
+                    <PlayCircle className="mr-2 h-4 w-4" /> {t('start_quiz')}
                     </>
-                  ) : (
-                    <>
-                      <Printer className="mr-2 h-4 w-4" /> {t('print_quiz')}
-                    </>
-                  )}
                 </Button>
                 <Button 
                   variant="outline"
@@ -1549,36 +1793,83 @@ const QuizResults: React.FC<QuizResultsProps> = ({
                                   {question.options && question.options.length > 0 && (
                                     <div className="grid gap-2 mb-4">
                                       {isEditing ? (
-                                        <RadioGroup
-                                          value={question.correctAnswer}
-                                          onValueChange={function(value) {
-                                            handleQuestionEdit(index, 'correctAnswer', value as string);
-                                          }}
+                                        <>
+                                          {/* 題型選擇 */}
+                                          <div className="mb-2">
+                                            <Label className="text-xs text-gray-500 mr-2">題型</Label>
+                                            <select
+                                              value={question.questionType || 'single'}
+                                              onChange={e => handleQuestionEdit(index, 'questionType', e.target.value)}
+                                              className="border rounded px-2 py-1 text-xs"
+                                            >
+                                              <option value="single">單選</option>
+                                              <option value="multiple">複選</option>
+                                            </select>
+                                          </div>
+                                          {/* 單選/複選正確答案選擇 */}
+                                          {question.questionType === 'multiple' ? (
+                                            question.options.map((option, optionIndex) => (
+                                              <div key={option.id} className="flex items-center gap-3 p-3 border rounded-md">
+                                                <input
+                                                  type="checkbox"
+                                                  checked={Array.isArray(question.correctAnswer) ? question.correctAnswer.includes(option.id) : false}
+                                                  onChange={e => {
+                                                    let newCorrect: string[] = Array.isArray(question.correctAnswer) ? [...question.correctAnswer] : [];
+                                                    if (e.target.checked) {
+                                                      newCorrect.push(option.id);
+                                                    } else {
+                                                      newCorrect = newCorrect.filter(id => id !== option.id);
+                                                    }
+                                                    handleQuestionEdit(index, 'correctAnswer', newCorrect);
+                                                  }}
+                                                />
+                                                <Input
+                                                  value={option.text}
+                                                  onChange={e => handleQuestionEdit(index, `option-${optionIndex}`, e.target.value)}
+                                                  className="flex-1"
+                                                  placeholder={`Option ${option.id.toUpperCase()}`}
+                                                />
+                                              </div>
+                                            ))
+                                          ) : (
+                                            <RadioGroup
+                                              value={typeof question.correctAnswer === 'string' ? question.correctAnswer : ''}
+                                              onValueChange={value => handleQuestionEdit(index, 'correctAnswer', value)}
                                         >
                                           {question.options.map((option, optionIndex) => (
                                             <div key={option.id} className="flex items-center gap-3 p-3 border rounded-md">
                                               <RadioGroupItem value={option.id} id={`${question.id}-${option.id}`} />
                                               <Input
                                                 value={option.text}
-                                                onChange={(e) => handleQuestionEdit(index, `option-${optionIndex}`, e.target.value)}
+                                                    onChange={e => handleQuestionEdit(index, `option-${optionIndex}`, e.target.value)}
                                                 className="flex-1"
                                                 placeholder={`Option ${option.id.toUpperCase()}`}
                                               />
                                             </div>
                                           ))}
                                         </RadioGroup>
+                                          )}
+                                        </>
                                       ) : (
                                         question.options.map((option) => (
                                           <div 
                                             key={option.id}
                                             className={`option-item p-3 border rounded-md flex items-center gap-3 ${
-                                              showAnswers && option.id === question.correctAnswer 
+                                              showAnswers && (
+                                                (Array.isArray(question.correctAnswer) 
+                                                  ? question.correctAnswer.includes(option.id)
+                                                  : option.id === question.correctAnswer)
+                                              ) 
                                                 ? "bg-green-50 border-green-300" 
                                                 : "bg-white border-gray-200"
                                             }`}
                                           >
                                             <div className={`h-6 w-6 rounded-full flex items-center justify-center text-sm font-medium relative ${
-                                              showAnswers && option.id === question.correctAnswer 
+                                              showAnswers && (
+                                                (Array.isArray(question.correctAnswer) 
+                                                  ? question.correctAnswer.includes(option.id)
+                                                  : option.id === question.correctAnswer)
+                                              )
                                                 ? "bg-green-600 text-white" 
                                                 : "bg-gray-100 text-gray-700"
                                             }`}>
@@ -1586,10 +1877,18 @@ const QuizResults: React.FC<QuizResultsProps> = ({
                                                 {option.id.toUpperCase()}
                                               </span>
                                             </div>
-                                            <span className={showAnswers && option.id === question.correctAnswer ? "text-green-800 font-medium" : ""}>
+                                            <span className={showAnswers && (
+                                              Array.isArray(question.correctAnswer)
+                                                ? question.correctAnswer.includes(option.id)
+                                                : option.id === question.correctAnswer
+                                            ) ? "text-green-800 font-medium" : ""}>
                                               {option.text}
                                             </span>
-                                            {showAnswers && option.id === question.correctAnswer && (
+                                            {showAnswers && (
+                                              Array.isArray(question.correctAnswer)
+                                                ? question.correctAnswer.includes(option.id)
+                                                : option.id === question.correctAnswer
+                                            ) && (
                                               <span className="ml-auto text-green-600 text-sm font-medium correct-answer-indicator">
                                                 {t('correct_answer')}
                                               </span>
@@ -1651,6 +1950,7 @@ export default function AIQuizPage() {
   const [currentQuiz, setCurrentQuiz] = useState<Quiz | null>(null);
   const [quizzes, setQuizzes] = useState<Quiz[]>([]);
   const [inputContent, setInputContent] = useState("");
+  const [selectedFiles, setSelectedFiles] = useState<File[]>([]); // New state for files in parent
   const [questionType, setQuestionType] = useState("multiple-choice");
   const [numQuestions, setNumQuestions] = useState("10");
   const [additionalInstructions, setAdditionalInstructions] = useState("");
@@ -1664,21 +1964,141 @@ export default function AIQuizPage() {
   const { language } = useLanguage();
   const { t } = useTranslation(language);
 
-  const handleGenerateQuiz = async () => {
-    if (!inputContent.trim()) {
+  const MAX_FILE_SIZE_MB = 25; // Changed from 5 to 25
+  const MAX_FILE_SIZE_BYTES = MAX_FILE_SIZE_MB * 1024 * 1024;
+
+  const readFileAsText = (file: File): Promise<string> => {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = (event) => resolve(event.target?.result as string);
+      reader.onerror = (error) => reject(error);
+      reader.readAsText(file);
+    });
+  };
+
+  const extractTextFromDocx = async (file: File): Promise<string> => {
+    const arrayBuffer = await file.arrayBuffer();
+    const result = await mammoth.extractRawText({ arrayBuffer });
+    return result.value;
+  };
+
+  const extractTextFromPdf = async (file: File): Promise<string> => {
+    if (typeof window === 'undefined') {
+      throw new Error('PDF extraction only supported in browser');
+    }
+    const pdfjsLib = await import('pdfjs-dist/build/pdf');
+    // Set workerSrc if not already set
+    if (!pdfjsLib.GlobalWorkerOptions.workerSrc) {
+      pdfjsLib.GlobalWorkerOptions.workerSrc = '/pdfjs/pdf.worker.min.mjs';
+    }
+    const arrayBuffer = await file.arrayBuffer();
+    const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+    let textContent = "";
+    for (let i = 1; i <= pdf.numPages; i++) {
+      const page = await pdf.getPage(i);
+      const text = await page.getTextContent();
+      textContent += text.items.map((s: any) => s.str).join(" \n");
+    }
+    return textContent;
+  };
+
+  // 圖片 OCR 文字擷取
+  const extractTextFromImage = async (file: File): Promise<string> => {
+    if (typeof window === 'undefined') {
+      throw new Error('Image OCR only supported in browser');
+    }
+    const Tesseract = await import('tesseract.js');
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = async (event) => {
+        try {
+          const { data: { text } } = await Tesseract.recognize(event.target?.result as string, 'eng+chi_tra');
+          resolve(text);
+        } catch (err) {
+          reject(err);
+        }
+      };
+      reader.onerror = (error) => reject(error);
+      reader.readAsDataURL(file);
+    });
+  };
+
+  const processFiles = async (files: File[]): Promise<string> => {
+    let allExtractedText = "";
+    for (const file of files) {
+      if (file.size > MAX_FILE_SIZE_BYTES) {
       toast({
-        title: "Error",
-        description: "Please enter a quiz topic or content.",
+          title: t('error'),
+          description: t('file_too_large', { fileName: file.name, maxSize: MAX_FILE_SIZE_MB.toString() }),
+          variant: "destructive",
+        });
+        continue; // Skip this file
+      }
+
+      try {
+        if (file.type === "application/vnd.openxmlformats-officedocument.wordprocessingml.document") {
+          allExtractedText += `\n\n--- Content from ${file.name} ---\n${await extractTextFromDocx(file)}`;
+        } else if (file.type === "application/pdf") {
+          allExtractedText += `\n\n--- Content from ${file.name} ---\n${await extractTextFromPdf(file)}`;
+        } else if (file.type.startsWith("text/")) {
+          allExtractedText += `\n\n--- Content from ${file.name} ---\n${await readFileAsText(file)}`;
+        } else if (file.type.startsWith("image/")) {
+          // OCR 圖片內容
+          const ocrText = await extractTextFromImage(file);
+          allExtractedText += `\n\n--- OCR from ${file.name} ---\n${ocrText}`;
+        } else {
+          toast({
+            title: t('error'),
+            description: t('file_type_not_supported', { fileName: file.name }),
+            variant: "destructive",
+          });
+        }
+      } catch (error) {
+        console.error(`Error processing file ${file.name}:`, error);
+        toast({
+          title: t('error'),
+          description: t('file_processing_error', { fileName: file.name }),
+          variant: "destructive",
+        });
+      }
+    }
+    return allExtractedText;
+  };
+
+  const handleGenerateQuiz = async (files: File[]) => { // Updated to accept files
+    let combinedContent = inputContent.trim();
+
+    if (!combinedContent && files.length === 0) {
+      toast({
+        title: t("error"),
+        description: "Please enter a quiz topic or upload a file.", // Consider adding a translation key
         variant: "destructive",
       });
       return;
     }
 
     setIsGenerating(true);
+
+    if (files.length > 0) {
+      toast({ title: t('info'), description: t('processing_uploaded_content'), duration: 2000 });
+      const fileTexts = await processFiles(files);
+      combinedContent += fileTexts; 
+    }
+
+    if (!combinedContent.trim()) {
+       toast({
+        title: t("error"),
+        description: "No text content found to generate quiz. Please check your input or files.", // Consider adding a translation key
+        variant: "destructive",
+      });
+      setIsGenerating(false);
+      return;
+    }
+
     try {
       // Call the generateQuiz function from gemini.ts
       const generatedQuiz = await generateQuiz(
-        inputContent,
+        combinedContent, // Use combined content
         questionType,
         numQuestions,
         additionalInstructions,
@@ -1806,6 +2226,8 @@ export default function AIQuizPage() {
             setLevel={setLevel}
             isGenerating={isGenerating}
             onGenerateQuiz={handleGenerateQuiz}
+            selectedFiles={selectedFiles} // Pass state down
+            setSelectedFiles={setSelectedFiles} // Pass setter down
           />
           
           {quizzes.length > 0 && !currentQuiz && (

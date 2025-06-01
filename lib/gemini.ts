@@ -2,7 +2,8 @@ import { GoogleGenerativeAI } from '@google/generative-ai';
 
 // Initialize the Generative AI API
 const apiKey = process.env.NEXT_PUBLIC_GEMINI_API_KEY;
-const model = process.env.NEXT_PUBLIC_GEMINI_MODEL || 'gemini-2.0-flash';
+// Use Gemini 2.5 Flash preview version
+const model = process.env.NEXT_PUBLIC_GEMINI_MODEL || 'gemini-2.5-flash-preview-05-20';
 
 if (!apiKey) {
   console.error('Missing Gemini API key. Please check your .env.local file.');
@@ -131,9 +132,16 @@ export async function generateLearningAnalysis(studentData: any) {
 
 export async function generateDetailedLearningAnalysis(studentData: any) {
   try {
-    // Use the specific model requested - update to a valid model name
-    const specificModel = 'gemini-2.0-flash';
-    const generativeModel = genAI.getGenerativeModel({ model: specificModel });
+    const generativeModel = genAI.getGenerativeModel({ 
+      model,
+      // Add configuration options specific to Gemini 2.5
+      generationConfig: {
+        temperature: 0.7,
+        topK: 40,
+        topP: 0.95,
+        maxOutputTokens: 8192,
+      },
+    });
 
     // Check the UI language setting passed from the component
     const isChineseContent = studentData.language === 'zh-TW';
@@ -160,8 +168,12 @@ export async function generateDetailedLearningAnalysis(studentData: any) {
     const result = await generativeModel.generateContent(prompt);
     const response = await result.response;
     return response.text();
-  } catch (error) {
+  } catch (error: any) {
     console.error('Error generating detailed learning analysis:', error);
+    // Add more specific error handling
+    if (error.message?.includes('404')) {
+      throw new Error('Model not found or not available. Please check if you have access to Gemini 2.5 preview.');
+    }
     throw error;
   }
 }
@@ -178,6 +190,7 @@ export async function generateQuiz(
     const generativeModel = genAI.getGenerativeModel({ model });
     
     const isChineseOutput = outputLanguage === '繁體中文';
+    const allowMultiple = /複選|多個正確答案|multiple answers|multiple correct/i.test(additionalInstructions);
     const prompt = `
       Generate a quiz on the following topic or content:
       ${inputContent}
@@ -194,10 +207,20 @@ export async function generateQuiz(
       Create a quiz with exactly ${numQuestions} ${questionType} questions.
 
       ${questionType === 'multiple-choice' 
-        ? 'For multiple choice questions, provide 4 options (labeled A, B, C, D) with one correct answer.' 
+        ? (allowMultiple
+            ? (isChineseOutput
+                ? '部分題目請設計為複選題（多個正確答案），其 correctAnswer 欄位請用陣列表示，並加上 questionType 欄位（single 或 multiple）。其餘為單選題（correctAnswer 為字串，questionType 為 single）。每題選項 4 個（A, B, C, D）。'
+                : 'For some questions, design as multiple-answer (multiple correct options, correctAnswer as an array, questionType as "multiple"). Others are single-answer (correctAnswer as string, questionType as "single"). Each question has 4 options (A, B, C, D).')
+            : (isChineseOutput
+                ? '每題僅有一個正確答案（correctAnswer 為字串，questionType 為 single），選項 4 個（A, B, C, D）。'
+                : 'Each question has only one correct answer (correctAnswer as string, questionType as "single"), 4 options (A, B, C, D).'))
         : questionType === 'true-false' 
-          ? 'For true/false questions, provide options A (True) and B (False).' 
-          : 'For short answer questions, provide the expected answer.'}
+          ? (isChineseOutput
+              ? '是非題僅有 A（正確）與 B（錯誤）兩個選項。'
+              : 'For true/false questions, provide options A (True) and B (False).')
+          : (isChineseOutput
+              ? '簡答題 options 可為空陣列。'
+              : 'For short answer questions, the options array can be empty.')}
 
       For each question, include a brief explanation of the correct answer.
 
@@ -214,7 +237,8 @@ export async function generateQuiz(
               {"id": "c", "text": "${isChineseOutput ? '選項C' : 'Option C'}"},
               {"id": "d", "text": "${isChineseOutput ? '選項D' : 'Option D'}"}
             ],
-            "correctAnswer": "${isChineseOutput ? '正確答案 (a, b, c, 或 d)' : 'Correct answer (a, b, c, or d)'}",
+            "questionType": "single 或 multiple", // 題型
+            "correctAnswer": "正確答案 id 或 id 陣列", // 單選為字串，複選為陣列
             "explanation": "${isChineseOutput ? '答案解釋' : 'Explanation of answer'}"
           }
           // ... more questions
@@ -226,7 +250,7 @@ export async function generateQuiz(
       2. For true/false questions, only include options A and B
       3. For short answer questions, the options array can be empty
       4. All questions must have an explanation field
-      5. For multiple-choice and true/false, the correctAnswer field should be the ID of the correct option (a, b, c, d)
+      5. For multiple-choice, correctAnswer can be a string (single) or array (multiple), and must include questionType field for each question
     `;
 
     const result = await generativeModel.generateContent(prompt);
