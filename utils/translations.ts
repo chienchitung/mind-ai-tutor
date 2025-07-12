@@ -524,6 +524,10 @@ const translations = {
 
     // Digital Games
     drag_to_reorder: "Drag to reorder lessons",
+    ai_interaction_count: "AI Interaction Count",
+    ai_interactions_per_lesson: "Avg {count} interactions per lesson",
+    ai_interaction_distribution: "AI Interaction Distribution",
+    ai_interaction_by_lesson: "AI interactions by lesson",
   },
   'zh-TW': {
     // Command menu translations
@@ -1046,6 +1050,10 @@ const translations = {
 
     // Digital Games
     drag_to_reorder: "拖曳以重新排序課程",
+    ai_interaction_count: "AI 互動次數",
+    ai_interactions_per_lesson: "平均每課程 {count} 次互動",
+    ai_interaction_distribution: "AI 互動分佈",
+    ai_interaction_by_lesson: "各課程 AI 互動次數",
   }
 };
 

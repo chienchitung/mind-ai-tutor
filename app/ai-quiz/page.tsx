@@ -112,10 +112,10 @@ const QuizCreator: React.FC<QuizCreatorProps> = ({
             <Wand2 size={28} />
           </div>
           
-          <h1 className="text-3xl font-bold bg-gradient-to-r from-indigo-800 via-purple-700 to-indigo-800 bg-clip-text text-transparent mb-3">
+          <h1 className="text-3xl font-bold mb-3" style={{ color: '#1e40af' }}>
             {t('ai_quiz_generator')}
           </h1>
-          <p className="text-gray-600 text-center max-w-md">
+          <p className="text-center max-w-md" style={{ color: '#4b5563' }}>
             {t('create_custom_quizzes')}
           </p>
         </div>
@@ -206,39 +206,84 @@ const QuizCreator: React.FC<QuizCreatorProps> = ({
           {/* File Upload Section */}
           <div className="w-full">
             <Label className="text-sm font-medium mb-2 block text-gray-700">{t('upload_files_label')}</Label>
-            <div className="mt-1 flex justify-center px-6 pt-5 pb-6 border-2 border-indigo-100 border-dashed rounded-md">
-              <div className="space-y-1 text-center">
-                <svg className="mx-auto h-12 w-12 text-gray-400" stroke="currentColor" fill="none" viewBox="0 0 48 48" aria-hidden="true">
-                  <path d="M28 8H12a4 4 0 00-4 4v20m32-12v8m0 0v8a4 4 0 01-4 4H12a4 4 0 01-4-4v-4m32-4l-3.172-3.172a4 4 0 00-5.656 0L28 28M8 32l9.172-9.172a4 4 0 015.656 0L28 28m0 0l4 4m4-24h8m-4-4v8m-12 4h.02" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-                </svg>
-                <div className="flex text-sm text-gray-600 justify-center w-full">
-                  <label
-                    htmlFor="file-upload"
-                    className="relative cursor-pointer bg-white rounded-md font-medium text-indigo-600 hover:text-indigo-500 focus-within:outline-none focus-within:ring-2 focus-within:ring-offset-2 focus-within:ring-indigo-500 w-full flex justify-center"
+            <div 
+              className="relative border border-dashed border-slate-200 rounded-lg p-8 transition-all duration-300 ease-in-out hover:border-[#1e40af] group bg-slate-50/50 hover:bg-white"
+              style={{ 
+                borderWidth: '2px',
+                boxShadow: '0 0 0 0 rgba(30, 64, 175, 0)',
+              }}
+              onMouseEnter={(e) => {
+                const target = e.currentTarget;
+                target.style.boxShadow = '0 0 0 4px rgba(30, 64, 175, 0.1)';
+              }}
+              onMouseLeave={(e) => {
+                const target = e.currentTarget;
+                target.style.boxShadow = '0 0 0 0 rgba(30, 64, 175, 0)';
+              }}
+            >
+              <input
+                type="file"
+                ref={fileInputRef}
+                onChange={handleFileChange}
+                className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+                multiple
+                accept="image/*,.doc,.docx,.pdf,.txt"
+              />
+              <div className="flex flex-col items-center justify-center gap-4">
+                <div className="w-12 h-12 rounded-full bg-white flex items-center justify-center group-hover:bg-blue-50 transition-colors duration-300">
+                  <svg 
+                    xmlns="http://www.w3.org/2000/svg" 
+                    className="w-6 h-6 text-slate-400 group-hover:text-[#1e40af] transition-all duration-300 transform group-hover:scale-110" 
+                    viewBox="0 0 24 24" 
+                    fill="none" 
+                    stroke="currentColor"
                   >
-                    <span className="text-center w-full">{t('upload_files_or_drag_and_drop')}</span>
-                    <input id="file-upload" name="file-upload" type="file" className="sr-only" multiple onChange={handleFileChange} ref={fileInputRef} accept=".jpg,.jpeg,.png,.gif,.doc,.docx,.pdf,.txt"/>
-                  </label>
+                    <path 
+                      strokeLinecap="round" 
+                      strokeLinejoin="round" 
+                      strokeWidth={2} 
+                      d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" 
+                    />
+                  </svg>
                 </div>
-                <p className="text-xs text-gray-500">{t('accepted_file_types')}</p>
+                <div className="text-center space-y-2">
+                  <p className="text-base text-slate-600 group-hover:text-[#1e40af] transition-colors duration-300">
+                    {t('upload_files_or_drag_and_drop')}
+                  </p>
+                  <p className="text-sm text-slate-500">
+                    {t('accepted_file_types')}
+                  </p>
+                </div>
               </div>
             </div>
             {selectedFiles.length > 0 && (
-              <div className="mt-4">
-                <h4 className="text-sm font-medium text-gray-700 mb-1">{t('selected_files')}</h4>
-                <ul className="list-disc list-inside space-y-1">
-                  {selectedFiles.map(file => (
-                    <li key={file.name} className="text-sm text-gray-600 flex justify-between items-center">
-                      <span>{file.name} ({(file.size / 1024 / 1024).toFixed(2)} MB)</span>
-                      <Button variant="ghost" size="sm" onClick={() => handleRemoveFile(file.name)} className="text-red-500 hover:text-red-700">
-                        {t('remove')}
-                      </Button>
-                    </li>
+              <div className="mt-4 space-y-3">
+                <p className="text-sm font-medium text-slate-700">{t('selected_files')}:</p>
+                <div className="space-y-2">
+                  {selectedFiles.map((file) => (
+                    <div 
+                      key={file.name} 
+                      className="flex items-center justify-between p-3 bg-white rounded-lg border border-slate-200 hover:border-slate-300 transition-colors duration-200"
+                    >
+                      <div className="flex items-center space-x-3">
+                        <div className="w-8 h-8 rounded-full bg-blue-50 flex items-center justify-center">
+                          <svg className="w-4 h-4 text-[#1e40af]" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                          </svg>
+                        </div>
+                        <span className="text-sm text-slate-600">{file.name}</span>
+                      </div>
+                      <button
+                        onClick={() => handleRemoveFile(file.name)}
+                        className="text-slate-400 hover:text-red-500 transition-colors duration-200"
+                      >
+                        <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                        </svg>
+                      </button>
+                    </div>
                   ))}
-                </ul>
-                <Button variant="outline" size="sm" onClick={() => setSelectedFiles([])} className="mt-2">
-                  {t('clear_files')}
-                </Button>
+                </div>
               </div>
             )}
           </div>

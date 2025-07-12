@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Loader2, Download, BarChart2, Clock, Calendar, Sparkles } from 'lucide-react';
+import { Loader2, Download, BarChart2, Clock, Calendar, Sparkles, MessageSquare } from 'lucide-react';
 import { StudentSelector } from './components/StudentSelector';
 import { TimeSpentChart } from './components/TimeSpentChart';
 import { CompletionRateChart } from './components/CompletionRateChart';
@@ -14,6 +14,7 @@ import { ExportButton } from './components/ExportButton';
 import { useLanguage } from '@/app/contexts/LanguageContext';
 import { useTranslation } from '@/utils/translations';
 import { AIAnalysisReport } from './components/AIAnalysisReport';
+import { AIInteractionChart } from './components/AIInteractionChart';
 
 // Define LearningRecord type based on the Supabase schema
 interface LearningRecord {
@@ -43,12 +44,20 @@ interface LearningStats {
   completionRate: number;
   categoryCounts: Record<string, number>;
   lastActive: string | null;
+  totalQuestionCount: number;
+  averageQuestionsPerLesson: number;
 }
 
 // Add new interface for lesson data
 interface Lesson {
   id: string;
   title: string;
+}
+
+// Add new interface for question counts
+interface QuestionCount {
+  lesson_id: string;
+  question_count: number;
 }
 
 export default function ReportsPage() {
@@ -59,6 +68,7 @@ export default function ReportsPage() {
   const [loading, setLoading] = useState(false);
   // Add state for lessons
   const [lessons, setLessons] = useState<Lesson[]>([]);
+  const [questionCounts, setQuestionCounts] = useState<QuestionCount[]>([]);
   const { language } = useLanguage();
   const { t } = useTranslation(language);
 
@@ -143,30 +153,39 @@ export default function ReportsPage() {
         const { supabase } = await import('../../lib/supabase');
         const supabaseClient = supabase();
         
-        // Try to fetch from the view
-        const { data, error } = await supabaseClient
+        // Fetch learning records
+        const { data: recordsData, error: recordsError } = await supabaseClient
           .from('learning_records_view')
           .select('*')
           .eq('student_id', selectedStudent);
 
-        if (error) {
-          console.error('Error fetching learning records:', error);
+        if (recordsError) {
+          console.error('Error fetching learning records:', recordsError);
           return;
         }
 
-        console.log('Records data:', data);
+        // Fetch question counts
+        const { data: questionData, error: questionError } = await supabaseClient
+          .from('question_counts')
+          .select('*')
+          .eq('student_id', selectedStudent);
 
-        // Process records to handle possible field name differences
-        const processedRecords = (data || []).map(record => ({
+        if (questionError) {
+          console.error('Error fetching question counts:', questionError);
+          return;
+        }
+
+        // Process records
+        const processedRecords = (recordsData || []).map(record => ({
           ...record,
-          // Ensure consistent field names for our application, prioritizing taipei fields
           started_at: record.started_at_taipei || record.started_at || record.start_time,
           completed_at: record.completed_at_taipei || record.completed_at || record.end_time,
           time_spent_seconds: record.time_spent_seconds || record.duration || 0
         }));
 
         setLearningRecords(processedRecords);
-        calculateStats(processedRecords);
+        setQuestionCounts(questionData || []);
+        calculateStats(processedRecords, questionData || []);
       } catch (error) {
         console.error('Error in fetchLearningRecords:', error);
       } finally {
@@ -178,7 +197,7 @@ export default function ReportsPage() {
   }, [selectedStudent]);
 
   // Calculate statistics from learning records
-  const calculateStats = (records: LearningRecord[]) => {
+  const calculateStats = (records: LearningRecord[], questionData: QuestionCount[]) => {
     if (!records || records.length === 0) {
       setLearningStats(null);
       return;
@@ -245,6 +264,10 @@ export default function ReportsPage() {
       }
     }
 
+    // Calculate question count metrics
+    const totalQuestionCount = questionData.reduce((sum, record) => sum + record.question_count, 0);
+    const averageQuestionsPerLesson = totalQuestionCount / records.length;
+
     setLearningStats({
       totalRecords,
       totalTimeSpent,
@@ -252,7 +275,9 @@ export default function ReportsPage() {
       completedLessons,
       completionRate,
       categoryCounts,
-      lastActive
+      lastActive,
+      totalQuestionCount,
+      averageQuestionsPerLesson
     });
   };
 
@@ -428,26 +453,16 @@ export default function ReportsPage() {
             <Card>
               <CardContent className="p-4 md:p-6">
                 <div className="flex items-center justify-between">
-                  <p className="text-sm text-muted-foreground">{t('primary_category')}</p>
-                  <Sparkles className="h-4 w-4 text-muted-foreground" />
+                  <p className="text-sm text-muted-foreground">{t('ai_interaction_count')}</p>
+                  <MessageSquare className="h-4 w-4 text-muted-foreground" />
                 </div>
                 <div className="mt-3">
-                  {learningStats?.categoryCounts && Object.keys(learningStats.categoryCounts).length > 0 ? (
-                    <>
-                      <h3 className="text-lg font-bold">
-                        {Object.entries(learningStats.categoryCounts)
-                          .sort(([, a], [, b]) => b - a)[0][0]}
-                      </h3>
-                      <p className="text-xs text-muted-foreground mt-1">
-                        {Object.keys(learningStats.categoryCounts).length} {t('categories_total')}
-                      </p>
-                    </>
-                  ) : (
-                    <>
-                      <h3 className="text-lg font-bold">{t('uncategorized')}</h3>
-                      <p className="text-xs text-muted-foreground mt-1">{t('no_categories')}</p>
-                    </>
-                  )}
+                  <h3 className="text-2xl font-bold">
+                    {learningStats?.totalQuestionCount || 0}
+                  </h3>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    {t('ai_interactions_per_lesson', { count: learningStats?.averageQuestionsPerLesson?.toFixed(1) || '0' })}
+                  </p>
                 </div>
               </CardContent>
             </Card>
@@ -460,6 +475,7 @@ export default function ReportsPage() {
               <TabsTrigger value="completion">{t('completion_rates')}</TabsTrigger>
               <TabsTrigger value="timeline">{t('learning_timeline')}</TabsTrigger>
               <TabsTrigger value="categories">{t('categories')}</TabsTrigger>
+              <TabsTrigger value="ai-interactions">{t('ai_interaction_distribution')}</TabsTrigger>
             </TabsList>
             
             <TabsContent value="time-spent" className="mt-0">
@@ -522,6 +538,24 @@ export default function ReportsPage() {
                 </CardHeader>
                 <CardContent className="h-96">
                   <CategoryDistribution stats={learningStats} />
+                </CardContent>
+              </Card>
+            </TabsContent>
+
+            <TabsContent value="ai-interactions" className="mt-0">
+              <Card>
+                <CardHeader>
+                  <CardTitle>{t('ai_interaction_distribution')}</CardTitle>
+                  <CardDescription>
+                    {t('ai_interaction_by_lesson')}
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="h-96">
+                  <AIInteractionChart 
+                    records={questionCounts}
+                    lessons={lessons}
+                    courseOrder={orderedCourseTitles}
+                  />
                 </CardContent>
               </Card>
             </TabsContent>
