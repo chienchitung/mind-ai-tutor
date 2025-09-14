@@ -336,6 +336,7 @@ export default function LessonsPage() {
           genially_link: values.geniallyLink || '',
           teaching_content: values.teachingContent,
           practice_exercises: practiceExercises,
+          markdown_content: values.markdownContent || '', // 添加markdown_content欄位
         };
         
         // Update the lesson in state
