@@ -6,7 +6,7 @@ import { PageHeader } from '@/components/layout/PageHeader';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { PlusCircle, Book, Clock, Users, Grid, List, Pencil, ExternalLink, ChevronDown, ChevronUp, X, Trash2, Wand2 } from 'lucide-react';
+import { PlusCircle, Book, Clock, Users, Grid, List, Pencil, ExternalLink, ChevronDown, ChevronUp, X, Trash2, Wand2, Eye, Edit } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -20,6 +20,8 @@ import * as z from 'zod';
 import { generatePracticeExercise } from '@/lib/gemini';
 import { useLanguage } from '@/app/contexts/LanguageContext';
 import { useTranslation } from '@/utils/translations';
+import MarkdownEditor from '@/app/components/ui/MarkdownEditor';
+import MarkdownRenderer from '@/app/components/ui/MarkdownRenderer';
 
 interface PracticeExercise {
   question: string;
@@ -38,6 +40,7 @@ interface Lesson {
   teaching_content: string;
   practice_exercises: PracticeExercise[];
   created_at: string;
+  markdown_content?: string; // 新增 markdown_content 欄位
 }
 
 // Helper function to safely stringify objects for database storage
@@ -101,6 +104,7 @@ export default function LessonsPage() {
   const [showEditForm, setShowEditForm] = useState(false);
   const { language } = useLanguage();
   const { t } = useTranslation(language);
+  const [markdownEditorMode, setMarkdownEditorMode] = useState<'edit' | 'preview'>('edit');
 
   // Form schema with translated validation messages
   const lessonFormSchema = z.object({
@@ -111,6 +115,7 @@ export default function LessonsPage() {
     topics: z.string().min(1, t('topics') + " " + t('exercise_required')),
     geniallyLink: z.string().url(t('enter_genially_url')).optional(),
     teachingContent: z.string().min(1, t('create_exercise') + " " + t('exercise_required')),
+    markdownContent: z.string().optional(),
     practiceExercises: z.array(z.object({
       question: z.string().min(1, t('question') + " " + t('exercise_required')),
       answer: z.string().min(1, t('answer') + " " + t('exercise_required')),
@@ -212,6 +217,7 @@ export default function LessonsPage() {
         topics: editingLesson.topics.join(', '),
         geniallyLink: editingLesson.genially_link,
         teachingContent: editingLesson.teaching_content,
+        markdownContent: editingLesson.markdown_content || '',
         practiceExercises: editingLesson.practice_exercises || []
       });
       // Ensure we have at least one practice exercise when editing
@@ -280,7 +286,8 @@ export default function LessonsPage() {
       const jsonExtras = {
         genially_link: values.geniallyLink || '',
         teaching_content: values.teachingContent,
-        practice_exercises: practiceExercises
+        practice_exercises: practiceExercises,
+        markdown_content: values.markdownContent || ''
       };
 
       // Store extended data as JSON in 'metadata' field if it exists
@@ -292,6 +299,7 @@ export default function LessonsPage() {
         genially_link: values.geniallyLink || '',
         teaching_content: values.teachingContent,
         practice_exercises: safeStringify(practiceExercises),
+        markdown_content: values.markdownContent || '',
         // Also try a metadata field that might exist
         metadata: safeStringify(jsonExtras)
       };
@@ -675,23 +683,6 @@ export default function LessonsPage() {
                     </div>
                   </div>
                   
-                  <FormField
-                    control={form.control}
-                    name="description"
-                    render={({ field }: { field: any }) => (
-                      <FormItem>
-                        <FormLabel>{t('description')}</FormLabel>
-                        <FormControl>
-                          <Textarea 
-                            placeholder={t('describe_lesson')}
-                            {...field} 
-                          />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                  
                   <div className="grid md:grid-cols-2 gap-4">
                     <FormField
                       control={form.control}
@@ -728,6 +719,68 @@ export default function LessonsPage() {
                     />
                   </div>
                   
+                  {/* Markdown 內容編輯區塊 */}
+                  <FormField
+                    control={form.control}
+                    name="markdownContent"
+                    render={({ field }: { field: any }) => (
+                      <FormItem>
+                        <div className="flex items-center justify-between mb-2">
+                          <FormLabel>課程內容 (Markdown 格式)</FormLabel>
+                          <div className="flex space-x-2">
+                            <Button
+                              type="button"
+                              variant="outline"
+                              size="sm"
+                              onClick={() => setMarkdownEditorMode('edit')}
+                              className={markdownEditorMode === 'edit' ? 'bg-primary text-primary-foreground' : ''}
+                            >
+                              <Edit className="h-4 w-4 mr-1" />
+                              編輯
+                            </Button>
+                            <Button
+                              type="button"
+                              variant="outline"
+                              size="sm"
+                              onClick={() => setMarkdownEditorMode('preview')}
+                              className={markdownEditorMode === 'preview' ? 'bg-primary text-primary-foreground' : ''}
+                            >
+                              <Eye className="h-4 w-4 mr-1" />
+                              預覽
+                            </Button>
+                          </div>
+                        </div>
+                        <FormControl>
+                          <div className="border rounded-md relative z-10">
+                            {markdownEditorMode === 'edit' ? (
+                              <div className="md:max-w-full overflow-x-auto">
+                                <MarkdownEditor
+                                  value={field.value || ''}
+                                  onChange={field.onChange}
+                                  placeholder="請輸入課程內容，支持 Markdown 格式..."
+                                />
+                              </div>
+                            ) : (
+                              <div className="p-4 min-h-[300px] max-h-[500px] overflow-y-auto bg-white">
+                                {field.value ? (
+                                  <MarkdownRenderer content={field.value} />
+                                ) : (
+                                  <div className="text-muted-foreground italic">
+                                    尚無內容，請切換到編輯模式添加內容
+                                  </div>
+                                )}
+                              </div>
+                            )}
+                          </div>
+                        </FormControl>
+                        <div className="text-xs text-muted-foreground mt-1">
+                          支持 Markdown 語法，可以使用標題、列表、表格、代碼塊等格式
+                        </div>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+
                   <FormField
                     control={form.control}
                     name="teachingContent"
@@ -744,7 +797,7 @@ export default function LessonsPage() {
                       </FormItem>
                     )}
                   />
-
+                  
                   <div className="flex justify-end">
                     <Button
                       type="button"
@@ -1008,4 +1061,4 @@ export default function LessonsPage() {
       )}
     </div>
   );
-} 
+}
