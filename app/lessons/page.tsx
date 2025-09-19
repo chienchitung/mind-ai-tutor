@@ -105,17 +105,45 @@ export default function LessonsPage() {
   const { language } = useLanguage();
   const { t } = useTranslation(language);
   const [markdownEditorMode, setMarkdownEditorMode] = useState<'edit' | 'preview'>('edit');
+  const markdownTexts = useMemo(() => ({
+    label: t('markdown_label'),
+    placeholder: t('markdown_placeholder'),
+    edit: t('markdown_edit'),
+    preview: t('markdown_preview'),
+    empty: t('markdown_empty'),
+  }), [t]);
+
+  // Generate a brief plain-text description from markdown content to satisfy DB schemas
+  function summarizeMarkdownToDescription(content: string, maxLength: number = 200): string {
+    if (!content) return '';
+    // Remove code blocks
+    let text = content.replace(/```[\s\S]*?```/g, ' ');
+    // Remove inline code
+    text = text.replace(/`[^`]*`/g, ' ');
+    // Remove images/links but keep alt/text
+    text = text.replace(/!\[[^\]]*\]\([^\)]*\)/g, ' ');
+    text = text.replace(/\[[^\]]*\]\([^\)]*\)/g, (m) => m.replace(/\[[^\]]*\]\([^\)]*\)/, ' '));
+    // Remove markdown headings/formatting symbols
+    text = text.replace(/[#>*_\-]+/g, ' ');
+    // Collapse whitespace
+    text = text.replace(/\s+/g, ' ').trim();
+    return text.length > maxLength ? text.slice(0, maxLength - 1) + '…' : text;
+  }
+
+  // Simple UUID v4/standard validator (accepts hyphenated 36-char string)
+  function isUuid(id: string): boolean {
+    return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(id);
+  }
 
   // Form schema with translated validation messages
   const lessonFormSchema = z.object({
-    title: z.string().min(1, t('title') + " " + t('exercise_required')),
-    description: z.string().min(1, t('description') + " " + t('exercise_required')),
+    title: z.string().min(1, t('required_title')),
+    markdownContent: z.string().min(1, t('required_content')),
     duration: z.number().min(1, t('duration') + " " + t('exercise_required')),
     level: z.string().min(1, t('level') + " " + t('exercise_required')),
-    topics: z.string().min(1, t('topics') + " " + t('exercise_required')),
+    topics: z.string().min(1, t('required_topics')),
     geniallyLink: z.string().url(t('enter_genially_url')).optional(),
     teachingContent: z.string().min(1, t('create_exercise') + " " + t('exercise_required')),
-    markdownContent: z.string().optional(),
     practiceExercises: z.array(z.object({
       question: z.string().min(1, t('question') + " " + t('exercise_required')),
       answer: z.string().min(1, t('answer') + " " + t('exercise_required')),
@@ -135,7 +163,7 @@ export default function LessonsPage() {
     resolver: zodResolver(lessonFormSchema),
     defaultValues: {
       title: "",
-      description: "",
+      markdownContent: "",
       duration: 30,
       level: "Beginner",
       topics: "",
@@ -211,13 +239,12 @@ export default function LessonsPage() {
     if (editingLesson) {
       form.reset({
         title: editingLesson.title,
-        description: editingLesson.description,
+        markdownContent: editingLesson.markdown_content || '',
         duration: editingLesson.duration,
         level: editingLesson.level,
         topics: editingLesson.topics.join(', '),
         geniallyLink: editingLesson.genially_link,
         teachingContent: editingLesson.teaching_content,
-        markdownContent: editingLesson.markdown_content || '',
         practiceExercises: editingLesson.practice_exercises || []
       });
       // Ensure we have at least one practice exercise when editing
@@ -273,14 +300,16 @@ export default function LessonsPage() {
       const topicsArray = values.topics.split(',').map(topic => topic.trim());
       
       // Basic lesson data that should work with any schema
+      const derivedDescription = summarizeMarkdownToDescription(values.markdownContent || '');
       const basicLessonData = {
         title: values.title,
-        description: values.description,
         duration: values.duration,
         level: values.level,
         // Topics might need to be stored as a string in some DB schemas
         topics: topicsArray,
-      };
+        // Keep description for backward-compat or DB constraints
+        description: derivedDescription,
+      } as any;
 
       // Create a JSON-friendly version of the data for storage
       const jsonExtras = {
@@ -357,10 +386,12 @@ export default function LessonsPage() {
           created_at: new Date().toISOString()
         };
         
-        // First try inserting with all fields
+        // First try inserting with all fields and return inserted row
         let response = await supabaseWithTypes
           .from('lessons')
-          .insert([fullData]);
+          .insert([fullData])
+          .select('*')
+          .single();
 
         // If there's an error that might be due to missing columns
         if (response.error && response.error.message.includes('column') && response.error.message.includes('does not exist')) {
@@ -374,7 +405,9 @@ export default function LessonsPage() {
           
           response = await supabaseWithTypes
             .from('lessons')
-            .insert([basicData]);
+            .insert([basicData])
+            .select('*')
+            .single();
             
           if (response.error) {
             console.error('Failed even with basic fields:', response.error);
@@ -384,18 +417,24 @@ export default function LessonsPage() {
           throw response.error;
         }
         
-        // For client-side representation, use the full data model
-        const newLesson = {
-          id: Math.random().toString(36).substring(2, 9),
-          ...basicLessonData,
-          genially_link: values.geniallyLink || '',
-          teaching_content: values.teachingContent,
-          practice_exercises: practiceExercises,
-          created_at: new Date().toISOString()
-        };
-        
+        // Build client-side lesson from returned row to keep UUID id
+        const inserted = response.data;
+        const processedInserted: Lesson = {
+          id: inserted.id,
+          title: inserted.title,
+          description: inserted.description ?? summarizeMarkdownToDescription(values.markdownContent || ''),
+          duration: inserted.duration ?? basicLessonData.duration,
+          level: inserted.level ?? basicLessonData.level,
+          topics: Array.isArray(inserted.topics) ? inserted.topics : (typeof inserted.topics === 'string' ? safeParse(inserted.topics, []) : []),
+          genially_link: inserted.genially_link || values.geniallyLink || '',
+          teaching_content: inserted.teaching_content || values.teachingContent,
+          practice_exercises: Array.isArray(inserted.practice_exercises) ? inserted.practice_exercises : (typeof inserted.practice_exercises === 'string' ? safeParse(inserted.practice_exercises, []) : practiceExercises),
+          created_at: inserted.created_at || new Date().toISOString(),
+          markdown_content: inserted.markdown_content || values.markdownContent || ''
+        } as Lesson;
+
         // Add the new lesson to the state
-        setLessons(prev => [...prev, newLesson as Lesson]);
+        setLessons(prev => [...prev, processedInserted]);
         
         toast({
           title: t('lesson_created'),
@@ -434,14 +473,55 @@ export default function LessonsPage() {
       // 使用 as any 臨時解決類型問題
       const supabaseWithTypes = supabaseClient as any;
       
-      // Delete the lesson from Supabase
+      // If the ID is not a UUID, the row was created locally without persisted ID; remove locally.
+      if (!isUuid(lessonId)) {
+        const target = lessons.find(l => l.id === lessonId);
+        if (!target) {
+          throw new Error('Lesson not found in local state');
+        }
+        // Try to delete by strong identifiers first: created_at + title
+        let del = supabaseWithTypes
+          .from('lessons')
+          .delete()
+          .eq('title', target.title);
+        if (target.created_at) {
+          del = del.eq('created_at', target.created_at);
+        }
+        // Request returning rows to confirm deletion
+        let { error: delError, data: delData } = await del.select('*');
+        if (delError) {
+          throw new Error(delError.message || JSON.stringify(delError));
+        }
+        // If no rows were deleted, fallback to a looser match (title + duration + level)
+        if (!delData || delData.length === 0) {
+          const fallback = await supabaseWithTypes
+            .from('lessons')
+            .delete()
+            .eq('title', target.title)
+            .eq('duration', target.duration)
+            .eq('level', target.level)
+            .select('*');
+          if (fallback.error) {
+            throw new Error(fallback.error.message || JSON.stringify(fallback.error));
+          }
+          if (!fallback.data || fallback.data.length === 0) {
+            throw new Error('No matching row found to delete on server');
+          }
+        }
+        setLessons(lessons.filter(lesson => lesson.id !== lessonId));
+        toast({ title: t('lesson_deleted'), description: t('lesson_delete_success') });
+        return;
+      }
+
+      // Delete the lesson from Supabase using UUID id
       const { error } = await supabaseWithTypes
         .from('lessons')
         .delete()
         .eq('id', lessonId);
         
       if (error) {
-        throw error;
+        // Ensure error has a readable message
+        throw new Error(error.message || JSON.stringify(error));
       }
       
       // Remove the lesson from the local state
@@ -454,10 +534,14 @@ export default function LessonsPage() {
     } catch (error: any) {
       toast({
         title: t('lesson_error_delete'),
-        description: error.message || t('lesson_error_delete_msg'),
+        description: (error && (error.message || error.hint || error.details)) || t('lesson_error_delete_msg'),
         variant: 'destructive',
       });
-      console.error('Error deleting lesson:', error);
+      try {
+        console.error('Error deleting lesson:', error?.message || error, error);
+      } catch {
+        console.error('Error deleting lesson (stringified):', String(error));
+      }
     } finally {
       setIsLoading(false);
     }
@@ -534,7 +618,7 @@ export default function LessonsPage() {
                   setPracticeExercises([{ question: "", answer: "", explanation: "" }]);
                   form.reset({
                     title: "",
-                    description: "",
+                    markdownContent: "",
                     duration: 30,
                     level: "Beginner",
                     topics: "",
@@ -570,7 +654,7 @@ export default function LessonsPage() {
                     setEditingLesson(null);
                     form.reset({
                       title: "",
-                      description: "",
+                      markdownContent: "",
                       duration: 30,
                       level: "Beginner",
                       topics: "",
@@ -632,7 +716,9 @@ export default function LessonsPage() {
                           <FormControl>
                             <Input placeholder={t('enter_lesson_title')} {...field} />
                           </FormControl>
-                          <FormMessage />
+                          {form.formState.errors.title && (
+                            <p className="text-sm font-medium text-destructive">{t('required_title')}</p>
+                          )}
                         </FormItem>
                       )}
                     />
@@ -697,7 +783,9 @@ export default function LessonsPage() {
                               {...field} 
                             />
                           </FormControl>
-                          <FormMessage />
+                          {form.formState.errors.topics && (
+                            <p className="text-sm font-medium text-destructive">{t('required_topics')}</p>
+                          )}
                         </FormItem>
                       )}
                     />
@@ -727,7 +815,7 @@ export default function LessonsPage() {
                     render={({ field }: { field: any }) => (
                       <FormItem>
                         <div className="flex items-center justify-between mb-2">
-                          <FormLabel>課程內容 (Markdown 格式)</FormLabel>
+                          <FormLabel>{markdownTexts.label}</FormLabel>
                           <div className="flex space-x-2">
                             <Button
                               type="button"
@@ -737,7 +825,7 @@ export default function LessonsPage() {
                               className={markdownEditorMode === 'edit' ? 'bg-primary text-primary-foreground' : ''}
                             >
                               <Edit className="h-4 w-4 mr-1" />
-                              編輯
+                              {markdownTexts.edit}
                             </Button>
                             <Button
                               type="button"
@@ -747,7 +835,7 @@ export default function LessonsPage() {
                               className={markdownEditorMode === 'preview' ? 'bg-primary text-primary-foreground' : ''}
                             >
                               <Eye className="h-4 w-4 mr-1" />
-                              預覽
+                              {markdownTexts.preview}
                             </Button>
                           </div>
                         </div>
@@ -758,7 +846,7 @@ export default function LessonsPage() {
                                 <MarkdownEditor
                                   value={field.value || ''}
                                   onChange={field.onChange}
-                                  placeholder="請輸入課程內容，支持 Markdown 格式..."
+                                  placeholder={markdownTexts.placeholder}
                                 />
                               </div>
                             ) : (
@@ -767,17 +855,16 @@ export default function LessonsPage() {
                                   <MarkdownRenderer content={field.value} />
                                 ) : (
                                   <div className="text-muted-foreground italic">
-                                    尚無內容，請切換到編輯模式添加內容
+                                    {markdownTexts.empty}
                                   </div>
                                 )}
                               </div>
                             )}
                           </div>
                         </FormControl>
-                        <div className="text-xs text-muted-foreground mt-1">
-                          支持 Markdown 語法，可以使用標題、列表、表格、代碼塊等格式
-                        </div>
-                        <FormMessage />
+                        {form.formState.errors.markdownContent && (
+                          <p className="text-sm font-medium text-destructive">{t('required_content')}</p>
+                        )}
                       </FormItem>
                     )}
                   />
@@ -905,7 +992,7 @@ export default function LessonsPage() {
                         setEditingLesson(null);
                         form.reset({
                           title: "",
-                          description: "",
+                          markdownContent: "",
                           duration: 30,
                           level: "Beginner",
                           topics: "",

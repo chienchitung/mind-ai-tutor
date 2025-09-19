@@ -238,6 +238,16 @@ const translations = {
     save_changes: "Save Changes",
     edit: "Edit",
     delete: "Delete",
+    // Markdown editor localized strings
+    markdown_label: "Lesson Content (Markdown)",
+    markdown_placeholder: "Enter lesson content, Markdown supported...",
+    markdown_edit: "Edit",
+    markdown_preview: "Preview",
+    markdown_empty: "No content yet. Switch to Edit to add content.",
+    // Field required messages
+    required_title: "Title is required",
+    required_topics: "Topics are required",
+    required_content: "Content is required",
     
     // AI Quiz page
     ai_quiz_generator: "AI Quiz Generator",
@@ -763,6 +773,16 @@ const translations = {
     save_changes: "儲存變更",
     edit: "編輯",
     delete: "刪除",
+    // Markdown editor localized strings
+    markdown_label: "課程內容 (Markdown 格式)",
+    markdown_placeholder: "請輸入課程內容，支持 Markdown 格式...",
+    markdown_edit: "編輯",
+    markdown_preview: "預覽",
+    markdown_empty: "尚無內容，請切換到編輯模式添加內容",
+    // Field required messages
+    required_title: "請輸入標題",
+    required_topics: "請輸入主題",
+    required_content: "請輸入內容",
     
     // AI Quiz page
     ai_quiz_generator: "AI 測驗產生器",

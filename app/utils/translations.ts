@@ -48,7 +48,16 @@ type TranslationKey =
   | 'previous_month'
   | 'next_month'
   | 'your_choice'
-  | 'correct_and_selected';
+  | 'correct_and_selected'
+  // added keys for lessons markdown/editor and validation
+  | 'markdown_label'
+  | 'markdown_placeholder'
+  | 'markdown_edit'
+  | 'markdown_preview'
+  | 'markdown_empty'
+  | 'required_title'
+  | 'required_topics'
+  | 'required_content';
 
 // Define translation keys and values
 const translations: Record<Language, Record<TranslationKey, string>> = {
@@ -105,6 +114,15 @@ const translations: Record<Language, Record<TranslationKey, string>> = {
     'next_month': 'Next month',
     'your_choice': 'Your Choice',
     'correct_and_selected': 'Correct & Selected',
+    // Lessons markdown/editor and validation
+    'markdown_label': 'Lesson Content (Markdown)',
+    'markdown_placeholder': 'Enter lesson content, Markdown supported...',
+    'markdown_edit': 'Edit',
+    'markdown_preview': 'Preview',
+    'markdown_empty': 'No content yet. Switch to Edit to add content.',
+    'required_title': 'Title is required',
+    'required_topics': 'Topics are required',
+    'required_content': 'Content is required',
   },
   'zh-TW': {
     // Common
@@ -159,6 +177,15 @@ const translations: Record<Language, Record<TranslationKey, string>> = {
     'next_month': '下個月',
     'your_choice': '你的選擇',
     'correct_and_selected': '正確且有選到',
+    // Lessons markdown/editor and validation
+    'markdown_label': '課程內容 (Markdown 格式)',
+    'markdown_placeholder': '請輸入課程內容，支持 Markdown 格式...',
+    'markdown_edit': '編輯',
+    'markdown_preview': '預覽',
+    'markdown_empty': '尚無內容，請切換到編輯模式添加內容',
+    'required_title': '請輸入標題',
+    'required_topics': '請輸入主題',
+    'required_content': '請輸入內容',
   }
 };
 
