@@ -2,6 +2,9 @@
   "name": "mind-ai-tutor",
   "version": "0.1.0",
   "private": true,
+  "engines": {
+    "node": "24.x"
+  },
   "scripts": {
     "dev": "next dev",
     "build": "next build",
@@ -85,7 +88,7 @@
   },
   "devDependencies": {
     "@next/eslint-plugin-next": "15.5.7",
-    "@types/node": "^20.17.30",
+    "@types/node": "^24.13.3",
     "@types/react": "^18.3.20",
     "@types/react-dom": "^18.3.6",
     "@types/uuid": "^10.0.0",
