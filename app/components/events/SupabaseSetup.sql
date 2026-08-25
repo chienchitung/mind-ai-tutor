@@ -25,6 +25,36 @@ CREATE INDEX events_type_idx ON events(type);
 CREATE INDEX events_start_date_idx ON events(start_date);
 CREATE INDEX events_end_date_idx ON events(end_date);
 
+-- 開啟 Row Level Security，避免任何拿到 anon key 的人都能讀寫刪除全部資料。
+-- events 是團隊共用資源（前端查詢沒有依 user 篩選），所以 policy 開放給任何
+-- 已登入使用者，而不是限制成 auth.uid() = user_id。
+ALTER TABLE events ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY events_select_policy
+  ON events
+  FOR SELECT
+  TO authenticated
+  USING (true);
+
+CREATE POLICY events_insert_policy
+  ON events
+  FOR INSERT
+  TO authenticated
+  WITH CHECK (true);
+
+CREATE POLICY events_update_policy
+  ON events
+  FOR UPDATE
+  TO authenticated
+  USING (true)
+  WITH CHECK (true);
+
+CREATE POLICY events_delete_policy
+  ON events
+  FOR DELETE
+  TO authenticated
+  USING (true);
+
 -- 插入範例事件
 INSERT INTO events (title, description, type, status, priority, start_date, end_date, tags) VALUES
   ('新課程上線', '2024年春季新課程上線', 'course', 'done', 'high', '2024-04-15', '2024-04-20', 
