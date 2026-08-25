@@ -1,9 +1,11 @@
+import 'server-only';
 import { GoogleGenerativeAI } from '@google/generative-ai';
 
-// Initialize the Generative AI API
-const apiKey = process.env.NEXT_PUBLIC_GEMINI_API_KEY;
+// Server-only: this module must never be imported from a 'use client' component,
+// since GEMINI_API_KEY would otherwise be bundled into the browser JS.
+const apiKey = process.env.GEMINI_API_KEY;
 // Use Gemini 2.5 Flash preview version
-const model = process.env.NEXT_PUBLIC_GEMINI_MODEL || 'gemini-2.5-flash-preview-05-20';
+const model = process.env.GEMINI_MODEL || 'gemini-2.5-flash-preview-05-20';
 
 if (!apiKey) {
   console.error('Missing Gemini API key. Please check your .env.local file.');

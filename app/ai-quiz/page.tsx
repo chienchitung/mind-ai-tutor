@@ -8,7 +8,6 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { useToast } from "@/hooks/use-toast";
-import { generateQuiz } from "@/lib/gemini";
 import { Sidebar } from "@/app/components/layout/Sidebar";
 import { cn } from "@/lib/utils";
 import { 
@@ -2141,15 +2140,25 @@ export default function AIQuizPage() {
     }
 
     try {
-      // Call the generateQuiz function from gemini.ts
-      const generatedQuiz = await generateQuiz(
-        combinedContent, // Use combined content
-        questionType,
-        numQuestions,
-        additionalInstructions,
-        outputLanguage,
-        level
-      );
+      // Call the server-side Gemini quiz generation endpoint
+      const quizResponse = await fetch('/api/gemini/quiz', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          content: combinedContent, // Use combined content
+          questionType,
+          numQuestions,
+          additionalInstructions,
+          outputLanguage,
+          level,
+        }),
+      });
+
+      if (!quizResponse.ok) {
+        throw new Error('Failed to generate quiz');
+      }
+
+      const generatedQuiz = await quizResponse.json();
 
       // Create a new quiz with the response data
       const newQuiz: Quiz = {

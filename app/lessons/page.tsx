@@ -17,7 +17,6 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useForm } from 'react-hook-form';
 import * as z from 'zod';
-import { generatePracticeExercise } from '@/lib/gemini';
 import { useLanguage } from '@/app/contexts/LanguageContext';
 import { useTranslation } from '@/utils/translations';
 import MarkdownEditor from '@/app/components/ui/MarkdownEditor';
@@ -905,7 +904,15 @@ export default function LessonsPage() {
                         setIsGenerating(true);
 
                         try {
-                          const exercise = await generatePracticeExercise(content, level);
+                          const response = await fetch('/api/gemini/practice-exercise', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ content, level }),
+                          });
+                          if (!response.ok) {
+                            throw new Error('Failed to generate practice exercise');
+                          }
+                          const exercise = await response.json();
                           setPracticeExercises([exercise]);
                           form.setValue("practiceExercises", [exercise]);
                         } catch (error) {

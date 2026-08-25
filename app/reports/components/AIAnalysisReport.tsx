@@ -40,11 +40,16 @@ export function AIAnalysisReport({
         language: language
       };
       
-      // Dynamically import the specific Gemini function
-      const { generateDetailedLearningAnalysis } = await import('../../../lib/gemini');
-      
-      // Generate the analysis with the specific model
-      const analysis = await generateDetailedLearningAnalysis(analysisData);
+      // Generate the analysis via the server-side Gemini endpoint
+      const response = await fetch('/api/gemini/learning-analysis', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(analysisData),
+      });
+      if (!response.ok) {
+        throw new Error('Failed to generate learning analysis');
+      }
+      const { analysis } = await response.json();
       setAnalysisResult(analysis);
       
       // Initialize all sections as expanded
