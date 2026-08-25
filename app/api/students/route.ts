@@ -23,6 +23,14 @@ export async function GET() {
       }
     );
 
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+
+    if (!user) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
     const { data: students, error } = await supabase
       .from('students')
       .select('*')
@@ -65,6 +73,14 @@ export async function POST(request: Request) {
       }
     );
     
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+
+    if (!user) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
     const json = await request.json();
 
     const { data: student, error } = await supabase

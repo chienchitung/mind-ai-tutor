@@ -32,7 +32,15 @@ export async function GET() {
         },
       }
     );
-    
+
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+
+    if (!user) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
     // 從數據庫獲取學習紀錄
     let { data, error } = await supabase
       .from('learning_records')

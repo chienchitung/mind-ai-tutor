@@ -31,6 +31,14 @@ export async function GET(
       }
     );
 
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+
+    if (!user) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
     const id = (await params).id;
     const { data: student, error } = await supabase
       .from('students')
@@ -76,6 +84,14 @@ export async function PUT(
       }
     );
 
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+
+    if (!user) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
     const id = (await params).id;
     const body = await request.json();
     const { data, error } = await supabase
@@ -119,6 +135,14 @@ export async function DELETE(
         },
       }
     );
+
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+
+    if (!user) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
 
     const id = (await params).id;
     const { error } = await supabase
