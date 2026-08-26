@@ -58,6 +58,34 @@ export async function middleware(request: NextRequest) {
     return NextResponse.redirect(redirectUrl);
   }
 
+  // 只有 role = admin 的帳號能進入這些路徑。以後要新增 admin 專屬頁面，
+  // 只需要在這份清單加一行，不用重寫判斷邏輯。
+  const ADMIN_ONLY_PATHS = ['/admin'];
+  const isAdminOnlyPath = ADMIN_ONLY_PATHS.some((path) =>
+    request.nextUrl.pathname.startsWith(path)
+  );
+
+  if (isAdminOnlyPath) {
+    if (!user) {
+      const redirectUrl = request.nextUrl.clone();
+      redirectUrl.pathname = '/login';
+      redirectUrl.searchParams.set('redirect', request.nextUrl.pathname);
+      return NextResponse.redirect(redirectUrl);
+    }
+
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('role')
+      .eq('user_id', user.id)
+      .single();
+
+    if (profile?.role !== 'admin') {
+      const redirectUrl = request.nextUrl.clone();
+      redirectUrl.pathname = '/dashboard';
+      return NextResponse.redirect(redirectUrl);
+    }
+  }
+
   // 如果用戶已登入但訪問登入頁面，重定向到儀表板
   if (user && request.nextUrl.pathname.startsWith('/login')) {
     const redirectUrl = request.nextUrl.clone();
@@ -72,6 +100,7 @@ export async function middleware(request: NextRequest) {
 export const config = {
   matcher: [
     '/dashboard/:path*',
+    '/admin/:path*',
     '/login',
     '/auth/callback',
   ],
