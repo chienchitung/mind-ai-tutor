@@ -104,11 +104,19 @@ export default function LoginPage() {
       const { data, error } = await supabase.auth.signInWithOAuth({
         provider: 'google',
         options: {
-          redirectTo: window.location.origin + '/auth/callback',
+          // `redirect` must live on redirectTo, not queryParams: queryParams
+          // are forwarded to Google's OAuth authorize URL and never come
+          // back, so app/auth/callback/route.ts (which reads `redirect`
+          // off its own query string) would always fall back to
+          // '/dashboard'. Putting it on redirectTo keeps it attached to
+          // the URL Supabase redirects back to after the OAuth exchange.
+          redirectTo:
+            window.location.origin +
+            '/auth/callback?redirect=' +
+            encodeURIComponent(redirectPath),
           queryParams: {
             access_type: 'offline',
             prompt: 'consent',
-            redirect: redirectPath
           }
         }
       });
