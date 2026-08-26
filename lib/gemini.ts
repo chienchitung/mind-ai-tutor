@@ -5,7 +5,7 @@ import { GoogleGenerativeAI } from '@google/generative-ai';
 // since GEMINI_API_KEY would otherwise be bundled into the browser JS.
 const apiKey = process.env.GEMINI_API_KEY;
 // Use Gemini 2.5 Flash preview version
-const model = process.env.GEMINI_MODEL || 'gemini-2.5-flash-preview-05-20';
+const model = process.env.GEMINI_MODEL || 'gemini-3.7-flash';
 
 if (!apiKey) {
   console.error('Missing Gemini API key. Please check your .env.local file.');
