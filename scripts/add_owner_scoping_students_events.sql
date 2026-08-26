@@ -24,7 +24,10 @@ begin
     raise exception 'No auth.users row found for email %', v_email;
   end if;
 
-  -- events already has user_id, but it was nullable and never backfilled
+  -- events does not actually have user_id despite types/supabase.ts
+  -- claiming it does (SupabaseSetup.sql's CREATE TABLE never included it)
+  alter table public.events
+    add column if not exists user_id uuid references auth.users(id) on delete cascade;
   update public.events set user_id = v_admin_id where user_id is null;
   alter table public.events alter column user_id set not null;
   alter table public.events alter column user_id set default auth.uid();
