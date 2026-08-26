@@ -28,7 +28,7 @@ import { useTranslation } from "@/utils/translations";
 const COLUMN_IDS: EventStatus[] = ['to_do', 'in_progress', 'done'];
 
 export function KanbanView() {
-  const { events, updateEvent } = useEvents();
+  const { events, updateEvents } = useEvents();
   const { language } = useLanguage();
   const { t } = useTranslation(language);
 
@@ -127,19 +127,25 @@ export function KanbanView() {
         }
       }
 
-      // Persist every event whose status or position actually changed.
+      // Collect every event whose status or position actually changed, then
+      // persist them all in a single batched write so their local state
+      // updates can't race each other and clobber a sibling's change.
+      const changed: Event[] = [];
       (Object.keys(finalColumns) as EventStatus[]).forEach(status => {
         finalColumns[status].forEach((id, index) => {
           const original = eventsById.get(id);
           if (!original) return;
           const position = index + 1;
           if (original.status !== status || original.position !== position) {
-            updateEvent({ ...original, status, position }).catch(err => {
-              console.error(`Failed to update event ${id}:`, err);
-            });
+            changed.push({ ...original, status, position });
           }
         });
       });
+      if (changed.length > 0) {
+        updateEvents(changed).catch(err => {
+          console.error('Failed to persist kanban reorder:', err);
+        });
+      }
 
       return finalColumns;
     });

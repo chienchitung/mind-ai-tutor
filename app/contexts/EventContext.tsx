@@ -188,6 +188,7 @@ interface EventContextType {
   error: string | null;
   addEvent: (eventData: Omit<Event, 'id' | 'createdAt' | 'updatedAt' | 'tags' | 'attachments'> & { tagIds: string[] }) => Promise<void>;
   updateEvent: (event: Event) => Promise<void>;
+  updateEvents: (events: Event[]) => Promise<void>;
   deleteEvent: (id: string) => Promise<void>;
   setActiveView: (viewId: EventViewType) => void;
   setActiveFilters: (filters: Record<string, any>) => void;
@@ -416,11 +417,53 @@ export const EventProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       }).eq('id', updatedEvent.id);
       
       if (error) throw new Error(error.message);
-      
-      setEvents(events.map(e => e.id === updatedEvent.id ? updatedEvent : e));
+
+      setEvents(prev => prev.map(e => e.id === updatedEvent.id ? updatedEvent : e));
     } catch (err: any) {
       console.error('Error updating event:', err);
       throw err;
+    }
+  };
+
+  // Update several events at once (e.g. a drag-and-drop reorder that shifts
+  // status/position for multiple sibling cards). Writes are fired concurrently
+  // but applied to local state via a single functional update, so resolving
+  // writes can't race each other and clobber a sibling's already-applied change.
+  const updateEvents = async (updatedEvents: Event[]) => {
+    if (updatedEvents.length === 0) return;
+    const { supabase } = await import('@/lib/supabase');
+    const supabaseClient = supabase();
+    const now = new Date().toISOString();
+    const withTimestamp = updatedEvents.map(event => ({ ...event, updatedAt: now }));
+
+    const results = await Promise.all(
+      withTimestamp.map(async event => {
+        const { error } = await supabaseClient.from('events').update({
+          title: event.title,
+          description: event.description,
+          type: event.type,
+          status: event.status,
+          priority: event.priority,
+          position: event.position,
+          start_date: event.startDate,
+          end_date: event.endDate,
+          updated_at: event.updatedAt,
+        }).eq('id', event.id);
+        return { event, error };
+      })
+    );
+
+    const succeeded = results.filter(r => !r.error).map(r => r.event);
+    const failed = results.filter(r => r.error);
+
+    if (succeeded.length > 0) {
+      const updatedById = new Map(succeeded.map(e => [e.id, e]));
+      setEvents(prev => prev.map(e => updatedById.get(e.id) ?? e));
+    }
+
+    if (failed.length > 0) {
+      failed.forEach(f => console.error(`Error updating event ${f.event.id}:`, f.error?.message));
+      throw new Error(`Failed to update ${failed.length} event(s)`);
     }
   };
 
@@ -472,6 +515,7 @@ export const EventProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     error,
     addEvent,
     updateEvent,
+    updateEvents,
     deleteEvent,
     setActiveView,
     setActiveFilters,
