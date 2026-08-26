@@ -75,12 +75,7 @@ export default function StudentsPage() {
           }, {} as Record<string, Student>)
         ) as Student[];
         
-        if (uniqueStudents.length > 0) {
-          setStudents(uniqueStudents);
-        } else {
-          // Fallback to sample data if no real data is available
-          setStudents(createSampleStudents());
-        }
+        setStudents(uniqueStudents);
       } catch (error) {
         toast({
           title: 'Error fetching students',
@@ -88,9 +83,7 @@ export default function StudentsPage() {
           variant: 'destructive',
         });
         console.error('Error fetching students:', error);
-        
-        // Set sample data on error for demonstration purposes
-        setStudents(createSampleStudents());
+        setStudents([]);
       } finally {
         setIsLoading(false);
       }
@@ -98,25 +91,6 @@ export default function StudentsPage() {
 
     fetchStudents();
   }, [toast]);
-
-  // Create sample student data for demonstration
-  function createSampleStudents(): Student[] {
-    return Array.from({ length: 10 }, (_, i) => {
-      const progress = Math.floor(Math.random() * 100);
-      const totalLessons = 30;
-      const lessonsCompleted = Math.floor((progress / 100) * totalLessons);
-      
-      return {
-        id: `sample-${i + 1}`,
-        name: `Student ${i + 1}`,
-        email: `student${i + 1}@example.com`,
-        enrolled: new Date(Date.now() - Math.floor(Math.random() * 90) * 24 * 60 * 60 * 1000).toISOString(),
-        progress,
-        lessonsCompleted,
-        totalLessons,
-      };
-    });
-  }
 
   // Update the exportToExcel function to handle possibly undefined fields
   async function exportToExcel() {
