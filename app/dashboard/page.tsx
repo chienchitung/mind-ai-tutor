@@ -41,7 +41,7 @@ function DashboardContent() {
   const [stats, setStats] = useState<Stats>({
     activeStudents: 0,
     completedLessons: 0,
-    activeCourses: 2,
+    activeCourses: 0,
     completionRate: '0%',
   });
   const [recentActivities, setRecentActivities] = useState<Activity[]>([]);
@@ -69,19 +69,39 @@ function DashboardContent() {
   useEffect(() => {
     const fetchStats = async () => {
       try {
-        // In a real app, you would fetch this data from your database
-        // For now, we'll simulate a fetch with a timeout
-        setTimeout(() => {
-          setStats({
-            activeStudents: 0,
-            completedLessons: 0,
-            activeCourses: 2,
-            completionRate: '0%',
-          });
-          setLoading(false);
-        }, 1000);
+        const { supabase } = await import('../../lib/supabase');
+        const supabaseClient = supabase();
+
+        const [studentsResult, lessonsResult, assignmentsResult] = await Promise.all([
+          supabaseClient
+            .from('students')
+            .select('*', { count: 'exact', head: true })
+            .eq('status', 'active'),
+          supabaseClient
+            .from('lessons')
+            .select('*', { count: 'exact', head: true }),
+          supabaseClient
+            .from('assignments')
+            .select('status'),
+        ]);
+
+        const activeStudents = studentsResult.count ?? 0;
+        const activeCourses = lessonsResult.count ?? 0;
+        const assignments = assignmentsResult.data ?? [];
+        const completedLessons = assignments.filter((a: any) => a.status === 'completed').length;
+        const completionRate = assignments.length > 0
+          ? `${Math.round((completedLessons / assignments.length) * 100)}%`
+          : '0%';
+
+        setStats({
+          activeStudents,
+          completedLessons,
+          activeCourses,
+          completionRate,
+        });
       } catch (error) {
         console.error('Error fetching dashboard stats:', error);
+      } finally {
         setLoading(false);
       }
     };
@@ -172,71 +192,15 @@ function DashboardContent() {
           console.error('Error in feedback fetch:', err);
         }
         
-        if (allActivities.length === 0) {
-          // Fallback to hard-coded mock data if nothing was fetched
-          setRecentActivities([
-            {
-              id: 'mock-1',
-              title: 'John submitted Math Assignment',
-              timestamp: new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString(),
-              source: 'feedback'
-            },
-            {
-              id: 'mock-2',
-              title: 'Sarah completed Science Quiz',
-              timestamp: new Date(Date.now() - 4 * 60 * 60 * 1000).toISOString(),
-              source: 'lessons'
-            },
-            {
-              id: 'mock-3',
-              title: 'New event: Parent Conference',
-              timestamp: new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString(),
-              source: 'events'
-            },
-            {
-              id: 'mock-4',
-              title: 'Michael updated profile',
-              timestamp: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000).toISOString(),
-              source: 'feedback'
-            }
-          ]);
-        } else {
-          // Sort all activities by timestamp (newest first)
-          allActivities.sort((a, b) => 
-            new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()
-          );
-          // Take only the 4 most recent activities
-          setRecentActivities(allActivities.slice(0, 4));
-        }
+        // Sort all activities by timestamp (newest first)
+        allActivities.sort((a, b) =>
+          new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()
+        );
+        // Take only the 4 most recent activities
+        setRecentActivities(allActivities.slice(0, 4));
       } catch (error) {
         console.error('Error fetching recent activities:', error);
-        // Fallback to hard-coded data
-        setRecentActivities([
-          {
-            id: 'mock-1',
-            title: 'John submitted Math Assignment',
-            timestamp: new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString(),
-            source: 'feedback'
-          },
-          {
-            id: 'mock-2',
-            title: 'Sarah completed Science Quiz',
-            timestamp: new Date(Date.now() - 4 * 60 * 60 * 1000).toISOString(),
-            source: 'lessons'
-          },
-          {
-            id: 'mock-3',
-            title: 'New event: Parent Conference',
-            timestamp: new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString(),
-            source: 'events'
-          },
-          {
-            id: 'mock-4',
-            title: 'Michael updated profile',
-            timestamp: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000).toISOString(),
-            source: 'feedback'
-          }
-        ]);
+        setRecentActivities([]);
       } finally {
         setActivitiesLoading(false);
       }
@@ -293,9 +257,8 @@ function DashboardContent() {
         <Card className="bg-white border border-gray-200">
           <CardContent className="p-4 md:p-6">
             <p className="text-sm text-muted-foreground">{t('active_students')}</p>
-            <div className="flex items-baseline justify-between mt-1">
+            <div className="mt-1">
               <h3 className="text-2xl md:text-3xl font-bold">{stats.activeStudents}</h3>
-              <span className="text-green-500 text-xs md:text-sm">+12%</span>
             </div>
           </CardContent>
         </Card>
@@ -303,9 +266,8 @@ function DashboardContent() {
         <Card className="bg-white border border-gray-200">
           <CardContent className="p-4 md:p-6">
             <p className="text-sm text-muted-foreground">{t('completed_lessons')}</p>
-            <div className="flex items-baseline justify-between mt-1">
+            <div className="mt-1">
               <h3 className="text-2xl md:text-3xl font-bold">{stats.completedLessons}</h3>
-              <span className="text-green-500 text-xs md:text-sm">+8%</span>
             </div>
           </CardContent>
         </Card>
@@ -313,9 +275,8 @@ function DashboardContent() {
         <Card className="bg-white border border-gray-200">
           <CardContent className="p-4 md:p-6">
             <p className="text-sm text-muted-foreground">{t('active_courses')}</p>
-            <div className="flex items-baseline justify-between mt-1">
+            <div className="mt-1">
               <h3 className="text-2xl md:text-3xl font-bold">{stats.activeCourses}</h3>
-              <span className="text-green-500 text-xs md:text-sm">+4%</span>
             </div>
           </CardContent>
         </Card>
@@ -323,9 +284,8 @@ function DashboardContent() {
         <Card className="bg-white border border-gray-200">
           <CardContent className="p-4 md:p-6">
             <p className="text-sm text-muted-foreground">{t('avg_completion_rate')}</p>
-            <div className="flex items-baseline justify-between mt-1">
+            <div className="mt-1">
               <h3 className="text-2xl md:text-3xl font-bold">{stats.completionRate}</h3>
-              <span className="text-green-500 text-xs md:text-sm">+2%</span>
             </div>
           </CardContent>
         </Card>
