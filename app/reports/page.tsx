@@ -1,11 +1,12 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Loader2, Download, BarChart2, Clock, Calendar, Sparkles, MessageSquare } from 'lucide-react';
 import { StudentSelector } from './components/StudentSelector';
+import { GameSelector, ALL_GAMES, UNCLASSIFIED_GAME } from './components/GameSelector';
 import { TimeSpentChart } from './components/TimeSpentChart';
 import { CompletionRateChart } from './components/CompletionRateChart';
 import { LearningTimeline } from './components/LearningTimeline';
@@ -22,7 +23,7 @@ interface LearningRecord {
   student_id: string;
   student_name: string;
   lesson_id: number;
-  started_at?: string; 
+  started_at?: string;
   completed_at?: string | null;
   time_spent_seconds?: number;
   category?: string | null;
@@ -33,6 +34,9 @@ interface LearningRecord {
   start_time?: string;
   end_time?: string;
   duration?: number;
+  // Which digital game this record came from (resolved from lesson_id server-side); null
+  // means the lesson_id didn't match any known game.
+  game_id?: string | null;
 }
 
 // Define aggregated stats type
@@ -58,19 +62,48 @@ interface Lesson {
 interface QuestionCount {
   lesson_id: string;
   question_count: number;
+  game_id?: string | null;
 }
 
 export default function ReportsPage() {
   const [selectedStudent, setSelectedStudent] = useState<string | null>(null);
+  const [selectedGame, setSelectedGame] = useState<string>(ALL_GAMES);
   const [students, setStudents] = useState<{ id: string; name: string }[]>([]);
+  const [games, setGames] = useState<{ id: string; title: string }[]>([]);
   const [learningRecords, setLearningRecords] = useState<LearningRecord[]>([]);
-  const [learningStats, setLearningStats] = useState<LearningStats | null>(null);
   const [loading, setLoading] = useState(false);
   // Add state for lessons
   const [lessons, setLessons] = useState<Lesson[]>([]);
   const [questionCounts, setQuestionCounts] = useState<QuestionCount[]>([]);
   const { language } = useLanguage();
   const { t } = useTranslation(language);
+
+  // Fetch the current teacher's digital games, used to label/group records by
+  // which game they came from (learning_records.game_id is resolved server-side
+  // from lesson_id, see the game_id backfill migration).
+  useEffect(() => {
+    const fetchGames = async () => {
+      try {
+        const { supabase } = await import('../../lib/supabase');
+        const supabaseClient = supabase();
+
+        const { data, error } = await supabaseClient
+          .from('digital_games')
+          .select('id, title');
+
+        if (error) {
+          console.error('Error fetching digital games:', error);
+          return;
+        }
+
+        setGames(data || []);
+      } catch (error) {
+        console.error('Error in fetchGames:', error);
+      }
+    };
+
+    fetchGames();
+  }, []);
 
   // Fetch students list
   useEffect(() => {
@@ -185,7 +218,6 @@ export default function ReportsPage() {
 
         setLearningRecords(processedRecords);
         setQuestionCounts(questionData || []);
-        calculateStats(processedRecords, questionData || []);
       } catch (error) {
         console.error('Error in fetchLearningRecords:', error);
       } finally {
@@ -196,11 +228,32 @@ export default function ReportsPage() {
     fetchLearningRecords();
   }, [selectedStudent]);
 
+  // Which digital game a record's game_id resolves to, keyed by id.
+  const gameTitleById = useMemo(() => {
+    const map = new Map<string, string>();
+    games.forEach(game => map.set(game.id, game.title));
+    return map;
+  }, [games]);
+
+  // Records for the selected game filter. ALL_GAMES keeps everything,
+  // UNCLASSIFIED_GAME shows records whose lesson_id didn't resolve to any
+  // known game, otherwise show only that game's records.
+  const filteredRecords = useMemo(() => {
+    if (selectedGame === ALL_GAMES) return learningRecords;
+    if (selectedGame === UNCLASSIFIED_GAME) return learningRecords.filter(r => !r.game_id);
+    return learningRecords.filter(r => r.game_id === selectedGame);
+  }, [learningRecords, selectedGame]);
+
+  const filteredQuestionCounts = useMemo(() => {
+    if (selectedGame === ALL_GAMES) return questionCounts;
+    if (selectedGame === UNCLASSIFIED_GAME) return questionCounts.filter(q => !q.game_id);
+    return questionCounts.filter(q => q.game_id === selectedGame);
+  }, [questionCounts, selectedGame]);
+
   // Calculate statistics from learning records
-  const calculateStats = (records: LearningRecord[], questionData: QuestionCount[]) => {
+  const computeStats = (records: LearningRecord[], questionData: QuestionCount[]): LearningStats | null => {
     if (!records || records.length === 0) {
-      setLearningStats(null);
-      return;
+      return null;
     }
 
     // Helper functions for consistent field access
@@ -268,7 +321,7 @@ export default function ReportsPage() {
     const totalQuestionCount = questionData.reduce((sum, record) => sum + record.question_count, 0);
     const averageQuestionsPerLesson = totalQuestionCount / records.length;
 
-    setLearningStats({
+    return {
       totalRecords,
       totalTimeSpent,
       averageTimePerLesson: totalTimeSpent / totalRecords,
@@ -278,8 +331,44 @@ export default function ReportsPage() {
       lastActive,
       totalQuestionCount,
       averageQuestionsPerLesson
-    });
+    };
   };
+
+  const learningStats = useMemo(
+    () => computeStats(filteredRecords, filteredQuestionCounts),
+    [filteredRecords, filteredQuestionCounts]
+  );
+
+  // Per-game comparison for the selected student, independent of the game
+  // filter above - this is what answers "how does this student's behavior
+  // differ across the games they've played".
+  const gameBreakdown = useMemo(() => {
+    const getDuration = (record: LearningRecord) =>
+      record.time_spent_seconds || record.duration || 0;
+    const getCompletionField = (record: LearningRecord) =>
+      record.completed_at_taipei || record.completed_at || record.end_time;
+
+    const groups = new Map<string, { gameId: string | null; count: number; totalTime: number; completed: number }>();
+    learningRecords.forEach(record => {
+      const gameId = record.game_id ?? null;
+      const key = gameId ?? UNCLASSIFIED_GAME;
+      if (!groups.has(key)) {
+        groups.set(key, { gameId, count: 0, totalTime: 0, completed: 0 });
+      }
+      const group = groups.get(key)!;
+      group.count += 1;
+      group.totalTime += getDuration(record);
+      if (getCompletionField(record)) group.completed += 1;
+    });
+
+    return Array.from(groups.entries()).map(([key, group]) => ({
+      key,
+      title: group.gameId ? (gameTitleById.get(group.gameId) ?? t('unknown_game')) : t('unclassified_game'),
+      count: group.count,
+      totalTime: group.totalTime,
+      completionRate: group.count > 0 ? (group.completed / group.count) * 100 : 0,
+    })).sort((a, b) => b.count - a.count);
+  }, [learningRecords, gameTitleById, t]);
 
   // Format time (seconds) to human readable format
   const formatTime = (seconds: number) => {
@@ -332,8 +421,8 @@ export default function ReportsPage() {
 
   // Extract unique course titles in the order they appear in records
   const getOrderedCourseTitles = () => {
-    const uniqueLessonIds = learningRecords
-      .filter((record, index, self) => 
+    const uniqueLessonIds = filteredRecords
+      .filter((record, index, self) =>
         index === self.findIndex(r => r.lesson_id === record.lesson_id)
       )
       .map(record => record.lesson_id);
@@ -371,29 +460,71 @@ export default function ReportsPage() {
           <h1 className="text-2xl font-bold">{t('learning_reports')}</h1>
           <p className="text-muted-foreground">{t('analyze_learning_patterns')}</p>
         </div>
-        <div className="flex gap-2">
+        <div className="flex flex-wrap gap-2">
           <StudentSelector
             students={students}
             selectedStudent={selectedStudent}
             onSelectStudent={setSelectedStudent}
           />
-          <ExportButton 
-            records={learningRecords}
+          <GameSelector
+            games={games}
+            selectedGame={selectedGame}
+            onSelectGame={setSelectedGame}
+            allGamesLabel={t('all_games')}
+            unclassifiedLabel={t('unclassified_game')}
+          />
+          <ExportButton
+            records={filteredRecords}
             studentName={selectedStudentName}
             disabled={loading}
           />
         </div>
       </div>
 
-      {learningRecords.length === 0 ? (
+      {learningRecords.length > 0 && gameBreakdown.length > 1 && (
+        <Card>
+          <CardHeader>
+            <CardTitle>{t('games_comparison')}</CardTitle>
+            <CardDescription>{t('games_comparison_desc')}</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="overflow-x-auto">
+              <table className="w-full">
+                <thead>
+                  <tr className="text-left border-b">
+                    <th className="p-2 text-sm font-medium text-muted-foreground">{t('game')}</th>
+                    <th className="p-2 text-sm font-medium text-muted-foreground">{t('total_sessions')}</th>
+                    <th className="p-2 text-sm font-medium text-muted-foreground">{t('total_learning_time')}</th>
+                    <th className="p-2 text-sm font-medium text-muted-foreground">{t('completion_rate')}</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {gameBreakdown.map(row => (
+                    <tr key={row.key} className="border-b last:border-b-0">
+                      <td className="p-2 text-sm font-medium">{row.title}</td>
+                      <td className="p-2 text-sm">{row.count}</td>
+                      <td className="p-2 text-sm">{formatTime(row.totalTime)}</td>
+                      <td className="p-2 text-sm">{row.completionRate.toFixed(1)}%</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {filteredRecords.length === 0 ? (
         <Card>
           <CardContent className="flex flex-col items-center justify-center p-6 h-64">
             <BarChart2 className="h-12 w-12 text-muted-foreground mb-4 opacity-50" />
             <h3 className="text-xl font-medium mb-2">{t('no_learning_data')}</h3>
             <p className="text-muted-foreground text-center max-w-md mb-8">
-              {selectedStudent 
-                ? t('no_records_yet')
-                : t('select_student_prompt')}
+              {!selectedStudent
+                ? t('select_student_prompt')
+                : learningRecords.length > 0
+                  ? t('no_records_for_game')
+                  : t('no_records_yet')}
             </p>
           </CardContent>
         </Card>
@@ -444,7 +575,7 @@ export default function ReportsPage() {
                     {learningStats?.lastActive ? formatDate(learningStats.lastActive) : t('not_available')}
                   </h3>
                   <p className="text-xs text-muted-foreground mt-1">
-                    {learningRecords.length} {t('total_sessions')}
+                    {filteredRecords.length} {t('total_sessions')}
                   </p>
                 </div>
               </CardContent>
@@ -487,10 +618,10 @@ export default function ReportsPage() {
                   </CardDescription>
                 </CardHeader>
                 <CardContent className="h-96">
-                  <TimeSpentChart 
-                    records={learningRecords} 
-                    lessons={lessons} 
-                    courseOrder={orderedCourseTitles} 
+                  <TimeSpentChart
+                    records={filteredRecords}
+                    lessons={lessons}
+                    courseOrder={orderedCourseTitles}
                   />
                 </CardContent>
               </Card>
@@ -519,10 +650,10 @@ export default function ReportsPage() {
                   </CardDescription>
                 </CardHeader>
                 <CardContent className="h-96">
-                  <LearningTimeline 
-                    records={learningRecords} 
-                    lessons={lessons} 
-                    courseOrder={orderedCourseTitles} 
+                  <LearningTimeline
+                    records={filteredRecords}
+                    lessons={lessons}
+                    courseOrder={orderedCourseTitles}
                   />
                 </CardContent>
               </Card>
@@ -551,8 +682,8 @@ export default function ReportsPage() {
                   </CardDescription>
                 </CardHeader>
                 <CardContent className="h-96">
-                  <AIInteractionChart 
-                    records={questionCounts}
+                  <AIInteractionChart
+                    records={filteredQuestionCounts}
                     lessons={lessons}
                     courseOrder={orderedCourseTitles}
                   />
@@ -566,7 +697,7 @@ export default function ReportsPage() {
             <CardHeader>
               <CardTitle>{t('recent_learning')}</CardTitle>
               <CardDescription>
-                {t('latest_sessions', { count: Math.min(5, learningRecords.length) })}
+                {t('latest_sessions', { count: Math.min(5, filteredRecords.length) })}
               </CardDescription>
             </CardHeader>
             <CardContent>
@@ -575,6 +706,7 @@ export default function ReportsPage() {
                   <thead>
                     <tr className="text-left border-b">
                       <th className="p-2 text-sm font-medium text-muted-foreground">{t('lesson_title')}</th>
+                      <th className="p-2 text-sm font-medium text-muted-foreground">{t('game')}</th>
                       <th className="p-2 text-sm font-medium text-muted-foreground">{t('started')}</th>
                       <th className="p-2 text-sm font-medium text-muted-foreground">{t('completed')}</th>
                       <th className="p-2 text-sm font-medium text-muted-foreground">{t('time_spent')}</th>
@@ -583,9 +715,12 @@ export default function ReportsPage() {
                     </tr>
                   </thead>
                   <tbody>
-                    {learningRecords.slice(0, 5).map((record) => (
+                    {filteredRecords.slice(0, 5).map((record) => (
                       <tr key={record.id} className="border-b last:border-b-0">
                         <td className="p-2 text-sm">{getLessonTitle(record.lesson_id)}</td>
+                        <td className="p-2 text-sm">
+                          {record.game_id ? (gameTitleById.get(record.game_id) ?? t('unknown_game')) : t('unclassified_game')}
+                        </td>
                         <td className="p-2 text-sm">{formatDate(getStartTime(record))}</td>
                         <td className="p-2 text-sm">
                           {getEndTime(record) ? formatDate(getEndTime(record)) : '-'}
@@ -618,8 +753,8 @@ export default function ReportsPage() {
           </Card>
           
           {/* AI Analysis Report - Add this new section */}
-          <AIAnalysisReport 
-            learningRecords={learningRecords}
+          <AIAnalysisReport
+            learningRecords={filteredRecords}
             learningStats={learningStats}
             selectedStudentName={selectedStudentName}
           />
