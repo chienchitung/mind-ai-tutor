@@ -3,16 +3,21 @@
 import React, { useState, useEffect } from "react";
 import { useEvents, Event, EventType } from "@/contexts/EventContext";
 import { format } from "date-fns";
-import { CalendarIcon, X } from "lucide-react";
-import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetFooter, SheetTrigger, SheetClose } from "@/components/ui/sheet";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogFooter,
+  DialogTrigger,
+  DialogClose,
+} from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Button, buttonVariants } from "@/components/ui/button";
+import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectGroup, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Calendar } from "@/components/ui/calendar";
-import { cn } from "@/lib/utils";
-import { ScrollArea } from "@/components/ui/scroll-area";
 import { useLanguage } from "@/app/contexts/LanguageContext";
 import { useTranslation } from "@/utils/translations";
 
@@ -29,37 +34,15 @@ export function EventFormDialog({ open, onOpenChange, initialEvent, mode = 'crea
   const { language } = useLanguage();
   const { t } = useTranslation(language);
   const isEditing = mode === 'edit';
-  const [sheetOpen, setSheetOpen] = useState(open || false);
-  
-  // Use the controlled or uncontrolled state
+  const [dialogOpen, setDialogOpen] = useState(open || false);
+
+  // Use the controlled or uncontrolled state. Radix's Dialog already handles
+  // its own open/close animation timing internally - no manual delay needed.
   const handleOpenChange = (newOpen: boolean) => {
-    if (!newOpen) {
-      // 如果是關閉狀態，先添加動畫類
-      const sheetElement = document.querySelector('.right-side-sheet');
-      if (sheetElement) {
-        sheetElement.setAttribute('data-closing', 'true');
-        // 延遲關閉面板，等待動畫完成
-        setTimeout(() => {
-          if (onOpenChange) {
-            onOpenChange(false);
-          } else {
-            setSheetOpen(false);
-          }
-          sheetElement.removeAttribute('data-closing');
-        }, 300); // 300ms 動畫時間
-      } else {
-        if (onOpenChange) {
-          onOpenChange(false);
-        } else {
-          setSheetOpen(false);
-        }
-      }
+    if (onOpenChange) {
+      onOpenChange(newOpen);
     } else {
-      if (onOpenChange) {
-        onOpenChange(true);
-      } else {
-        setSheetOpen(true);
-      }
+      setDialogOpen(newOpen);
     }
   };
 
@@ -75,7 +58,7 @@ export function EventFormDialog({ open, onOpenChange, initialEvent, mode = 'crea
     endDate: new Date().toISOString(),
     tags: []
   });
-  
+
   // Update form state when editing an event
   useEffect(() => {
     if (initialEvent) {
@@ -119,7 +102,7 @@ export function EventFormDialog({ open, onOpenChange, initialEvent, mode = 'crea
           createdAt: new Date().toISOString(),
           updatedAt: new Date().toISOString()
         };
-        
+
         // Convert the Event object to the format expected by addEvent
         addEvent({
           title: newEvent.title,
@@ -138,169 +121,158 @@ export function EventFormDialog({ open, onOpenChange, initialEvent, mode = 'crea
       console.error("Error saving event:", error);
     }
   };
-  
-  const sheetContent = (
-    <SheetContent 
-      side="right" 
-      className="w-full sm:max-w-md overflow-y-auto right-side-sheet"
-    >
-      <SheetHeader>
-        <SheetTitle>{isEditing ? t('edit_event') : t('add_new_event')}</SheetTitle>
-      </SheetHeader>
-      
-      <ScrollArea className="h-[calc(100vh-8rem)] py-4">
-        <form onSubmit={handleSubmit} className="space-y-6 px-6">
-          <div className="space-y-4">
-            <div className="space-y-2">
-              <Label htmlFor="title">{t('title')}</Label>
-              <Input
-                id="title"
-                name="title"
-                value={formData.title}
-                onChange={handleInputChange}
-                placeholder={t('event_title')}
-                required
-                className="w-full border border-input rounded-md"
-              />
-            </div>
-            
-            <div className="space-y-2">
-              <Label htmlFor="description">{t('description')}</Label>
-              <Textarea 
-                id="description"
-                name="description"
-                value={formData.description}
-                onChange={handleInputChange}
-                placeholder={t('event_description')} 
-                rows={3}
-                className="w-full border border-input rounded-md"
-              />
-            </div>
-            
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label htmlFor="type">{t('type')}</Label>
-                <Select
-                  value={formData.type}
-                  onValueChange={handleSelectChange("type")}
-                >
-                  <SelectTrigger className="w-full border border-input rounded-md">
-                    <SelectValue placeholder={t('select_type')} />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectGroup>
-                      <SelectItem value="course">{t('course')}</SelectItem>
-                      <SelectItem value="workshop">{t('workshop')}</SelectItem>
-                      <SelectItem value="training">{t('training')}</SelectItem>
-                      <SelectItem value="planning">{t('planning')}</SelectItem>
-                      <SelectItem value="meeting">{t('meeting')}</SelectItem>
-                      <SelectItem value="other">{t('other')}</SelectItem>
-                    </SelectGroup>
-                  </SelectContent>
-                </Select>
-              </div>
-              
-              <div className="space-y-2">
-                <Label htmlFor="status">{t('status')}</Label>
-                <Select
-                  value={formData.status}
-                  onValueChange={handleSelectChange("status")}
-                >
-                  <SelectTrigger className="w-full border border-input rounded-md">
-                    <SelectValue placeholder={t('select_status')} />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectGroup>
-                      <SelectItem value="to_do">{t('to_do')}</SelectItem>
-                      <SelectItem value="in_progress">{t('in_progress')}</SelectItem>
-                      <SelectItem value="done">{t('done')}</SelectItem>
-                    </SelectGroup>
-                  </SelectContent>
-                </Select>
-              </div>
-            </div>
 
-            <div className="space-y-2">
-              <Label htmlFor="priority">{t('priority')}</Label>
-              <Select
-                value={formData.priority}
-                onValueChange={handleSelectChange("priority")}
-              >
-                <SelectTrigger className="w-full border border-input rounded-md">
-                  <SelectValue placeholder={t('select_priority')} />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectGroup>
-                    <SelectItem value="low">{t('low')}</SelectItem>
-                    <SelectItem value="medium">{t('medium')}</SelectItem>
-                    <SelectItem value="high">{t('high')}</SelectItem>
-                  </SelectGroup>
-                </SelectContent>
-              </Select>
-            </div>
-            
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label htmlFor="startDate">{t('start_date')}</Label>
-                <div className="relative">
-                  <Input
-                    id="startDate"
-                    name="startDate"
-                    type="date"
-                    value={formData.startDate ? format(new Date(formData.startDate), "yyyy-MM-dd") : ""}
-                    onChange={handleInputChange}
-                    className="w-full border border-input rounded-md"
-                  />
-                </div>
-              </div>
-              
-              <div className="space-y-2">
-                <Label htmlFor="endDate">{t('end_date')}</Label>
-                <div className="relative">
-                  <Input
-                    id="endDate"
-                    name="endDate"
-                    type="date"
-                    value={formData.endDate ? format(new Date(formData.endDate), "yyyy-MM-dd") : ""}
-                    onChange={handleInputChange}
-                    className="w-full border border-input rounded-md"
-                  />
-                </div>
-              </div>
-            </div>
+  const dialogContent = (
+    <DialogContent className="sm:max-w-xl max-h-[90vh] overflow-y-auto">
+      <DialogHeader>
+        <DialogTitle>{isEditing ? t('edit_event') : t('add_new_event')}</DialogTitle>
+        <DialogDescription>
+          {isEditing ? t('edit_event_description') : t('add_event_description')}
+        </DialogDescription>
+      </DialogHeader>
+
+      <form onSubmit={handleSubmit} className="space-y-5">
+        <div className="space-y-2">
+          <Label htmlFor="title">{t('title')}</Label>
+          <Input
+            id="title"
+            name="title"
+            value={formData.title}
+            onChange={handleInputChange}
+            placeholder={t('event_title')}
+            required
+            autoFocus
+          />
+        </div>
+
+        <div className="space-y-2">
+          <Label htmlFor="description">{t('description')}</Label>
+          <Textarea
+            id="description"
+            name="description"
+            value={formData.description}
+            onChange={handleInputChange}
+            placeholder={t('event_description')}
+            rows={3}
+          />
+        </div>
+
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+          <div className="space-y-2">
+            <Label htmlFor="type">{t('type')}</Label>
+            <Select
+              value={formData.type}
+              onValueChange={handleSelectChange("type")}
+            >
+              <SelectTrigger className="w-full">
+                <SelectValue placeholder={t('select_type')} />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectGroup>
+                  <SelectItem value="course">{t('course')}</SelectItem>
+                  <SelectItem value="workshop">{t('workshop')}</SelectItem>
+                  <SelectItem value="training">{t('training')}</SelectItem>
+                  <SelectItem value="planning">{t('planning')}</SelectItem>
+                  <SelectItem value="meeting">{t('meeting')}</SelectItem>
+                  <SelectItem value="other">{t('other')}</SelectItem>
+                </SelectGroup>
+              </SelectContent>
+            </Select>
           </div>
-          
-          <SheetFooter className="flex flex-col-reverse sm:flex-row sm:justify-end sm:space-x-2 px-0">
-            <SheetClose asChild>
-              <Button type="button" variant="outline">
-                {t('cancel')}
-              </Button>
-            </SheetClose>
-            <Button type="submit" variant="default">
-              {isEditing ? t('save_changes') : t('add_event')}
+
+          <div className="space-y-2">
+            <Label htmlFor="status">{t('status')}</Label>
+            <Select
+              value={formData.status}
+              onValueChange={handleSelectChange("status")}
+            >
+              <SelectTrigger className="w-full">
+                <SelectValue placeholder={t('select_status')} />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectGroup>
+                  <SelectItem value="to_do">{t('to_do')}</SelectItem>
+                  <SelectItem value="in_progress">{t('in_progress')}</SelectItem>
+                  <SelectItem value="done">{t('done')}</SelectItem>
+                </SelectGroup>
+              </SelectContent>
+            </Select>
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="priority">{t('priority')}</Label>
+            <Select
+              value={formData.priority}
+              onValueChange={handleSelectChange("priority")}
+            >
+              <SelectTrigger className="w-full">
+                <SelectValue placeholder={t('select_priority')} />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectGroup>
+                  <SelectItem value="low">{t('low')}</SelectItem>
+                  <SelectItem value="medium">{t('medium')}</SelectItem>
+                  <SelectItem value="high">{t('high')}</SelectItem>
+                </SelectGroup>
+              </SelectContent>
+            </Select>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div className="space-y-2">
+            <Label htmlFor="startDate">{t('start_date')}</Label>
+            <Input
+              id="startDate"
+              name="startDate"
+              type="date"
+              value={formData.startDate ? format(new Date(formData.startDate), "yyyy-MM-dd") : ""}
+              onChange={handleInputChange}
+            />
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="endDate">{t('end_date')}</Label>
+            <Input
+              id="endDate"
+              name="endDate"
+              type="date"
+              value={formData.endDate ? format(new Date(formData.endDate), "yyyy-MM-dd") : ""}
+              onChange={handleInputChange}
+            />
+          </div>
+        </div>
+
+        <DialogFooter>
+          <DialogClose asChild>
+            <Button type="button" variant="outline">
+              {t('cancel')}
             </Button>
-          </SheetFooter>
-        </form>
-      </ScrollArea>
-    </SheetContent>
+          </DialogClose>
+          <Button type="submit" variant="default">
+            {isEditing ? t('save_changes') : t('add_event')}
+          </Button>
+        </DialogFooter>
+      </form>
+    </DialogContent>
   );
-  
-  // If a trigger is provided, use it with SheetTrigger
+
+  // If a trigger is provided, use it with DialogTrigger
   if (trigger) {
     return (
-      <Sheet open={open !== undefined ? open : sheetOpen} onOpenChange={handleOpenChange}>
-        <SheetTrigger asChild>
+      <Dialog open={open !== undefined ? open : dialogOpen} onOpenChange={handleOpenChange}>
+        <DialogTrigger asChild>
           {trigger}
-        </SheetTrigger>
-        {sheetContent}
-      </Sheet>
+        </DialogTrigger>
+        {dialogContent}
+      </Dialog>
     );
   }
-  
-  // Otherwise, just return the sheet with controlled/uncontrolled state
+
+  // Otherwise, just return the dialog with controlled/uncontrolled state
   return (
-    <Sheet open={open !== undefined ? open : sheetOpen} onOpenChange={handleOpenChange}>
-      {sheetContent}
-    </Sheet>
+    <Dialog open={open !== undefined ? open : dialogOpen} onOpenChange={handleOpenChange}>
+      {dialogContent}
+    </Dialog>
   );
-} 
+}
