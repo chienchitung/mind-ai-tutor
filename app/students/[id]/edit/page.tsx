@@ -203,7 +203,7 @@ export default function EditStudentPage({ params: paramsPromise }: { params: Pro
             type="number"
             min="1"
             max="12"
-            value={student.grade}
+            value={student.grade ?? ''}
             onChange={(e) =>
               setStudent((prev) =>
                 prev ? { ...prev, grade: parseInt(e.target.value) } : null

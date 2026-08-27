@@ -133,7 +133,7 @@ export default function ProfilePage() {
             <Label htmlFor="full_name">Full Name</Label>
             <Input
               id="full_name"
-              value={profile.full_name}
+              value={profile.full_name ?? ''}
               onChange={(e) =>
                 setProfile({ ...profile, full_name: e.target.value })
               }

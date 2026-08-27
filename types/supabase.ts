@@ -1,3 +1,9 @@
+// Hand-reconstructed from a live `information_schema.columns` introspection
+// of the production Supabase project (public schema), since this project has
+// no local Supabase CLI/DB access to run `supabase gen types` directly.
+// If you regenerate this file with the CLI, prefer the CLI's output over
+// this file, but double check it still matches what the app actually reads.
+
 export type Json =
   | string
   | number
@@ -9,36 +15,363 @@ export type Json =
 export interface Database {
   public: {
     Tables: {
-      students: {
+      assignments: {
         Row: {
           id: string;
           created_at: string;
-          name: string;
-          email: string;
-          grade: number;
-          subjects: string[];
-          status: "active" | "inactive";
-          last_login: string | null;
+          user_id: string;
+          student_id: string;
+          subject: string;
+          title: string;
+          description: string | null;
+          due_date: string;
+          status: string;
+          score: number | null;
+          feedback: string | null;
         };
         Insert: {
           id?: string;
           created_at?: string;
-          name: string;
-          email: string;
-          grade: number;
-          subjects?: string[];
-          status?: "active" | "inactive";
-          last_login?: string | null;
+          user_id?: string;
+          student_id: string;
+          subject: string;
+          title: string;
+          description?: string | null;
+          due_date: string;
+          status?: string;
+          score?: number | null;
+          feedback?: string | null;
         };
         Update: {
           id?: string;
           created_at?: string;
-          name?: string;
-          email?: string;
-          grade?: number;
-          subjects?: string[];
-          status?: "active" | "inactive";
-          last_login?: string | null;
+          user_id?: string;
+          student_id?: string;
+          subject?: string;
+          title?: string;
+          description?: string | null;
+          due_date?: string;
+          status?: string;
+          score?: number | null;
+          feedback?: string | null;
+        };
+      };
+      attendance: {
+        Row: {
+          id: string;
+          created_at: string;
+          user_id: string;
+          student_id: string;
+          date: string;
+          status: string;
+          notes: string | null;
+        };
+        Insert: {
+          id?: string;
+          created_at?: string;
+          user_id?: string;
+          student_id: string;
+          date: string;
+          status: string;
+          notes?: string | null;
+        };
+        Update: {
+          id?: string;
+          created_at?: string;
+          user_id?: string;
+          student_id?: string;
+          date?: string;
+          status?: string;
+          notes?: string | null;
+        };
+      };
+      chat_messages: {
+        Row: {
+          id: string;
+          learning_record_id: string;
+          student_id: string;
+          lesson_id: string;
+          message_content: string;
+          is_user: boolean;
+          timestamp: string;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          learning_record_id: string;
+          student_id: string;
+          lesson_id: string;
+          message_content: string;
+          is_user: boolean;
+          timestamp?: string;
+          created_at?: string;
+        };
+        Update: {
+          id?: string;
+          learning_record_id?: string;
+          student_id?: string;
+          lesson_id?: string;
+          message_content?: string;
+          is_user?: boolean;
+          timestamp?: string;
+          created_at?: string;
+        };
+      };
+      digital_games: {
+        Row: {
+          id: string;
+          user_id: string;
+          title: string;
+          description: string | null;
+          url: string | null;
+          thumbnail_url: string | null;
+          created_at: string | null;
+          updated_at: string | null;
+          is_active: boolean | null;
+          lesson_ids: string[] | null;
+        };
+        Insert: {
+          id?: string;
+          user_id?: string;
+          title: string;
+          description?: string | null;
+          url?: string | null;
+          thumbnail_url?: string | null;
+          created_at?: string | null;
+          updated_at?: string | null;
+          is_active?: boolean | null;
+          lesson_ids?: string[] | null;
+        };
+        Update: {
+          id?: string;
+          user_id?: string;
+          title?: string;
+          description?: string | null;
+          url?: string | null;
+          thumbnail_url?: string | null;
+          created_at?: string | null;
+          updated_at?: string | null;
+          is_active?: boolean | null;
+          lesson_ids?: string[] | null;
+        };
+      };
+      events: {
+        Row: {
+          id: string;
+          title: string;
+          description: string | null;
+          type: string;
+          status: string;
+          priority: string;
+          position: number;
+          start_date: string;
+          end_date: string;
+          tags: Json | null;
+          created_at: string | null;
+          updated_at: string | null;
+          user_id: string;
+        };
+        Insert: {
+          id?: string;
+          title: string;
+          description?: string | null;
+          type: string;
+          status: string;
+          priority: string;
+          position?: number;
+          start_date: string;
+          end_date: string;
+          tags?: Json | null;
+          created_at?: string | null;
+          updated_at?: string | null;
+          user_id?: string;
+        };
+        Update: {
+          id?: string;
+          title?: string;
+          description?: string | null;
+          type?: string;
+          status?: string;
+          priority?: string;
+          position?: number;
+          start_date?: string;
+          end_date?: string;
+          tags?: Json | null;
+          created_at?: string | null;
+          updated_at?: string | null;
+          user_id?: string;
+        };
+      };
+      feedback: {
+        Row: {
+          id: string;
+          student_name: string;
+          student_initials: string;
+          course: string;
+          content: string;
+          created_at: string;
+          status: string;
+          rating: number;
+          user_id: string;
+        };
+        Insert: {
+          id?: string;
+          student_name: string;
+          student_initials: string;
+          course: string;
+          content: string;
+          created_at?: string;
+          status: string;
+          rating: number;
+          user_id?: string;
+        };
+        Update: {
+          id?: string;
+          student_name?: string;
+          student_initials?: string;
+          course?: string;
+          content?: string;
+          created_at?: string;
+          status?: string;
+          rating?: number;
+          user_id?: string;
+        };
+      };
+      leaderboard: {
+        Row: {
+          id: string;
+          student_id: string;
+          student_name: string;
+          completion_time_seconds: number;
+          completion_time_string: string;
+          started_at: string;
+          completed_at: string;
+          stars_earned: number;
+        };
+        Insert: {
+          id?: string;
+          student_id: string;
+          student_name: string;
+          completion_time_seconds: number;
+          completion_time_string: string;
+          started_at?: string;
+          completed_at?: string;
+          stars_earned?: number;
+        };
+        Update: {
+          id?: string;
+          student_id?: string;
+          student_name?: string;
+          completion_time_seconds?: number;
+          completion_time_string?: string;
+          started_at?: string;
+          completed_at?: string;
+          stars_earned?: number;
+        };
+      };
+      learning_records: {
+        Row: {
+          id: string;
+          student_id: string;
+          student_name: string;
+          lesson_id: string;
+          started_at: string;
+          completed_at: string;
+          time_spent_seconds: number;
+          answer_attempts: number;
+        };
+        Insert: {
+          id?: string;
+          student_id: string;
+          student_name: string;
+          lesson_id: string;
+          started_at: string;
+          completed_at: string;
+          time_spent_seconds: number;
+          answer_attempts?: number;
+        };
+        Update: {
+          id?: string;
+          student_id?: string;
+          student_name?: string;
+          lesson_id?: string;
+          started_at?: string;
+          completed_at?: string;
+          time_spent_seconds?: number;
+          answer_attempts?: number;
+        };
+      };
+      lesson_order_mappings: {
+        Row: {
+          id: string;
+          created_at: string | null;
+          user_id: string;
+          game_id: string;
+          mapping: Json;
+        };
+        Insert: {
+          id?: string;
+          created_at?: string | null;
+          user_id: string;
+          game_id: string;
+          mapping?: Json;
+        };
+        Update: {
+          id?: string;
+          created_at?: string | null;
+          user_id?: string;
+          game_id?: string;
+          mapping?: Json;
+        };
+      };
+      lessons: {
+        Row: {
+          id: string;
+          title: string;
+          description: string;
+          duration: number;
+          level: string;
+          topics: Json;
+          genially_link: string | null;
+          teaching_content: string | null;
+          practice_exercises: Json | null;
+          metadata: Json | null;
+          created_at: string | null;
+          updated_at: string | null;
+          markdown_content: string | null;
+          user_id: string;
+        };
+        Insert: {
+          id?: string;
+          title: string;
+          description: string;
+          duration?: number;
+          level?: string;
+          topics?: Json;
+          genially_link?: string | null;
+          teaching_content?: string | null;
+          practice_exercises?: Json | null;
+          metadata?: Json | null;
+          created_at?: string | null;
+          updated_at?: string | null;
+          markdown_content?: string | null;
+          user_id?: string;
+        };
+        Update: {
+          id?: string;
+          title?: string;
+          description?: string;
+          duration?: number;
+          level?: string;
+          topics?: Json;
+          genially_link?: string | null;
+          teaching_content?: string | null;
+          practice_exercises?: Json | null;
+          metadata?: Json | null;
+          created_at?: string | null;
+          updated_at?: string | null;
+          markdown_content?: string | null;
+          user_id?: string;
         };
       };
       profiles: {
@@ -46,120 +379,159 @@ export interface Database {
           id: string;
           created_at: string;
           user_id: string;
-          full_name: string;
+          full_name: string | null;
           avatar_url: string | null;
-          role: "admin" | "teacher" | "student";
+          role: string;
         };
         Insert: {
           id?: string;
           created_at?: string;
           user_id: string;
-          full_name: string;
+          full_name?: string | null;
           avatar_url?: string | null;
-          role?: "admin" | "teacher" | "student";
+          role?: string;
         };
         Update: {
           id?: string;
           created_at?: string;
           user_id?: string;
-          full_name?: string;
+          full_name?: string | null;
           avatar_url?: string | null;
-          role?: "admin" | "teacher" | "student";
+          role?: string;
         };
       };
-      events: {
+      progress: {
         Row: {
           id: string;
           created_at: string;
-          title: string;
-          description: string;
-          start_date: string;
-          end_date: string;
-          type: "class" | "meeting" | "other";
-          user_id: string | null;
+          user_id: string;
+          student_id: string;
+          subject: string;
+          score: number;
+          notes: string | null;
         };
         Insert: {
           id?: string;
           created_at?: string;
-          title: string;
-          description?: string;
-          start_date: string;
-          end_date: string;
-          type?: "class" | "meeting" | "other";
-          user_id?: string | null;
+          user_id?: string;
+          student_id: string;
+          subject: string;
+          score: number;
+          notes?: string | null;
         };
         Update: {
           id?: string;
           created_at?: string;
-          title?: string;
-          description?: string;
-          start_date?: string;
-          end_date?: string;
-          type?: "class" | "meeting" | "other";
-          user_id?: string | null;
-        };
-      };
-      assignments: {
-        Row: {
-          id: string;
-          created_at: string;
-          title: string;
-          description: string | null;
-          due_date: string;
-          status: "pending" | "completed" | "late";
-          student_id: string;
-          subject: string;
-          grade: number | null;
-        };
-        Insert: {
-          id?: string;
-          created_at?: string;
-          title: string;
-          description?: string | null;
-          due_date: string;
-          status?: "pending" | "completed" | "late";
-          student_id: string;
-          subject: string;
-          grade?: number | null;
-        };
-        Update: {
-          id?: string;
-          created_at?: string;
-          title?: string;
-          description?: string | null;
-          due_date?: string;
-          status?: "pending" | "completed" | "late";
+          user_id?: string;
           student_id?: string;
           subject?: string;
-          grade?: number | null;
+          score?: number;
+          notes?: string | null;
         };
       };
-      lesson_order_mappings: {
+      question_counts: {
+        Row: {
+          id: string;
+          learning_record_id: string;
+          student_id: string;
+          lesson_id: string;
+          question_count: number;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          learning_record_id: string;
+          student_id: string;
+          lesson_id: string;
+          question_count?: number;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          id?: string;
+          learning_record_id?: string;
+          student_id?: string;
+          lesson_id?: string;
+          question_count?: number;
+          created_at?: string;
+          updated_at?: string;
+        };
+      };
+      students: {
         Row: {
           id: string;
           created_at: string;
           user_id: string;
-          game_id: string;
-          mapping: Record<string, number>;
+          name: string;
+          email: string;
+          grade: number | null;
+          subjects: string[];
+          status: string;
+          last_login: string | null;
         };
         Insert: {
           id?: string;
           created_at?: string;
-          user_id: string;
-          game_id: string;
-          mapping: Record<string, number>;
+          user_id?: string;
+          name: string;
+          email: string;
+          grade?: number | null;
+          subjects?: string[];
+          status?: string;
+          last_login?: string | null;
         };
         Update: {
           id?: string;
           created_at?: string;
           user_id?: string;
-          game_id?: string;
-          mapping?: Record<string, number>;
+          name?: string;
+          email?: string;
+          grade?: number | null;
+          subjects?: string[];
+          status?: string;
+          last_login?: string | null;
         };
       };
     };
     Views: {
-      [_ in never]: never;
+      leaderboard_best_scores: {
+        Row: {
+          student_id: string | null;
+          student_name: string | null;
+          completion_time_seconds: number | null;
+          completion_time_string: string | null;
+          started_at: string | null;
+          completed_at: string | null;
+          stars_earned: number | null;
+          rank: number | null;
+        };
+      };
+      leaderboard_view: {
+        Row: {
+          id: string | null;
+          student_id: string | null;
+          student_name: string | null;
+          completion_time_seconds: number | null;
+          completion_time_string: string | null;
+          started_at: string | null;
+          completed_at: string | null;
+          stars_earned: number | null;
+          rank: number | null;
+        };
+      };
+      learning_records_view: {
+        Row: {
+          id: string | null;
+          student_id: string | null;
+          student_name: string | null;
+          lesson_id: string | null;
+          started_at_taipei: string | null;
+          completed_at_taipei: string | null;
+          time_spent_seconds: number | null;
+          answer_attempts: number | null;
+        };
+      };
     };
     Functions: {
       [_ in never]: never;
