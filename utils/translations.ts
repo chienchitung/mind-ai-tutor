@@ -3,7 +3,7 @@ type Language = 'en' | 'zh-TW';
 // 添加一個包含所有翻譯鍵的類型
 type TranslationKey = keyof typeof translations['en'];
 
-const translations = {
+export const translations = {
   en: {
     // Command menu translations
     search: "Search",

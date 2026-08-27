@@ -1,9 +1,8 @@
 'use client';
 
-import React, { createContext, useContext, useState, useEffect } from 'react';
+import React, { createContext, useContext, useState } from 'react';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { v4 as uuidv4 } from 'uuid';
-// 移除直接導入
-// import { supabase } from '@/lib/supabase';
 
 // Types
 export type EventPriority = 'low' | 'medium' | 'high';
@@ -56,10 +55,9 @@ export interface EventView {
   sort?: { field: string; direction: 'asc' | 'desc' };
 }
 
-// Mock data
-const SAMPLE_TAGS: EventTag[] = [];
-
-const SAMPLE_EVENTS: Event[] = [];
+// The app currently uses a simplified data model with no separate tags table,
+// so tags is always empty and views are a fixed, non-persisted default set.
+const NO_TAGS: EventTag[] = [];
 
 const DEFAULT_VIEWS: EventView[] = [
   {
@@ -115,31 +113,31 @@ export function groupEventsByStatus(events: Event[]): EventColumn[] {
 export function filterEvents(events: Event[], filters: Record<string, any>): Event[] {
   return events.filter(event => {
     let matches = true;
-    
+
     if (filters.status && filters.status !== 'all') {
       matches = matches && event.status === filters.status;
     }
-    
+
     if (filters.priority && filters.priority !== 'all') {
       matches = matches && event.priority === filters.priority;
     }
-    
+
     if (filters.type && filters.type !== 'all') {
       matches = matches && event.type === filters.type;
     }
-    
+
     if (filters.tags && filters.tags.length > 0) {
       matches = matches && event.tags.some(tag => filters.tags.includes(tag.id));
     }
-    
+
     if (filters.search && filters.search.trim() !== '') {
       const search = filters.search.toLowerCase().trim();
       matches = matches && (
-        event.title.toLowerCase().includes(search) || 
+        event.title.toLowerCase().includes(search) ||
         event.description.toLowerCase().includes(search)
       );
     }
-    
+
     return matches;
   });
 }
@@ -147,7 +145,7 @@ export function filterEvents(events: Event[], filters: Record<string, any>): Eve
 export function sortEvents(events: Event[], sort: { field: string; direction: 'asc' | 'desc' }): Event[] {
   return [...events].sort((a, b) => {
     let comparison = 0;
-    
+
     switch (sort.field) {
       case 'title':
         comparison = a.title.localeCompare(b.title);
@@ -171,7 +169,7 @@ export function sortEvents(events: Event[], sort: { field: string; direction: 'a
       default:
         comparison = 0;
     }
-    
+
     return sort.direction === 'asc' ? comparison : -comparison;
   });
 }
@@ -221,14 +219,14 @@ const mapSupabaseEventToEvent = (event: any): Event => {
     id: event.id,
     title: event.title,
     description: event.description || '',
-    type: ['course', 'workshop', 'training', 'planning', 'meeting', 'other'].includes(event.type) 
-      ? event.type as EventType 
+    type: ['course', 'workshop', 'training', 'planning', 'meeting', 'other'].includes(event.type)
+      ? event.type as EventType
       : 'other' as EventType,
-    status: ['to_do', 'in_progress', 'done'].includes(event.status) 
-      ? event.status as EventStatus 
+    status: ['to_do', 'in_progress', 'done'].includes(event.status)
+      ? event.status as EventStatus
       : 'to_do' as EventStatus,
-    priority: ['low', 'medium', 'high'].includes(event.priority) 
-      ? event.priority as EventPriority 
+    priority: ['low', 'medium', 'high'].includes(event.priority)
+      ? event.priority as EventPriority
       : 'medium' as EventPriority,
     position: typeof event.position === 'number' ? event.position : 0,
     startDate: event.start_date || new Date().toISOString(),
@@ -240,19 +238,40 @@ const mapSupabaseEventToEvent = (event: any): Event => {
   };
 };
 
+const EVENTS_QUERY_KEY = ['events'] as const;
+
+async function fetchEvents(): Promise<Event[]> {
+  const { supabase } = await import('@/lib/supabase');
+  const supabaseClient = supabase();
+
+  const { data, error } = await supabaseClient
+    .from('events')
+    .select('*')
+    .order('created_at', { ascending: false });
+
+  if (error) throw new Error(error.message);
+
+  return (data ?? []).map(mapSupabaseEventToEvent);
+}
+
 export const EventProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const [events, setEvents] = useState<Event[]>([]);
-  const [tags, setTags] = useState<EventTag[]>([]);
-  const [views, setViews] = useState<EventView[]>(DEFAULT_VIEWS);
+  const queryClient = useQueryClient();
+  const {
+    data: events = [],
+    isLoading,
+    error: queryError,
+  } = useQuery({
+    queryKey: EVENTS_QUERY_KEY,
+    queryFn: fetchEvents,
+  });
+
   const [activeView, setActiveView] = useState<EventViewType>('list');
   const [activeFilters, setActiveFilters] = useState<Record<string, any>>({});
-  const [activeSort, setActiveSort] = useState<{ field: string; direction: 'asc' | 'desc' }>({ 
-    field: 'startDate', 
-    direction: 'asc' 
+  const [activeSort, setActiveSort] = useState<{ field: string; direction: 'asc' | 'desc' }>({
+    field: 'startDate',
+    direction: 'asc'
   });
-  const [isLoading, setIsLoading] = useState<boolean>(true);
-  const [error, setError] = useState<string | null>(null);
-  
+
   // 添加過濾功能的狀態
   const [filterText, setFilterText] = useState('');
   const [selectedTags, setSelectedTags] = useState<string[]>([]);
@@ -260,80 +279,18 @@ export const EventProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   const [filterStatus, setFilterStatus] = useState('');
   const [filterType, setFilterType] = useState('');
 
-  // Load initial data from Supabase
-  useEffect(() => {
-    const loadData = async () => {
-      setIsLoading(true);
-      try {
-        // 動態導入 supabase 函數以避免服務器端渲染問題
-        const { supabase } = await import('@/lib/supabase');
-        const supabaseClient = supabase();
-        
-        console.log('開始從 Supabase 加載事件數據...');
-        
-        // Fetch events
-        const { data: eventsData, error: eventsError } = await supabaseClient
-          .from('events')
-          .select('*')
-          .order('created_at', { ascending: false });
-        
-        if (eventsError) {
-          console.error('從 Supabase 加載事件失敗:', eventsError.message);
-          setError(eventsError.message);
-          setIsLoading(false);
-          return;
-        }
-        
-        console.log(`從 Supabase 加載了 ${eventsData?.length || 0} 個事件`);
-        
-        // 現在我們使用簡化的數據模型，不需要標籤表
-        // 我們可以設置一個空的標籤數組
-        setTags([]);
-        
-        // 檢查事件數據並轉換
-        if (eventsData && eventsData.length > 0) {
-          // 確保每個事件都有所有必要的字段
-          const supabaseEvents = eventsData.map(event => {
-            // 打印每個事件的關鍵字段以進行調試
-            console.log(`事件 ID: ${event.id}, 標題: ${event.title}, 狀態: ${event.status || '未設置'}`);
-            return mapSupabaseEventToEvent(event);
-          });
-          
-          // 設置事件
-          setEvents(supabaseEvents);
-        } else {
-          console.log('沒有找到事件，設置空數組');
-          setEvents([]);
-        }
-        
-        // 初始化默認視圖
-        setViews(DEFAULT_VIEWS);
-        
-      } catch (err: any) {
-        console.error('加載數據時出錯:', err);
-        setError(err.message || '無法加載事件');
-      } finally {
-        setIsLoading(false);
-      }
-    };
-
-    loadData();
-  }, []);
-
   // Add a new event
-  const addEvent = async (eventData: Omit<Event, 'id' | 'createdAt' | 'updatedAt' | 'tags' | 'attachments'> & { tagIds: string[] }) => {
-    try {
-      // 動態導入 supabase 函數以避免服務器端渲染問題
+  const addMutation = useMutation({
+    mutationFn: async (eventData: Omit<Event, 'id' | 'createdAt' | 'updatedAt' | 'tags' | 'attachments'> & { tagIds: string[] }) => {
       const { supabase } = await import('@/lib/supabase');
       const supabaseClient = supabase();
-      
+
       const now = new Date().toISOString();
       const eventId = uuidv4();
       const selectedTags = eventData.tagIds
-        ? tags.filter(tag => eventData.tagIds.includes(tag.id))
+        ? NO_TAGS.filter(tag => eventData.tagIds.includes(tag.id))
         : [];
-        
-      // 創建新事件對象，確保所有必要字段都有值
+
       const newEvent: Event = {
         id: eventId,
         title: eventData.title,
@@ -355,9 +312,8 @@ export const EventProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         createdAt: now,
         updatedAt: now,
       };
-      
-      // 保存到 Supabase，確保使用正確的欄位名稱
-      const { data, error } = await supabaseClient.from('events').insert({
+
+      const { error } = await supabaseClient.from('events').insert({
         id: eventId,
         title: newEvent.title,
         description: newEvent.description,
@@ -369,41 +325,25 @@ export const EventProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         end_date: newEvent.endDate,
         created_at: newEvent.createdAt,
         updated_at: newEvent.updatedAt,
-      }).select();
-      
-      if (error) {
-        console.error('Error adding event to Supabase:', error.message);
-        throw new Error(error.message);
-      }
-      
-      // 先更新本地狀態以立即顯示新事件
-      setEvents(prev => [...prev, newEvent]);
-      
-      console.log('Event added successfully:', data);
-      
-      // 如果您需要標籤關聯，可以在這裡處理
-      // 現在我們暫時不處理標籤關聯，簡化資料庫結構
-      
-      return data;
-    } catch (err: any) {
-      console.error('Error adding event:', err);
-      throw err;
-    }
-  };
+      });
 
-  // Update an existing event
-  const updateEvent = async (event: Event) => {
-    try {
-      // 動態導入 supabase 函數以避免服務器端渲染問題
+      if (error) throw new Error(error.message);
+
+      return newEvent;
+    },
+    onSuccess: (newEvent) => {
+      queryClient.setQueryData<Event[]>(EVENTS_QUERY_KEY, (prev = []) => [...prev, newEvent]);
+    },
+  });
+
+  // Update a single event
+  const updateMutation = useMutation({
+    mutationFn: async (event: Event) => {
       const { supabase } = await import('@/lib/supabase');
       const supabaseClient = supabase();
-      
-      const updatedEvent = {
-        ...event,
-        updatedAt: new Date().toISOString(),
-      };
-      
-      // Save to Supabase
+
+      const updatedEvent = { ...event, updatedAt: new Date().toISOString() };
+
       const { error } = await supabaseClient.from('events').update({
         title: updatedEvent.title,
         description: updatedEvent.description,
@@ -415,104 +355,126 @@ export const EventProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         end_date: updatedEvent.endDate,
         updated_at: updatedEvent.updatedAt,
       }).eq('id', updatedEvent.id);
-      
+
       if (error) throw new Error(error.message);
 
-      setEvents(prev => prev.map(e => e.id === updatedEvent.id ? updatedEvent : e));
-    } catch (err: any) {
-      console.error('Error updating event:', err);
-      throw err;
-    }
-  };
+      return updatedEvent;
+    },
+    onSuccess: (updatedEvent) => {
+      queryClient.setQueryData<Event[]>(EVENTS_QUERY_KEY, (prev = []) =>
+        prev.map(e => e.id === updatedEvent.id ? updatedEvent : e)
+      );
+    },
+  });
 
   // Update several events at once (e.g. a drag-and-drop reorder that shifts
-  // status/position for multiple sibling cards). Writes are fired concurrently
-  // but applied to local state via a single functional update, so resolving
-  // writes can't race each other and clobber a sibling's already-applied change.
-  const updateEvents = async (updatedEvents: Event[]) => {
-    if (updatedEvents.length === 0) return;
-    const { supabase } = await import('@/lib/supabase');
-    const supabaseClient = supabase();
-    const now = new Date().toISOString();
-    const withTimestamp = updatedEvents.map(event => ({ ...event, updatedAt: now }));
-
-    const results = await Promise.all(
-      withTimestamp.map(async event => {
-        const { error } = await supabaseClient.from('events').update({
-          title: event.title,
-          description: event.description,
-          type: event.type,
-          status: event.status,
-          priority: event.priority,
-          position: event.position,
-          start_date: event.startDate,
-          end_date: event.endDate,
-          updated_at: event.updatedAt,
-        }).eq('id', event.id);
-        return { event, error };
-      })
-    );
-
-    const succeeded = results.filter(r => !r.error).map(r => r.event);
-    const failed = results.filter(r => r.error);
-
-    if (succeeded.length > 0) {
-      const updatedById = new Map(succeeded.map(e => [e.id, e]));
-      setEvents(prev => prev.map(e => updatedById.get(e.id) ?? e));
-    }
-
-    if (failed.length > 0) {
-      failed.forEach(f => console.error(`Error updating event ${f.event.id}:`, f.error?.message));
-      throw new Error(`Failed to update ${failed.length} event(s)`);
-    }
-  };
-
-  // Delete an event
-  const deleteEvent = async (id: string) => {
-    try {
-      // First update the UI
-      setEvents(events.filter(e => e.id !== id));
-      
-      // 動態導入 supabase 函數以避免服務器端渲染問題
+  // status/position for multiple sibling cards). Writes are fired concurrently;
+  // the cache is updated once via a single functional setQueryData call, so
+  // resolving writes can't race each other and clobber a sibling's change.
+  const updateManyMutation = useMutation({
+    mutationFn: async (updatedEvents: Event[]) => {
+      if (updatedEvents.length === 0) return [];
       const { supabase } = await import('@/lib/supabase');
       const supabaseClient = supabase();
-      
+      const now = new Date().toISOString();
+      const withTimestamp = updatedEvents.map(event => ({ ...event, updatedAt: now }));
+
+      const results = await Promise.all(
+        withTimestamp.map(async event => {
+          const { error } = await supabaseClient.from('events').update({
+            title: event.title,
+            description: event.description,
+            type: event.type,
+            status: event.status,
+            priority: event.priority,
+            position: event.position,
+            start_date: event.startDate,
+            end_date: event.endDate,
+            updated_at: event.updatedAt,
+          }).eq('id', event.id);
+          return { event, error };
+        })
+      );
+
+      const succeeded = results.filter(r => !r.error).map(r => r.event);
+      const failed = results.filter(r => r.error);
+
+      if (succeeded.length > 0) {
+        queryClient.setQueryData<Event[]>(EVENTS_QUERY_KEY, (prev = []) => {
+          const updatedById = new Map(succeeded.map(e => [e.id, e]));
+          return prev.map(e => updatedById.get(e.id) ?? e);
+        });
+      }
+
+      if (failed.length > 0) {
+        failed.forEach(f => console.error(`Error updating event ${f.event.id}:`, f.error?.message));
+        throw new Error(`Failed to update ${failed.length} event(s)`);
+      }
+
+      return succeeded;
+    },
+  });
+
+  // Delete an event
+  const deleteMutation = useMutation({
+    mutationFn: async (id: string) => {
+      const { supabase } = await import('@/lib/supabase');
+      const supabaseClient = supabase();
+
       // Validate if the ID exists in the database before trying to delete
       const { data: checkEvent } = await supabaseClient
         .from('events')
         .select('id')
         .eq('id', id)
         .single();
-        
-      // Only attempt deletion if the event exists in the database
+
       if (checkEvent) {
-        // Delete from Supabase
         const { error } = await supabaseClient.from('events').delete().eq('id', id);
-        
-        if (error) {
-          console.error('Error deleting from database:', error.message);
-          // If deletion from database fails, restore the event in the UI
-          const eventToRestore = events.find(e => e.id === id);
-          if (eventToRestore) {
-            setEvents(prev => [...prev, eventToRestore]);
-          }
-        }
+        if (error) throw new Error(error.message);
       }
-    } catch (err: any) {
+    },
+    onMutate: async (id: string) => {
+      // Optimistically remove from the UI immediately.
+      const previous = queryClient.getQueryData<Event[]>(EVENTS_QUERY_KEY);
+      queryClient.setQueryData<Event[]>(EVENTS_QUERY_KEY, (prev = []) => prev.filter(e => e.id !== id));
+      return { previous };
+    },
+    onError: (err, id, context) => {
       console.error('Error deleting event:', err);
-      // Don't rethrow the error since we've already updated the UI
-    }
+      // Restore the event if deletion failed.
+      if (context?.previous) {
+        queryClient.setQueryData<Event[]>(EVENTS_QUERY_KEY, context.previous);
+      }
+    },
+  });
+
+  const addEvent = async (eventData: Omit<Event, 'id' | 'createdAt' | 'updatedAt' | 'tags' | 'attachments'> & { tagIds: string[] }) => {
+    await addMutation.mutateAsync(eventData);
   };
 
-  const value = {
+  const updateEvent = async (event: Event) => {
+    await updateMutation.mutateAsync(event);
+  };
+
+  const updateEvents = async (updatedEvents: Event[]) => {
+    await updateManyMutation.mutateAsync(updatedEvents);
+  };
+
+  const deleteEvent = async (id: string) => {
+    // Matches prior behavior: the UI has already been updated optimistically,
+    // so deletion failures are logged (and rolled back) rather than rethrown.
+    await deleteMutation.mutateAsync(id).catch(() => {});
+  };
+
+  const value: EventContextType = {
     events,
-    tags,
-    views,
+    tags: NO_TAGS,
+    views: DEFAULT_VIEWS,
     activeView,
     activeFilters,
     activeSort,
     isLoading,
-    error,
+    error: queryError ? (queryError as Error).message : null,
     addEvent,
     updateEvent,
     updateEvents,
@@ -538,17 +500,3 @@ export const EventProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     </EventContext.Provider>
   );
 };
-
-// 定義 Supabase 客戶端類型
-interface SupabaseClientWithAuth {
-  auth: {
-    getUser: () => Promise<{data: {user: any}}>;
-  };
-  from: (table: string) => {
-    select: (columns?: string) => any;
-    insert: (data: any) => any;
-    update: (data: any) => any;
-    delete: () => any;
-    eq: (column: string, value: any) => any;
-  };
-} 

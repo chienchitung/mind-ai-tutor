@@ -60,9 +60,9 @@ export default function StudentsPage() {
           name: record.student_name || 'Unknown Student',
           email: record.student_email || `student@example.com`,
           enrolled: record.enrolled_date || new Date().toISOString(),
-          progress: record.progress_percentage || Math.floor(Math.random() * 100),
+          progress: record.progress_percentage ?? 0,
           lessonsCompleted: record.completed_lessons || 0,
-          totalLessons: record.total_lessons || 30,
+          totalLessons: record.total_lessons ?? 0,
         })) || [];
 
         // Group by student id to avoid duplicates

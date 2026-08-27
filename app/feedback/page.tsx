@@ -74,7 +74,6 @@ const FeedbackPage = () => {
           throw error;
         }
 
-        // Process the data - either from Supabase or use mock data as fallback
         let dataToProcess = supabaseData;
         
         if (!supabaseData || supabaseData.length === 0) {
