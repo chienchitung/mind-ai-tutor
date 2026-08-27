@@ -1,14 +1,12 @@
 'use client';
 
 import React, { useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { buttonVariants } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { MessageSquare, Star, Download, Calendar, Loader2 } from "lucide-react";
+import { Star, Download, Calendar, Loader2 } from "lucide-react";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import ExcelJS from 'exceljs';
 import { useToast } from '@/hooks/use-toast';
@@ -35,7 +33,6 @@ interface FeedbackItem {
 }
 
 const FeedbackPage = () => {
-  const router = useRouter();
   const [excelJS, setExcelJS] = useState<typeof ExcelJS | null>(null);
   const [feedbackData, setFeedbackData] = useState<FeedbackItem[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -222,15 +219,6 @@ const FeedbackPage = () => {
     );
   };
 
-  // Handle respond to feedback
-  const handleRespondToFeedback = async (feedbackId: string) => {
-    try {
-      router.push(`/feedback/${feedbackId}`);
-    } catch (error) {
-      console.error('Error navigating to feedback response:', error);
-    }
-  };
-  
   // Render loading state
   if (isLoading) {
     return (
@@ -318,17 +306,6 @@ const FeedbackPage = () => {
                     </div>
                   </div>
                   
-                  <div className="flex justify-end mt-4">
-                    <Button 
-                      variant={feedback.rawStatus === 'not_responded' ? "default" : "outline"}
-                      size="sm"
-                      onClick={() => handleRespondToFeedback(feedback.id)}
-                      className="flex items-center gap-2 px-4 py-2"
-                    >
-                      <MessageSquare className="h-4 w-4" />
-                      <span className="whitespace-nowrap">{feedback.rawStatus === 'not_responded' ? t('respond') : t('view_conversation')}</span>
-                    </Button>
-                  </div>
                 </CardContent>
               </Card>
             ))
@@ -381,17 +358,6 @@ const FeedbackPage = () => {
                     </div>
                   </div>
                   
-                  <div className="flex justify-end mt-4">
-                    <Button 
-                      variant="default"
-                      size="sm"
-                      onClick={() => handleRespondToFeedback(feedback.id)}
-                      className="flex items-center gap-2 px-4 py-2"
-                    >
-                      <MessageSquare className="h-4 w-4" />
-                      <span className="whitespace-nowrap">{t('respond')}</span>
-                    </Button>
-                  </div>
                 </CardContent>
               </Card>
             ))
@@ -444,17 +410,6 @@ const FeedbackPage = () => {
                     </div>
                   </div>
                   
-                  <div className="flex justify-end mt-4">
-                    <Button 
-                      variant="outline"
-                      size="sm"
-                      onClick={() => handleRespondToFeedback(feedback.id)}
-                      className="flex items-center gap-2 px-4 py-2"
-                    >
-                      <MessageSquare className="h-4 w-4" />
-                      <span className="whitespace-nowrap">{t('view_conversation')}</span>
-                    </Button>
-                  </div>
                 </CardContent>
               </Card>
             ))
