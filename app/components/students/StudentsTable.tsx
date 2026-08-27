@@ -1,13 +1,15 @@
 'use client';
 
+import Link from 'next/link';
 import { ColumnDef } from "@tanstack/react-table";
 import { DataTable } from "@/components/ui/data-table";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
-import { Progress } from "@/components/ui/progress";
 import { StudentStatusBadge } from "./StudentStatusBadge";
-import { Student } from "@/types/student";
 import { useLanguage } from "@/app/contexts/LanguageContext";
 import { useTranslation } from "@/utils/translations";
+import type { Database } from "@/types/supabase";
+
+type Student = Database['public']['Tables']['students']['Row'];
 
 interface StudentsTableProps {
   students: Student[];
@@ -17,21 +19,17 @@ interface StudentsTableProps {
 export function StudentsTable({ students, selectedTab }: StudentsTableProps) {
   const { language } = useLanguage();
   const { t } = useTranslation(language);
-  
+
   const columns: ColumnDef<Student>[] = [
     {
       accessorKey: "name",
       header: t('name'),
       cell: ({ row }) => {
         const student = row.original;
-        if (!student) return <div>N/A</div>;
-        
-        const name = student.name || "Unknown Student";
-        const email = student.email || `student.${student.id || 'unknown'}@example.com`;
-        
-        // Safe rendering with fallbacks for all properties
+        const name = student.name || t('unknown_student');
+
         return (
-          <div className="flex items-center gap-3">
+          <Link href={`/students/${student.id}`} className="flex items-center gap-3 hover:underline">
             <Avatar className="h-9 w-9">
               <AvatarFallback className="bg-primary/10 text-primary">
                 {name.split(" ").map(n => n[0] || '').join("").substring(0, 2) || 'ST'}
@@ -39,76 +37,57 @@ export function StudentsTable({ students, selectedTab }: StudentsTableProps) {
             </Avatar>
             <div>
               <div className="font-medium">{name}</div>
-              <div className="text-xs text-muted-foreground">{email}</div>
+              <div className="text-xs text-muted-foreground">{student.email}</div>
             </div>
-          </div>
+          </Link>
         );
       },
     },
     {
-      accessorKey: "enrolled",
+      accessorKey: "grade",
+      header: t('grade'),
+      cell: ({ row }) => row.original.grade ?? t('not_available'),
+    },
+    {
+      accessorKey: "subjects",
+      header: t('topics'),
+      cell: ({ row }) => {
+        const subjects = row.original.subjects;
+        return subjects && subjects.length > 0 ? subjects.join(', ') : t('not_available');
+      },
+    },
+    {
+      accessorKey: "created_at",
       header: t('enrolled'),
       cell: ({ row }) => {
-        const enrolledValue = row.getValue("enrolled");
-        if (!enrolledValue) return <div>N/A</div>;
-        
+        const value = row.getValue("created_at");
+        if (!value) return <div>{t('not_available')}</div>;
+
         try {
-          const date = new Date(enrolledValue as string);
+          const date = new Date(value as string);
           return (
             <div className="text-sm">
               {date.toLocaleDateString(language === 'zh-TW' ? 'zh-TW' : 'en-US')}
             </div>
           );
         } catch (e) {
-          return <div>Invalid Date</div>;
+          return <div>{t('not_available')}</div>;
         }
-      },
-    },
-    {
-      accessorKey: "progress",
-      header: t('progress'),
-      cell: ({ row }) => {
-        const progress = row.getValue("progress") as number || 0;
-        const student = row.original;
-        if (!student) return <div>N/A</div>;
-        
-        const lessonsCompleted = student.lessonsCompleted || 0;
-        const totalLessons = student.totalLessons || 0;
-        
-        return (
-          <div className="w-40">
-            <div className="flex justify-between mb-1">
-              <span className="text-xs font-medium">{progress}%</span>
-              <span className="text-xs text-muted-foreground">
-                {lessonsCompleted} / {totalLessons}
-              </span>
-            </div>
-            <Progress value={progress} className="h-2" />
-          </div>
-        );
       },
     },
     {
       accessorKey: "status",
       header: t('status'),
-      cell: ({ row }) => {
-        const progress = row.original?.progress ?? 0;
-        return <StudentStatusBadge progress={progress} />;
-      },
+      cell: ({ row }) => <StudentStatusBadge status={row.original.status} />,
     },
   ];
-  
-  // Ensure we have a valid students array to work with
+
   const safeStudents = Array.isArray(students) ? students : [];
-  
-  const filteredStudents = selectedTab === "all" 
-    ? safeStudents 
-    : safeStudents.filter(student => {
-        if (!student) return false;
-        const progress = student?.progress ?? 0;
-        return progress > 0 && progress < 100;
-      });
-  
+
+  const filteredStudents = selectedTab === "all"
+    ? safeStudents
+    : safeStudents.filter(student => student.status === 'active');
+
   return (
     <DataTable
       columns={columns}
@@ -117,4 +96,4 @@ export function StudentsTable({ students, selectedTab }: StudentsTableProps) {
       searchPlaceholder={t('search_by_name')}
     />
   );
-} 
+}
