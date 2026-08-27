@@ -107,7 +107,9 @@ export const translations = {
     // Students page
     manage_students: "Manage your students and track their progress.",
     export_to_excel: "Export to Excel",
+    add_student: "Add Student",
     total_students: "Total Students",
+    inactive_students: "Inactive Students",
     completed: "Completed",
     all_students: "All Students",
     active_students_tab: "Active Students",
@@ -115,10 +117,14 @@ export const translations = {
     name: "Name",
     email: "Email",
     enrolled: "Enrolled",
+    grade: "Grade",
     progress: "Progress",
     status: "Status",
+    active: "Active",
+    inactive: "Inactive",
     in_progress: "In Progress",
     not_started: "Not Started",
+    unknown_student: "Unknown Student",
     search_by_name: "Search by name...",
     
     // Activities page
@@ -651,7 +657,9 @@ export const translations = {
     // Students page
     manage_students: "管理您的學生並追蹤他們的進度。",
     export_to_excel: "匯出至 Excel",
+    add_student: "新增學生",
     total_students: "學生總數",
+    inactive_students: "非活躍學生",
     completed: "已完成",
     all_students: "所有學生",
     active_students_tab: "活躍學生",
@@ -659,10 +667,14 @@ export const translations = {
     name: "姓名",
     email: "電子郵件",
     enrolled: "註冊日期",
+    grade: "年級",
     progress: "進度",
     status: "狀態",
+    active: "活躍",
+    inactive: "非活躍",
     in_progress: "進行中",
     not_started: "未開始",
+    unknown_student: "未知學生",
     search_by_name: "按姓名搜尋...",
     
     // Activities page

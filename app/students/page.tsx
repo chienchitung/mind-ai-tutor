@@ -1,33 +1,21 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { createClient } from '@supabase/supabase-js';
+import Link from 'next/link';
 import { PageHeader } from '@/components/layout/PageHeader';
 import { StudentStats } from '@/components/students/StudentStats';
 import { StudentFilters } from '@/components/students/StudentFilters';
 import { StudentsTable } from '@/components/students/StudentsTable';
-import { Button } from '@/components/ui/button';
-import { Download } from 'lucide-react';
+import { Button, buttonVariants } from '@/components/ui/button';
+import { Download, Plus } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import ExcelJS from 'exceljs';
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
-import { Badge } from '@/components/ui/badge';
-import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-import Link from 'next/link';
-import type { Student } from '../types/student';
-import { buttonVariants } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 import { useLanguage } from '@/app/contexts/LanguageContext';
 import { useTranslation } from '@/utils/translations';
+import type { Database } from '@/types/supabase';
 
-// Helper function to get initials from name
-function getInitials(name: string): string {
-  return name
-    .split(' ')
-    .map(part => part[0])
-    .join('')
-    .toUpperCase();
-}
+type Student = Database['public']['Tables']['students']['Row'];
 
 export default function StudentsPage() {
   const [students, setStudents] = useState<Student[]>([]);
@@ -41,41 +29,19 @@ export default function StudentsPage() {
     const fetchStudents = async () => {
       setIsLoading(true);
       try {
-        console.log("Fetching students from learning_records_view");
-        
         const { supabase } = await import('@/lib/supabase');
         const supabaseClient = supabase();
-        
+
         const { data, error } = await supabaseClient
-          .from('learning_records_view')
-          .select('*');
-          
+          .from('students')
+          .select('*')
+          .order('name');
+
         if (error) {
           throw error;
         }
-        
-        // Map the learning records to student data
-        const mappedData = data?.map((record) => ({
-          id: record.student_id || `unknown-${Math.random()}`,
-          name: record.student_name || 'Unknown Student',
-          email: record.student_email || `student@example.com`,
-          enrolled: record.enrolled_date || new Date().toISOString(),
-          progress: record.progress_percentage ?? 0,
-          lessonsCompleted: record.completed_lessons || 0,
-          totalLessons: record.total_lessons ?? 0,
-        })) || [];
 
-        // Group by student id to avoid duplicates
-        const uniqueStudents = Object.values(
-          mappedData.reduce((acc, student) => {
-            if (!acc[student.id]) {
-              acc[student.id] = student;
-            }
-            return acc;
-          }, {} as Record<string, Student>)
-        ) as Student[];
-        
-        setStudents(uniqueStudents);
+        setStudents(data || []);
       } catch (error) {
         toast({
           title: 'Error fetching students',
@@ -92,27 +58,23 @@ export default function StudentsPage() {
     fetchStudents();
   }, [toast]);
 
-  // Update the exportToExcel function to handle possibly undefined fields
   async function exportToExcel() {
     try {
       const workbook = new ExcelJS.Workbook();
       const worksheet = workbook.addWorksheet(t('students'));
 
-      // Add headers
-      worksheet.addRow([t('name'), t('email'), t('status'), t('enrolled'), t('progress')]);
+      worksheet.addRow([t('name'), t('email'), t('status'), t('enrolled'), t('grade')]);
 
-      // Add data
-      students.forEach((student: Student) => {
+      students.forEach((student) => {
         worksheet.addRow([
           student.name,
           student.email,
-          student.status || t('active_students'),
-          student.enrolled ? new Date(student.enrolled).toLocaleDateString() : 'N/A',
-          `${student.progress || 0}%`
+          student.status,
+          student.created_at ? new Date(student.created_at).toLocaleDateString() : 'N/A',
+          student.grade ?? 'N/A',
         ]);
       });
 
-      // Style the header row
       const headerRow = worksheet.getRow(1);
       headerRow.font = { bold: true };
       headerRow.fill = {
@@ -121,17 +83,14 @@ export default function StudentsPage() {
         fgColor: { argb: 'FFE0E0E0' }
       };
 
-      // Auto-fit columns
       worksheet.columns.forEach((column) => {
         if (column) {
           column.width = 15;
         }
       });
 
-      // Generate buffer
       const buffer = await workbook.xlsx.writeBuffer();
 
-      // Create blob and download
       const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
       const url = window.URL.createObjectURL(blob);
       const a = document.createElement('a');
@@ -160,20 +119,22 @@ export default function StudentsPage() {
         heading={t('students')}
         text={t('manage_students')}
         actions={
-          <Button 
-            onClick={exportToExcel}
-            className={cn(
-              buttonVariants({ 
-                variant: "default"
-              })
-            )}
-          >
-            <Download className="mr-2 h-4 w-4" />
-            {t('export_to_excel')}
-          </Button>
+          <div className="flex gap-2">
+            <Button
+              onClick={exportToExcel}
+              className={cn(buttonVariants({ variant: "outline" }))}
+            >
+              <Download className="mr-2 h-4 w-4" />
+              {t('export_to_excel')}
+            </Button>
+            <Link href="/students/new" className={cn(buttonVariants({ variant: "default" }))}>
+              <Plus className="mr-2 h-4 w-4" />
+              {t('add_student')}
+            </Link>
+          </div>
         }
       />
-      
+
       {isLoading ? (
         <div className="flex justify-center py-8">
           <p>{t('loading_student_data')}</p>
@@ -187,4 +148,4 @@ export default function StudentsPage() {
       )}
     </div>
   );
-} 
+}
