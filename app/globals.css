@@ -76,33 +76,6 @@
   }
 }
 
-/* 強制右側抽屜的動畫行為 */
-@keyframes slideOutToRight {
-  from {
-    transform: translateX(0);
-  }
-  to {
-    transform: translateX(100%);
-  }
-}
-
-@keyframes slideInFromRight {
-  from {
-    transform: translateX(100%);
-  }
-  to {
-    transform: translateX(0);
-  }
-}
-
-[data-state="closed"].right-side-sheet {
-  animation: slideOutToRight 0.3s ease-out !important;
-}
-
-[data-state="open"].right-side-sheet {
-  animation: slideInFromRight 0.3s ease-in !important;
-}
-
 /* 日期範圍選擇器自定義樣式 */
 .rdp-custom .rdp-day_range_middle {
   background-color: #e0f2fe !important;
