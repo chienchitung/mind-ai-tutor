@@ -31,35 +31,15 @@ export function EventFormDialog({ open, onOpenChange, initialEvent, mode = 'crea
   const isEditing = mode === 'edit';
   const [sheetOpen, setSheetOpen] = useState(open || false);
   
-  // Use the controlled or uncontrolled state
+  // Use the controlled or uncontrolled state. Radix's own Presence mechanism
+  // already waits for the close animation (driven by data-state="closed") to
+  // finish before unmounting, so no manual delay is needed here - adding one
+  // just makes the panel play the slide-out animation twice.
   const handleOpenChange = (newOpen: boolean) => {
-    if (!newOpen) {
-      // 如果是關閉狀態，先添加動畫類
-      const sheetElement = document.querySelector('.right-side-sheet');
-      if (sheetElement) {
-        sheetElement.setAttribute('data-closing', 'true');
-        // 延遲關閉面板，等待動畫完成
-        setTimeout(() => {
-          if (onOpenChange) {
-            onOpenChange(false);
-          } else {
-            setSheetOpen(false);
-          }
-          sheetElement.removeAttribute('data-closing');
-        }, 300); // 300ms 動畫時間
-      } else {
-        if (onOpenChange) {
-          onOpenChange(false);
-        } else {
-          setSheetOpen(false);
-        }
-      }
+    if (onOpenChange) {
+      onOpenChange(newOpen);
     } else {
-      if (onOpenChange) {
-        onOpenChange(true);
-      } else {
-        setSheetOpen(true);
-      }
+      setSheetOpen(newOpen);
     }
   };
 

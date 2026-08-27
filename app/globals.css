@@ -103,12 +103,6 @@
   animation: slideInFromRight 0.3s ease-in !important;
 }
 
-/* 強制使用右側關閉動畫 */
-[data-closing="true"].right-side-sheet {
-  animation: slideOutToRight 0.3s ease-out forwards !important;
-  pointer-events: none;
-}
-
 /* 日期範圍選擇器自定義樣式 */
 .rdp-custom .rdp-day_range_middle {
   background-color: #e0f2fe !important;
