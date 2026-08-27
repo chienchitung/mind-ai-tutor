@@ -1,24 +1,21 @@
 import 'server-only';
-import { GoogleGenerativeAI } from '@google/generative-ai';
+import { GoogleGenAI } from '@google/genai';
 
 // Server-only: this module must never be imported from a 'use client' component,
 // since GEMINI_API_KEY would otherwise be bundled into the browser JS.
 const apiKey = process.env.GEMINI_API_KEY;
-// Use Gemini 2.5 Flash preview version
 const model = process.env.GEMINI_MODEL || 'gemini-3.7-flash';
 
 if (!apiKey) {
   console.error('Missing Gemini API key. Please check your .env.local file.');
 }
 
-const genAI = new GoogleGenerativeAI(apiKey as string);
+const genAI = new GoogleGenAI({ apiKey: apiKey as string });
 
 export async function generatePracticeExercise(teachingContent: string, level: string = 'Beginner') {
   try {
-    const generativeModel = genAI.getGenerativeModel({ model });
-    
     // Detect if the content is Chinese
-    const isChineseContent = /[\u4e00-\u9fff]/.test(teachingContent);
+    const isChineseContent = /[一-鿿]/.test(teachingContent);
 
     const prompt = `
       Based on the following teaching content, generate a practice exercise with a question, its answer, and a detailed explanation.
@@ -29,8 +26,8 @@ export async function generatePracticeExercise(teachingContent: string, level: s
       ${teachingContent}
 
       Difficulty Level: ${level}
-      ${level === 'Beginner' ? '(Focus on basic concepts and straightforward applications)' : 
-        level === 'Intermediate' ? '(Include more complex scenarios and multiple steps)' : 
+      ${level === 'Beginner' ? '(Focus on basic concepts and straightforward applications)' :
+        level === 'Intermediate' ? '(Include more complex scenarios and multiple steps)' :
         '(Create challenging problems requiring deep understanding and analysis)'}
 
       Please format your response as a JSON object with three fields:
@@ -48,10 +45,9 @@ export async function generatePracticeExercise(teachingContent: string, level: s
       5. Ensure the question difficulty matches the specified level: ${level}
     `;
 
-    const result = await generativeModel.generateContent(prompt);
-    const response = await result.response;
-    const text = response.text();
-    
+    const result = await genAI.models.generateContent({ model, contents: prompt });
+    const text = result.text ?? '';
+
     try {
       // Try to find JSON-like content in the response
       const jsonMatch = text.match(/\{[\s\S]*\}/);
@@ -63,16 +59,16 @@ export async function generatePracticeExercise(teachingContent: string, level: s
           explanation: parsedJson.explanation || ''
         };
       }
-      
+
       // If no JSON found, try to split by markers
       const lines = text.split('\n');
-      const questionIndex = lines.findIndex(line => 
+      const questionIndex = lines.findIndex(line =>
         line.toLowerCase().includes('question:') || line.toLowerCase().includes('"question"')
       );
-      const answerIndex = lines.findIndex(line => 
+      const answerIndex = lines.findIndex(line =>
         line.toLowerCase().includes('answer:') || line.toLowerCase().includes('"answer"')
       );
-      const explanationIndex = lines.findIndex(line => 
+      const explanationIndex = lines.findIndex(line =>
         line.toLowerCase().includes('explanation:') || line.toLowerCase().includes('"explanation"')
       );
 
@@ -82,7 +78,7 @@ export async function generatePracticeExercise(teachingContent: string, level: s
           question: lines.slice(questionIndex + 1, answerIndex).join('\n').trim().replace(/^["']|["']$/g, ''),
           answer: lines.slice(answerIndex + 1, explanationIndex !== -1 ? explanationIndex : undefined)
             .join('\n').trim().replace(/^["']|["']$/g, ''),
-          explanation: explanationIndex !== -1 
+          explanation: explanationIndex !== -1
             ? lines.slice(explanationIndex + 1).join('\n').trim().replace(/^["']|["']$/g, '')
             : ''
         };
@@ -106,8 +102,6 @@ export async function generatePracticeExercise(teachingContent: string, level: s
 
 export async function generateLearningAnalysis(studentData: any) {
   try {
-    const generativeModel = genAI.getGenerativeModel({ model });
-
     const prompt = `
       I'm a teacher looking to understand my student's learning patterns and performance.
       Below is the learning record data for this student:
@@ -123,9 +117,8 @@ export async function generateLearningAnalysis(studentData: any) {
       Please limit your response to 5-7 sentences total and focus on actionable insights.
     `;
 
-    const result = await generativeModel.generateContent(prompt);
-    const response = await result.response;
-    return response.text();
+    const result = await genAI.models.generateContent({ model, contents: prompt });
+    return result.text ?? '';
   } catch (error) {
     console.error('Error generating learning analysis:', error);
     throw error;
@@ -134,17 +127,6 @@ export async function generateLearningAnalysis(studentData: any) {
 
 export async function generateDetailedLearningAnalysis(studentData: any) {
   try {
-    const generativeModel = genAI.getGenerativeModel({ 
-      model,
-      // Add configuration options specific to Gemini 2.5
-      generationConfig: {
-        temperature: 0.7,
-        topK: 40,
-        topP: 0.95,
-        maxOutputTokens: 8192,
-      },
-    });
-
     // Check the UI language setting passed from the component
     const isChineseContent = studentData.language === 'zh-TW';
 
@@ -163,18 +145,26 @@ export async function generateDetailedLearningAnalysis(studentData: any) {
       7. Personalized Recommendations: 3-4 actionable suggestions for improving learning outcomes
 
       ${isChineseContent ? '請使用繁體中文回答。' : 'Please respond in English.'}
-      
+
       Format your response in clear paragraphs with section headings.
     `;
 
-    const result = await generativeModel.generateContent(prompt);
-    const response = await result.response;
-    return response.text();
+    const result = await genAI.models.generateContent({
+      model,
+      contents: prompt,
+      config: {
+        temperature: 0.7,
+        topK: 40,
+        topP: 0.95,
+        maxOutputTokens: 8192,
+      },
+    });
+    return result.text ?? '';
   } catch (error: any) {
     console.error('Error generating detailed learning analysis:', error);
     // Add more specific error handling
     if (error.message?.includes('404')) {
-      throw new Error('Model not found or not available. Please check if you have access to Gemini 2.5 preview.');
+      throw new Error('Model not found or not available. Please check if you have access to this Gemini model.');
     }
     throw error;
   }
@@ -189,8 +179,6 @@ export async function generateQuiz(
   level: string = 'intermediate'
 ) {
   try {
-    const generativeModel = genAI.getGenerativeModel({ model });
-    
     const isChineseOutput = outputLanguage === '繁體中文';
     const allowMultiple = /複選|多個正確答案|multiple answers|multiple correct/i.test(additionalInstructions);
     const prompt = `
@@ -208,7 +196,7 @@ export async function generateQuiz(
 
       Create a quiz with exactly ${numQuestions} ${questionType} questions.
 
-      ${questionType === 'multiple-choice' 
+      ${questionType === 'multiple-choice'
         ? (allowMultiple
             ? (isChineseOutput
                 ? '部分題目請設計為複選題（多個正確答案），其 correctAnswer 欄位請用陣列表示，並加上 questionType 欄位（single 或 multiple）。其餘為單選題（correctAnswer 為字串，questionType 為 single）。每題選項 4 個（A, B, C, D）。'
@@ -216,7 +204,7 @@ export async function generateQuiz(
             : (isChineseOutput
                 ? '每題僅有一個正確答案（correctAnswer 為字串，questionType 為 single），選項 4 個（A, B, C, D）。'
                 : 'Each question has only one correct answer (correctAnswer as string, questionType as "single"), 4 options (A, B, C, D).'))
-        : questionType === 'true-false' 
+        : questionType === 'true-false'
           ? (isChineseOutput
               ? '是非題僅有 A（正確）與 B（錯誤）兩個選項。'
               : 'For true/false questions, provide options A (True) and B (False).')
@@ -255,10 +243,9 @@ export async function generateQuiz(
       5. For multiple-choice, correctAnswer can be a string (single) or array (multiple), and must include questionType field for each question
     `;
 
-    const result = await generativeModel.generateContent(prompt);
-    const response = await result.response;
-    const text = response.text();
-    
+    const result = await genAI.models.generateContent({ model, contents: prompt });
+    const text = result.text ?? '';
+
     try {
       // Try to parse the entire response as JSON
       try {
@@ -272,7 +259,7 @@ export async function generateQuiz(
           return parsedJson;
         }
       }
-      
+
       // If all JSON parsing attempts fail, return an error object
       throw new Error('Failed to parse quiz content as JSON');
     } catch (error) {
@@ -283,4 +270,4 @@ export async function generateQuiz(
     console.error('Error generating quiz:', error);
     throw error;
   }
-} 
+}
