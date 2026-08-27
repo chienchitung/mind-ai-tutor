@@ -22,6 +22,7 @@ import {
 import { useEvents, Event, EventStatus } from "@/contexts/EventContext";
 import { KanbanColumn } from "@/components/events/views/KanbanColumn";
 import { KanbanCard } from "@/components/events/views/KanbanCard";
+import { computeReorderedEvents } from "@/components/events/views/kanbanReorder";
 import { useLanguage } from "@/app/contexts/LanguageContext";
 import { useTranslation } from "@/utils/translations";
 
@@ -130,17 +131,7 @@ export function KanbanView() {
       // Collect every event whose status or position actually changed, then
       // persist them all in a single batched write so their local state
       // updates can't race each other and clobber a sibling's change.
-      const changed: Event[] = [];
-      (Object.keys(finalColumns) as EventStatus[]).forEach(status => {
-        finalColumns[status].forEach((id, index) => {
-          const original = eventsById.get(id);
-          if (!original) return;
-          const position = index + 1;
-          if (original.status !== status || original.position !== position) {
-            changed.push({ ...original, status, position });
-          }
-        });
-      });
+      const changed = computeReorderedEvents(finalColumns, eventsById);
       if (changed.length > 0) {
         updateEvents(changed).catch(err => {
           console.error('Failed to persist kanban reorder:', err);
