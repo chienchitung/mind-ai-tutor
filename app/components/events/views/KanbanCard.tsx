@@ -9,8 +9,7 @@ import {
   BookOpen,
   BarChart2,
   CalendarClock,
-  Users,
-  GripVertical
+  Users
 } from "lucide-react";
 import { format } from "date-fns";
 import { Event, EventType } from "@/contexts/EventContext";
@@ -104,21 +103,14 @@ export function KanbanCard({ event, isOverlay = false }: KanbanCardProps) {
         ref={isOverlay ? undefined : setNodeRef}
         style={isOverlay ? undefined : style}
         {...(isOverlay ? {} : attributes)}
-        className={`p-3 mb-2 hover:shadow-md relative transition-shadow ${
-          isDragging ? "opacity-40" : "opacity-100"
-        } ${isOverlay ? "shadow-lg rotate-2" : ""}`}
+        {...(isOverlay ? {} : listeners)}
+        className={`p-3 mb-2 hover:shadow-md relative transition-shadow touch-none ${
+          isOverlay ? "shadow-lg rotate-2 cursor-grabbing" : "cursor-grab active:cursor-grabbing"
+        } ${isDragging ? "opacity-40" : "opacity-100"}`}
       >
-        <div className="flex items-center justify-between gap-2 mb-1">
-          <div className="flex items-center gap-2">
-            {typeIcons[event.type]}
-            <h4 className="font-medium">{event.title}</h4>
-          </div>
-          <div
-            {...(isOverlay ? {} : listeners)}
-            className="cursor-grab active:cursor-grabbing text-gray-400 hover:text-gray-600 touch-none p-1"
-          >
-            <GripVertical className="h-4 w-4" />
-          </div>
+        <div className="flex items-center gap-2 mb-1">
+          {typeIcons[event.type]}
+          <h4 className="font-medium">{event.title}</h4>
         </div>
         <p className="text-xs text-gray-600 line-clamp-2 mt-1">{event.description}</p>
         <div className="flex justify-between items-center mt-2">
