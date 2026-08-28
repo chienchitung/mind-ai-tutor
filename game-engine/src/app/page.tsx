@@ -8,7 +8,7 @@ import { getProgress, resetProgress } from '@/lib/progress'
 import { Button } from "@/components/ui/button"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog"
 import { useRouter } from "next/navigation"
-import { getLeaderboardStats, getPlayerRank, getLessonOrderMappings } from '@/lib/supabase'
+import { getLeaderboardStats, getPlayerRank, getLessonOrderMappings, verifyStudentLoginCode } from '@/lib/supabase'
 import { Lesson } from '@/types/lesson'
 
 interface ProgressData {
@@ -37,6 +37,10 @@ export default function HomePage() {
   const [studentId, setStudentId] = useState("");
   const [studentName, setStudentName] = useState("");
   const [hasStudentId, setHasStudentId] = useState(false);
+  const [showLoginCodeInput, setShowLoginCodeInput] = useState(false);
+  const [loginCode, setLoginCode] = useState("");
+  const [verifyingCode, setVerifyingCode] = useState(false);
+  const [loginCodeError, setLoginCodeError] = useState<string | null>(null);
   const [completionTime, setCompletionTime] = useState<string | null>(null);
   const [playerRank, setPlayerRank] = useState<number | null>(null);
   const [leaderboardStats, setLeaderboardStats] = useState<{
@@ -211,32 +215,57 @@ export default function HomePage() {
     }
   };
 
+  const startLearningSession = (id: string, name: string, studentRefId: string | null) => {
+    // 正確處理 UTC+8 時間
+    const now = new Date();
+    const startTime = new Date(now.getTime() - (now.getTimezoneOffset() * 60000))
+      .toISOString()
+      .replace('Z', '+08:00');
+
+    // 清除之前的任何課程開始時間記錄
+    for (let i = 0; i <= 5; i++) {
+      localStorage.removeItem(`lesson_${i}_start_time`);
+    }
+
+    localStorage.setItem('student_id', id);
+    localStorage.setItem('student_name', name);
+    localStorage.setItem('start_time', startTime);
+    if (studentRefId) {
+      localStorage.setItem('student_ref_id', studentRefId);
+    } else {
+      localStorage.removeItem('student_ref_id');
+    }
+    console.log('Setting global start_time on student ID submission:', startTime);
+    setHasStudentId(true);
+
+    // 直接導航到前導課程（0），若不存在則到第一關
+    const firstLesson = mappedLessons.find(lesson => lesson.number === 0) || mappedLessons.find(lesson => lesson.number === 1);
+    if (firstLesson) {
+      router.push(`/lessons/${firstLesson.lesson_id}`);
+    } else {
+      router.push(`/lessons/${mappedLessons[0].lesson_id}`);
+    }
+  };
+
   const handleStudentIdSubmit = () => {
     if (studentId.trim() && studentName.trim()) {
-      // 正確處理 UTC+8 時間
-      const now = new Date();
-      const startTime = new Date(now.getTime() - (now.getTimezoneOffset() * 60000))
-        .toISOString()
-        .replace('Z', '+08:00');
+      startLearningSession(studentId.trim(), studentName.trim(), null);
+    }
+  };
 
-      // 清除之前的任何課程開始時間記錄
-      for (let i = 0; i <= 5; i++) {
-        localStorage.removeItem(`lesson_${i}_start_time`);
+  const handleLoginCodeSubmit = async () => {
+    if (!loginCode.trim() || verifyingCode) return;
+    setVerifyingCode(true);
+    setLoginCodeError(null);
+    try {
+      const verified = await verifyStudentLoginCode(loginCode);
+      if (!verified) {
+        setLoginCodeError("代碼錯誤，請確認後再試一次");
+        return;
       }
-      
-      localStorage.setItem('student_id', studentId.trim());
-      localStorage.setItem('student_name', studentName.trim());
-      localStorage.setItem('start_time', startTime);
-      console.log('Setting global start_time on student ID submission:', startTime);
-      setHasStudentId(true);
-      
-      // 直接導航到前導課程（0），若不存在則到第一關
-      const firstLesson = mappedLessons.find(lesson => lesson.number === 0) || mappedLessons.find(lesson => lesson.number === 1);
-      if (firstLesson) {
-        router.push(`/lessons/${firstLesson.lesson_id}`);
-      } else {
-        router.push(`/lessons/${mappedLessons[0].lesson_id}`);
-      }
+      startLearningSession(verified.student_id, verified.student_name, verified.student_id);
+    } finally {
+      setVerifyingCode(false);
     }
   };
 
@@ -662,6 +691,47 @@ export default function HomePage() {
             >
               開始學習
             </Button>
+          </div>
+
+          <div className="pt-2 border-t mt-2">
+            {!showLoginCodeInput ? (
+              <button
+                type="button"
+                onClick={() => setShowLoginCodeInput(true)}
+                className="text-sm text-blue-600 hover:underline"
+              >
+                已經有登入代碼？
+              </button>
+            ) : (
+              <div className="space-y-2 pt-2">
+                <label htmlFor="loginCode" className="text-sm font-medium text-gray-700">
+                  登入代碼
+                </label>
+                <div className="flex gap-2">
+                  <input
+                    id="loginCode"
+                    type="text"
+                    value={loginCode}
+                    onChange={(e) => {
+                      setLoginCode(e.target.value);
+                      setLoginCodeError(null);
+                    }}
+                    className="flex-1 px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    placeholder="請輸入老師提供的登入代碼"
+                  />
+                  <Button
+                    onClick={handleLoginCodeSubmit}
+                    disabled={!loginCode.trim() || verifyingCode}
+                    variant="outline"
+                  >
+                    {verifyingCode ? "驗證中..." : "驗證"}
+                  </Button>
+                </div>
+                {loginCodeError && (
+                  <p className="text-sm text-red-600">{loginCodeError}</p>
+                )}
+              </div>
+            )}
           </div>
         </DialogContent>
       </Dialog>

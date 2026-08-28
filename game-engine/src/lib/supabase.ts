@@ -10,6 +10,7 @@ export interface LearningRecord {
   id?: number
   student_id: string
   student_name: string
+  student_ref_id?: string | null
   lesson_id: string | number
   started_at: string
   completed_at: string
@@ -21,12 +22,54 @@ export interface LeaderboardEntry {
   id?: number
   student_id: string
   student_name: string
+  student_ref_id?: string | null
   completion_time_seconds: number
   completion_time_string: string
   completed_at: string
   started_at: string
   stars_earned: number
   rank?: number
+}
+
+export interface VerifiedStudent {
+  student_id: string
+  student_name: string
+  grade: number | null
+}
+
+// Verifies a teacher-issued login code against public.students via a
+// SECURITY DEFINER RPC, so the anon key can never read the roster table
+// directly (RLS on students only allows the owning teacher). Returns null
+// for an invalid/unknown code.
+export async function verifyStudentLoginCode(code: string): Promise<VerifiedStudent | null> {
+  const trimmed = code.trim();
+  if (!trimmed) return null;
+
+  const { data, error } = await supabase.rpc('verify_student_login_code', {
+    p_code: trimmed,
+  });
+
+  if (error) {
+    console.error('Error verifying student login code:', error.message || JSON.stringify(error));
+    return null;
+  }
+
+  const row = Array.isArray(data) ? data[0] : data;
+  if (!row) return null;
+
+  return {
+    student_id: row.student_id,
+    student_name: row.student_name,
+    grade: row.grade ?? null,
+  };
+}
+
+// Reads the real student row id set by a successful login-code verification.
+// Absent for anonymous play (the default) - every insert below treats it as
+// optional, so this never affects the anonymous flow.
+function getStoredStudentRefId(): string | null {
+  if (typeof window === 'undefined') return null;
+  return localStorage.getItem('student_ref_id');
 }
 
 export interface LeaderboardStats {
@@ -52,6 +95,7 @@ export interface ChatMessageRecord {
   id?: string;
   learning_record_id: string
   student_id: string
+  student_ref_id?: string | null
   lesson_id: string
   message_content: string
   is_user: boolean
@@ -62,6 +106,7 @@ export interface QuestionCountRecord {
   id?: string
   learning_record_id: string
   student_id: string
+  student_ref_id?: string | null
   lesson_id: string
   question_count: number
 }
@@ -77,6 +122,7 @@ export async function saveLearningRecord(record: Omit<LearningRecord, 'id'>) {
     // Generate a unique UUID for the ID field
     const recordWithId = {
       ...record,
+      student_ref_id: record.student_ref_id ?? getStoredStudentRefId(),
       id: uuidv4()
     };
 
@@ -125,6 +171,7 @@ export async function saveLeaderboardEntry(entry: Omit<LeaderboardEntry, 'id' | 
       .from('leaderboard')
       .insert([{
         ...entry,
+        student_ref_id: entry.student_ref_id ?? getStoredStudentRefId(),
         started_at: startTime,
         id: uuidv4()
       }])
@@ -347,6 +394,7 @@ export async function saveChatMessage(message: Omit<ChatMessageRecord, 'id'>) {
     // Generate a unique UUID for the ID field
     const messageWithId = {
       ...message,
+      student_ref_id: message.student_ref_id ?? getStoredStudentRefId(),
       id: uuidv4()
     };
 
@@ -392,6 +440,7 @@ export async function getOrCreateQuestionCount(record: Omit<QuestionCountRecord,
       .from('question_counts')
       .insert([{
         ...record,
+        student_ref_id: record.student_ref_id ?? getStoredStudentRefId(),
         question_count: 0,
         id: uuidv4()
       }])

@@ -22,9 +22,18 @@ import { ProgressHistory } from '@/components/students/ProgressHistory';
 import { AttendanceTracker } from '@/components/students/AttendanceTracker';
 import { AssignmentTracker } from '@/components/students/AssignmentTracker';
 import { useToast } from '@/hooks/use-toast';
+import { KeyRound, RefreshCw, Copy } from 'lucide-react';
 import type { Database } from '@/types/supabase';
 
 type Student = Database['public']['Tables']['students']['Row'];
+
+const LOGIN_CODE_ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'; // no 0/O/1/I
+
+function generateLoginCode(length = 8): string {
+  const bytes = new Uint32Array(length);
+  crypto.getRandomValues(bytes);
+  return Array.from(bytes, (n) => LOGIN_CODE_ALPHABET[n % LOGIN_CODE_ALPHABET.length]).join('');
+}
 
 // Define the expected params type
 interface StudentPageParams {
@@ -95,6 +104,46 @@ export default function StudentPage({ params: paramsPromise }: { params: Promise
   const handleEdit = () => {
     if (!pageParams) return; // Ensure pageParams is available
     router.push(`/students/${pageParams.id}/edit`); // Use resolved id from state
+  };
+
+  const [generatingCode, setGeneratingCode] = useState(false);
+
+  const handleGenerateLoginCode = async () => {
+    if (!pageParams) return;
+    setGeneratingCode(true);
+    try {
+      const code = generateLoginCode();
+      const { data, error } = await supabase
+        .from('students')
+        .update({ login_code: code })
+        .eq('id', pageParams.id)
+        .select()
+        .single();
+
+      if (error) {
+        throw error;
+      }
+
+      setStudent(data);
+      toast({
+        title: 'Success',
+        description: 'Login code generated. Share it with the student.',
+      });
+    } catch (error: any) {
+      toast({
+        title: 'Error',
+        description: error.message,
+        variant: 'destructive',
+      });
+    } finally {
+      setGeneratingCode(false);
+    }
+  };
+
+  const handleCopyLoginCode = () => {
+    if (!student?.login_code) return;
+    navigator.clipboard.writeText(student.login_code);
+    toast({ title: 'Copied', description: 'Login code copied to clipboard.' });
   };
 
   const handleDelete = async () => {
@@ -221,6 +270,43 @@ export default function StudentPage({ params: paramsPromise }: { params: Promise
                   ))}
                 </div>
               </ScrollArea>
+            </div>
+          </div>
+          <div className="space-y-4">
+            <div>
+              <h2 className="text-lg font-semibold flex items-center gap-2">
+                <KeyRound className="h-4 w-4" />
+                Game Login Code
+              </h2>
+              <p className="mt-1 text-sm text-muted-foreground">
+                Give this code to the student to link their game play to this profile.
+                Without it, they can still play anonymously as before.
+              </p>
+              <div className="mt-3">
+                {student.login_code ? (
+                  <div className="flex items-center gap-2">
+                    <code className="rounded-md border bg-secondary/50 px-3 py-2 text-lg font-mono tracking-widest">
+                      {student.login_code}
+                    </code>
+                    <Button variant="outline" size="icon" onClick={handleCopyLoginCode} title="Copy">
+                      <Copy className="h-4 w-4" />
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="icon"
+                      onClick={handleGenerateLoginCode}
+                      disabled={generatingCode}
+                      title="Regenerate"
+                    >
+                      <RefreshCw className="h-4 w-4" />
+                    </Button>
+                  </div>
+                ) : (
+                  <Button onClick={handleGenerateLoginCode} disabled={generatingCode} variant="outline">
+                    {generatingCode ? 'Generating...' : 'Generate Login Code'}
+                  </Button>
+                )}
+              </div>
             </div>
           </div>
         </div>
