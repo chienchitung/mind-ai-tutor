@@ -9,6 +9,7 @@ import {
   Users,
   BookOpen,
   GraduationCap,
+  Gamepad2,
   BarChart2,
   Calendar
 } from 'lucide-react';
@@ -335,7 +336,7 @@ function DashboardContent() {
           <CardContent className="p-4 md:p-6 flex flex-col h-full">
             <div className="mb-4">
               <div className="p-2 bg-gray-100 w-fit rounded-lg">
-                <GraduationCap className="h-5 w-5 text-gray-500" />
+                <Gamepad2 className="h-5 w-5 text-gray-500" />
               </div>
             </div>
             <h3 className="text-lg font-medium mb-1">{t('digital_games_title')}</h3>

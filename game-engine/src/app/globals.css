@@ -1,0 +1,419 @@
+/* eslint-disable */
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --background: #ffffff;
+  --foreground: #171717;
+}
+
+body {
+  color: var(--foreground);
+  background: var(--background);
+  font-family: Arial, Helvetica, sans-serif;
+}
+
+/* 打字動畫樣式 */
+.typing-indicator {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 12px 16px;
+  background-color: #f5f5f5;
+  border-radius: 0 16px 16px 16px;
+  margin: 4px 0;
+  min-width: 60px;
+  animation: fadeIn 0.3s ease forwards;
+}
+
+.typing-dot {
+  width: 8px;
+  height: 8px;
+  background-color: #666;
+  border-radius: 50%;
+  animation: typingAnimation 1.4s infinite ease-in-out;
+  opacity: 0.3;
+}
+
+.typing-dot:nth-child(1) { animation-delay: 0s; }
+.typing-dot:nth-child(2) { animation-delay: 0.2s; }
+.typing-dot:nth-child(3) { animation-delay: 0.4s; }
+
+@keyframes typingAnimation {
+  0%, 100% { 
+    opacity: 0.3; 
+    transform: scale(0.8); 
+  }
+  50% { 
+    opacity: 1; 
+    transform: scale(1.2); 
+  }
+}
+
+/* 聊天氣泡樣式 */
+.chat-bubble {
+  position: relative;
+  padding: 12px 16px;
+  margin: 4px 0;
+  max-width: 100%;
+  opacity: 0;
+  transform: translateY(10px);
+  animation: fadeIn 0.3s ease forwards;
+  line-height: 1.4;
+  font-size: 15px;
+  display: inline-block;
+  word-wrap: break-word;
+  word-break: break-word;
+  box-sizing: border-box;
+  width: 100%;
+}
+
+.chat-bubble.bot {
+  background-color: #f5f5f5;
+  border-radius: 0 16px 16px 16px;
+  color: #000;
+  align-self: flex-start;
+  width: 100%;
+  overflow-x: auto;
+}
+
+.chat-bubble.user {
+  background-color: #2563eb;
+  border-radius: 16px 0 16px 16px;
+  color: white;
+  align-self: flex-end;
+  text-align: left;
+  width: fit-content;
+  max-width: 100%;
+  white-space: pre-wrap;
+}
+
+/* 聊天內容容器 */
+.chat-content {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+/* 訊息容器 */
+.message-container {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  margin-bottom: 16px;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+.message-container.user {
+  align-items: flex-end;
+}
+
+.message-container.bot {
+  align-items: flex-start;
+}
+
+@keyframes fadeIn {
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Markdown 內容樣式 */
+.markdown-content {
+  color: #374151;
+  line-height: 1.6;
+  font-size: inherit;
+}
+
+.markdown-content h1 {
+  font-size: 1.5rem;
+  font-weight: 600;
+  margin: 1.5rem 0 1rem;
+  color: #111827;
+}
+
+.markdown-content h2 {
+  font-size: 1.25rem;
+  font-weight: 600;
+  margin: 1.25rem 0 0.75rem;
+  color: #111827;
+}
+
+.markdown-content h3 {
+  font-size: 1.125rem;
+  font-weight: 600;
+  margin: 1rem 0 0.5rem;
+  color: #111827;
+}
+
+.markdown-content p {
+  margin: 0;
+  line-height: 1.6;
+}
+
+.markdown-content p + p {
+  margin-top: 8px;
+}
+
+.markdown-content ul,
+.markdown-content ol {
+  margin: 8px 0;
+  padding-left: 20px;
+}
+
+.markdown-content ul {
+  list-style-type: disc;
+}
+
+.markdown-content ol {
+  list-style-type: decimal;
+}
+
+.markdown-content li {
+  margin: 4px 0;
+}
+
+.markdown-content code {
+  background-color: #F3F4F6;
+  padding: 0.2em 0.4em;
+  border-radius: 0.25rem;
+  font-size: 0.875em;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+}
+
+.markdown-content pre {
+  background-color: #F3F4F6;
+  padding: 1rem;
+  border-radius: 0.5rem;
+  margin: 1rem 0;
+  overflow-x: auto;
+}
+
+.markdown-content pre code {
+  background-color: transparent;
+  padding: 0;
+  border-radius: 0;
+  font-size: 0.875em;
+  color: #1F2937;
+}
+
+.markdown-content blockquote {
+  border-left: 4px solid #E5E7EB;
+  padding-left: 1rem;
+  margin: 1rem 0;
+  color: #4B5563;
+  font-style: italic;
+}
+
+.markdown-content a {
+  color: #2563EB;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.markdown-content a:hover {
+  color: #1D4ED8;
+}
+
+.markdown-content hr {
+  margin: 1.5rem 0;
+  border: 0;
+  border-top: 1px solid #E5E7EB;
+}
+
+.markdown-content table {
+  width: auto;
+  min-width: 50%;
+  max-width: 100%;
+  border-collapse: collapse;
+  margin: 1rem 0;
+  background-color: white;
+  border-radius: 8px;
+  overflow: hidden;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+  table-layout: auto;
+}
+
+.markdown-content th,
+.markdown-content td {
+  padding: 8px 16px;
+  text-align: left;
+  border: 1px solid #e5e7eb;
+  background-color: white;
+  white-space: normal;
+  word-wrap: break-word;
+  min-width: auto;
+  max-width: none;
+}
+
+.markdown-content th {
+  background-color: #f9fafb;
+  font-weight: 600;
+  color: #374151;
+}
+
+.markdown-content td {
+  color: #1f2937;
+}
+
+/* 在聊天氣泡中的特殊調整 */
+.chat-bubble .markdown-content {
+  color: inherit;
+  white-space: normal;
+  font-size: inherit !important;
+}
+
+.chat-bubble .markdown-content * {
+  font-size: inherit !important;
+}
+
+/* 機器人訊息中的標題大小 */
+.chat-bubble.bot .markdown-content h1 {
+  font-size: 1.25em !important;
+  font-weight: 600;
+  margin: 1em 0 0.5em;
+  color: #111827;
+}
+
+.chat-bubble.bot .markdown-content h2 {
+  font-size: 1.15em !important;
+  font-weight: 600;
+  margin: 0.75em 0 0.5em;
+  color: #111827;
+}
+
+.chat-bubble.bot .markdown-content h3 {
+  font-size: 1.1em !important;
+  font-weight: 600;
+  margin: 0.5em 0 0.25em;
+  color: #111827;
+}
+
+/* 其他內容保持一致大小 */
+.chat-bubble.bot .markdown-content p,
+.chat-bubble.bot .markdown-content li,
+.chat-bubble.bot .markdown-content td,
+.chat-bubble.bot .markdown-content th {
+  font-size: inherit !important;
+}
+
+.chat-bubble.bot .markdown-content code {
+  background-color: rgba(0, 0, 0, 0.04);
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-size: 14px;
+  color: #374151;
+}
+
+/* 數據列表格式 */
+.chat-bubble.bot .markdown-content .data-list {
+  background-color: white;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  padding: 8px 0;
+  margin: 8px 0;
+}
+
+.chat-bubble.bot .markdown-content .data-list li {
+  padding: 4px 16px;
+  border-bottom: 1px solid #f3f4f6;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+}
+
+.chat-bubble.bot .markdown-content .data-list li:last-child {
+  border-bottom: none;
+}
+
+/* 格式化的數據區塊 */
+.chat-bubble.bot .markdown-content blockquote {
+  background-color: white;
+  border-left: 4px solid #2563eb;
+  padding: 12px 16px;
+  margin: 8px 0;
+  border-radius: 0 8px 8px 0;
+}
+
+.chat-bubble.bot .markdown-content blockquote p {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  color: #374151;
+  font-style: normal;
+}
+
+/* 表格相關樣式調整 */
+.chat-bubble.bot .markdown-content {
+  width: 100%;
+  max-width: 100%;
+  overflow-x: auto;
+}
+
+.chat-bubble.bot .markdown-content table {
+  display: table;
+  width: auto;
+  min-width: 50%;
+  max-width: 100%;
+  margin: 8px 0;
+  table-layout: auto;
+}
+
+.chat-bubble.bot .markdown-content .table-container {
+  display: block;
+  width: 100%;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  margin: 8px 0;
+  border-radius: 8px;
+  border: 1px solid #e5e7eb;
+  padding: 1px;
+}
+
+.chat-bubble.bot .markdown-content td,
+.chat-bubble.bot .markdown-content th {
+  white-space: normal;
+  word-wrap: break-word;
+  word-break: normal;
+  min-width: auto;
+  max-width: none;
+  width: auto;
+}
+
+/* 確保滾動條樣式美觀 */
+.chat-bubble.bot .markdown-content::-webkit-scrollbar,
+.chat-bubble.bot .markdown-content .table-container::-webkit-scrollbar {
+  height: 6px;
+  width: 6px;
+}
+
+.chat-bubble.bot .markdown-content::-webkit-scrollbar-track,
+.chat-bubble.bot .markdown-content .table-container::-webkit-scrollbar-track {
+  background: #f1f1f1;
+  border-radius: 3px;
+}
+
+.chat-bubble.bot .markdown-content::-webkit-scrollbar-thumb,
+.chat-bubble.bot .markdown-content .table-container::-webkit-scrollbar-thumb {
+  background: #888;
+  border-radius: 3px;
+}
+
+.chat-bubble.bot .markdown-content::-webkit-scrollbar-thumb:hover,
+.chat-bubble.bot .markdown-content .table-container::-webkit-scrollbar-thumb:hover {
+  background: #666;
+}
+
+/* 確保聊天氣泡內容不會溢出 */
+.chat-bubble.bot {
+  max-width: 100%;
+  overflow-x: auto;
+}
+
+/* 確保用戶訊息不會溢出 */
+.chat-bubble.user {
+  max-width: 100%;
+  overflow-wrap: break-word;
+  word-wrap: break-word;
+  word-break: break-word;
+}
