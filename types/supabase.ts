@@ -90,7 +90,9 @@ export interface Database {
           id: string;
           learning_record_id: string;
           student_id: string;
+          student_ref_id: string | null;
           lesson_id: string;
+          game_id: string | null;
           message_content: string;
           is_user: boolean;
           timestamp: string;
@@ -100,7 +102,9 @@ export interface Database {
           id?: string;
           learning_record_id: string;
           student_id: string;
+          student_ref_id?: string | null;
           lesson_id: string;
+          game_id?: string | null;
           message_content: string;
           is_user: boolean;
           timestamp?: string;
@@ -110,7 +114,9 @@ export interface Database {
           id?: string;
           learning_record_id?: string;
           student_id?: string;
+          student_ref_id?: string | null;
           lesson_id?: string;
+          game_id?: string | null;
           message_content?: string;
           is_user?: boolean;
           timestamp?: string;
@@ -242,6 +248,8 @@ export interface Database {
           id: string;
           student_id: string;
           student_name: string;
+          student_ref_id: string | null;
+          game_id: string | null;
           completion_time_seconds: number;
           completion_time_string: string;
           started_at: string;
@@ -252,6 +260,8 @@ export interface Database {
           id?: string;
           student_id: string;
           student_name: string;
+          student_ref_id?: string | null;
+          game_id?: string | null;
           completion_time_seconds: number;
           completion_time_string: string;
           started_at?: string;
@@ -262,6 +272,8 @@ export interface Database {
           id?: string;
           student_id?: string;
           student_name?: string;
+          student_ref_id?: string | null;
+          game_id?: string | null;
           completion_time_seconds?: number;
           completion_time_string?: string;
           started_at?: string;
@@ -274,7 +286,9 @@ export interface Database {
           id: string;
           student_id: string;
           student_name: string;
+          student_ref_id: string | null;
           lesson_id: string;
+          game_id: string | null;
           started_at: string;
           completed_at: string;
           time_spent_seconds: number;
@@ -284,7 +298,9 @@ export interface Database {
           id?: string;
           student_id: string;
           student_name: string;
+          student_ref_id?: string | null;
           lesson_id: string;
+          game_id?: string | null;
           started_at: string;
           completed_at: string;
           time_spent_seconds: number;
@@ -294,7 +310,9 @@ export interface Database {
           id?: string;
           student_id?: string;
           student_name?: string;
+          student_ref_id?: string | null;
           lesson_id?: string;
+          game_id?: string | null;
           started_at?: string;
           completed_at?: string;
           time_spent_seconds?: number;
@@ -434,7 +452,9 @@ export interface Database {
           id: string;
           learning_record_id: string;
           student_id: string;
+          student_ref_id: string | null;
           lesson_id: string;
+          game_id: string | null;
           question_count: number;
           created_at: string;
           updated_at: string;
@@ -443,7 +463,9 @@ export interface Database {
           id?: string;
           learning_record_id: string;
           student_id: string;
+          student_ref_id?: string | null;
           lesson_id: string;
+          game_id?: string | null;
           question_count?: number;
           created_at?: string;
           updated_at?: string;
@@ -452,7 +474,9 @@ export interface Database {
           id?: string;
           learning_record_id?: string;
           student_id?: string;
+          student_ref_id?: string | null;
           lesson_id?: string;
+          game_id?: string | null;
           question_count?: number;
           created_at?: string;
           updated_at?: string;
@@ -469,6 +493,7 @@ export interface Database {
           subjects: string[];
           status: string;
           last_login: string | null;
+          login_code: string | null;
         };
         Insert: {
           id?: string;
@@ -480,6 +505,7 @@ export interface Database {
           subjects?: string[];
           status?: string;
           last_login?: string | null;
+          login_code?: string | null;
         };
         Update: {
           id?: string;
@@ -491,6 +517,7 @@ export interface Database {
           subjects?: string[];
           status?: string;
           last_login?: string | null;
+          login_code?: string | null;
         };
       };
     };
