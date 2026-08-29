@@ -7,23 +7,23 @@
     "dev": "next dev --turbopack",
     "build": "next build",
     "start": "next start",
-    "lint": "next lint",
+    "lint": "eslint .",
     "convert-lessons": "node --loader ts-node/esm scripts/convertLessonToMarkdown.ts"
   },
   "dependencies": {
-    "@google/genai": "^0.12.0",
+    "@google/genai": "^2.19.0",
     "@radix-ui/react-dialog": "^1.1.4",
     "@radix-ui/react-progress": "^1.1.1",
     "@radix-ui/react-scroll-area": "^1.2.2",
     "@radix-ui/react-tabs": "^1.1.2",
-    "@supabase/supabase-js": "^2.49.4",
+    "@supabase/supabase-js": "^2.112.4",
     "@types/uuid": "^10.0.0",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "jsdom": "^27.0.0",
     "lucide-react": "^0.469.0",
     "markdown-to-jsx": "^7.7.4",
-    "next": "^16.0.7",
+    "next": "^16.3.3",
     "react": "^19.0.0",
     "react-dnd": "^16.0.1",
     "react-dnd-html5-backend": "^16.0.1",
@@ -33,7 +33,7 @@
     "remark-gfm": "^4.0.1",
     "tailwind-merge": "^2.5.5",
     "turndown": "^7.2.1",
-    "uuid": "^11.1.0"
+    "uuid": "^11.1.1"
   },
   "devDependencies": {
     "@eslint/eslintrc": "^3",
@@ -45,8 +45,8 @@
     "@typescript-eslint/eslint-plugin": "^8.25.0",
     "@typescript-eslint/parser": "^8.25.0",
     "eslint": "^9",
-    "eslint-config-next": "15.1.2",
-    "postcss": "^8",
+    "eslint-config-next": "^16.3.3",
+    "postcss": "^8.5.26",
     "tailwindcss": "^3.4.1",
     "ts-node": "^10.9.2",
     "typescript": "^5"

@@ -19,9 +19,6 @@ import {
 } from 'react-beautiful-dnd';
 import { Input } from "@/components/ui/input";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
-// Office 文檔生成庫
-import dynamic from 'next/dynamic';
-import pptxgen from "pptxgenjs";
 import { useLanguage } from "@/app/contexts/LanguageContext";
 import { useTranslation } from "@/utils/translations";
 
@@ -675,166 +672,28 @@ const QuizResults: React.FC<QuizResultsProps> = ({
         }
         
         case 'microsoft-powerpoint': {
-          // 動態導入pptxgenjs，避免SSR問題
-          import('pptxgenjs').then(async (pptxModule) => {
-            const pptx = new pptxModule.default();
-            
-            // 設置幻燈片大小為16:9寬屏
-            pptx.layout = 'LAYOUT_16x9';
-            
-            // 添加標題幻燈片
-            let titleSlide = pptx.addSlide();
-            
-            // 添加標題
-            titleSlide.addText(quiz.title, {
-              x: 0.5,
-              y: 1.5,
-              w: '90%',
-              h: 1.5,
-              align: 'center',
-              fontSize: 44,
-              color: '2B579A',
-              bold: true
+          try {
+            const { downloadQuizPowerPoint } = await import('@/lib/powerpoint');
+            await downloadQuizPowerPoint(`${safeTitle}.pptx`, {
+              title: quiz.title,
+              questions: quiz.questions,
+              showAnswers,
+              explanationLabel: t('explanation_colon'),
+              generatedOn: new Date().toLocaleDateString(),
             });
-            
-            // 添加問題數量
-            titleSlide.addText(`${quiz.questions.length} Questions`, {
-              x: 0.5,
-              y: 3.5,
-              w: '90%',
-              h: 0.5,
-              align: 'center',
-              fontSize: 28,
-              color: '666666'
+            toast({
+              title: t('pptx_file_downloaded'),
+              description: t('pptx_file_generated_desc'),
+              duration: 5000,
             });
-            
-            // 添加生成日期
-            titleSlide.addText(`Generated on ${new Date().toLocaleDateString()}`, {
-              x: 0.5,
-              y: 4.5,
-              w: '90%',
-              h: 0.5,
-              align: 'center',
-              fontSize: 16,
-              color: '666666'
-            });
-            
-            // 為每個問題創建幻燈片
-          quiz.questions.forEach((question, index) => {
-              // 添加新幻燈片
-              const slide = pptx.addSlide();
-              
-              // 添加問題編號和內容
-              slide.addText(`Question ${index + 1}`, {
-                x: 0.5,
-                y: 0.5,
-                w: '90%',
-                h: 0.5,
-                fontSize: 24,
-                color: '2B579A',
-                bold: true
-              });
-              
-              slide.addText(question.questionText, {
-                x: 0.5,
-                y: 1.2,
-                w: '90%',
-                h: 1.0,
-                fontSize: 20,
-                color: '000000',
-                bold: false
-              });
-              
-              // 添加選項
-              question.options.forEach((option, optIndex) => {
-                const isCorrect = option.id === question.correctAnswer;
-                
-                slide.addText(
-                  `${option.id.toUpperCase()}. ${option.text} ${isCorrect && showAnswers ? ' ✓' : ''}`, 
-                  {
-                    x: 1.0,
-                    y: 2.4 + (optIndex * 0.6),
-                    w: '85%',
-                    h: 0.5,
-                    fontSize: 18,
-                    color: isCorrect && showAnswers ? '2E7D32' : '000000',
-                    bold: isCorrect && showAnswers
-                  }
-                );
-              });
-              
-              // 如果是教師模式，添加解釋
-              if (showAnswers) {
-                // 添加說明標題
-                slide.addText(t('explanation_colon'), {
-                  x: 0.5,
-                  y: 5.0,
-                  w: '90%',
-                  h: 0.4,
-                  fontSize: 18,
-                  color: '000000',
-                  bold: true
-                });
-                
-                // 添加說明內容
-                slide.addText(question.explanation, {
-                  x: 0.5,
-                  y: 5.5,
-                  w: '90%',
-                  h: 1.2,
-                  fontSize: 16,
-                  color: '000000',
-                  fontFace: 'Calibri'
-                });
-                
-                // 添加左側強調條
-                try {
-                  slide.addShape('rect', {
-                    x: 0.2,
-                    y: 5.5,
-                    w: 0.1,
-                    h: 1.2,
-                    fill: { color: '4472C4' }
-                  });
-                } catch (shapeError) {
-                  console.warn("Unable to add shape, using text box instead:", shapeError);
-                  // Alternative method - add a colored textbox as a rectangle
-                  slide.addText("", {
-                    x: 0.2,
-                    y: 5.5,
-                    w: 0.1,
-                    h: 1.2,
-                    fill: { color: '4472C4' }
-                  });
-                }
-              }
-            });
-            
-            // 生成並下載PowerPoint文件
-            pptx.writeFile({ fileName: `${safeTitle}.pptx` })
-              .then(() => {
-                toast({
-                  title: t('pptx_file_downloaded'),
-                  description: t('pptx_file_generated_desc'),
-                  duration: 5000,
-                });
-              })
-              .catch((err) => {
-                console.error("PowerPoint generation error:", err);
-                toast({
-                  title: t('export_failed'),
-                  description: t('pptx_generation_failed'),
-                  variant: "destructive",
-                });
-              });
-          }).catch(error => {
-            console.error("PowerPoint library loading error:", error);
+          } catch (error) {
+            console.error("PowerPoint generation error:", error);
             toast({
               title: t('export_failed'),
-              description: t('pptx_functionality_failed'),
+              description: t('pptx_generation_failed'),
               variant: "destructive",
             });
-          });
+          }
           break;
         }
         
@@ -2317,4 +2176,4 @@ export default function AIQuizPage() {
       </div>
     </div>
   );
-} 
+}
