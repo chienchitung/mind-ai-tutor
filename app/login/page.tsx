@@ -9,8 +9,12 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
 import Link from 'next/link';
+import { useLanguage } from '@/app/contexts/LanguageContext';
+import { useTranslation } from '@/utils/translations';
 
 export default function LoginPage() {
+  const { language } = useLanguage();
+  const { t } = useTranslation(language);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [isLoading, setIsLoading] = useState(false);
@@ -46,8 +50,8 @@ export default function LoginPage() {
     
     if (!email || !password) {
       toast({
-        title: 'Missing fields',
-        description: 'Please fill in all fields.',
+        title: t('missing_fields'),
+        description: t('please_fill_all_fields'),
         variant: 'destructive',
       });
       return;
@@ -67,8 +71,8 @@ export default function LoginPage() {
       }
       
       toast({
-        title: 'Login successful',
-        description: 'Welcome back!',
+        title: t('login_successful'),
+        description: t('welcome_back'),
       });
       
       // 確保資料存在且用戶已認證
@@ -79,8 +83,8 @@ export default function LoginPage() {
       }
     } catch (error: any) {
       toast({
-        title: 'Login failed',
-        description: error.message || 'Failed to log in. Please try again.',
+        title: t('login_failed'),
+        description: error.message || t('failed_to_login'),
         variant: 'destructive',
       });
     } finally {
@@ -131,18 +135,18 @@ export default function LoginPage() {
       
       // 顯示轉場提示，避免使用者覺得頁面凍結
       toast({
-        title: 'Redirecting to Google',
-        description: 'You will now be redirected to Google for authentication.',
+        title: t('redirecting_to_google'),
+        description: t('redirecting_to_google_desc'),
       });
-      
+
       // 客戶端重定向到 Google 授權頁面
       if (data?.url) {
         window.location.href = data.url;
       }
     } catch (error: any) {
       toast({
-        title: 'Login failed',
-        description: error.message || 'Failed to log in with Google. Please try again.',
+        title: t('login_failed'),
+        description: error.message || t('failed_to_login_google'),
         variant: 'destructive',
       });
       setIsLoading(false);
@@ -181,23 +185,23 @@ export default function LoginPage() {
             </svg>
           </div>
         </div>
-        <p className="mt-2 text-sm md:text-base text-muted-foreground">AI-powered student tracking and tutoring system</p>
+        <p className="mt-2 text-sm md:text-base text-muted-foreground">{t('app_tagline')}</p>
       </div>
-      
+
       <Card className="w-full max-w-sm md:max-w-md">
         <CardHeader className="space-y-1 text-center">
-          <CardTitle className="text-xl md:text-2xl">Login</CardTitle>
-          <CardDescription>Enter your email to sign in to your account</CardDescription>
+          <CardTitle className="text-xl md:text-2xl">{t('login_title')}</CardTitle>
+          <CardDescription>{t('login_desc')}</CardDescription>
         </CardHeader>
         <CardContent className="space-y-3 md:space-y-4">
           <form onSubmit={handleLogin} className="space-y-3 md:space-y-4" autoComplete="on">
             <div className="space-y-1 md:space-y-2">
-              <Label htmlFor="email">Email</Label>
-              <Input 
-                id="email" 
+              <Label htmlFor="email">{t('email')}</Label>
+              <Input
+                id="email"
                 name="email"
-                placeholder="name@example.com" 
-                type="email" 
+                placeholder="name@example.com"
+                type="email"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 autoComplete="username"
@@ -206,19 +210,19 @@ export default function LoginPage() {
             </div>
             <div className="space-y-1 md:space-y-2">
               <div className="flex items-center justify-between">
-                <Label htmlFor="password">Password</Label>
+                <Label htmlFor="password">{t('password')}</Label>
                 <Link
                   href="/forgot-password"
                   className="text-xs md:text-sm font-medium text-primary hover:underline"
                 >
-                  Forgot password?
+                  {t('forgot_password_link')}
                 </Link>
               </div>
-              <Input 
-                id="password" 
+              <Input
+                id="password"
                 name="password"
-                placeholder="••••••••" 
-                type="password" 
+                placeholder="••••••••"
+                type="password"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 autoComplete="current-password"
@@ -226,30 +230,30 @@ export default function LoginPage() {
               />
             </div>
             <Button className="w-full" type="submit" disabled={isLoading}>
-              {isLoading ? 'Signing in...' : 'Sign In'}
+              {isLoading ? t('signing_in') : t('sign_in')}
             </Button>
           </form>
-          
+
           <div className="relative">
             <div className="absolute inset-0 flex items-center">
               <span className="w-full border-t" />
             </div>
             <div className="relative flex justify-center text-xs uppercase">
-              <span className="bg-background px-2 text-muted-foreground">Or continue with</span>
+              <span className="bg-background px-2 text-muted-foreground">{t('or_continue_with')}</span>
             </div>
           </div>
-          
-          <Button 
-            variant="outline" 
+
+          <Button
+            variant="outline"
             className="w-full"
             onClick={handleGoogleLogin}
             disabled={isLoading}
           >
-            <Image 
-              src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg" 
-              alt="Google" 
-              width={20} 
-              height={20} 
+            <Image
+              src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg"
+              alt="Google"
+              width={20}
+              height={20}
               className="mr-2"
             />
             Google
@@ -257,9 +261,9 @@ export default function LoginPage() {
         </CardContent>
         <CardFooter className="flex flex-col space-y-2 md:space-y-4">
           <div className="text-center text-xs md:text-sm text-muted-foreground">
-            Don&apos;t have an account?{' '}
+            {t('dont_have_account')}{' '}
             <Link href="/signup" className="text-primary font-medium hover:underline">
-              Sign up
+              {t('sign_up_link')}
             </Link>
           </div>
         </CardFooter>

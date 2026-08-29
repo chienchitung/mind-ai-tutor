@@ -8,8 +8,12 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
 import Link from 'next/link';
+import { useLanguage } from '@/app/contexts/LanguageContext';
+import { useTranslation } from '@/utils/translations';
 
 export default function ResetPasswordPage() {
+  const { language } = useLanguage();
+  const { t } = useTranslation(language);
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [isLoading, setIsLoading] = useState(false);
@@ -33,24 +37,25 @@ export default function ResetPasswordPage() {
       const { data: { user } } = await supabaseWithTypes.auth.getUser();
       if (!user) {
         toast({
-          title: 'Invalid Reset Link',
-          description: 'Please request a new password reset.',
+          title: t('invalid_reset_link'),
+          description: t('request_new_reset'),
           variant: 'destructive',
         });
         router.push('/forgot-password');
       }
     };
-    
+
     checkUser();
-  }, [router, toast]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [router]);
 
   const handleResetPassword = async (e: React.FormEvent) => {
     e.preventDefault();
     
     if (!password || !confirmPassword) {
       toast({
-        title: 'Missing Fields',
-        description: 'Please fill in all fields.',
+        title: t('missing_fields'),
+        description: t('please_fill_all_fields'),
         variant: 'destructive',
       });
       return;
@@ -58,8 +63,8 @@ export default function ResetPasswordPage() {
 
     if (password !== confirmPassword) {
       toast({
-        title: 'Passwords Do Not Match',
-        description: 'Please ensure both passwords are the same.',
+        title: t('passwords_dont_match'),
+        description: t('passwords_dont_match_desc'),
         variant: 'destructive',
       });
       return;
@@ -89,15 +94,15 @@ export default function ResetPasswordPage() {
       }
       
       toast({
-        title: 'Password Updated',
-        description: 'You can now login with your new password.',
+        title: t('password_updated'),
+        description: t('can_now_login'),
       });
-      
+
       router.push('/login');
     } catch (error: any) {
       toast({
-        title: 'Update Failed',
-        description: error.message || 'Unable to update password. Please try again later.',
+        title: t('update_failed'),
+        description: error.message || t('unable_to_reset'),
         variant: 'destructive',
       });
     } finally {
@@ -137,48 +142,48 @@ export default function ResetPasswordPage() {
             </svg>
           </div>
         </div>
-        <p className="mt-2 text-muted-foreground">AI-powered student tracking and tutoring system</p>
+        <p className="mt-2 text-muted-foreground">{t('app_tagline')}</p>
       </div>
-      
+
       <Card className="w-full max-w-md">
         <CardHeader className="space-y-1 text-center">
-          <CardTitle className="text-2xl">Reset Password</CardTitle>
-          <CardDescription>Enter your new password</CardDescription>
+          <CardTitle className="text-2xl">{t('reset_password')}</CardTitle>
+          <CardDescription>{t('reset_password_desc')}</CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
           <form onSubmit={handleResetPassword} className="space-y-4">
             <div className="space-y-2">
-              <Label htmlFor="password">New Password</Label>
-              <Input 
-                id="password" 
-                placeholder="••••••••" 
-                type="password" 
+              <Label htmlFor="password">{t('new_password')}</Label>
+              <Input
+                id="password"
+                placeholder="••••••••"
+                type="password"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 required
               />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="confirmPassword">Confirm New Password</Label>
-              <Input 
-                id="confirmPassword" 
-                placeholder="••••••••" 
-                type="password" 
+              <Label htmlFor="confirmPassword">{t('confirm_new_password')}</Label>
+              <Input
+                id="confirmPassword"
+                placeholder="••••••••"
+                type="password"
                 value={confirmPassword}
                 onChange={(e) => setConfirmPassword(e.target.value)}
                 required
               />
             </div>
             <Button className="w-full" type="submit" disabled={isLoading}>
-              {isLoading ? 'Processing...' : 'Update Password'}
+              {isLoading ? t('processing') : t('update_password')}
             </Button>
           </form>
         </CardContent>
         <CardFooter className="flex flex-col space-y-4">
           <div className="text-center text-sm text-muted-foreground">
-            Remember your password?{' '}
+            {t('remember_password')}{' '}
             <Link href="/login" className="text-primary font-medium hover:underline">
-              Back to Login
+              {t('back_to_login')}
             </Link>
           </div>
         </CardFooter>
