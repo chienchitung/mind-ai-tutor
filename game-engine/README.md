@@ -1,6 +1,36 @@
-> **這個資料夾的位置**：這是從 `chienchitung/excel-master-game` 搬移過來的副本，現在跟 mind-ai-tutor 主應用程式放在同一個 repo 裡，但仍然是獨立的 Next.js 應用程式（有自己的 `package.json`/依賴/建置流程），在 Vercel 上要設定成**獨立的專案**、Root Directory 指向 `game-engine/`，跟主應用程式各自部署、各自網域，不會互相影響。之後如果要新增其他數位遊戲，優先考慮讓這個引擎讀取資料庫設定來組出不同玩法（而不是每款遊戲另開一個資料夾）；只有在遊戲互動模式跟現有架構完全不同時，才考慮在 `game-engine/` 旁邊新增另一個獨立資料夾。
+> **這個資料夾的位置**：這是獨立部署的 Next.js 遊戲引擎。Vercel Root Directory 指向 `game-engine/`，和教師端各自部署、各自網域。
 >
-> 目前這份程式碼是原封不動搬過來的（lift-and-shift），跟 `chienchitung/excel-master-game` 這個原始 repo 行為完全一致，尚未進行「改成讀資料庫、不寫死關卡」的重構——那是規劃中的下一步。
+> 新遊戲共用同一套引擎，以 `/games/[gameId]` 開啟。遊戲名稱、說明、關卡內容與順序由 `digital_games`／`lessons` 動態載入；原本的 `/` 和 `/lessons/[id]` 保留作為 Excel Master 的舊版相容入口。
+
+# Data-driven Game Engine
+
+## 啟用方式
+
+1. 在 Supabase SQL Editor 執行 `scripts/add_public_game_manifest.sql`。
+2. 確認 `digital_games.is_active = true`，並依照遊玩順序設定 `lesson_ids`。
+3. 以 `https://<game-engine-domain>/games/<digital_games.id>` 開啟遊戲。
+4. 教師端設定 `NEXT_PUBLIC_GAME_ENGINE_URL=https://<game-engine-domain>` 後，「開始遊戲」會自動連到共用引擎。
+
+`digital_games.lesson_ids` 是關卡成員與順序的唯一來源。舊的 `lesson_order_mappings` 只供舊版 Excel 入口相容，不再供新遊戲使用。
+
+可在 `digital_games.settings` 設定：
+
+```json
+{
+  "tutorPrompt": "你是這款遊戲的繁體中文學習助教……",
+  "theme": {
+    "brandLabel": "第二款遊戲"
+  },
+  "rewards": {
+    "starsPerLesson": 10,
+    "xpPerLesson": 20,
+    "claimCost": 50,
+    "completionUrl": "https://example.com/complete"
+  }
+}
+```
+
+若某堂課是前導課程，可在 `lessons.metadata` 加入 `{"game_role":"intro"}`；最後一堂課預設為最終關，也可明確設定 `{"game_role":"final"}`。
 
 # Excel Master Game 互動式學習平台
 

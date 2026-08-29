@@ -135,6 +135,7 @@ export interface Database {
           updated_at: string | null;
           is_active: boolean | null;
           lesson_ids: string[] | null;
+          settings: Json;
         };
         Insert: {
           id?: string;
@@ -147,6 +148,7 @@ export interface Database {
           updated_at?: string | null;
           is_active?: boolean | null;
           lesson_ids?: string[] | null;
+          settings?: Json;
         };
         Update: {
           id?: string;
@@ -159,6 +161,7 @@ export interface Database {
           updated_at?: string | null;
           is_active?: boolean | null;
           lesson_ids?: string[] | null;
+          settings?: Json;
         };
       };
       events: {

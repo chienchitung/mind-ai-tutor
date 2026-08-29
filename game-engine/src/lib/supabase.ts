@@ -1,5 +1,6 @@
 import { createClient } from '@supabase/supabase-js'
 import { v4 as uuidv4 } from 'uuid'
+import { gameStorageKey } from '@/lib/game-storage'
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
@@ -16,6 +17,7 @@ export interface LearningRecord {
   completed_at: string
   time_spent_seconds: number
   answer_attempts: number
+  game_id?: string | null
 }
 
 export interface LeaderboardEntry {
@@ -29,6 +31,7 @@ export interface LeaderboardEntry {
   started_at: string
   stars_earned: number
   rank?: number
+  game_id?: string | null
 }
 
 export interface VerifiedStudent {
@@ -67,9 +70,9 @@ export async function verifyStudentLoginCode(code: string): Promise<VerifiedStud
 // Reads the real student row id set by a successful login-code verification.
 // Absent for anonymous play (the default) - every insert below treats it as
 // optional, so this never affects the anonymous flow.
-function getStoredStudentRefId(): string | null {
+function getStoredStudentRefId(gameId?: string | null): string | null {
   if (typeof window === 'undefined') return null;
-  return localStorage.getItem('student_ref_id');
+  return localStorage.getItem(gameStorageKey(gameId ?? undefined, 'student_ref_id'));
 }
 
 export interface LeaderboardStats {
@@ -100,6 +103,7 @@ export interface ChatMessageRecord {
   message_content: string
   is_user: boolean
   timestamp: string
+  game_id?: string | null
 }
 
 export interface QuestionCountRecord {
@@ -109,6 +113,7 @@ export interface QuestionCountRecord {
   student_ref_id?: string | null
   lesson_id: string
   question_count: number
+  game_id?: string | null
 }
 
 export async function saveLearningRecord(record: Omit<LearningRecord, 'id'>) {
@@ -122,7 +127,7 @@ export async function saveLearningRecord(record: Omit<LearningRecord, 'id'>) {
     // Generate a unique UUID for the ID field
     const recordWithId = {
       ...record,
-      student_ref_id: record.student_ref_id ?? getStoredStudentRefId(),
+      student_ref_id: record.student_ref_id ?? getStoredStudentRefId(record.game_id),
       id: uuidv4()
     };
 
@@ -154,7 +159,7 @@ export async function saveLeaderboardEntry(entry: Omit<LeaderboardEntry, 'id' | 
     }
     
     // 從 localStorage 獲取開始時間
-    const startTime = localStorage.getItem('start_time');
+    const startTime = localStorage.getItem(gameStorageKey(entry.game_id ?? undefined, 'start_time'));
     if (!startTime) {
       console.error('Missing start time in localStorage');
       throw new Error('Missing start time');
@@ -171,7 +176,7 @@ export async function saveLeaderboardEntry(entry: Omit<LeaderboardEntry, 'id' | 
       .from('leaderboard')
       .insert([{
         ...entry,
-        student_ref_id: entry.student_ref_id ?? getStoredStudentRefId(),
+        student_ref_id: entry.student_ref_id ?? getStoredStudentRefId(entry.game_id),
         started_at: startTime,
         id: uuidv4()
       }])
@@ -189,11 +194,14 @@ export async function saveLeaderboardEntry(entry: Omit<LeaderboardEntry, 'id' | 
   }
 }
 
-export async function getLeaderboard(): Promise<LeaderboardEntry[]> {
-  const { data, error } = await supabase
+export async function getLeaderboard(gameId?: string): Promise<LeaderboardEntry[]> {
+  let query = supabase
     .from('leaderboard_view')
     .select('*')
     .order('completion_time_seconds', { ascending: true })
+
+  if (gameId) query = query.eq('game_id', gameId)
+  const { data, error } = await query
 
   if (error) {
     console.error('Error fetching leaderboard:', error)
@@ -208,12 +216,15 @@ interface ScoreRecord {
   completion_time_seconds: number;
 }
 
-export async function getPlayerRank(student_id: string): Promise<number> {
+export async function getPlayerRank(student_id: string, gameId?: string): Promise<number> {
   // 獲取所有用戶的最佳成績
-  const { data: allScores, error: scoresError } = await supabase
+  let query = supabase
     .from('leaderboard')
-    .select('student_id, completion_time_seconds')
+    .select('student_id, completion_time_seconds, game_id')
     .order('completion_time_seconds', { ascending: true });
+
+  if (gameId) query = query.eq('game_id', gameId)
+  const { data: allScores, error: scoresError } = await query
 
   if (scoresError) {
     console.error('Error getting scores:', scoresError);
@@ -249,12 +260,15 @@ interface LeaderboardRecord {
   completion_time_string: string;
 }
 
-export async function getLeaderboardStats(): Promise<LeaderboardStats> {
+export async function getLeaderboardStats(gameId?: string): Promise<LeaderboardStats> {
   // 獲取所有用戶的最佳成績
-  const { data, error } = await supabase
+  let query = supabase
     .from('leaderboard')
-    .select('student_id, student_name, completion_time_seconds, completion_time_string')
+    .select('student_id, student_name, completion_time_seconds, completion_time_string, game_id')
     .order('completion_time_seconds', { ascending: true });
+
+  if (gameId) query = query.eq('game_id', gameId)
+  const { data, error } = await query
 
   if (error) {
     console.error('Error fetching leaderboard stats:', error);
@@ -394,7 +408,7 @@ export async function saveChatMessage(message: Omit<ChatMessageRecord, 'id'>) {
     // Generate a unique UUID for the ID field
     const messageWithId = {
       ...message,
-      student_ref_id: message.student_ref_id ?? getStoredStudentRefId(),
+      student_ref_id: message.student_ref_id ?? getStoredStudentRefId(message.game_id),
       id: uuidv4()
     };
 
@@ -440,7 +454,7 @@ export async function getOrCreateQuestionCount(record: Omit<QuestionCountRecord,
       .from('question_counts')
       .insert([{
         ...record,
-        student_ref_id: record.student_ref_id ?? getStoredStudentRefId(),
+        student_ref_id: record.student_ref_id ?? getStoredStudentRefId(record.game_id),
         question_count: 0,
         id: uuidv4()
       }])
@@ -496,15 +510,18 @@ export async function incrementQuestionCount(id: string): Promise<number | null>
 }
 
 // Function to get learning record ID for a student and lesson
-export async function getLearningRecordId(studentId: string, lessonId: string): Promise<string | null> {
+export async function getLearningRecordId(studentId: string, lessonId: string, gameId?: string): Promise<string | null> {
   try {
-    const { data, error } = await supabase
+    let query = supabase
       .from('learning_records')
       .select('id')
       .eq('student_id', studentId)
       .eq('lesson_id', lessonId)
       .order('completed_at', { ascending: false })
       .limit(1);
+
+    if (gameId) query = query.eq('game_id', gameId)
+    const { data, error } = await query
 
     if (error) {
       console.error('Error getting learning record ID:', error.message || JSON.stringify(error));

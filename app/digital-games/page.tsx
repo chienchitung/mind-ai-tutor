@@ -64,6 +64,7 @@ interface DigitalGame {
   lesson_ids?: string[];
   created_at: string;
   user_id: string;
+  is_active?: boolean;
 }
 
 export default function DigitalGamesPage() {
@@ -95,7 +96,6 @@ export default function DigitalGamesPage() {
       .optional(),
     lessonIds: z
       .array(z.string())
-      .max(5, t("maximum_lessons_selected"))
       .optional(),
   });
 
@@ -119,6 +119,11 @@ export default function DigitalGamesPage() {
         : lowerLevel === "advanced"
           ? translatedLevels.advanced
           : level;
+  };
+
+  const getGameEngineUrl = (game: DigitalGame) => {
+    const engineBaseUrl = process.env.NEXT_PUBLIC_GAME_ENGINE_URL?.replace(/\/$/, "");
+    return engineBaseUrl ? `${engineBaseUrl}/games/${game.id}` : game.url;
   };
 
   // Sort lessons by their order if they are in the selectedLessons array
@@ -292,6 +297,7 @@ export default function DigitalGamesPage() {
         thumbnail_url: values.thumbnailUrl,
         lesson_ids: selectedLessons,
         user_id: user.id,
+        is_active: true,
       };
 
       // 確保我們有最新的課程映射
@@ -485,14 +491,6 @@ export default function DigitalGamesPage() {
         return newSelection;
       } else {
         // 新增課程
-        if (prev.length >= 5) {
-          toast({
-            title: t("maximum_lessons_selected"),
-            description: t("max_lessons_per_game_desc"),
-            variant: "destructive",
-          });
-          return prev;
-        }
         newSelection = [...prev, lessonId];
         
         // 更新當前遊戲的課程順序映射，為新課程分配序號
@@ -749,7 +747,7 @@ export default function DigitalGamesPage() {
 
                   <div className="space-y-2">
                     <FormLabel>
-                      {t("associated_lessons")} ({t("max")} 5)
+                      {t("associated_lessons")}
                     </FormLabel>
                     <div className="grid gap-2 border rounded-md p-4 bg-muted/20">
                       {selectedLessons.length > 0 && (
@@ -832,30 +830,21 @@ export default function DigitalGamesPage() {
                                       </Badge>
                                     </div>
                                   </div>
-                                  {selectedLessons.length < 5 && (
-                                    <Button
-                                      variant="outline"
-                                      size="sm"
-                                      className="h-6 rounded-full"
-                                      onClick={(e) => {
-                                        e.stopPropagation();
-                                        handleLessonSelection(lesson.id);
-                                      }}
-                                    >
-                                      <PlusCircle className="h-3 w-3" />
-                                    </Button>
-                                  )}
+                                  <Button
+                                    variant="outline"
+                                    size="sm"
+                                    className="h-6 rounded-full"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      handleLessonSelection(lesson.id);
+                                    }}
+                                  >
+                                    <PlusCircle className="h-3 w-3" />
+                                  </Button>
                                 </div>
                               ))}
                           </div>
 
-                          {selectedLessons.length >= 5 && (
-                            <p className="text-xs text-amber-600 mt-2 flex items-center">
-                              <span className="mr-1">
-                                {t("maximum_lessons_selected")}
-                              </span>
-                            </p>
-                          )}
                         </>
                       ) : (
                         <div className="text-center py-4 text-muted-foreground">
@@ -977,7 +966,7 @@ export default function DigitalGamesPage() {
                         <div className="flex justify-between items-center w-full">
                           <Button variant="outline" size="sm" asChild>
                             <a
-                              href={game.url}
+                              href={getGameEngineUrl(game)}
                               target="_blank"
                               rel="noopener noreferrer"
                             >

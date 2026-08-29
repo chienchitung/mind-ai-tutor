@@ -3,7 +3,7 @@
 import { GoogleGenAI } from '@google/genai';
 
 // 系統提示詞
-const SYSTEM_PROMPT = `
+const LEGACY_EXCEL_SYSTEM_PROMPT = `
 你是一位友善、樂於助人的 Microsoft Excel 教師，專注於解答 Excel 相關問題。請用繁體中文回答問題。請務必使用繁體中文，並避免使用簡體字。
 你會根據學習科學原則，循序漸進地引導學生學習。
 
@@ -73,6 +73,18 @@ const SYSTEM_PROMPT = `
 - 每次回覆都必須使用 Markdown 格式。
 `;
 
+const GENERIC_SYSTEM_PROMPT = `
+你是一位友善、耐心、樂於引導學生思考的繁體中文學習助教。
+你會收到目前遊戲、課程內容、練習題與對話歷史，請只根據這些資訊提供協助。
+
+教學原則：
+- 先理解學生卡住的地方，再一次提供一個清楚步驟。
+- 練習題尚未完成時，優先提供提示與思路，不直接公布完整答案。
+- 使用 Markdown 組織內容，保持回答簡潔、適合學生閱讀。
+- 如果問題偏離目前課程，請溫和地引導回相關主題。
+- 不要捏造課程中沒有提供的規則、關卡或獎勵。
+`;
+
 // 全局變數來保存 GoogleGenAI 實例
 let genAI: GoogleGenAI | null = null;
 // 使用最新的 Gemini 2.5 Flash Preview 模型
@@ -111,6 +123,8 @@ interface ChatContext {
     isUser: boolean;
   }>;
   lessonInfo: string;
+  gameTitle?: string;
+  tutorPrompt?: string;
 }
 
 export async function getChatResponse(message: string, context?: ChatContext, image?: string): Promise<string> {
@@ -123,11 +137,16 @@ export async function getChatResponse(message: string, context?: ChatContext, im
     console.log('Creating chat with message:', message);
     
     // 建立完整的提示訊息，包含系統指令和上下文
-    let completePrompt = SYSTEM_PROMPT + "\n\n";
+    const systemPrompt = context?.tutorPrompt
+      || (context?.gameTitle ? GENERIC_SYSTEM_PROMPT : LEGACY_EXCEL_SYSTEM_PROMPT);
+    let completePrompt = systemPrompt + "\n\n";
     
     // 如果有上下文，加入聊天歷史
     if (context) {
       // 添加課程資訊
+      if (context.gameTitle) {
+        completePrompt += `目前遊戲：${context.gameTitle}\n\n`;
+      }
       completePrompt += `當前課程資訊：\n${context.lessonInfo}\n\n`;
       
       // 添加之前的對話

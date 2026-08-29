@@ -8,7 +8,7 @@ import { Card } from "@/components/ui/card"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { Star, MessageCircle, ChevronRight, ChevronLeft, FileSpreadsheet, Trophy, Flame, X, Gift, CheckCircle, XCircle, KeyRound, Image as ImageIcon, Zap } from 'lucide-react'
-import { lessons } from '@/data/lessons'
+import { lessons as legacyLessons } from '@/data/lessons'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { State, type ChatMessage } from '@/types/lesson'
@@ -20,6 +20,10 @@ import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm'
 import { RobotAvatar } from '@/components/RobotAvatar'
 import { getLearningRecordId, getOrCreateQuestionCount, incrementQuestionCount, saveChatMessage } from '@/lib/supabase'
+import { getPublicGameManifest } from '@/lib/game-manifest'
+import { gameStorageKey } from '@/lib/game-storage'
+import type { Lesson } from '@/types/lesson'
+import type { GameDefinition } from '@/types/game'
 
 
 const ChatMessage = ({ message, isUser, imageUrl }: { message: string; isUser: boolean; imageUrl?: string }) => {
@@ -244,22 +248,22 @@ const ChatMessage = ({ message, isUser, imageUrl }: { message: string; isUser: b
   );
 };
 
-const getInitialMessage = () => {
-  return `# 您好，我是艾利斯，Excel學習助手！
+const getInitialMessage = (gameTitle = '學習挑戰', lessonCount = 5) => {
+  return `# 您好，我是艾利斯，${gameTitle}學習助手！
 
-我可以協助您學習Excel的各種功能和技巧。在這個平台上：
+我可以協助您理解目前的課程內容與練習：
 
-* 共有5個關卡，每個關卡專注於不同Excel技能
+* 共有${lessonCount}個關卡
 * 完成練習可獲得星星和經驗值
-* 累積50顆星星可兌換特別獎勵
-* 您可以向我提問Excel相關問題
-* 可以向我上傳Excel截圖以獲得更精確的協助
+* 累積足夠星星可兌換特別獎勵
+* 您可以針對課程與題目向我提問
+* 可以上傳截圖以獲得更精確的協助
 
 ## 如何使用我的協助：
 
 1. **關於課程內容**：詢問關於當前課程的概念和技巧
 2. **關於練習題**：我可以提供循序漸進的引導和提示
-3. **Excel使用問題**：無論函數、公式或操作技巧
+3. **延伸問題**：詢問課程相關的概念與操作技巧
 
 請告訴我您需要什麼幫助？`;
 };
@@ -271,6 +275,8 @@ interface ChatContext {
     isUser: boolean;
   }>;
   lessonInfo: string;
+  gameTitle?: string;
+  tutorPrompt?: string;
 }
 
 // Add table rendering for practice exercises
@@ -332,8 +338,38 @@ const formatExplanation = (explanation: string) => {
   return formatted;
 };
 
-export default function ExcelLearningPlatform({ params }: { params: Promise<{ id: string }> }) {
+export default function ExcelLearningPlatform({
+  params,
+  gameId,
+}: {
+  params: Promise<{ id: string }>
+  gameId?: string
+}) {
   const resolvedParams = use(params);
+  const [gameDefinition, setGameDefinition] = useState<GameDefinition | null>(null);
+  const [gameLessons, setGameLessons] = useState<Lesson[]>(gameId ? [] : legacyLessons);
+  const [gameLoadError, setGameLoadError] = useState<string | null>(null);
+  const lessons = gameLessons;
+  const storageKey = (key: string) => gameStorageKey(gameId, key);
+  const lessonHref = (lessonId: string) =>
+    gameId ? `/games/${gameId}/lessons/${lessonId}` : `/lessons/${lessonId}`;
+
+  useEffect(() => {
+    if (!gameId) return;
+    getPublicGameManifest(gameId)
+      .then(manifest => {
+        if (!manifest.lessons.some(lesson => lesson.lesson_id === resolvedParams.id)) {
+          throw new Error('這個關卡不屬於指定的遊戲');
+        }
+        setGameDefinition(manifest);
+        setGameLessons(manifest.lessons);
+        setGameLoadError(null);
+      })
+      .catch(error => {
+        console.error('Failed to load game manifest:', error);
+        setGameLoadError(error instanceof Error ? error.message : '遊戲載入失敗');
+      });
+  }, [gameId, resolvedParams.id]);
   const [showRewardDialog, setShowRewardDialog] = useState(false);
   const [completionTime, setCompletionTime] = useState<string | null>(null);
   const [playerRank, setPlayerRank] = useState<number | null>(null);
@@ -385,6 +421,9 @@ export default function ExcelLearningPlatform({ params }: { params: Promise<{ id
 
   // 修改 getLessonNumber 函數使用 lesson_id
   const getLessonNumber = (lessonId: string): number => {
+    const configuredLesson = lessons.find(lesson => lesson.lesson_id === lessonId);
+    if (gameId) return configuredLesson?.number ?? 0;
+
     // Direct mapping of lesson UUIDs to numbers
     const lessonMapping: {[key: string]: number} = {
       "a1b2c3d4-e5f6-47a8-9b0c-1d2e3f4a5b6c": 1, 
@@ -395,21 +434,29 @@ export default function ExcelLearningPlatform({ params }: { params: Promise<{ id
     };
     
     // Return the mapped number or fallback to finding the lesson in the lessons array
-    return lessonMapping[lessonId] || lessons.find(lesson => lesson.lesson_id === lessonId)?.number || 0;
+    return lessonMapping[lessonId] || configuredLesson?.number || 0;
+  };
+
+  const isIntroLesson = (lessonId: string) => {
+    const lesson = lessons.find(item => item.lesson_id === lessonId);
+    return lesson?.role === 'intro' || (!gameId && lesson?.number === 0);
+  };
+
+  const isFinalLesson = (lessonId: string) => {
+    const lesson = lessons.find(item => item.lesson_id === lessonId);
+    return lesson?.role === 'final' || lesson?.isFinal === true || (!gameId && lesson?.number === 5);
   };
 
   // 修改 getNextLessonId 函數
   const getNextLessonId = (currentId: string): string | null => {
-    const currentNumber = getLessonNumber(currentId);
-    if (currentNumber >= 5) return null;
-    return lessons.find(lesson => lesson.number === currentNumber + 1)?.lesson_id || null;
+    const currentIndex = lessons.findIndex(lesson => lesson.lesson_id === currentId);
+    return currentIndex >= 0 ? lessons[currentIndex + 1]?.lesson_id ?? null : null;
   };
 
   // 修改 getPrevLessonId 函數
   const getPrevLessonId = (currentId: string): string | null => {
-    const currentNumber = getLessonNumber(currentId);
-    if (currentNumber <= 0) return null;
-    return lessons.find(lesson => lesson.number === currentNumber - 1)?.lesson_id || null;
+    const currentIndex = lessons.findIndex(lesson => lesson.lesson_id === currentId);
+    return currentIndex > 0 ? lessons[currentIndex - 1]?.lesson_id ?? null : null;
   };
 
   // Define the function with useCallback to avoid redefining on every render
@@ -418,56 +465,50 @@ export default function ExcelLearningPlatform({ params }: { params: Promise<{ id
       // 每次加載課程時都重置答案嘗試次數為0
       setAnswerAttempts(0);
       
-      // Fetch exercises
-      const { data, error } = await supabase
-        .from('lessons')
-        .select('practice_exercises')
-        .eq('id', currentLessonId)
-        .single();
-      
-      if (error) {
-        console.error('Error fetching exercises:', error.message || error);
-        return;
+      // New game routes receive exercises in the safe public manifest. The
+      // direct lessons query remains only for the legacy Excel route.
+      const configuredExercises = lessons.find(
+        lesson => lesson.lesson_id === currentLessonId,
+      )?.practiceExercises;
+      let practiceExercises = configuredExercises;
+
+      if (!gameId) {
+        const { data, error } = await supabase
+          .from('lessons')
+          .select('practice_exercises')
+          .eq('id', currentLessonId)
+          .single();
+
+        if (error) {
+          console.error('Error fetching exercises:', error.message || error);
+          return;
+        }
+        practiceExercises = data?.practice_exercises;
       }
-      
-      if (data && data.practice_exercises) {
-        const parsedExercises = JSON.parse(data.practice_exercises);
+
+      if (practiceExercises) {
+        const parsedExercises = typeof practiceExercises === 'string'
+          ? JSON.parse(practiceExercises)
+          : practiceExercises;
         setExercisesData(parsedExercises);
+      } else {
+        setExercisesData([]);
       }
 
       // Get progress
-      const progress = getProgress();
+      const progress = getProgress(gameId, lessons[0]?.lesson_id);
       const isLessonCompleted = progress.completedLessons.includes(currentLessonId);
       
       // 記錄關卡開始時間
       if (!isLessonCompleted) {
         const now = new Date();
         const lessonStartTime = new Date(now.toISOString());
-        localStorage.setItem(`lesson_${currentLessonId}_start_time`, lessonStartTime.toISOString());
-        
-        // For level 1, always set a global start time for the entire game if not already set
-        if (getLessonNumber(currentLessonId) === 1 && !localStorage.getItem('start_time')) {
-          localStorage.setItem('start_time', lessonStartTime.toISOString());
-          console.log('Setting global start_time from lesson 1:', lessonStartTime.toISOString());
-        }
-        
-        // For level 5, ensure a global start time exists
-        if (getLessonNumber(currentLessonId) === 5) {
-          // If no global start time exists, try to use lesson 1's start time
-          if (!localStorage.getItem('start_time')) {
-            const lesson1StartTime = localStorage.getItem('lesson_1_start_time');
-            if (lesson1StartTime) {
-              localStorage.setItem('start_time', lesson1StartTime);
-              console.log('Setting global start_time from lesson 1:', lesson1StartTime);
-            } else {
-              // Fallback to current time if no lesson 1 start time
-              const currentTime = new Date();
-              const newGlobalStartTime = new Date(currentTime.toISOString())
-                .toISOString();
-              localStorage.setItem('start_time', newGlobalStartTime);
-              console.log('Setting default global start_time:', newGlobalStartTime);
-            }
-          }
+        localStorage.setItem(storageKey(`lesson_${currentLessonId}_start_time`), lessonStartTime.toISOString());
+
+        // The first visited lesson starts this game's timer. This removes the
+        // old assumptions that level 1 starts and level 5 ends every game.
+        if (!localStorage.getItem(storageKey('start_time'))) {
+          localStorage.setItem(storageKey('start_time'), lessonStartTime.toISOString());
         }
       }
       
@@ -494,14 +535,14 @@ export default function ExcelLearningPlatform({ params }: { params: Promise<{ id
 
       // 讀取完成時間和排行榜統計
       if (showRewardDialog) {
-        const savedTime = localStorage.getItem('completion_time');
+        const savedTime = localStorage.getItem(storageKey('completion_time'));
         if (savedTime) {
           setCompletionTime(savedTime);
         }
 
         // 獲取玩家排名
-        const studentId = localStorage.getItem('student_id') || 'guest';
-        getPlayerRank(studentId)
+        const studentId = localStorage.getItem(storageKey('student_id')) || 'guest';
+        getPlayerRank(studentId, gameId)
           .then(rank => {
             setPlayerRank(rank);
           })
@@ -510,7 +551,7 @@ export default function ExcelLearningPlatform({ params }: { params: Promise<{ id
           });
 
         // 獲取排行榜統計數據
-        getLeaderboardStats()
+        getLeaderboardStats(gameId)
           .then(stats => {
             setLeaderboardStats(stats);
           })
@@ -522,17 +563,17 @@ export default function ExcelLearningPlatform({ params }: { params: Promise<{ id
     } catch (error) {
       console.error('Error in fetchExercisesAndProgress:', error instanceof Error ? error.message : JSON.stringify(error));
     }
-  }, [showRewardDialog]);
+  }, [showRewardDialog, gameId, lessons]);
 
   useEffect(() => {
     // Initialize student ID and name if not already set
-    if (!localStorage.getItem('student_id')) {
+    if (!localStorage.getItem(storageKey('student_id'))) {
       const randomId = 'user_' + Math.random().toString(36).substring(2, 10);
-      localStorage.setItem('student_id', randomId);
+      localStorage.setItem(storageKey('student_id'), randomId);
     }
     
-    if (!localStorage.getItem('student_name')) {
-      localStorage.setItem('student_name', 'Anonymous User');
+    if (!localStorage.getItem(storageKey('student_name'))) {
+      localStorage.setItem(storageKey('student_name'), 'Anonymous User');
     }
     
     // 獲取當前課程 ID
@@ -541,7 +582,7 @@ export default function ExcelLearningPlatform({ params }: { params: Promise<{ id
     // Call the fetchExercisesAndProgress function
     fetchExercisesAndProgress(currentLessonId);
     
-  }, [resolvedParams.id, showRewardDialog, fetchExercisesAndProgress]);
+  }, [resolvedParams.id, showRewardDialog, fetchExercisesAndProgress, gameId]);
 
   // Add an extra effect to update explanation when exercises data changes
   useEffect(() => {
@@ -554,6 +595,13 @@ export default function ExcelLearningPlatform({ params }: { params: Promise<{ id
   useEffect(() => {
     const fetchGeniallyLink = async () => {
       try {
+        if (gameId) {
+          const configuredLink = lessons.find(
+            lesson => lesson.lesson_id === lessonState.currentLesson,
+          )?.geniallyLink;
+          setGeniallyLink(configuredLink ?? null);
+          return;
+        }
         // 從 Supabase 獲取當前課程的 Genially 連結
         const link = await getGeniallyLink(lessonState.currentLesson);
         if (link) {
@@ -570,13 +618,20 @@ export default function ExcelLearningPlatform({ params }: { params: Promise<{ id
     };
     
     fetchGeniallyLink();
-  }, [lessonState.currentLesson]);
+  }, [lessonState.currentLesson, gameId, lessons]);
 
   // 添加獲取課程 Markdown 內容的函數
   useEffect(() => {
     const fetchLessonMarkdown = async () => {
       setContentLoading(true); // 開始加載時設置為 true
       try {
+        if (gameId) {
+          const configuredContent = lessons.find(
+            lesson => lesson.lesson_id === lessonState.currentLesson,
+          )?.markdownContent;
+          setLessonMarkdown(configuredContent || null);
+          return;
+        }
         // 從 Supabase 獲取當前課程的 Markdown 內容
         const markdown = await getLessonMarkdownContent(lessonState.currentLesson);
         if (markdown) {
@@ -598,7 +653,7 @@ export default function ExcelLearningPlatform({ params }: { params: Promise<{ id
     };
     
     fetchLessonMarkdown();
-  }, [lessonState.currentLesson]);
+  }, [lessonState.currentLesson, gameId, lessons]);
 
   const [chatMessages, setChatMessages] = useState<ChatMessage[]>([
     {
@@ -617,7 +672,7 @@ export default function ExcelLearningPlatform({ params }: { params: Promise<{ id
 
   useEffect(() => {
     if (tabsRef.current) {
-      const activeValue = getLessonNumber(lessonState.currentLesson) === 5 ? 'game' : 'content';
+      const activeValue = isFinalLesson(lessonState.currentLesson) ? 'game' : 'content';
       const tabsElement = tabsRef.current;
       const activeTab = tabsElement.querySelector(`[data-state="active"]`);
       if (!activeTab) {
@@ -638,7 +693,7 @@ export default function ExcelLearningPlatform({ params }: { params: Promise<{ id
       try {
         // Add welcome message to pending messages
         setPendingChatMessages([{
-          content: getInitialMessage(),
+          content: getInitialMessage(gameDefinition?.title, lessons.length || 5),
           is_user: false,
           timestamp: new Date().toISOString(),
         }]);
@@ -648,7 +703,7 @@ export default function ExcelLearningPlatform({ params }: { params: Promise<{ id
     };
     
     saveInitialMessage();
-  }, [lessonState.currentLesson]);
+  }, [lessonState.currentLesson, gameDefinition?.title, lessons.length]);
 
   const geminiReadyRef = useRef(false);
   useEffect(() => {
@@ -687,7 +742,7 @@ export default function ExcelLearningPlatform({ params }: { params: Promise<{ id
     setAnswerAttempts(newAttemptCount);
     
     // Set explanation if available and not in level 5
-    if (getLessonNumber(lessonState.currentLesson) !== 5) {
+    if (!isFinalLesson(lessonState.currentLesson)) {
       const explanation = exercisesData[0].explanation || '';
       setCurrentExplanation(explanation);
     }
@@ -706,7 +761,7 @@ export default function ExcelLearningPlatform({ params }: { params: Promise<{ id
       const utc8Time = new Date(now.toISOString());
       
       // Get the start time from localStorage
-      const startTimeKey = `lesson_${lessonState.currentLesson}_start_time`;
+      const startTimeKey = storageKey(`lesson_${lessonState.currentLesson}_start_time`);
       const startTimeStr = localStorage.getItem(startTimeKey);
       
       // Save completion data
@@ -716,9 +771,9 @@ export default function ExcelLearningPlatform({ params }: { params: Promise<{ id
       };
       
       // Add completion data to localStorage
-      const completions = JSON.parse(localStorage.getItem('completions') || '[]');
+      const completions = JSON.parse(localStorage.getItem(storageKey('completions')) || '[]');
       completions.push(completionData);
-      localStorage.setItem('completions', JSON.stringify(completions));
+      localStorage.setItem(storageKey('completions'), JSON.stringify(completions));
       
       // Calculate time spent in seconds
       let timeSpentSeconds = 0;
@@ -733,11 +788,11 @@ export default function ExcelLearningPlatform({ params }: { params: Promise<{ id
         const formattedTime = `${minutes}分${seconds}秒`;
         
         // Save completion time for display
-        localStorage.setItem('completion_time', formattedTime);
+        localStorage.setItem(storageKey('completion_time'), formattedTime);
         
         // Save to Supabase
-        const studentId = localStorage.getItem('student_id') || 'guest';
-        const studentName = localStorage.getItem('student_name') || 'Guest User';
+        const studentId = localStorage.getItem(storageKey('student_id')) || 'guest';
+        const studentName = localStorage.getItem(storageKey('student_name')) || 'Guest User';
         
         // Get the lesson number for database compatibility
         const lessonNumber = getLessonNumber(lessonState.currentLesson);
@@ -757,7 +812,8 @@ export default function ExcelLearningPlatform({ params }: { params: Promise<{ id
             started_at: startTimeStr.replace('+08:00', 'Z'), // 轉換為 UTC 時間
             completed_at: utc8Time.toISOString(),
             time_spent_seconds: timeSpentSeconds,
-            answer_attempts: newAttemptCount // 使用 newAttemptCount 代替 answerAttempts
+            answer_attempts: newAttemptCount,
+            game_id: gameId ?? null,
           });
           
           // 如果成功儲存學習記錄，則儲存暫存的聊天資料
@@ -766,14 +822,14 @@ export default function ExcelLearningPlatform({ params }: { params: Promise<{ id
           }
           
           // For level 5 (final level), also save to leaderboard
-          if (getLessonNumber(lessonState.currentLesson) === 5) {
+          if (isFinalLesson(lessonState.currentLesson)) {
             try {
               // 確保 start_time 已設置
-              if (!localStorage.getItem('start_time')) {
+              if (!localStorage.getItem(storageKey('start_time'))) {
                 // Check if lesson 1 start time exists and use that
-                const lesson1StartTime = localStorage.getItem('lesson_1_start_time');
+                const lesson1StartTime = localStorage.getItem(storageKey(`lesson_${lessons[0]?.lesson_id}_start_time`));
                 if (lesson1StartTime) {
-                  localStorage.setItem('start_time', lesson1StartTime);
+                  localStorage.setItem(storageKey('start_time'), lesson1StartTime);
                   console.log('Setting global start_time from lesson 1:', lesson1StartTime);
                 } else {
                   // Fallback to current time if no lesson 1 start time
@@ -781,13 +837,13 @@ export default function ExcelLearningPlatform({ params }: { params: Promise<{ id
                   const newGlobalStartTime = new Date(currentTime.getTime() - (currentTime.getTimezoneOffset() * 60000))
                     .toISOString()
                     .replace('Z', '+08:00');
-                  localStorage.setItem('start_time', newGlobalStartTime);
+                  localStorage.setItem(storageKey('start_time'), newGlobalStartTime);
                   console.log('Setting default global start_time:', newGlobalStartTime);
                 }
               }
 
               // 計算全部課程總時間
-              const globalStartTimeStr = localStorage.getItem('start_time');
+              const globalStartTimeStr = localStorage.getItem(storageKey('start_time'));
               let totalTimeSpentSeconds = timeSpentSeconds; // Default to current lesson time
               
               if (globalStartTimeStr) {
@@ -802,10 +858,10 @@ export default function ExcelLearningPlatform({ params }: { params: Promise<{ id
                 console.log('Calculated total time:', totalFormattedTime, '(', totalTimeSpentSeconds, 'seconds)');
                 
                 // Save total completion time for display
-                localStorage.setItem('completion_time', totalFormattedTime);
+                localStorage.setItem(storageKey('completion_time'), totalFormattedTime);
                 
                 // 使用固定的 50 顆星星，這是完成所有課程後的預期星星數
-                const maxStars = 50;
+                const maxStars = gameDefinition?.settings.rewards?.claimCost ?? 50;
                 
                 console.log('Preparing leaderboard entry with TOTAL time:', {
                   student_id: studentId,
@@ -813,7 +869,8 @@ export default function ExcelLearningPlatform({ params }: { params: Promise<{ id
                   completion_time_seconds: totalTimeSpentSeconds,
                   completion_time_string: totalFormattedTime,
                   completed_at: utc8Time.toISOString(),
-                  stars_earned: maxStars
+                  stars_earned: maxStars,
+                  game_id: gameId ?? null,
                 });
                 
                 await saveLeaderboardEntry({
@@ -822,7 +879,8 @@ export default function ExcelLearningPlatform({ params }: { params: Promise<{ id
                   completion_time_seconds: totalTimeSpentSeconds,
                   completion_time_string: totalFormattedTime,
                   completed_at: utc8Time.toISOString(),
-                  stars_earned: maxStars
+                  stars_earned: maxStars,
+                  game_id: gameId ?? null,
                 });
                 
                 console.log('Successfully saved to leaderboard');
@@ -844,7 +902,8 @@ export default function ExcelLearningPlatform({ params }: { params: Promise<{ id
           started_at: startTimeStr.replace('+08:00', 'Z'), // 轉換為 UTC 時間
           completed_at: utc8Time.toISOString(),
           time_spent_seconds: timeSpentSeconds,
-          answer_attempts: newAttemptCount // 使用 newAttemptCount 代替 answerAttempts
+          answer_attempts: newAttemptCount,
+          game_id: gameId ?? null,
         });
         
         // Save learning record to Supabase
@@ -855,7 +914,8 @@ export default function ExcelLearningPlatform({ params }: { params: Promise<{ id
           started_at: startTimeStr.replace('+08:00', 'Z'), // 轉換為 UTC 時間
           completed_at: utc8Time.toISOString(),
           time_spent_seconds: timeSpentSeconds,
-          answer_attempts: newAttemptCount // 使用 newAttemptCount 代替 answerAttempts
+          answer_attempts: newAttemptCount,
+          game_id: gameId ?? null,
         });
         
         // 如果成功儲存學習記錄，則儲存暫存的聊天資料
@@ -864,27 +924,27 @@ export default function ExcelLearningPlatform({ params }: { params: Promise<{ id
         }
 
         // For level 5 (final level), also save to leaderboard
-        if (getLessonNumber(lessonState.currentLesson) === 5) {
+        if (isFinalLesson(lessonState.currentLesson)) {
           try {
             // 確保 start_time 已設置
-            if (!localStorage.getItem('start_time')) {
+            if (!localStorage.getItem(storageKey('start_time'))) {
               // Check if lesson 1 start time exists and use that
-              const lesson1StartTime = localStorage.getItem('lesson_1_start_time');
+              const lesson1StartTime = localStorage.getItem(storageKey(`lesson_${lessons[0]?.lesson_id}_start_time`));
               if (lesson1StartTime) {
-                localStorage.setItem('start_time', lesson1StartTime);
+                localStorage.setItem(storageKey('start_time'), lesson1StartTime);
                 console.log('Setting global start_time from lesson 1:', lesson1StartTime);
               } else {
                 // Fallback to current time if no lesson 1 start time
                 const currentTime = new Date();
                 const newGlobalStartTime = new Date(currentTime.toISOString())
                   .toISOString();
-                localStorage.setItem('start_time', newGlobalStartTime);
+                localStorage.setItem(storageKey('start_time'), newGlobalStartTime);
                 console.log('Setting default global start_time:', newGlobalStartTime);
               }
             }
 
             // 計算全部課程總時間
-            const globalStartTimeStr = localStorage.getItem('start_time');
+            const globalStartTimeStr = localStorage.getItem(storageKey('start_time'));
             let totalTimeSpentSeconds = timeSpentSeconds; // Default to current lesson time
             
             if (globalStartTimeStr) {
@@ -899,10 +959,10 @@ export default function ExcelLearningPlatform({ params }: { params: Promise<{ id
               console.log('Calculated total time:', totalFormattedTime, '(', totalTimeSpentSeconds, 'seconds)');
               
               // Save total completion time for display
-              localStorage.setItem('completion_time', totalFormattedTime);
+              localStorage.setItem(storageKey('completion_time'), totalFormattedTime);
               
               // 使用固定的 50 顆星星，這是完成所有課程後的預期星星數
-              const maxStars = 50;
+              const maxStars = gameDefinition?.settings.rewards?.claimCost ?? 50;
               
               console.log('Preparing leaderboard entry with TOTAL time:', {
                 student_id: studentId,
@@ -910,7 +970,8 @@ export default function ExcelLearningPlatform({ params }: { params: Promise<{ id
                 completion_time_seconds: totalTimeSpentSeconds,
                 completion_time_string: totalFormattedTime,
                 completed_at: utc8Time.toISOString(),
-                stars_earned: maxStars
+                stars_earned: maxStars,
+                game_id: gameId ?? null,
               });
      
               await saveLeaderboardEntry({
@@ -919,7 +980,8 @@ export default function ExcelLearningPlatform({ params }: { params: Promise<{ id
                 completion_time_seconds: totalTimeSpentSeconds,
                 completion_time_string: totalFormattedTime,
                 completed_at: utc8Time.toISOString(),
-                stars_earned: maxStars
+                stars_earned: maxStars,
+                game_id: gameId ?? null,
               });
               
               console.log('Successfully saved to leaderboard');
@@ -935,8 +997,10 @@ export default function ExcelLearningPlatform({ params }: { params: Promise<{ id
       // Update lesson progress to add stars
       updateLessonProgress(
         lessonState.currentLesson,
-        10, // 10 stars for correct answer
-        20  // 20 XP for correct answer
+        gameDefinition?.settings.rewards?.starsPerLesson ?? 10,
+        gameDefinition?.settings.rewards?.xpPerLesson ?? 20,
+        gameId,
+        lessons[0]?.lesson_id,
       );
     }
   };
@@ -944,21 +1008,21 @@ export default function ExcelLearningPlatform({ params }: { params: Promise<{ id
   const handleNextLesson = () => {
     const nextId = getNextLessonId(lessonState.currentLesson);
     if (nextId) {
-      router.push(`/lessons/${nextId}`);
+      router.push(lessonHref(nextId));
     }
   };
 
   const handlePrevLesson = () => {
     const prevId = getPrevLessonId(lessonState.currentLesson);
     if (prevId) {
-      router.push(`/lessons/${prevId}`);
+      router.push(lessonHref(prevId));
     }
   };
 
   // 前導課程完成處理（不給星星與經驗值）
   const handlePreludeComplete = () => {
     // 標記為完成但不增加星星/XP
-    updateLessonProgress(lessonState.currentLesson, 0, 0);
+    updateLessonProgress(lessonState.currentLesson, 0, 0, gameId, lessons[0]?.lesson_id);
     setLessonState(prev => ({
       ...prev,
       hasSubmitted: true,
@@ -995,7 +1059,11 @@ export default function ExcelLearningPlatform({ params }: { params: Promise<{ id
 
   // 前導課程（編號 0）僅顯示內容；第 5 關顯示遊戲；其他顯示內容+挑戰
   const lessonNumber = getLessonNumber(lessonState.currentLesson);
-  const showTabs = lessonNumber === 5 ? ['game'] : lessonNumber === 0 ? ['content'] : ['practice', 'content'];
+  const showTabs = isFinalLesson(lessonState.currentLesson)
+    ? ['game']
+    : isIntroLesson(lessonState.currentLesson)
+      ? ['content']
+      : ['practice', 'content'];
 
   const chatEndRef = useRef<HTMLDivElement>(null);
 
@@ -1093,7 +1161,7 @@ export default function ExcelLearningPlatform({ params }: { params: Promise<{ id
     }
     
     try {
-      const studentId = localStorage.getItem('student_id') || 'anonymous';
+      const studentId = localStorage.getItem(storageKey('student_id')) || 'anonymous';
       
       // 檢查用戶是否已完成此課程（答案正確且已提交）
       const hasCompletedLesson = lessonState.hasSubmitted && lessonState.isCorrect;
@@ -1101,7 +1169,7 @@ export default function ExcelLearningPlatform({ params }: { params: Promise<{ id
       
       // 如果已完成課程，則嘗試獲取現有的learning_record_id
       if (hasCompletedLesson) {
-        learningRecordId = await getLearningRecordId(studentId, lessonState.currentLesson);
+        learningRecordId = await getLearningRecordId(studentId, lessonState.currentLesson, gameId);
       }
       
       // 根據是否找到 learning_record_id 決定如何處理消息
@@ -1113,14 +1181,16 @@ export default function ExcelLearningPlatform({ params }: { params: Promise<{ id
           lesson_id: lessonState.currentLesson,
           message_content: newMessage.content,
           is_user: true,
-          timestamp: new Date().toISOString()
+          timestamp: new Date().toISOString(),
+          game_id: gameId ?? null,
         });
         
         // 更新問題計數
         const questionCountRecord = await getOrCreateQuestionCount({
           learning_record_id: learningRecordId,
           student_id: studentId,
-          lesson_id: lessonState.currentLesson
+          lesson_id: lessonState.currentLesson,
+          game_id: gameId ?? null,
         });
         
         if (questionCountRecord) {
@@ -1187,7 +1257,9 @@ export default function ExcelLearningPlatform({ params }: { params: Promise<{ id
 
       const chatContext: ChatContext = {
         context: contextMessages,
-        lessonInfo: lessonContext
+        lessonInfo: lessonContext,
+        gameTitle: gameDefinition?.title,
+        tutorPrompt: gameDefinition?.settings.tutorPrompt,
       };
       
       // 使用更新後的 getChatResponse 函數，傳遞圖片
@@ -1202,7 +1274,8 @@ export default function ExcelLearningPlatform({ params }: { params: Promise<{ id
           lesson_id: lessonState.currentLesson,
           message_content: aiResponse,
           is_user: false,
-          timestamp: new Date().toISOString()
+          timestamp: new Date().toISOString(),
+          game_id: gameId ?? null,
         });
       } else {
         // 未完成課程或沒有 learning_record_id，先暫存
@@ -1267,7 +1340,7 @@ export default function ExcelLearningPlatform({ params }: { params: Promise<{ id
   // 添加一個儲存暫存聊天記錄到 Supabase 的函數
   const savePendingChatData = async (learningRecordId: string) => {
     try {
-      const studentId = localStorage.getItem('student_id') || 'anonymous';
+      const studentId = localStorage.getItem(storageKey('student_id')) || 'anonymous';
       
       // 儲存所有暫存的聊天訊息
       for (const message of pendingChatMessages) {
@@ -1277,7 +1350,8 @@ export default function ExcelLearningPlatform({ params }: { params: Promise<{ id
           lesson_id: lessonState.currentLesson,
           message_content: message.content,
           is_user: message.is_user,
-          timestamp: message.timestamp
+          timestamp: message.timestamp,
+          game_id: gameId ?? null,
         });
       }
       
@@ -1286,7 +1360,8 @@ export default function ExcelLearningPlatform({ params }: { params: Promise<{ id
         const questionCountRecord = await getOrCreateQuestionCount({
           learning_record_id: learningRecordId,
           student_id: studentId,
-          lesson_id: lessonState.currentLesson
+          lesson_id: lessonState.currentLesson,
+          game_id: gameId ?? null,
         });
         
         if (questionCountRecord) {
@@ -1308,7 +1383,7 @@ export default function ExcelLearningPlatform({ params }: { params: Promise<{ id
   };
 
   const handleContinue = () => {
-    if (getLessonNumber(lessonState.currentLesson) === 5) {
+    if (isFinalLesson(lessonState.currentLesson)) {
       // 第五關顯示獎勵兌換視窗
       setShowRewardDialog(true);
     } else {
@@ -1318,11 +1393,14 @@ export default function ExcelLearningPlatform({ params }: { params: Promise<{ id
   };
 
   const handleRewardClaim = () => {
-    if (lessonState.stars >= 50) {
+    const claimCost = gameDefinition?.settings.rewards?.claimCost ?? 50;
+    if (lessonState.stars >= claimCost) {
       const updatedProgress = updateLessonProgress(
         lessonState.currentLesson,
-        -50, // 扣除 50 星星
-        0    // 不給予額外經驗值
+        -claimCost,
+        0,
+        gameId,
+        lessons[0]?.lesson_id,
       );
       
       setLessonState(prev => ({
@@ -1332,7 +1410,8 @@ export default function ExcelLearningPlatform({ params }: { params: Promise<{ id
       
       setShowRewardDialog(false);
       // 導向到問卷連結
-      window.location.href = 'https://www.surveycake.com/s/QMkxK';
+      const completionUrl = gameDefinition?.settings.rewards?.completionUrl;
+      if (completionUrl) window.location.href = completionUrl;
     }
   };
 
@@ -1519,19 +1598,34 @@ export default function ExcelLearningPlatform({ params }: { params: Promise<{ id
     '能給我 3 個練習題，從簡單到中等，再附上解答嗎？',
     '請把剛剛的重點整理成 5 行筆記，便於我複習。'
   ];
+  const starsPerLesson = gameDefinition?.settings.rewards?.starsPerLesson ?? 10;
+  const xpPerLesson = gameDefinition?.settings.rewards?.xpPerLesson ?? 20;
+  const rewardClaimCost = gameDefinition?.settings.rewards?.claimCost ?? 50;
+
+  if (gameLoadError) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gray-50 px-4">
+        <div className="max-w-md rounded-2xl border bg-white p-8 text-center shadow-sm">
+          <h1 className="text-xl font-bold text-gray-900 mb-2">無法載入關卡</h1>
+          <p className="text-gray-600">{gameLoadError}</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-[#F9FAFB]">
       <header className="bg-white border-b sticky top-0 z-50">
         <div className="container mx-auto h-16 md:h-20 flex items-center justify-between px-4 md:px-6">
-          <Link href="/" className="flex items-center py-2 hover:opacity-80 transition-opacity">
+          <Link href={gameId ? `/games/${gameId}` : "/"} className="flex items-center py-2 hover:opacity-80 transition-opacity">
             <div className="flex items-center">
-              <span className="text-2xl md:text-3xl font-bold bg-gradient-to-r from-blue-500 to-cyan-500 bg-clip-text text-transparent">excel</span>
+              <span className="text-xl md:text-3xl font-bold bg-gradient-to-r from-blue-500 to-cyan-500 bg-clip-text text-transparent">
+                {gameDefinition?.settings.theme?.brandLabel ?? gameDefinition?.title ?? 'excel master'}
+              </span>
               <div className="w-5 h-5 md:w-6 md:h-6 relative mx-0.5">
                 <FileSpreadsheet className="w-5 h-5 md:w-6 md:h-6 text-cyan-500" />
                 <div className="absolute -top-1 -right-1 w-1.5 h-1.5 md:w-2 md:h-2 bg-blue-500 rounded-full" />
               </div>
-              <span className="text-2xl md:text-3xl font-bold bg-gradient-to-r from-cyan-500 to-teal-500 bg-clip-text text-transparent">master</span>
             </div>
           </Link>
 
@@ -1577,7 +1671,7 @@ export default function ExcelLearningPlatform({ params }: { params: Promise<{ id
               <div className="w-24 md:w-32 h-1.5 bg-gray-100 rounded-full overflow-hidden">
                 <div 
                   className="h-full bg-[#58CC02] transition-all duration-300"
-                  style={{ width: `${(lessonState.completedLessons.length / lessons.length) * 100}%` }}
+                  style={{ width: `${lessons.length ? (lessonState.completedLessons.length / lessons.length) * 100 : 0}%` }}
                 />
               </div>
             </div>
@@ -1590,7 +1684,7 @@ export default function ExcelLearningPlatform({ params }: { params: Promise<{ id
           <div className="mb-6 md:mb-8">
             <div className="flex items-center gap-4 mb-4">
               <Link 
-                href="/"
+                href={gameId ? `/games/${gameId}` : "/"}
                 className="flex items-center gap-2 text-gray-600 hover:text-blue-600 transition-colors"
               >
                 <ChevronLeft className="h-4 w-4 md:h-5 md:w-5" />
@@ -1598,15 +1692,15 @@ export default function ExcelLearningPlatform({ params }: { params: Promise<{ id
               </Link>
               <div className="h-4 w-px bg-gray-200" />
               <Badge variant="outline" className="bg-blue-600 text-white border-0 text-sm md:text-base">
-                {lessonNumber === 0 ? '前導課程' : `第 ${lessonNumber} 關`}
+                {isIntroLesson(lessonState.currentLesson) ? '前導課程' : `第 ${lessonNumber} 關`}
               </Badge>
             </div>
             <h1 className="text-xl md:text-2xl font-bold mb-2">{currentLesson?.title}</h1>
             <p className="text-sm md:text-base text-gray-600">{currentLesson?.description}</p>
           </div>
 
-          <Tabs ref={tabsRef} defaultValue={lessonNumber === 5 ? 'game' : 'content'} className="mb-6 md:mb-8">
-            {lessonNumber !== 0 && (
+          <Tabs ref={tabsRef} defaultValue={isFinalLesson(lessonState.currentLesson) ? 'game' : 'content'} className="mb-6 md:mb-8">
+            {!isIntroLesson(lessonState.currentLesson) && (
             <TabsList className="grid w-full gap-2 border-b border-gray-100 mb-2" style={{ gridTemplateColumns: `repeat(${showTabs.length}, 1fr)` }}>
               {showTabs.includes('content') && (
                 <TabsTrigger
@@ -1815,7 +1909,7 @@ export default function ExcelLearningPlatform({ params }: { params: Promise<{ id
                         <div style={{width: '100%', margin: '0 auto', maxWidth: '1200px'}}>
                           <div style={{position: 'relative', paddingBottom: '56.25%', paddingTop: 0, height: 0}}>
                             <iframe 
-                              title="Excel Learning"
+                              title={currentLesson?.title ?? 'Interactive learning game'}
                               style={{
                                 position: 'absolute',
                                 top: 0,
@@ -1849,11 +1943,11 @@ export default function ExcelLearningPlatform({ params }: { params: Promise<{ id
                       <div className="flex items-center gap-2">
                         <div className="flex items-center gap-1 text-sm">
                           <Star className="h-4 w-4 text-yellow-400 fill-yellow-400" />
-                          <span>+10</span>
+                          <span>+{starsPerLesson}</span>
                         </div>
                         <div className="flex items-center gap-1 text-sm">
                           <Trophy className="h-4 w-4 text-blue-400" />
-                          <span>+20 XP</span>
+                          <span>+{xpPerLesson} XP</span>
                         </div>
                       </div>
                     </div>
@@ -1930,7 +2024,7 @@ export default function ExcelLearningPlatform({ params }: { params: Promise<{ id
             <TabsContent 
               value="game" 
               forceMount
-              className={getLessonNumber(lessonState.currentLesson) === 5 ? 'block' : 'hidden'}
+              className={isFinalLesson(lessonState.currentLesson) ? 'block' : 'hidden'}
             >
               <Card className="bg-white rounded-2xl shadow-sm border border-gray-100">
                 <div className="bg-gray-900 text-white p-4 rounded-t-2xl">
@@ -1939,11 +2033,11 @@ export default function ExcelLearningPlatform({ params }: { params: Promise<{ id
                     <div className="flex items-center gap-2">
                       <div className="flex items-center gap-1 text-sm">
                         <Star className="h-4 w-4 text-yellow-400 fill-yellow-400" />
-                        <span>+10</span>
+                        <span>+{starsPerLesson}</span>
                       </div>
                       <div className="flex items-center gap-1 text-sm">
                         <Trophy className="h-4 w-4 text-blue-400" />
-                        <span>+20 XP</span>
+                        <span>+{xpPerLesson} XP</span>
                       </div>
                     </div>
                   </div>
@@ -1971,15 +2065,9 @@ export default function ExcelLearningPlatform({ params }: { params: Promise<{ id
                           <FileSpreadsheet className="h-5 w-5 text-white" />
                         </div>
                         <div className="flex-1">
-                          <h3 className="font-semibold text-lg mb-3">綜合測驗說明</h3>
-                          <p className="text-gray-700 mb-4">在這測驗中，您需要運用前面學習的所有函數知識來解決實際問題。</p>
-                          <ul className="list-disc pl-6 mb-4 text-gray-700">
-                            <li>運用 SUM、AVERAGE 函數進行數據統計</li>
-                            <li>使用 VLOOKUP 函數查找相關數據</li>
-                            <li>使用 IF 函數進行條件判斷</li>
-                            <li>創建樞紐分析表進行數據分析</li>
-                          </ul>
-                          <p className="text-blue-600 font-semibold">完成測驗後，您將獲得終極密碼！</p>
+                          <h3 className="font-semibold text-lg mb-3">{currentLesson?.title ?? '綜合測驗說明'}</h3>
+                          <p className="text-gray-700 mb-4">{currentLesson?.description}</p>
+                          <p className="text-blue-600 font-semibold">完成遊戲後，輸入最終答案即可完成這個關卡。</p>
                         </div>
                       </div>
                     </div>
@@ -1991,7 +2079,7 @@ export default function ExcelLearningPlatform({ params }: { params: Promise<{ id
                       <div style={{position: 'relative', paddingBottom: '56.25%', paddingTop: 0, height: 0}}>
                         {geniallyLink ? (
                           <iframe 
-                            title="Excel Learning"
+                            title={currentLesson?.title ?? 'Interactive learning game'}
                             style={{
                               position: 'absolute',
                               top: 0,
@@ -2021,8 +2109,8 @@ export default function ExcelLearningPlatform({ params }: { params: Promise<{ id
 
           <div className="flex justify-between items-center">
             <div>
-              {lessonNumber === 0 ? null : (
-                lessonNumber === 1 ? (
+              {isIntroLesson(lessonState.currentLesson) ? null : (
+                getPrevLessonId(lessonState.currentLesson) ? (
                   <Button 
                     variant="outline" 
                     className="flex items-center gap-2 text-sm md:text-base"
@@ -2044,7 +2132,7 @@ export default function ExcelLearningPlatform({ params }: { params: Promise<{ id
               )}
             </div>
             <div className="flex-1">
-              {lessonNumber === 0 ? (
+              {isIntroLesson(lessonState.currentLesson) ? (
                 <Button 
                   className="w-full py-4 md:py-5 text-base md:text-lg font-semibold rounded-xl shadow-md bg-[#58CC02] hover:bg-[#46a001] text-white flex items-center justify-center gap-2"
                   onClick={handlePreludeComplete}
@@ -2054,7 +2142,7 @@ export default function ExcelLearningPlatform({ params }: { params: Promise<{ id
                   <ChevronRight className="h-5 w-5" />
                 </Button>
               ) : (
-                lessonNumber !== 5 && (
+                !isFinalLesson(lessonState.currentLesson) && (
                   <Button 
                     className={`flex items-center gap-2 ml-auto text-sm md:text-base ${
                       lessonState.completedLessons.includes(lessonState.currentLesson)
@@ -2316,7 +2404,7 @@ export default function ExcelLearningPlatform({ params }: { params: Promise<{ id
                     </div>
                   </div>
                 )}
-                <div>您可以使用 50 顆星星兌換特別獎勵。</div>
+                <div>您可以使用 {rewardClaimCost} 顆星星兌換特別獎勵。</div>
               </div>
             </DialogDescription>
           </DialogHeader>
@@ -2327,7 +2415,7 @@ export default function ExcelLearningPlatform({ params }: { params: Promise<{ id
                   <Star className="h-5 w-5 text-[#FF9900] fill-[#FF9900]" />
                   <span className="font-semibold">所需星星</span>
                 </div>
-                <span className="text-lg font-bold text-[#FF9900]">50</span>
+                <span className="text-lg font-bold text-[#FF9900]">{rewardClaimCost}</span>
               </div>
               <div className="flex items-center justify-between p-4 bg-gray-50 rounded-xl">
                 <div className="flex items-center gap-2">
@@ -2338,14 +2426,14 @@ export default function ExcelLearningPlatform({ params }: { params: Promise<{ id
               </div>
               <Button
                 onClick={handleRewardClaim}
-                disabled={lessonState.stars < 50}
+                disabled={lessonState.stars < rewardClaimCost}
                 className={`w-full py-4 text-lg font-semibold rounded-xl transition-transform hover:scale-105 
-                  ${lessonState.stars >= 50 
+                  ${lessonState.stars >= rewardClaimCost
                     ? 'bg-[#FF9900] hover:bg-[#E68A00]' 
                     : 'bg-gray-300'
                   } text-white`}
               >
-                {lessonState.stars >= 50 ? '兌換獎勵' : '星星不足'}
+                {lessonState.stars >= rewardClaimCost ? '兌換獎勵' : '星星不足'}
               </Button>
             </div>
           </div>

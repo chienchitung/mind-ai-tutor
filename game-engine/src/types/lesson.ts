@@ -19,6 +19,12 @@ export interface Lesson {
   showGame?: boolean;
   questions?: Question[];
   isFinal?: boolean;
+  role?: 'intro' | 'standard' | 'final';
+  geniallyLink?: string | null;
+  teachingContent?: string | null;
+  markdownContent?: string | null;
+  practiceExercises?: unknown;
+  metadata?: Record<string, unknown>;
 }
 
 export interface LessonProgress {
@@ -66,4 +72,3 @@ export interface State {
   dailyGoal: number;
   streak: number;
 }
-

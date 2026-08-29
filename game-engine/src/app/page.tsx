@@ -3,13 +3,16 @@
 import { useState, useEffect } from "react"
 import Link from "next/link"
 import { FileSpreadsheet, Star, Flame, Trophy, RotateCcw, ChevronRight, Lock } from "lucide-react"
-import { lessons } from '@/data/lessons'
+import { lessons as legacyLessons } from '@/data/lessons'
 import { getProgress, resetProgress } from '@/lib/progress'
+import { getPublicGameManifest } from '@/lib/game-manifest'
+import { gameStorageKey } from '@/lib/game-storage'
 import { Button } from "@/components/ui/button"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog"
 import { useRouter } from "next/navigation"
 import { getLeaderboardStats, getPlayerRank, getLessonOrderMappings, verifyStudentLoginCode } from '@/lib/supabase'
 import { Lesson } from '@/types/lesson'
+import type { GameDefinition } from '@/types/game'
 
 interface ProgressData {
   completedLessons: string[];
@@ -21,7 +24,7 @@ interface ProgressData {
   dailyProgress: number;
 }
 
-export default function HomePage() {
+export default function HomePage({ gameId }: { gameId?: string }) {
   const [progress, setProgress] = useState<ProgressData>({
     completedLessons: [],
     stars: 0,
@@ -57,17 +60,35 @@ export default function HomePage() {
   const router = useRouter();
 
   const [isLoading, setIsLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [gameDefinition, setGameDefinition] = useState<GameDefinition | null>(null);
 
   // Add state for mapped lessons
-  const [mappedLessons, setMappedLessons] = useState<Lesson[]>(lessons);
+  const [mappedLessons, setMappedLessons] = useState<Lesson[]>(gameId ? [] : legacyLessons);
+  const storageKey = (key: string) => gameStorageKey(gameId, key);
+  const lessonHref = (lessonId: string) =>
+    gameId ? `/games/${gameId}/lessons/${lessonId}` : `/lessons/${lessonId}`;
   
   useEffect(() => {
     const fetchProgressAndMappings = async () => {
       try {
-        // Fetch lesson order mappings
-        const mappingsData = await getLessonOrderMappings();
+        setLoadError(null);
+        let activeLessons: Lesson[] = [];
+
+        if (gameId) {
+          const manifest = await getPublicGameManifest(gameId);
+          if (manifest.lessons.length === 0) {
+            throw new Error('這款遊戲尚未設定任何關卡');
+          }
+          setGameDefinition(manifest);
+          activeLessons = manifest.lessons;
+          setMappedLessons(activeLessons);
+        } else {
+          // Legacy route compatibility. New games use digital_games.lesson_ids
+          // as the single source of truth through getPublicGameManifest().
+          const mappingsData = await getLessonOrderMappings();
         
-        if (mappingsData.length > 0 && mappingsData[0].mapping && mappingsData[0].mapping.length > 0) {
+          if (mappingsData.length > 0 && mappingsData[0].mapping && mappingsData[0].mapping.length > 0) {
           console.log('Got lesson mappings:', mappingsData[0].mapping);
           
           // Create mappings in both directions
@@ -83,7 +104,7 @@ export default function HomePage() {
           });
           
           // Map the lessons using the number property
-          const mappedLessonsData = lessons.map(lesson => {
+            const mappedLessonsData = legacyLessons.map(lesson => {
             // Find if there's a mapping for this lesson number
             const mappedLessonId = numberToLessonId[lesson.number];
             
@@ -98,17 +119,19 @@ export default function HomePage() {
           
           console.log('Mapped lessons:', mappedLessonsData);
           
-          setMappedLessons(mappedLessonsData);
-        } else {
-          console.log('No lesson mappings found, using default lessons');
-          // If no mapping found, use lessons as is but ensure they're sorted
-          setMappedLessons([...lessons].sort((a, b) => a.number - b.number));
+            activeLessons = mappedLessonsData;
+            setMappedLessons(mappedLessonsData);
+          } else {
+            console.log('No lesson mappings found, using default lessons');
+            activeLessons = [...legacyLessons].sort((a, b) => a.number - b.number);
+            setMappedLessons(activeLessons);
+          }
         }
         
         // Fetch progress
-        const savedProgress = getProgress();
-        const savedStudentId = localStorage.getItem('student_id');
-        const savedCompletionTime = localStorage.getItem('completion_time');
+        const savedProgress = getProgress(gameId, activeLessons[0]?.lesson_id);
+        const savedStudentId = localStorage.getItem(storageKey('student_id'));
+        const savedCompletionTime = localStorage.getItem(storageKey('completion_time'));
         
         console.log('Current progress:', savedProgress);
         
@@ -121,7 +144,7 @@ export default function HomePage() {
 
         // 如果有學號且完成時間，獲取排名
         if (savedStudentId && savedCompletionTime) {
-          getPlayerRank(savedStudentId)
+          getPlayerRank(savedStudentId, gameId)
             .then(rank => {
               setPlayerRank(rank);
             })
@@ -133,6 +156,7 @@ export default function HomePage() {
         setIsLoading(false);
       } catch (error) {
         console.error('Error fetching data:', error);
+        setLoadError(error instanceof Error ? error.message : '遊戲載入失敗');
         setIsLoading(false);
       }
     };
@@ -148,11 +172,11 @@ export default function HomePage() {
     return () => {
       window.removeEventListener('storage', handleStorageChange);
     };
-  }, []);
+  }, [gameId]);
   
   useEffect(() => {
     if (showLeaderboardDialog) {
-      getLeaderboardStats()
+      getLeaderboardStats(gameId)
         .then(stats => {
           setLeaderboardStats(stats);
         })
@@ -160,28 +184,33 @@ export default function HomePage() {
           console.error('Failed to fetch leaderboard stats:', error);
         });
     }
-  }, [showLeaderboardDialog]);
+  }, [showLeaderboardDialog, gameId]);
 
-  const isCompleted = progress.completedLessons.length === lessons.length;
+  const completedLessonCount = mappedLessons.filter(lesson =>
+    progress.completedLessons.includes(lesson.lesson_id),
+  ).length;
+  const isCompleted = mappedLessons.length > 0 && completedLessonCount === mappedLessons.length;
+  const rewardGoal = gameDefinition?.settings.rewards?.claimCost ?? 50;
 
   const handleReset = () => {
     // 清除所有追蹤資料
-    localStorage.removeItem('student_id');
-    localStorage.removeItem('student_name');
-    localStorage.removeItem('start_time');
-    localStorage.removeItem('completion_time');
-    localStorage.removeItem('completion_time_seconds');
+    localStorage.removeItem(storageKey('student_id'));
+    localStorage.removeItem(storageKey('student_name'));
+    localStorage.removeItem(storageKey('student_ref_id'));
+    localStorage.removeItem(storageKey('start_time'));
+    localStorage.removeItem(storageKey('completion_time'));
+    localStorage.removeItem(storageKey('completion_time_seconds'));
     
     // 清除所有關卡開始時間
-    for (let i = 1; i <= 5; i++) {
-      localStorage.removeItem(`lesson_${i}_start_time`);
-    }
+    mappedLessons.forEach(lesson =>
+      localStorage.removeItem(storageKey(`lesson_${lesson.lesson_id}_start_time`)),
+    );
     
     // 清除所有完成記錄
-    localStorage.removeItem('completions');
+    localStorage.removeItem(storageKey('completions'));
     
     // 重置進度
-    resetProgress();
+    resetProgress(gameId, mappedLessons[0]?.lesson_id);
     setProgress({
       completedLessons: [],
       stars: 0,
@@ -206,9 +235,9 @@ export default function HomePage() {
       const currentLessonId = getNextIncompleteLesson();
       const mappedLesson = mappedLessons.find(lesson => lesson.lesson_id === currentLessonId);
       if (mappedLesson) {
-        router.push(`/lessons/${mappedLesson.lesson_id}`);
+        router.push(lessonHref(mappedLesson.lesson_id));
       } else {
-        router.push(`/lessons/${mappedLessons[0].lesson_id}`);
+        router.push(lessonHref(mappedLessons[0].lesson_id));
       }
     } else {
       setShowStudentIdDialog(true);
@@ -223,27 +252,27 @@ export default function HomePage() {
       .replace('Z', '+08:00');
 
     // 清除之前的任何課程開始時間記錄
-    for (let i = 0; i <= 5; i++) {
-      localStorage.removeItem(`lesson_${i}_start_time`);
-    }
+    mappedLessons.forEach(lesson =>
+      localStorage.removeItem(storageKey(`lesson_${lesson.lesson_id}_start_time`)),
+    );
 
-    localStorage.setItem('student_id', id);
-    localStorage.setItem('student_name', name);
-    localStorage.setItem('start_time', startTime);
+    localStorage.setItem(storageKey('student_id'), id);
+    localStorage.setItem(storageKey('student_name'), name);
+    localStorage.setItem(storageKey('start_time'), startTime);
     if (studentRefId) {
-      localStorage.setItem('student_ref_id', studentRefId);
+      localStorage.setItem(storageKey('student_ref_id'), studentRefId);
     } else {
-      localStorage.removeItem('student_ref_id');
+      localStorage.removeItem(storageKey('student_ref_id'));
     }
     console.log('Setting global start_time on student ID submission:', startTime);
     setHasStudentId(true);
 
     // 直接導航到前導課程（0），若不存在則到第一關
-    const firstLesson = mappedLessons.find(lesson => lesson.number === 0) || mappedLessons.find(lesson => lesson.number === 1);
+    const firstLesson = mappedLessons.find(lesson => lesson.role === 'intro') || mappedLessons[0];
     if (firstLesson) {
-      router.push(`/lessons/${firstLesson.lesson_id}`);
+      router.push(lessonHref(firstLesson.lesson_id));
     } else {
-      router.push(`/lessons/${mappedLessons[0].lesson_id}`);
+      setLoadError('這款遊戲尚未設定任何關卡');
     }
   };
 
@@ -271,23 +300,10 @@ export default function HomePage() {
 
   // Helper to determine the next incomplete lesson or current progress
   const getNextIncompleteLesson = () => {
-    // If there are completed lessons, return the next one
-    if (progress.completedLessons.length > 0 && progress.completedLessons.length < mappedLessons.length) {
-      // Find the next lesson ID that hasn't been completed yet
-      for (let i = 0; i < mappedLessons.length; i++) {
-        if (!progress.completedLessons.includes(mappedLessons[i].lesson_id)) {
-          return mappedLessons[i].lesson_id;
-        }
-      }
-    }
-    
-    // If all lessons are completed, return the last one
-    if (progress.completedLessons.length === mappedLessons.length) {
-      return mappedLessons[mappedLessons.length - 1].lesson_id;
-    }
-    
-    // If no lessons are completed, start with the first one
-    return mappedLessons[0].lesson_id;
+    const nextIncomplete = mappedLessons.find(
+      lesson => !progress.completedLessons.includes(lesson.lesson_id),
+    );
+    return nextIncomplete?.lesson_id ?? mappedLessons[mappedLessons.length - 1]?.lesson_id;
   };
 
   if (isLoading) {
@@ -301,18 +317,30 @@ export default function HomePage() {
     );
   }
 
+  if (loadError) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gray-50 px-4">
+        <div className="max-w-md rounded-2xl border bg-white p-8 text-center shadow-sm">
+          <h1 className="text-xl font-bold text-gray-900 mb-2">無法載入遊戲</h1>
+          <p className="text-gray-600">{loadError}</p>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen bg-[#F9FAFB]">
       <header className="bg-white border-b sticky top-0 z-50">
         <div className="container mx-auto h-16 flex items-center justify-between px-4 md:px-6">
-          <Link href="/" className="flex items-center py-2 hover:opacity-80 transition-opacity">
+          <Link href={gameId ? `/games/${gameId}` : "/"} className="flex items-center py-2 hover:opacity-80 transition-opacity">
             <div className="flex items-center">
-              <span className="text-3xl font-bold bg-gradient-to-r from-blue-500 to-cyan-500 bg-clip-text text-transparent">excel</span>
+              <span className="text-2xl md:text-3xl font-bold bg-gradient-to-r from-blue-500 to-cyan-500 bg-clip-text text-transparent">
+                {gameDefinition?.settings.theme?.brandLabel ?? (gameDefinition?.title || 'excel master')}
+              </span>
               <div className="w-6 h-6 relative mx-0.5">
                 <FileSpreadsheet className="w-6 h-6 text-cyan-500" />
                 <div className="absolute -top-1 -right-1 w-2 h-2 bg-blue-500 rounded-full" />
               </div>
-              <span className="text-3xl font-bold bg-gradient-to-r from-cyan-500 to-teal-500 bg-clip-text text-transparent">master</span>
             </div>
           </Link>
 
@@ -353,12 +381,12 @@ export default function HomePage() {
             <div className="flex flex-col items-end">
               <div className="flex items-center gap-2 text-sm mb-1">
                 <span className="text-gray-500">課程進度</span>
-                <span className="font-medium">{progress.completedLessons.length}/{lessons.length}</span>
+                <span className="font-medium">{completedLessonCount}/{mappedLessons.length}</span>
               </div>
               <div className="w-32 h-1.5 bg-gray-100 rounded-full overflow-hidden">
                 <div 
                   className="h-full bg-[#58CC02] transition-all duration-300"
-                  style={{ width: `${(progress.completedLessons.length / lessons.length) * 100}%` }}
+                  style={{ width: `${mappedLessons.length ? (completedLessonCount / mappedLessons.length) * 100 : 0}%` }}
                 />
               </div>
             </div>
@@ -370,10 +398,10 @@ export default function HomePage() {
         <div className="max-w-4xl mx-auto">
           <div className="text-center mb-8 md:mb-12">
             <h1 className="text-3xl md:text-4xl font-bold mb-3 md:mb-4 text-gray-900">
-              Excel 大師挑戰
+              {gameDefinition?.title ?? 'Excel 大師挑戰'}
             </h1>
             <p className="text-lg md:text-xl text-gray-600">
-              踏上 Excel 技能提升之旅，成為數據分析專家！
+              {gameDefinition?.description ?? '踏上 Excel 技能提升之旅，成為數據分析專家！'}
             </p>
           </div>
 
@@ -439,7 +467,7 @@ export default function HomePage() {
                 <div>
                   <div className="text-sm text-gray-500">星星收集</div>
                   <div className="text-xl font-bold text-gray-900">
-                    {progress.stars}/50
+                    {progress.stars}/{rewardGoal}
                   </div>
                 </div>
               </div>
@@ -447,11 +475,11 @@ export default function HomePage() {
                 <div className="h-1.5 bg-gray-100 rounded-full overflow-hidden">
                   <div 
                     className="h-full bg-[#FF9900] transition-all duration-300"
-                    style={{ width: `${(progress.stars / 50) * 100}%` }}
+                    style={{ width: `${Math.min(100, (progress.stars / rewardGoal) * 100)}%` }}
                   />
                 </div>
                 <div className="text-sm text-gray-500 text-center">
-                  {progress.stars >= 50 ? '可兌換特別獎勵！' : `再收集 ${50 - progress.stars} 顆星星可兌換獎勵`}
+                  {progress.stars >= rewardGoal ? '可兌換特別獎勵！' : `再收集 ${rewardGoal - progress.stars} 顆星星可兌換獎勵`}
                 </div>
               </div>
             </div>
@@ -476,7 +504,7 @@ export default function HomePage() {
                       // - 前導課程（0）在有學號後永遠可進
                       // - 其他關卡需「上一關已完成」才解鎖
                       const canEnter = hasStudentId && (
-                        lesson.number === 0 || (
+                        lesson.role === 'intro' || index === 0 || (
                           !!prevLesson && progress.completedLessons.includes(prevLesson.lesson_id)
                         )
                       );
@@ -492,7 +520,7 @@ export default function HomePage() {
                           
                           <div className="relative mb-10">
                             <Link 
-                              href={isLocked ? "#" : `/lessons/${lesson.lesson_id}`}
+                              href={isLocked ? "#" : lessonHref(lesson.lesson_id)}
                               className={`
                                 block relative no-underline
                                 ${isLocked ? 'cursor-not-allowed opacity-60' : ''}
@@ -528,7 +556,7 @@ export default function HomePage() {
                                             ? 'bg-[#58CC02] text-white'
                                             : 'bg-[#2B4EFF] text-white'}
                                       `}>
-                                        {lesson.number === 0 ? (
+                                        {lesson.role === 'intro' ? (
                                           isCompleted ? (
                                             <>
                                               <span className="text-sm font-medium">完成課程</span>
@@ -543,7 +571,9 @@ export default function HomePage() {
                                         ) : isCompleted ? (
                                           <>
                                             <Star className="h-4 w-4 fill-current" />
-                                            <span className="text-sm font-medium">10</span>
+                                            <span className="text-sm font-medium">
+                                              {gameDefinition?.settings.rewards?.starsPerLesson ?? 10}
+                                            </span>
                                           </>
                                         ) : (
                                           <>
@@ -594,7 +624,7 @@ export default function HomePage() {
                 </div>
                 <div className="space-y-4">
                   {/* 修改排行榜顯示，僅在完成所有課程後顯示總時間和排名 */}
-                  {progress.completedLessons.length === mappedLessons.length && mappedLessons.length > 0 ? (
+                  {isCompleted ? (
                     <div 
                       className="flex items-center justify-between p-3 bg-[#F5F7FF] rounded-lg cursor-pointer hover:bg-[#EEF1FF] transition-colors"
                       onClick={() => setShowLeaderboardDialog(true)}
@@ -622,7 +652,7 @@ export default function HomePage() {
               <div className="bg-[#2B4EFF] rounded-2xl shadow-lg p-4 md:p-6 text-white">
                 <h2 className="text-lg md:text-xl font-bold mb-3 md:mb-4">準備好開始嗎？</h2>
                 <p className="mb-4 md:mb-6 text-white/90 text-sm md:text-base">
-                  立即開始您的 Excel 學習之旅，一步步成為數據分析專家！
+                  立即開始「{gameDefinition?.title ?? 'Excel 大師挑戰'}」學習之旅！
                 </p>
                 {isCompleted ? (
                   <Button
@@ -786,7 +816,7 @@ export default function HomePage() {
                     <div 
                       key={`${entry.student_id}-${index}`}
                       className={`grid grid-cols-12 gap-2 sm:gap-4 px-3 sm:px-4 py-2 sm:py-3 rounded-lg ${
-                        entry.student_id === localStorage.getItem('student_id')
+                        entry.student_id === localStorage.getItem(storageKey('student_id'))
                           ? 'bg-[#F5F7FF] border border-[#2B4EFF]'
                           : 'bg-white border border-gray-100'
                       }`}

@@ -1,21 +1,22 @@
 import { UserProgress } from '@/types/lesson'
+import { gameStorageKey } from '@/lib/game-storage'
 
 const PROGRESS_KEY = 'excel_master_progress'
 
-export function getProgress(): UserProgress {
+export function getProgress(gameId?: string, initialLessonId?: string): UserProgress {
   if (typeof window === 'undefined') {
-    return getInitialProgress()
+    return getInitialProgress(initialLessonId)
   }
 
-  const savedProgress = localStorage.getItem(PROGRESS_KEY)
+  const savedProgress = localStorage.getItem(gameStorageKey(gameId, PROGRESS_KEY))
   if (!savedProgress) {
-    return getInitialProgress()
+    return getInitialProgress(initialLessonId)
   }
 
   return JSON.parse(savedProgress)
 }
 
-export function getInitialProgress(): UserProgress {
+export function getInitialProgress(initialLessonId?: string): UserProgress {
   return {
     completedLessons: [],
     stars: 0,
@@ -23,23 +24,36 @@ export function getInitialProgress(): UserProgress {
     level: 1,
     exp: 0,
     dailyProgress: 0,
-    currentLesson: "a1b2c3d4-e5f6-47a8-9b0c-1d2e3f4a5b6c",
+    currentLesson: initialLessonId ?? "a1b2c3d4-e5f6-47a8-9b0c-1d2e3f4a5b6c",
     completed: false
   }
 }
 
-export function resetProgress() {
+export function resetProgress(gameId?: string, initialLessonId?: string) {
   if (typeof window !== 'undefined') {
-    localStorage.setItem(PROGRESS_KEY, JSON.stringify(getInitialProgress()))
+    localStorage.setItem(
+      gameStorageKey(gameId, PROGRESS_KEY),
+      JSON.stringify(getInitialProgress(initialLessonId)),
+    )
   }
 }
 
 export function updateLessonProgress(
   lessonId: string,
   starsEarned: number,
-  expEarned: number
+  expEarned: number,
+  gameId?: string,
+  initialLessonId?: string,
 ): UserProgress {
-  const currentProgress = getProgress()
+  const currentProgress = getProgress(gameId, initialLessonId)
+
+  // Reward claims adjust an already-completed game's balance. Completion
+  // rewards below remain idempotent per lesson.
+  if (starsEarned < 0) {
+    currentProgress.stars = Math.max(0, currentProgress.stars + starsEarned)
+    localStorage.setItem(gameStorageKey(gameId, PROGRESS_KEY), JSON.stringify(currentProgress))
+    return currentProgress
+  }
   
   if (!currentProgress.completedLessons.includes(lessonId)) {
     currentProgress.completedLessons.push(lessonId)
@@ -54,6 +68,6 @@ export function updateLessonProgress(
     }
   }
 
-  localStorage.setItem(PROGRESS_KEY, JSON.stringify(currentProgress))
+  localStorage.setItem(gameStorageKey(gameId, PROGRESS_KEY), JSON.stringify(currentProgress))
   return currentProgress
-} 
+}
