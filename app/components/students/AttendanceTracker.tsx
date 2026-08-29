@@ -2,12 +2,11 @@
 
 import { useEffect, useState } from 'react';
 import { format, startOfMonth, endOfMonth, eachDayOfInterval } from 'date-fns';
-import { createClientComponentClient } from '@supabase/auth-helpers-nextjs';
+import { supabase as getSupabaseClient } from '@/lib/supabase';
 import { Button } from '@/components/ui/button';
 import { Calendar } from '@/components/ui/calendar';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { useToast } from '@/hooks/use-toast';
-import type { Database } from '@/types/supabase';
 import { useLanguage } from '@/app/contexts/LanguageContext';
 import { useTranslation } from '@/utils/translations';
 
@@ -35,14 +34,15 @@ export function AttendanceTracker({ studentId }: AttendanceTrackerProps) {
   const [notes, setNotes] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const { toast } = useToast();
-  const supabase = createClientComponentClient<Database>();
 
   useEffect(() => {
     fetchAttendance();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const fetchAttendance = async () => {
     try {
+      const supabase = getSupabaseClient();
       const { data, error } = await supabase
         .from('attendance')
         .select('*')
@@ -71,6 +71,7 @@ export function AttendanceTracker({ studentId }: AttendanceTrackerProps) {
 
     setSubmitting(true);
     try {
+      const supabase = getSupabaseClient();
       const { data, error } = await supabase
         .from('attendance')
         .insert([

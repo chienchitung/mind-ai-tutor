@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { format } from 'date-fns';
-import { createClientComponentClient } from '@supabase/auth-helpers-nextjs';
+import { supabase as getSupabaseClient } from '@/lib/supabase';
 import { Button } from '@/components/ui/button';
 import { Calendar } from '@/components/ui/calendar';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -19,7 +19,6 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { useToast } from '@/hooks/use-toast';
-import type { Database } from '@/types/supabase';
 import { useLanguage } from '@/app/contexts/LanguageContext';
 import { useTranslation } from '@/utils/translations';
 
@@ -56,14 +55,15 @@ export function AssignmentTracker({ studentId }: AssignmentTrackerProps) {
   });
   const [submitting, setSubmitting] = useState(false);
   const { toast } = useToast();
-  const supabase = createClientComponentClient<Database>();
 
   useEffect(() => {
     fetchAssignments();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const fetchAssignments = async () => {
     try {
+      const supabase = getSupabaseClient();
       const { data, error } = await supabase
         .from('assignments')
         .select('*')
@@ -92,6 +92,7 @@ export function AssignmentTracker({ studentId }: AssignmentTrackerProps) {
 
     setSubmitting(true);
     try {
+      const supabase = getSupabaseClient();
       const { data, error } = await supabase
         .from('assignments')
         .insert([
@@ -142,6 +143,7 @@ export function AssignmentTracker({ studentId }: AssignmentTrackerProps) {
     feedback?: string
   ) => {
     try {
+      const supabase = getSupabaseClient();
       const { error } = await supabase
         .from('assignments')
         .update({ status, score, feedback })
