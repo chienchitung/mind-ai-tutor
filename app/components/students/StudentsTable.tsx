@@ -1,12 +1,26 @@
 'use client';
 
+import { useState } from 'react';
 import Link from 'next/link';
 import { ColumnDef } from "@tanstack/react-table";
 import { DataTable } from "@/components/ui/data-table";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { Button } from "@/components/ui/button";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import { Trash2 } from "lucide-react";
 import { StudentStatusBadge } from "./StudentStatusBadge";
 import { useLanguage } from "@/app/contexts/LanguageContext";
 import { useTranslation } from "@/utils/translations";
+import { useToast } from "@/hooks/use-toast";
 import type { Database } from "@/types/supabase";
 
 type Student = Database['public']['Tables']['students']['Row'];
@@ -14,11 +28,38 @@ type Student = Database['public']['Tables']['students']['Row'];
 interface StudentsTableProps {
   students: Student[];
   selectedTab: "all" | "active";
+  onStudentDeleted?: (id: string) => void;
 }
 
-export function StudentsTable({ students, selectedTab }: StudentsTableProps) {
+export function StudentsTable({ students, selectedTab, onStudentDeleted }: StudentsTableProps) {
   const { language } = useLanguage();
   const { t } = useTranslation(language);
+  const { toast } = useToast();
+  const [studentToDelete, setStudentToDelete] = useState<Student | null>(null);
+  const [deleting, setDeleting] = useState(false);
+
+  const handleConfirmDelete = async () => {
+    if (!studentToDelete) return;
+    setDeleting(true);
+    try {
+      const { supabase } = await import('@/lib/supabase');
+      const supabaseClient = supabase();
+      const { error } = await supabaseClient
+        .from('students')
+        .delete()
+        .eq('id', studentToDelete.id);
+
+      if (error) throw error;
+
+      toast({ title: t('success'), description: t('student_deleted') });
+      onStudentDeleted?.(studentToDelete.id);
+    } catch (error: any) {
+      toast({ title: t('error'), description: error.message, variant: 'destructive' });
+    } finally {
+      setDeleting(false);
+      setStudentToDelete(null);
+    }
+  };
 
   const columns: ColumnDef<Student>[] = [
     {
@@ -80,6 +121,23 @@ export function StudentsTable({ students, selectedTab }: StudentsTableProps) {
       header: t('status'),
       cell: ({ row }) => <StudentStatusBadge status={row.original.status} />,
     },
+    {
+      id: "actions",
+      header: '',
+      cell: ({ row }) => (
+        <Button
+          variant="ghost"
+          size="icon"
+          title={t('delete_student')}
+          onClick={(e) => {
+            e.stopPropagation();
+            setStudentToDelete(row.original);
+          }}
+        >
+          <Trash2 className="h-4 w-4 text-destructive" />
+        </Button>
+      ),
+    },
   ];
 
   const safeStudents = Array.isArray(students) ? students : [];
@@ -89,11 +147,38 @@ export function StudentsTable({ students, selectedTab }: StudentsTableProps) {
     : safeStudents.filter(student => student.status === 'active');
 
   return (
-    <DataTable
-      columns={columns}
-      data={filteredStudents}
-      searchColumn="name"
-      searchPlaceholder={t('search_by_name')}
-    />
+    <>
+      <DataTable
+        columns={columns}
+        data={filteredStudents}
+        searchColumn="name"
+        searchPlaceholder={t('search_by_name')}
+      />
+      <AlertDialog open={!!studentToDelete} onOpenChange={(open) => !open && setStudentToDelete(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>{t('delete_student_confirm_title')}</AlertDialogTitle>
+            <AlertDialogDescription>
+              {t('delete_student_confirm_desc')}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel asChild>
+              <Button variant="outline">{t('cancel')}</Button>
+            </AlertDialogCancel>
+            <AlertDialogAction asChild>
+              <Button
+                onClick={handleConfirmDelete}
+                disabled={deleting}
+                variant="destructive"
+                className="bg-red-600 hover:bg-red-700"
+              >
+                {deleting ? t('deleting') : t('delete')}
+              </Button>
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+    </>
   );
 }

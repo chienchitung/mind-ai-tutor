@@ -59,8 +59,8 @@ export default function StudentsPage() {
       setStudents(data || []);
     } catch (error) {
       toast({
-        title: 'Error fetching students',
-        description: 'Failed to load student data. Please try again later.',
+        title: t('error'),
+        description: t('error_fetching_students'),
         variant: 'destructive',
       });
       console.error('Error fetching students:', error);
@@ -117,14 +117,14 @@ export default function StudentsPage() {
       window.URL.revokeObjectURL(url);
 
       toast({
-        title: "Success",
-        description: "Students data exported successfully",
+        title: t('success'),
+        description: t('students_exported'),
       });
     } catch (error) {
       console.error('Error exporting to Excel:', error);
       toast({
-        title: "Error",
-        description: "Failed to export students data",
+        title: t('error'),
+        description: t('error_exporting_students'),
         variant: "destructive",
       });
     }
@@ -189,8 +189,8 @@ export default function StudentsPage() {
 
       if (!columnIndex.name || !columnIndex.email) {
         toast({
-          title: 'Import failed',
-          description: 'The file must have "name" and "email" columns. Download the template to see the expected format.',
+          title: t('import_failed'),
+          description: t('import_missing_columns'),
           variant: 'destructive',
         });
         return;
@@ -247,8 +247,11 @@ export default function StudentsPage() {
 
       if (rowsToInsert.length === 0) {
         toast({
-          title: 'Nothing to import',
-          description: `No new valid rows found (${skippedMissingFields} missing name/email, ${skippedDuplicates} already in the roster).`,
+          title: t('import_nothing_to_import'),
+          description: t('import_no_valid_rows', {
+            missing: skippedMissingFields,
+            duplicates: skippedDuplicates,
+          }),
           variant: 'destructive',
         });
         return;
@@ -263,16 +266,20 @@ export default function StudentsPage() {
       }
 
       toast({
-        title: 'Import complete',
-        description: `Added ${rowsToInsert.length} student(s). Skipped ${skippedMissingFields} row(s) missing name/email and ${skippedDuplicates} already-existing email(s).`,
+        title: t('import_complete'),
+        description: t('import_summary', {
+          added: rowsToInsert.length,
+          missing: skippedMissingFields,
+          duplicates: skippedDuplicates,
+        }),
       });
 
       await fetchStudents();
     } catch (error: any) {
       console.error('Error importing students:', error);
       toast({
-        title: 'Import failed',
-        description: error.message || 'Failed to import students from the file',
+        title: t('import_failed'),
+        description: error.message || t('import_failed'),
         variant: 'destructive',
       });
     } finally {
@@ -298,10 +305,10 @@ export default function StudentsPage() {
             <Button
               onClick={downloadImportTemplate}
               variant="ghost"
-              title="Download import template"
+              title={t('import_template')}
             >
               <FileDown className="mr-2 h-4 w-4" />
-              Template
+              {t('import_template')}
             </Button>
             <Button
               onClick={handleImportClick}
@@ -309,7 +316,7 @@ export default function StudentsPage() {
               className={cn(buttonVariants({ variant: "outline" }))}
             >
               <Upload className="mr-2 h-4 w-4" />
-              {importing ? 'Importing...' : 'Import Excel'}
+              {importing ? t('importing') : t('import_excel')}
             </Button>
             <Button
               onClick={exportToExcel}
@@ -334,7 +341,11 @@ export default function StudentsPage() {
         <>
           <StudentStats students={students} />
           <StudentFilters selectedTab={selectedTab} setSelectedTab={setSelectedTab} />
-          <StudentsTable students={students} selectedTab={selectedTab} />
+          <StudentsTable
+            students={students}
+            selectedTab={selectedTab}
+            onStudentDeleted={(id) => setStudents((prev) => prev.filter((s) => s.id !== id))}
+          />
         </>
       )}
     </div>
