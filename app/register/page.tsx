@@ -9,8 +9,12 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
 import Link from 'next/link';
+import { useLanguage } from '@/app/contexts/LanguageContext';
+import { useTranslation } from '@/utils/translations';
 
 export default function RegisterPage() {
+  const { language } = useLanguage();
+  const { t } = useTranslation(language);
   const [firstName, setFirstName] = useState('');
   const [lastName, setLastName] = useState('');
   const [email, setEmail] = useState('');
@@ -25,8 +29,8 @@ export default function RegisterPage() {
     
     if (!firstName || !lastName || !email || !password || !confirmPassword) {
       toast({
-        title: 'Missing fields',
-        description: 'Please fill in all fields.',
+        title: t('missing_fields'),
+        description: t('please_fill_all_fields'),
         variant: 'destructive',
       });
       return;
@@ -34,8 +38,8 @@ export default function RegisterPage() {
 
     if (password !== confirmPassword) {
       toast({
-        title: 'Passwords do not match',
-        description: 'Please make sure your passwords match.',
+        title: t('passwords_dont_match'),
+        description: t('passwords_dont_match_desc'),
         variant: 'destructive',
       });
       return;
@@ -67,40 +71,40 @@ export default function RegisterPage() {
 
       if (data?.user?.identities?.length === 0) {
         toast({
-          title: 'Email already registered',
-          description: 'This email is already registered. Please try logging in instead.',
+          title: t('email_already_registered'),
+          description: t('email_already_registered_desc'),
           variant: 'destructive',
         });
         router.push('/login');
         return;
       }
-      
+
       // Check if email confirmation is required
       if (data?.user?.confirmed_at) {
         // Email already confirmed, proceed to dashboard
         toast({
-          title: 'Registration successful',
-          description: 'Welcome to MindAiTutor!',
+          title: t('signup_successful'),
+          description: t('welcome_to_app'),
         });
         router.push('/dashboard');
       } else {
         // Email confirmation required
         toast({
-          title: 'Registration successful',
-          description: 'Please check your email to verify your account. You will be redirected to the login page.',
+          title: t('signup_successful'),
+          description: t('verify_email_desc'),
           duration: 5000,
         });
-        
+
         // Add a delay before redirecting to login
         setTimeout(() => {
           router.push('/login');
         }, 5000);
       }
-      
+
     } catch (error: any) {
       toast({
-        title: 'Registration failed',
-        description: error.message || 'Failed to register. Please try again.',
+        title: t('signup_failed'),
+        description: error.message || t('failed_to_signup'),
         variant: 'destructive',
       });
     } finally {
@@ -144,18 +148,18 @@ export default function RegisterPage() {
       
       // 顯示轉場提示，避免使用者覺得頁面凍結
       toast({
-        title: 'Redirecting to Google',
-        description: 'You will now be redirected to Google for authentication.',
+        title: t('redirecting_to_google'),
+        description: t('redirecting_to_google_desc'),
       });
-      
+
       // 客戶端重定向到 Google 授權頁面
       if (data?.url) {
         window.location.href = data.url;
       }
     } catch (error: any) {
       toast({
-        title: 'Registration failed',
-        description: error.message || 'Failed to register with Google. Please try again.',
+        title: t('signup_failed'),
+        description: error.message || t('failed_to_signup_google'),
         variant: 'destructive',
       });
       setIsLoading(false);
@@ -192,32 +196,32 @@ export default function RegisterPage() {
             </g>
           </svg>
         </div>
-        <p className="mt-2 text-muted-foreground">AI-powered student tracking and tutoring system</p>
+        <p className="mt-2 text-muted-foreground">{t('app_tagline')}</p>
       </div>
-      
+
       <Card className="w-full max-w-md">
         <CardHeader className="space-y-1 text-center">
-          <CardTitle className="text-2xl">Create an Account</CardTitle>
-          <CardDescription>Enter your details to sign up</CardDescription>
+          <CardTitle className="text-2xl">{t('create_account')}</CardTitle>
+          <CardDescription>{t('create_account_desc')}</CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
           <form onSubmit={handleRegister} className="space-y-4">
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
-                <Label htmlFor="firstName">First name</Label>
-                <Input 
-                  id="firstName" 
-                  placeholder="John" 
+                <Label htmlFor="firstName">{t('first_name')}</Label>
+                <Input
+                  id="firstName"
+                  placeholder="John"
                   value={firstName}
                   onChange={(e) => setFirstName(e.target.value)}
                   required
                 />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="lastName">Last name</Label>
-                <Input 
-                  id="lastName" 
-                  placeholder="Doe" 
+                <Label htmlFor="lastName">{t('last_name')}</Label>
+                <Input
+                  id="lastName"
+                  placeholder="Doe"
                   value={lastName}
                   onChange={(e) => setLastName(e.target.value)}
                   required
@@ -225,63 +229,63 @@ export default function RegisterPage() {
               </div>
             </div>
             <div className="space-y-2">
-              <Label htmlFor="email">Email</Label>
-              <Input 
-                id="email" 
-                placeholder="name@example.com" 
-                type="email" 
+              <Label htmlFor="email">{t('email')}</Label>
+              <Input
+                id="email"
+                placeholder="name@example.com"
+                type="email"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 required
               />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="password">Password</Label>
-              <Input 
-                id="password" 
-                placeholder="••••••••" 
-                type="password" 
+              <Label htmlFor="password">{t('password')}</Label>
+              <Input
+                id="password"
+                placeholder="••••••••"
+                type="password"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 required
               />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="confirmPassword">Confirm Password</Label>
-              <Input 
-                id="confirmPassword" 
-                placeholder="••••••••" 
-                type="password" 
+              <Label htmlFor="confirmPassword">{t('confirm_password')}</Label>
+              <Input
+                id="confirmPassword"
+                placeholder="••••••••"
+                type="password"
                 value={confirmPassword}
                 onChange={(e) => setConfirmPassword(e.target.value)}
                 required
               />
             </div>
             <Button className="w-full" type="submit" disabled={isLoading}>
-              {isLoading ? 'Signing up...' : 'Sign Up'}
+              {isLoading ? t('signing_up') : t('sign_up_link')}
             </Button>
           </form>
-          
+
           <div className="relative">
             <div className="absolute inset-0 flex items-center">
               <span className="w-full border-t" />
             </div>
             <div className="relative flex justify-center text-xs uppercase">
-              <span className="bg-background px-2 text-muted-foreground">Or continue with</span>
+              <span className="bg-background px-2 text-muted-foreground">{t('or_continue_with')}</span>
             </div>
           </div>
-          
-          <Button 
-            variant="outline" 
+
+          <Button
+            variant="outline"
             className="w-full"
             onClick={handleGoogleSignUp}
             disabled={isLoading}
           >
-            <Image 
-              src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg" 
-              alt="Google" 
-              width={20} 
-              height={20} 
+            <Image
+              src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg"
+              alt="Google"
+              width={20}
+              height={20}
               className="mr-2"
             />
             Google
@@ -289,9 +293,9 @@ export default function RegisterPage() {
         </CardContent>
         <CardFooter className="flex flex-col space-y-4">
           <div className="text-center text-sm text-muted-foreground">
-            Already have an account?{' '}
+            {t('already_have_account')}{' '}
             <Link href="/login" className="text-primary font-medium hover:underline">
-              Sign in
+              {t('sign_in')}
             </Link>
           </div>
         </CardFooter>

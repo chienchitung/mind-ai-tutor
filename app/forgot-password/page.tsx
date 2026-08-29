@@ -8,8 +8,12 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
 import Link from 'next/link';
+import { useLanguage } from '@/app/contexts/LanguageContext';
+import { useTranslation } from '@/utils/translations';
 
 export default function ForgotPasswordPage() {
+  const { language } = useLanguage();
+  const { t } = useTranslation(language);
   const [email, setEmail] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const router = useRouter();
@@ -20,8 +24,8 @@ export default function ForgotPasswordPage() {
     
     if (!email) {
       toast({
-        title: 'Missing Email',
-        description: 'Please enter your email address.',
+        title: t('missing_email'),
+        description: t('please_enter_email'),
         variant: 'destructive',
       });
       return;
@@ -44,15 +48,15 @@ export default function ForgotPasswordPage() {
       }
       
       toast({
-        title: 'Reset Email Sent',
-        description: 'Please check your email to reset your password.',
+        title: t('reset_email_sent'),
+        description: t('check_email_reset'),
       });
-      
+
       router.push('/login');
     } catch (error: any) {
       toast({
-        title: 'Reset Failed',
-        description: error.message || 'Unable to reset password. Please try again later.',
+        title: t('reset_failed'),
+        description: error.message || t('unable_to_reset'),
         variant: 'destructive',
       });
     } finally {
@@ -92,37 +96,37 @@ export default function ForgotPasswordPage() {
             </svg>
           </div>
         </div>
-        <p className="mt-2 text-muted-foreground">AI-powered student tracking and tutoring system</p>
+        <p className="mt-2 text-muted-foreground">{t('app_tagline')}</p>
       </div>
-      
+
       <Card className="w-full max-w-md">
         <CardHeader className="space-y-1 text-center">
-          <CardTitle className="text-2xl">Forgot Password</CardTitle>
-          <CardDescription>Enter your email to reset your password</CardDescription>
+          <CardTitle className="text-2xl">{t('forgot_password_title')}</CardTitle>
+          <CardDescription>{t('forgot_password_desc')}</CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
           <form onSubmit={handleResetPassword} className="space-y-4">
             <div className="space-y-2">
-              <Label htmlFor="email">Email</Label>
-              <Input 
-                id="email" 
-                placeholder="name@example.com" 
-                type="email" 
+              <Label htmlFor="email">{t('email')}</Label>
+              <Input
+                id="email"
+                placeholder="name@example.com"
+                type="email"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 required
               />
             </div>
             <Button className="w-full" type="submit" disabled={isLoading}>
-              {isLoading ? 'Processing...' : 'Reset Password'}
+              {isLoading ? t('processing') : t('reset_password')}
             </Button>
           </form>
         </CardContent>
         <CardFooter className="flex flex-col space-y-4">
           <div className="text-center text-sm text-muted-foreground">
-            Remember your password?{' '}
+            {t('remember_password')}{' '}
             <Link href="/login" className="text-primary font-medium hover:underline">
-              Back to Login
+              {t('back_to_login')}
             </Link>
           </div>
         </CardFooter>
