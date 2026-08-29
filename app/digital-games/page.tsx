@@ -487,8 +487,8 @@ export default function DigitalGamesPage() {
         // 新增課程
         if (prev.length >= 5) {
           toast({
-            title: "Maximum lessons reached",
-            description: "You can only select up to 5 lessons per game",
+            title: t("maximum_lessons_selected"),
+            description: t("max_lessons_per_game_desc"),
             variant: "destructive",
           });
           return prev;

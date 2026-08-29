@@ -744,6 +744,52 @@ export const translations = {
     image_inserted_success: "Image has been inserted into the editor",
     image_upload_failed: "Image upload failed",
     editor_try_again_later: "Please try again later",
+
+    // Events filter / view selector
+    search_tags: "Search tags...",
+    no_tags_found: "No tags found",
+    table_view: "Table View",
+    kanban_view: "Kanban View",
+    calendar_view: "Calendar View",
+    timeline_view: "Timeline View",
+
+    // Digital games page
+    max_lessons_per_game_desc: "You can only select up to 5 lessons per game",
+
+    // Activities page
+    all_activities_marked_read: "All activities marked as read",
+
+    // Dashboard - recent activity feed
+    new_event_text: "New event: {title}",
+
+    // AI Quiz page - gaps in existing wiring
+    please_enter_topic_or_file: "Please enter a quiz topic or upload a file.",
+    no_text_content_found: "No text content found to generate quiz. Please check your input or files.",
+    question_added_title: "Question Added",
+    question_added_to_quiz: "A new question has been added to the quiz.",
+    export_failed: "Export Failed",
+    quiz_content_not_available: "Quiz content not available.",
+    pdf_library_not_loaded: "PDF export library not loaded.",
+    word_doc_generation_failed: "Word document generation failed. Please try again.",
+    pptx_generation_failed: "PowerPoint file generation failed. Please try again.",
+    pptx_functionality_failed: "PowerPoint functionality failed to load. Please try again.",
+    pdf_generation_failed: "PDF file generation failed. Please try again.",
+    export_failed_generic: "Failed to export. Please try again.",
+    word_file_downloaded: "Word File Downloaded",
+    word_file_generated_desc: "Microsoft Word (.docx) file has been successfully generated",
+    pptx_file_downloaded: "PowerPoint File Downloaded",
+    pptx_file_generated_desc: "Microsoft PowerPoint (.pptx) file has been successfully generated",
+    pdf_file_downloaded: "PDF File Downloaded",
+    pdf_file_generated_desc: "PDF file has been successfully generated",
+    html_content_copied_title: "HTML Content Copied",
+    paste_with_formatting_in: "Please use Ctrl+V (or Cmd+V) in {app} to paste with formatting",
+    text_content_copied_title: "Text Content Copied",
+    html_copy_failed_fallback: "HTML copy failed. Plain text version has been copied. Please paste in {app}.",
+    paste_content_in: "Please paste the content in {app} using Ctrl+V (or Cmd+V)",
+    content_copied_title: "Content Copied",
+    copy_failed_title: "Copy Failed",
+    answer_single_select: "Single Choice",
+    answer_multi_select: "Multiple Choice",
   },
   'zh-TW': {
     // Command menu translations
@@ -1486,6 +1532,52 @@ export const translations = {
     image_inserted_success: "圖片已成功插入至編輯器",
     image_upload_failed: "圖片上傳失敗",
     editor_try_again_later: "請稍後再試",
+
+    // Events filter / view selector
+    search_tags: "搜尋標籤...",
+    no_tags_found: "找不到標籤",
+    table_view: "表格檢視",
+    kanban_view: "看板檢視",
+    calendar_view: "日曆檢視",
+    timeline_view: "時間軸檢視",
+
+    // Digital games page
+    max_lessons_per_game_desc: "每個遊戲最多只能選擇 5 個課程",
+
+    // Activities page
+    all_activities_marked_read: "所有活動已標記為已讀",
+
+    // Dashboard - recent activity feed
+    new_event_text: "新活動：{title}",
+
+    // AI Quiz page - gaps in existing wiring
+    please_enter_topic_or_file: "請輸入測驗主題或上傳檔案。",
+    no_text_content_found: "找不到可用於生成測驗的文字內容，請檢查您的輸入內容或檔案。",
+    question_added_title: "已新增問題",
+    question_added_to_quiz: "已將新問題新增至測驗中。",
+    export_failed: "匯出失敗",
+    quiz_content_not_available: "測驗內容無法使用。",
+    pdf_library_not_loaded: "PDF 匯出程式庫尚未載入。",
+    word_doc_generation_failed: "Word 文件生成失敗，請再試一次。",
+    pptx_generation_failed: "PowerPoint 檔案生成失敗，請再試一次。",
+    pptx_functionality_failed: "PowerPoint 功能載入失敗，請再試一次。",
+    pdf_generation_failed: "PDF 檔案生成失敗，請再試一次。",
+    export_failed_generic: "匯出失敗，請再試一次。",
+    word_file_downloaded: "Word 檔案已下載",
+    word_file_generated_desc: "已成功生成 Microsoft Word (.docx) 檔案",
+    pptx_file_downloaded: "PowerPoint 檔案已下載",
+    pptx_file_generated_desc: "已成功生成 Microsoft PowerPoint (.pptx) 檔案",
+    pdf_file_downloaded: "PDF 檔案已下載",
+    pdf_file_generated_desc: "已成功生成 PDF 檔案",
+    html_content_copied_title: "HTML 內容已複製",
+    paste_with_formatting_in: "請在 {app} 中使用 Ctrl+V（或 Cmd+V）貼上並保留格式",
+    text_content_copied_title: "文字內容已複製",
+    html_copy_failed_fallback: "HTML 複製失敗，已改為複製純文字版本，請貼到 {app}。",
+    paste_content_in: "請在 {app} 中使用 Ctrl+V（或 Cmd+V）貼上內容",
+    content_copied_title: "內容已複製",
+    copy_failed_title: "複製失敗",
+    answer_single_select: "單選",
+    answer_multi_select: "複選",
   }
 };
 

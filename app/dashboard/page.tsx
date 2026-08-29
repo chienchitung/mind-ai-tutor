@@ -135,7 +135,7 @@ function DashboardContent() {
             // Map lessons to activities
             const lessonActivities = lessonsData.map((lesson: any) => ({
               id: `lesson-${lesson.id}`,
-              title: `Course updated: ${lesson.title}`,
+              title: t('course_updated_text', { title: lesson.title }),
               timestamp: lesson.updated_at,
               source: 'lessons' as const
             }));
@@ -159,7 +159,7 @@ function DashboardContent() {
             // Map events to activities
             const eventActivities = eventsData.map((event: any) => ({
               id: `event-${event.id}`,
-              title: `New event: ${event.title}`,
+              title: t('new_event_text', { title: event.title }),
               timestamp: event.created_at,
               source: 'events' as const
             }));
@@ -183,7 +183,7 @@ function DashboardContent() {
             // Map feedback to activities
             const feedbackActivities = feedbackData.map((feedback: any) => ({
               id: `feedback-${feedback.id}`,
-              title: `${feedback.student_name} submitted feedback`,
+              title: t('new_feedback_from', { name: feedback.student_name }),
               timestamp: feedback.created_at,
               source: 'feedback' as const
             }));

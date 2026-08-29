@@ -278,7 +278,7 @@ function ActivitiesPageContent() {
     // In a real app, we would update the read status in the database
     setActivities(activities.map(activity => ({ ...activity, read: true })));
     toast({
-      title: 'All activities marked as read',
+      title: t('all_activities_marked_read'),
       description: '',
       duration: 3000
     });

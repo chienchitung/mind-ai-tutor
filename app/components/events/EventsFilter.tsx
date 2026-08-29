@@ -149,8 +149,8 @@ export function EventsFilter() {
         </PopoverTrigger>
         <PopoverContent className="w-60 p-0" align="start">
           <Command>
-            <CommandInput placeholder="Search tags..." />
-            <CommandEmpty>No tags found</CommandEmpty>
+            <CommandInput placeholder={t('search_tags')} />
+            <CommandEmpty>{t('no_tags_found')}</CommandEmpty>
             <CommandGroup>
               {tags.map(tag => (
                 <CommandItem
@@ -185,7 +185,7 @@ export function EventsFilter() {
           onValueChange={(value) => setFilterStatus(value)}
         >
           <SelectTrigger className="h-8 w-[130px]">
-            <SelectValue placeholder="Status" />
+            <SelectValue placeholder={t('status')} />
           </SelectTrigger>
           <SelectContent>
             {statusOptions.map((option) => (
@@ -204,7 +204,7 @@ export function EventsFilter() {
           onValueChange={(value) => setFilterPriority(value)}
         >
           <SelectTrigger className="h-8 w-[130px]">
-            <SelectValue placeholder="Priority" />
+            <SelectValue placeholder={t('priority')} />
           </SelectTrigger>
           <SelectContent>
             {priorityOptions.map((option) => (
@@ -241,7 +241,7 @@ export function EventsFilter() {
                   onValueChange={(value) => setFilterType(value)}
                 >
                   <SelectTrigger className="h-8 w-full">
-                    <SelectValue placeholder="Type" />
+                    <SelectValue placeholder={t('type')} />
                   </SelectTrigger>
                   <SelectContent>
                     {typeOptions.map((option) => (
@@ -265,7 +265,7 @@ export function EventsFilter() {
             onValueChange={(value) => setFilterType(value)}
           >
             <SelectTrigger className="h-8 w-[130px]">
-              <SelectValue placeholder="Type" />
+              <SelectValue placeholder={t('type')} />
             </SelectTrigger>
             <SelectContent>
               {typeOptions.map((option) => (
