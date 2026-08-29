@@ -171,7 +171,7 @@ export default function SettingsPage() {
     } catch (error: any) {
       toast({
         title: t('update_failed'),
-        description: error.message || 'Failed to update profile. Please try again.',
+        description: error.message || t('failed_update_profile_retry'),
         variant: 'destructive'
       });
     } finally {
@@ -182,8 +182,8 @@ export default function SettingsPage() {
   const handleChangePassword = () => {
     // Implement password change
     toast({
-      title: 'Coming soon',
-      description: 'Password change feature will be available soon.'
+      title: t('coming_soon'),
+      description: t('password_change_coming_soon')
     });
   };
 

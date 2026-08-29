@@ -47,7 +47,7 @@ import {
   DropdownMenuRadioItem,
 } from '@/components/ui/dropdown-menu';
 import { useLanguage, type Language } from '@/app/contexts/LanguageContext';
-import { useTranslation } from '@/utils/translations';
+import { useTranslation, translations } from '@/utils/translations';
 
 interface SidebarProps {
   className?: string;
@@ -149,13 +149,14 @@ export function Sidebar({
   };
 
   const changeLanguage = (value: Language) => {
-    // 先獲取要切換到的新語言所對應的通知訊息
-    const newLanguageTitle = value === 'en' ? 'Language changed' : '語言已更改';
-    const newLanguageDescription = value === 'en' ? 'English is now active' : '繁體中文現在已啟用';
-    
+    // 使用要切換到的新語言所對應的通知訊息（translations 中每個語言區塊
+    // 已各自提供正確措辭的 language_changed / language_changed_description）
+    const newLanguageTitle = translations[value].language_changed;
+    const newLanguageDescription = translations[value].language_changed_description;
+
     // 然後設置語言
     setLanguage(value);
-    
+
     // 使用新語言的訊息顯示通知
     toast({
       title: newLanguageTitle,
@@ -233,7 +234,7 @@ export function Sidebar({
               <div 
                 className="flex items-center justify-center p-2 rounded-md cursor-pointer text-gray-600 hover:bg-gray-100 hover:text-gray-900"
                 onClick={handleCollapse}
-                aria-label="Expand sidebar"
+                aria-label={t('expand_sidebar')}
               >
                 <PanelLeft className="h-5 w-5 text-gray-500" />
               </div>
@@ -273,7 +274,7 @@ export function Sidebar({
               <div 
                 className="flex items-center px-3 py-2.5 rounded-md cursor-pointer text-gray-600 hover:bg-gray-100 hover:text-gray-900"
                 onClick={handleCollapse}
-                aria-label="Collapse sidebar"
+                aria-label={t('collapse_sidebar')}
               >
                 <ChevronLeft className="h-5 w-5 text-gray-500" />
               </div>

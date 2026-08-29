@@ -644,6 +644,152 @@ export const translations = {
     ai_interactions_per_lesson: "Avg {count} interactions per lesson",
     ai_interaction_distribution: "AI Interaction Distribution",
     ai_interaction_by_lesson: "AI interactions by lesson",
+
+    // Layout wrappers (AppLayout / PageLayout / Sidebar)
+    authentication_required: "Authentication required",
+    please_sign_in_to_access_page: "Please sign in to access this page",
+    something_went_wrong: "Something went wrong",
+    reload_page: "Reload Page",
+    expand_sidebar: "Expand sidebar",
+    collapse_sidebar: "Collapse sidebar",
+
+    // Profile page
+    profile_settings: "Profile Settings",
+    change_avatar: "Change Avatar",
+    role: "Role",
+    updating: "Updating...",
+    loading_profile: "Loading profile...",
+    no_profile_found: "No profile found",
+
+    // Admin page
+    admin_page_title: "System Administration",
+    admin_page_desc: "Backend system information visible to admin roles only",
+    admin_students_label: "Students",
+    admin_events_label: "Calendar Events",
+    admin_lessons_label: "Lessons",
+    admin_feedback_label: "Feedback",
+    failed_load_admin_data: "Failed to load system information",
+    admin_user_roles_title: "User Roles",
+    admin_user_roles_desc: "All users with a record in the profiles table and their roles",
+    admin_no_profiles: "No users currently have a record in the profiles table.",
+    admin_name_not_set: "(Name not set)",
+    admin_joined_at: "Joined:",
+    admin_role_unset: "unset",
+
+    // Settings page
+    failed_update_profile_retry: "Failed to update profile. Please try again.",
+    coming_soon: "Coming soon",
+    password_change_coming_soon: "Password change feature will be available soon.",
+
+    // Student edit page
+    could_not_load_page_params: "Could not load page parameters.",
+    student_updated: "Student updated successfully",
+    subjects_label: "Subjects",
+    updating_student: "Updating Student...",
+    update_student: "Update Student",
+
+    // Attendance tracker
+    add_attendance: "Add Attendance",
+    attendance_present: "Present",
+    attendance_absent: "Absent",
+    attendance_late: "Late",
+    add_notes_optional: "Add notes (optional)",
+    adding: "Adding...",
+    monthly_overview: "Monthly Overview",
+    total_days: "Total Days",
+    attendance_history: "Attendance History",
+    loading_attendance_records: "Loading attendance records...",
+    no_attendance_records: "No attendance records found.",
+    failed_fetch_attendance: "Failed to fetch attendance records",
+    attendance_added: "Attendance record added successfully",
+    failed_add_attendance: "Failed to add attendance record",
+
+    // Assignment tracker
+    assignment_added: "Assignment added successfully",
+    failed_add_assignment: "Failed to add assignment",
+    failed_fetch_assignments: "Failed to fetch assignments",
+    assignment_status_updated: "Assignment status updated",
+    failed_update_assignment_status: "Failed to update assignment status",
+    add_assignment: "Add Assignment",
+    add_new_assignment: "Add New Assignment",
+    create_assignment_desc: "Create a new assignment for the student.",
+    subject_label: "Subject",
+    assignment_due_date: "Due Date",
+    loading_assignments: "Loading assignments...",
+    no_assignments_found: "No assignments found.",
+    score_label: "Score",
+    mark_as_completed: "Mark as Completed",
+    mark_as_pending: "Mark as Pending",
+
+    // Progress history
+    loading_progress_data: "Loading progress data...",
+    no_progress_entries: "No progress entries yet",
+    add_progress_entries_desc: "Add progress entries to track this student's performance.",
+    all_subjects: "All Subjects",
+    progress_history: "Progress History",
+    notes_label: "Notes",
+
+    // Reports - student selector
+    no_students_available: "No students available",
+    select_a_student: "Select a student",
+
+    // Markdown editor (component-level, distinct from lesson-form markdown_* keys)
+    loading_editor: "Loading editor...",
+    insert_image: "Insert Image",
+    uploading_image: "Uploading image",
+    please_wait: "Please wait...",
+    upload_failed: "Upload failed",
+    please_select_valid_image: "Please select a valid image file",
+    image_upload_success: "Image uploaded successfully",
+    image_inserted_success: "Image has been inserted into the editor",
+    image_upload_failed: "Image upload failed",
+    editor_try_again_later: "Please try again later",
+
+    // Events filter / view selector
+    search_tags: "Search tags...",
+    no_tags_found: "No tags found",
+    table_view: "Table View",
+    kanban_view: "Kanban View",
+    calendar_view: "Calendar View",
+    timeline_view: "Timeline View",
+
+    // Digital games page
+    max_lessons_per_game_desc: "You can only select up to 5 lessons per game",
+
+    // Activities page
+    all_activities_marked_read: "All activities marked as read",
+
+    // Dashboard - recent activity feed
+    new_event_text: "New event: {title}",
+
+    // AI Quiz page - gaps in existing wiring
+    please_enter_topic_or_file: "Please enter a quiz topic or upload a file.",
+    no_text_content_found: "No text content found to generate quiz. Please check your input or files.",
+    question_added_title: "Question Added",
+    question_added_to_quiz: "A new question has been added to the quiz.",
+    export_failed: "Export Failed",
+    quiz_content_not_available: "Quiz content not available.",
+    pdf_library_not_loaded: "PDF export library not loaded.",
+    word_doc_generation_failed: "Word document generation failed. Please try again.",
+    pptx_generation_failed: "PowerPoint file generation failed. Please try again.",
+    pptx_functionality_failed: "PowerPoint functionality failed to load. Please try again.",
+    pdf_generation_failed: "PDF file generation failed. Please try again.",
+    export_failed_generic: "Failed to export. Please try again.",
+    word_file_downloaded: "Word File Downloaded",
+    word_file_generated_desc: "Microsoft Word (.docx) file has been successfully generated",
+    pptx_file_downloaded: "PowerPoint File Downloaded",
+    pptx_file_generated_desc: "Microsoft PowerPoint (.pptx) file has been successfully generated",
+    pdf_file_downloaded: "PDF File Downloaded",
+    pdf_file_generated_desc: "PDF file has been successfully generated",
+    html_content_copied_title: "HTML Content Copied",
+    paste_with_formatting_in: "Please use Ctrl+V (or Cmd+V) in {app} to paste with formatting",
+    text_content_copied_title: "Text Content Copied",
+    html_copy_failed_fallback: "HTML copy failed. Plain text version has been copied. Please paste in {app}.",
+    paste_content_in: "Please paste the content in {app} using Ctrl+V (or Cmd+V)",
+    content_copied_title: "Content Copied",
+    copy_failed_title: "Copy Failed",
+    answer_single_select: "Single Choice",
+    answer_multi_select: "Multiple Choice",
   },
   'zh-TW': {
     // Command menu translations
@@ -1286,6 +1432,152 @@ export const translations = {
     ai_interactions_per_lesson: "平均每課程 {count} 次互動",
     ai_interaction_distribution: "AI 互動分佈",
     ai_interaction_by_lesson: "各課程 AI 互動次數",
+
+    // Layout wrappers (AppLayout / PageLayout / Sidebar)
+    authentication_required: "需要驗證身份",
+    please_sign_in_to_access_page: "請登入以存取此頁面",
+    something_went_wrong: "發生錯誤",
+    reload_page: "重新載入頁面",
+    expand_sidebar: "展開側邊欄",
+    collapse_sidebar: "收合側邊欄",
+
+    // Profile page
+    profile_settings: "個人資料設定",
+    change_avatar: "更換頭像",
+    role: "角色",
+    updating: "更新中...",
+    loading_profile: "載入個人資料中...",
+    no_profile_found: "找不到個人資料",
+
+    // Admin page
+    admin_page_title: "系統管理",
+    admin_page_desc: "僅 admin 角色可見的後台系統資訊",
+    admin_students_label: "學生",
+    admin_events_label: "行事曆事件",
+    admin_lessons_label: "課程",
+    admin_feedback_label: "回饋",
+    failed_load_admin_data: "無法載入系統資訊",
+    admin_user_roles_title: "使用者角色",
+    admin_user_roles_desc: "所有已在 profiles 表建立紀錄的使用者與其角色",
+    admin_no_profiles: "目前沒有使用者在 profiles 表建立紀錄。",
+    admin_name_not_set: "(未設定名稱)",
+    admin_joined_at: "加入時間:",
+    admin_role_unset: "未設定",
+
+    // Settings page
+    failed_update_profile_retry: "更新個人資料失敗，請再試一次。",
+    coming_soon: "即將推出",
+    password_change_coming_soon: "密碼變更功能即將推出。",
+
+    // Student edit page
+    could_not_load_page_params: "無法載入頁面參數。",
+    student_updated: "學生資料更新成功",
+    subjects_label: "科目",
+    updating_student: "更新學生資料中...",
+    update_student: "更新學生資料",
+
+    // Attendance tracker
+    add_attendance: "新增出席紀錄",
+    attendance_present: "出席",
+    attendance_absent: "缺席",
+    attendance_late: "遲到",
+    add_notes_optional: "新增備註（選填）",
+    adding: "新增中...",
+    monthly_overview: "本月概況",
+    total_days: "總天數",
+    attendance_history: "出席紀錄歷史",
+    loading_attendance_records: "載入出席紀錄中...",
+    no_attendance_records: "找不到出席紀錄。",
+    failed_fetch_attendance: "無法取得出席紀錄",
+    attendance_added: "出席紀錄新增成功",
+    failed_add_attendance: "新增出席紀錄失敗",
+
+    // Assignment tracker
+    assignment_added: "作業新增成功",
+    failed_add_assignment: "新增作業失敗",
+    failed_fetch_assignments: "無法取得作業資料",
+    assignment_status_updated: "作業狀態已更新",
+    failed_update_assignment_status: "更新作業狀態失敗",
+    add_assignment: "新增作業",
+    add_new_assignment: "新增作業項目",
+    create_assignment_desc: "為此學生建立新的作業。",
+    subject_label: "科目",
+    assignment_due_date: "截止日期",
+    loading_assignments: "載入作業中...",
+    no_assignments_found: "找不到作業。",
+    score_label: "分數",
+    mark_as_completed: "標記為已完成",
+    mark_as_pending: "標記為待完成",
+
+    // Progress history
+    loading_progress_data: "載入進度資料中...",
+    no_progress_entries: "尚無進度紀錄",
+    add_progress_entries_desc: "新增進度紀錄以追蹤此學生的學習表現。",
+    all_subjects: "所有科目",
+    progress_history: "進度歷史",
+    notes_label: "備註",
+
+    // Reports - student selector
+    no_students_available: "沒有可用的學生",
+    select_a_student: "選擇學生",
+
+    // Markdown editor (component-level, distinct from lesson-form markdown_* keys)
+    loading_editor: "載入編輯器中...",
+    insert_image: "插入圖片",
+    uploading_image: "圖片上傳中",
+    please_wait: "請稍候...",
+    upload_failed: "上傳失敗",
+    please_select_valid_image: "請選擇有效的圖片文件",
+    image_upload_success: "圖片上傳成功",
+    image_inserted_success: "圖片已成功插入至編輯器",
+    image_upload_failed: "圖片上傳失敗",
+    editor_try_again_later: "請稍後再試",
+
+    // Events filter / view selector
+    search_tags: "搜尋標籤...",
+    no_tags_found: "找不到標籤",
+    table_view: "表格檢視",
+    kanban_view: "看板檢視",
+    calendar_view: "日曆檢視",
+    timeline_view: "時間軸檢視",
+
+    // Digital games page
+    max_lessons_per_game_desc: "每個遊戲最多只能選擇 5 個課程",
+
+    // Activities page
+    all_activities_marked_read: "所有活動已標記為已讀",
+
+    // Dashboard - recent activity feed
+    new_event_text: "新活動：{title}",
+
+    // AI Quiz page - gaps in existing wiring
+    please_enter_topic_or_file: "請輸入測驗主題或上傳檔案。",
+    no_text_content_found: "找不到可用於生成測驗的文字內容，請檢查您的輸入內容或檔案。",
+    question_added_title: "已新增問題",
+    question_added_to_quiz: "已將新問題新增至測驗中。",
+    export_failed: "匯出失敗",
+    quiz_content_not_available: "測驗內容無法使用。",
+    pdf_library_not_loaded: "PDF 匯出程式庫尚未載入。",
+    word_doc_generation_failed: "Word 文件生成失敗，請再試一次。",
+    pptx_generation_failed: "PowerPoint 檔案生成失敗，請再試一次。",
+    pptx_functionality_failed: "PowerPoint 功能載入失敗，請再試一次。",
+    pdf_generation_failed: "PDF 檔案生成失敗，請再試一次。",
+    export_failed_generic: "匯出失敗，請再試一次。",
+    word_file_downloaded: "Word 檔案已下載",
+    word_file_generated_desc: "已成功生成 Microsoft Word (.docx) 檔案",
+    pptx_file_downloaded: "PowerPoint 檔案已下載",
+    pptx_file_generated_desc: "已成功生成 Microsoft PowerPoint (.pptx) 檔案",
+    pdf_file_downloaded: "PDF 檔案已下載",
+    pdf_file_generated_desc: "已成功生成 PDF 檔案",
+    html_content_copied_title: "HTML 內容已複製",
+    paste_with_formatting_in: "請在 {app} 中使用 Ctrl+V（或 Cmd+V）貼上並保留格式",
+    text_content_copied_title: "文字內容已複製",
+    html_copy_failed_fallback: "HTML 複製失敗，已改為複製純文字版本，請貼到 {app}。",
+    paste_content_in: "請在 {app} 中使用 Ctrl+V（或 Cmd+V）貼上內容",
+    content_copied_title: "內容已複製",
+    copy_failed_title: "複製失敗",
+    answer_single_select: "單選",
+    answer_multi_select: "複選",
   }
 };
 

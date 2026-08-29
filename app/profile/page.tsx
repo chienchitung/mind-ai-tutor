@@ -8,10 +8,14 @@ import { Label } from '@/components/ui/label';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { useToast } from '@/hooks/use-toast';
 import type { Database } from '@/types/supabase';
+import { useLanguage } from '@/app/contexts/LanguageContext';
+import { useTranslation } from '@/utils/translations';
 
 type Profile = Database['public']['Tables']['profiles']['Row'];
 
 export default function ProfilePage() {
+  const { language } = useLanguage();
+  const { t } = useTranslation(language);
   const [profile, setProfile] = useState<Profile | null>(null);
   const [loading, setLoading] = useState(true);
   const [updating, setUpdating] = useState(false);
@@ -47,7 +51,7 @@ export default function ProfilePage() {
         setProfile(data);
       } catch (error: any) {
         toast({
-          title: 'Error',
+          title: t('error'),
           description: error.message,
           variant: 'destructive',
         });
@@ -57,7 +61,7 @@ export default function ProfilePage() {
     };
 
     fetchProfile();
-  }, [router, toast]);
+  }, [router, toast, t]);
 
   const handleUpdateProfile = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -82,12 +86,12 @@ export default function ProfilePage() {
       }
 
       toast({
-        title: 'Success',
-        description: 'Profile updated successfully',
+        title: t('success'),
+        description: t('profile_update_success'),
       });
     } catch (error: any) {
       toast({
-        title: 'Error',
+        title: t('error'),
         description: error.message,
         variant: 'destructive',
       });
@@ -99,7 +103,7 @@ export default function ProfilePage() {
   if (loading) {
     return (
       <div className="flex h-[400px] items-center justify-center">
-        <p>Loading profile...</p>
+        <p>{t('loading_profile')}</p>
       </div>
     );
   }
@@ -107,14 +111,14 @@ export default function ProfilePage() {
   if (!profile) {
     return (
       <div className="flex h-[400px] items-center justify-center">
-        <p>No profile found</p>
+        <p>{t('no_profile_found')}</p>
       </div>
     );
   }
 
   return (
     <div className="container mx-auto max-w-2xl py-10">
-      <h1 className="mb-8 text-3xl font-bold">Profile Settings</h1>
+      <h1 className="mb-8 text-3xl font-bold">{t('profile_settings')}</h1>
       <div className="space-y-8">
         <div className="flex items-center gap-4">
           <Avatar className="h-20 w-20">
@@ -126,11 +130,11 @@ export default function ProfilePage() {
                 .join('')}
             </AvatarFallback>
           </Avatar>
-          <Button variant="outline">Change Avatar</Button>
+          <Button variant="outline">{t('change_avatar')}</Button>
         </div>
         <form onSubmit={handleUpdateProfile} className="space-y-4">
           <div className="space-y-2">
-            <Label htmlFor="full_name">Full Name</Label>
+            <Label htmlFor="full_name">{t('full_name')}</Label>
             <Input
               id="full_name"
               value={profile.full_name ?? ''}
@@ -140,11 +144,11 @@ export default function ProfilePage() {
             />
           </div>
           <div className="space-y-2">
-            <Label htmlFor="role">Role</Label>
+            <Label htmlFor="role">{t('role')}</Label>
             <Input id="role" value={profile.role} disabled />
           </div>
           <Button type="submit" disabled={updating}>
-            {updating ? 'Updating...' : 'Update Profile'}
+            {updating ? t('updating') : t('update_profile')}
           </Button>
         </form>
       </div>

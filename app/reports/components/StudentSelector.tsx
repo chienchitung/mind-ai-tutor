@@ -2,6 +2,8 @@
 
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { User } from 'lucide-react';
+import { useLanguage } from '@/app/contexts/LanguageContext';
+import { useTranslation } from '@/utils/translations';
 
 interface StudentSelectorProps {
   students: { id: string; name: string }[];
@@ -10,10 +12,13 @@ interface StudentSelectorProps {
 }
 
 export function StudentSelector({ students, selectedStudent, onSelectStudent }: StudentSelectorProps) {
+  const { language } = useLanguage();
+  const { t } = useTranslation(language);
+
   if (!students.length) {
     return (
       <div className="text-sm text-muted-foreground">
-        No students available
+        {t('no_students_available')}
       </div>
     );
   }
@@ -26,7 +31,7 @@ export function StudentSelector({ students, selectedStudent, onSelectStudent }: 
         onValueChange={onSelectStudent}
       >
         <SelectTrigger className="w-[200px]">
-          <SelectValue placeholder="Select a student" />
+          <SelectValue placeholder={t('select_a_student')} />
         </SelectTrigger>
         <SelectContent>
           {students.map((student) => (

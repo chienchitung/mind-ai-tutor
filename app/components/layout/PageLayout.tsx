@@ -4,13 +4,15 @@ import React, { useEffect, useState, useCallback } from "react";
 import { Sidebar } from "./Sidebar";
 import { PageTransition } from "./PageTransition";
 import { usePathname } from "next/navigation";
+import { useLanguage } from '@/app/contexts/LanguageContext';
+import { useTranslation } from '@/utils/translations';
 
 // 錯誤邊界組件
 class ErrorBoundary extends React.Component<
-  { children: React.ReactNode },
+  { children: React.ReactNode; t: (key: any) => string },
   { hasError: boolean }
 > {
-  constructor(props: { children: React.ReactNode }) {
+  constructor(props: { children: React.ReactNode; t: (key: any) => string }) {
     super(props);
     this.state = { hasError: false };
   }
@@ -25,15 +27,16 @@ class ErrorBoundary extends React.Component<
 
   render() {
     if (this.state.hasError) {
+      const { t } = this.props;
       return (
         <div className="min-h-screen flex items-center justify-center">
           <div className="text-center">
-            <h1 className="text-2xl font-bold mb-4">Something went wrong</h1>
+            <h1 className="text-2xl font-bold mb-4">{t('something_went_wrong')}</h1>
             <button
               className="px-4 py-2 bg-primary text-primary-foreground rounded"
               onClick={() => window.location.reload()}
             >
-              Reload Page
+              {t('reload_page')}
             </button>
           </div>
         </div>
@@ -55,6 +58,8 @@ interface PageLayoutProps {
  */
 export function PageLayout({ children }: PageLayoutProps) {
   const pathname = usePathname();
+  const { language } = useLanguage();
+  const { t } = useTranslation(language);
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
   const [isMobile, setIsMobile] = useState(false);
 
@@ -106,7 +111,7 @@ export function PageLayout({ children }: PageLayoutProps) {
   }
 
   return (
-    <ErrorBoundary>
+    <ErrorBoundary t={t}>
       <div className="flex min-h-screen bg-background">
         {/* 在非行動裝置時才渲染側邊欄 */}
         {!isMobile && (

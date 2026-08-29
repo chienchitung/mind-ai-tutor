@@ -5,6 +5,8 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Badge } from '@/components/ui/badge';
 import { PageHeader } from '@/components/layout/PageHeader';
 import { Loader2, Users, Calendar, BookOpen, MessageSquare } from 'lucide-react';
+import { useLanguage } from '@/app/contexts/LanguageContext';
+import { useTranslation } from '@/utils/translations';
 
 interface ProfileRow {
   id: string;
@@ -21,6 +23,8 @@ interface TableCount {
 }
 
 export default function AdminPage() {
+  const { language } = useLanguage();
+  const { t } = useTranslation(language);
   const [profiles, setProfiles] = useState<ProfileRow[]>([]);
   const [tableCounts, setTableCounts] = useState<TableCount[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -50,21 +54,21 @@ export default function AdminPage() {
 
         setProfiles((profilesResult.data as ProfileRow[]) || []);
         setTableCounts([
-          { label: '學生', count: studentsResult.count, icon: <Users className="h-4 w-4" /> },
-          { label: '行事曆事件', count: eventsResult.count, icon: <Calendar className="h-4 w-4" /> },
-          { label: '課程', count: lessonsResult.count, icon: <BookOpen className="h-4 w-4" /> },
-          { label: '回饋', count: feedbackResult.count, icon: <MessageSquare className="h-4 w-4" /> },
+          { label: t('admin_students_label'), count: studentsResult.count, icon: <Users className="h-4 w-4" /> },
+          { label: t('admin_events_label'), count: eventsResult.count, icon: <Calendar className="h-4 w-4" /> },
+          { label: t('admin_lessons_label'), count: lessonsResult.count, icon: <BookOpen className="h-4 w-4" /> },
+          { label: t('admin_feedback_label'), count: feedbackResult.count, icon: <MessageSquare className="h-4 w-4" /> },
         ]);
       } catch (err) {
         console.error('Error loading admin data:', err);
-        setError(err instanceof Error ? err.message : '無法載入系統資訊');
+        setError(err instanceof Error ? err.message : t('failed_load_admin_data'));
       } finally {
         setIsLoading(false);
       }
     };
 
     loadAdminData();
-  }, []);
+  }, [t]);
 
   if (isLoading) {
     return (
@@ -85,8 +89,8 @@ export default function AdminPage() {
   return (
     <div className="space-y-6">
       <PageHeader
-        heading="系統管理"
-        text="僅 admin 角色可見的後台系統資訊"
+        heading={t('admin_page_title')}
+        text={t('admin_page_desc')}
       />
 
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
@@ -105,15 +109,15 @@ export default function AdminPage() {
 
       <Card>
         <CardHeader>
-          <CardTitle>使用者角色</CardTitle>
+          <CardTitle>{t('admin_user_roles_title')}</CardTitle>
           <CardDescription>
-            所有已在 profiles 表建立紀錄的使用者與其角色
+            {t('admin_user_roles_desc')}
           </CardDescription>
         </CardHeader>
         <CardContent>
           {profiles.length === 0 ? (
             <p className="text-sm text-muted-foreground">
-              目前沒有使用者在 profiles 表建立紀錄。
+              {t('admin_no_profiles')}
             </p>
           ) : (
             <div className="space-y-2">
@@ -123,14 +127,14 @@ export default function AdminPage() {
                   className="flex items-center justify-between border-b py-2 last:border-0"
                 >
                   <div>
-                    <p className="font-medium">{profile.full_name || '(未設定名稱)'}</p>
+                    <p className="font-medium">{profile.full_name || t('admin_name_not_set')}</p>
                     <p className="text-xs text-muted-foreground">
-                      加入時間:{' '}
-                      {new Date(profile.created_at).toLocaleDateString('zh-TW')}
+                      {t('admin_joined_at')}{' '}
+                      {new Date(profile.created_at).toLocaleDateString(language === 'zh-TW' ? 'zh-TW' : 'en-US')}
                     </p>
                   </div>
                   <Badge variant={profile.role === 'admin' ? 'default' : 'secondary'}>
-                    {profile.role || 'unset'}
+                    {profile.role || t('admin_role_unset')}
                   </Badge>
                 </div>
               ))}

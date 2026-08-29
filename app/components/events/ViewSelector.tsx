@@ -19,7 +19,7 @@ export function ViewSelector() {
         size="sm"
         className="h-8 px-2"
         onClick={() => setActiveView('table')}
-        aria-label="Table View"
+        aria-label={t('table_view')}
       >
         <Table2 className="h-4 w-4 mr-1" />
         <span>{t('table')}</span>
@@ -30,7 +30,7 @@ export function ViewSelector() {
         size="sm"
         className="h-8 px-2"
         onClick={() => setActiveView('kanban')}
-        aria-label="Kanban View"
+        aria-label={t('kanban_view')}
       >
         <KanbanSquare className="h-4 w-4 mr-1" />
         <span>{t('kanban')}</span>
@@ -41,7 +41,7 @@ export function ViewSelector() {
         size="sm"
         className="h-8 px-2"
         onClick={() => setActiveView('calendar')}
-        aria-label="Calendar View"
+        aria-label={t('calendar_view')}
       >
         <CalendarDays className="h-4 w-4 mr-1" />
         <span>{t('calendar')}</span>
@@ -52,7 +52,7 @@ export function ViewSelector() {
         size="sm"
         className="h-8 px-2"
         onClick={() => setActiveView('timeline')}
-        aria-label="Timeline View"
+        aria-label={t('timeline_view')}
       >
         <GanttChartSquare className="h-4 w-4 mr-1" />
         <span>{t('timeline')}</span>

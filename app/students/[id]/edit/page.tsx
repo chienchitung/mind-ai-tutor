@@ -15,6 +15,8 @@ import {
 } from '@/components/ui/select';
 import { useToast } from '@/hooks/use-toast';
 import type { Database } from '@/types/supabase';
+import { useLanguage } from '@/app/contexts/LanguageContext';
+import { useTranslation } from '@/utils/translations';
 
 type Student = Database['public']['Tables']['students']['Row'];
 
@@ -39,6 +41,8 @@ interface EditStudentPageParams {
 
 // Update the component props to expect a Promise for params
 export default function EditStudentPage({ params: paramsPromise }: { params: Promise<EditStudentPageParams> }) {
+  const { language } = useLanguage();
+  const { t } = useTranslation(language);
   const [loading, setLoading] = useState(true);
   const [updating, setUpdating] = useState(false);
   const [student, setStudent] = useState<Student | null>(null);
@@ -56,14 +60,14 @@ export default function EditStudentPage({ params: paramsPromise }: { params: Pro
       } catch (error) {
         console.error("Error resolving page params:", error);
         toast({
-          title: 'Error',
-          description: 'Could not load page parameters.',
+          title: t('error'),
+          description: t('could_not_load_page_params'),
           variant: 'destructive',
         });
       }
     };
     resolveParams();
-  }, [paramsPromise, toast]);
+  }, [paramsPromise, toast, t]);
 
   useEffect(() => {
     // Fetch student data only after params are resolved
@@ -85,7 +89,7 @@ export default function EditStudentPage({ params: paramsPromise }: { params: Pro
         setStudent(data);
       } catch (error: any) {
         toast({
-          title: 'Error',
+          title: t('error'),
           description: error.message,
           variant: 'destructive',
         });
@@ -95,7 +99,7 @@ export default function EditStudentPage({ params: paramsPromise }: { params: Pro
     };
 
     fetchStudent();
-  }, [supabase, pageParams, toast]); // Depend on resolved pageParams
+  }, [supabase, pageParams, toast, t]); // Depend on resolved pageParams
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -119,14 +123,14 @@ export default function EditStudentPage({ params: paramsPromise }: { params: Pro
       }
 
       toast({
-        title: 'Success',
-        description: 'Student updated successfully',
+        title: t('success'),
+        description: t('student_updated'),
       });
 
       router.push(`/students/${pageParams.id}`); // Use resolved id from state for navigation
     } catch (error: any) {
       toast({
-        title: 'Error',
+        title: t('error'),
         description: error.message,
         variant: 'destructive',
       });
@@ -152,7 +156,7 @@ export default function EditStudentPage({ params: paramsPromise }: { params: Pro
   if (loading || !pageParams) { // Show loading also if params haven't resolved yet
     return (
       <div className="flex h-[400px] items-center justify-center">
-        <p>Loading student details...</p>
+        <p>{t('loading_student_details')}</p>
       </div>
     );
   }
@@ -160,17 +164,17 @@ export default function EditStudentPage({ params: paramsPromise }: { params: Pro
   if (!student) {
     return (
       <div className="flex h-[400px] items-center justify-center">
-        <p>Student not found</p>
+        <p>{t('student_not_found')}</p>
       </div>
     );
   }
 
   return (
     <div className="container mx-auto max-w-2xl py-10">
-      <h1 className="mb-8 text-3xl font-bold">Edit Student</h1>
+      <h1 className="mb-8 text-3xl font-bold">{t('edit_student')}</h1>
       <form onSubmit={handleSubmit} className="space-y-6">
         <div className="space-y-2">
-          <Label htmlFor="name">Full Name</Label>
+          <Label htmlFor="name">{t('full_name')}</Label>
           <Input
             id="name"
             value={student.name}
@@ -183,7 +187,7 @@ export default function EditStudentPage({ params: paramsPromise }: { params: Pro
           />
         </div>
         <div className="space-y-2">
-          <Label htmlFor="email">Email</Label>
+          <Label htmlFor="email">{t('email')}</Label>
           <Input
             id="email"
             type="email"
@@ -197,7 +201,7 @@ export default function EditStudentPage({ params: paramsPromise }: { params: Pro
           />
         </div>
         <div className="space-y-2">
-          <Label htmlFor="grade">Grade</Label>
+          <Label htmlFor="grade">{t('grade')}</Label>
           <Input
             id="grade"
             type="number"
@@ -213,7 +217,7 @@ export default function EditStudentPage({ params: paramsPromise }: { params: Pro
           />
         </div>
         <div className="space-y-2">
-          <Label htmlFor="status">Status</Label>
+          <Label htmlFor="status">{t('status')}</Label>
           <Select
             value={student.status}
             onValueChange={(value: 'active' | 'inactive') =>
@@ -221,16 +225,16 @@ export default function EditStudentPage({ params: paramsPromise }: { params: Pro
             }
           >
             <SelectTrigger id="status">
-              <SelectValue placeholder="Select status" />
+              <SelectValue placeholder={t('select_status')} />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="active">Active</SelectItem>
-              <SelectItem value="inactive">Inactive</SelectItem>
+              <SelectItem value="active">{t('active')}</SelectItem>
+              <SelectItem value="inactive">{t('inactive')}</SelectItem>
             </SelectContent>
           </Select>
         </div>
         <div className="space-y-2">
-          <Label>Subjects</Label>
+          <Label>{t('subjects_label')}</Label>
           <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
             {subjects.map((subject) => (
               <Button
@@ -253,10 +257,10 @@ export default function EditStudentPage({ params: paramsPromise }: { params: Pro
             variant="outline"
             onClick={() => router.push(`/students/${pageParams.id}`)} // Use resolved id from state
           >
-            Cancel
+            {t('cancel')}
           </Button>
           <Button type="submit" disabled={updating}>
-            {updating ? 'Updating Student...' : 'Update Student'}
+            {updating ? t('updating_student') : t('update_student')}
           </Button>
         </div>
       </form>

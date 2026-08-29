@@ -388,18 +388,18 @@ const QuizResults: React.FC<QuizResultsProps> = ({
   const handleExport = async (format: string) => {
     if (!quizContentRef.current) {
       toast({
-        title: "Export Failed", 
-        description: "Quiz content not available.",
+        title: t('export_failed'),
+        description: t('quiz_content_not_available'),
         variant: "destructive"
       });
       return;
     }
-    
+
     // Only check for PDF library when exporting PDF
     if (format === 'pdf' && !html2pdfLib) {
       toast({
-        title: "Export Failed", 
-        description: "PDF export library not loaded.",
+        title: t('export_failed'),
+        description: t('pdf_library_not_loaded'),
         variant: "destructive"
       });
       return;
@@ -518,25 +518,25 @@ const QuizResults: React.FC<QuizResultsProps> = ({
               link.click();
               
               toast({
-                title: "Word File Downloaded",
-                description: "Microsoft Word (.docx) file has been successfully generated",
+                title: t('word_file_downloaded'),
+                description: t('word_file_generated_desc'),
                 duration: 5000,
               });
-              
+
               setTimeout(() => URL.revokeObjectURL(url), 100);
             } catch (error) {
               console.error("Word document generation error:", error);
               toast({
-                title: "Export Failed",
-                description: "Word document generation failed. Please try again.",
+                title: t('export_failed'),
+                description: t('word_doc_generation_failed'),
                 variant: "destructive",
               });
             }
           }).catch(error => {
             console.error("Word document import error:", error);
             toast({
-              title: "Export Failed",
-              description: "Word document generation failed. Please try again.",
+              title: t('export_failed'),
+              description: t('word_doc_generation_failed'),
               variant: "destructive",
             });
           });
@@ -620,57 +620,57 @@ const QuizResults: React.FC<QuizResultsProps> = ({
             
             navigator.clipboard.write(data).then(() => {
               toast({
-                title: "HTML Content Copied",
-                description: "Please use Ctrl+V (or Cmd+V) in Google Docs to paste with formatting",
+                title: t('html_content_copied_title'),
+                description: t('paste_with_formatting_in', { app: 'Google Docs' }),
                 duration: 8000,
               });
             }).catch(async (err) => {
               console.error("HTML clipboard operation failed:", err);
-              
+
               // Fallback: Copy plain text
-              const plainText = quiz.title + "\n\n" + 
-                quiz.questions.map((q, i) => 
-                  `Question ${i+1}: ${q.questionText}\n` + 
-                  q.options.map(o => `${o.id.toUpperCase()}. ${o.text}${o.id === q.correctAnswer && showAnswers ? ' ✓' : ''}`).join('\n') + 
+              const plainText = quiz.title + "\n\n" +
+                quiz.questions.map((q, i) =>
+                  `Question ${i+1}: ${q.questionText}\n` +
+                  q.options.map(o => `${o.id.toUpperCase()}. ${o.text}${o.id === q.correctAnswer && showAnswers ? ' ✓' : ''}`).join('\n') +
                   (showAnswers ? `\n\n${t('explanation_colon')} ${q.explanation}` : '')
                 ).join('\n\n');
-              
+
               await navigator.clipboard.writeText(plainText);
-              
+
               toast({
-                title: "Text Content Copied",
-                description: "HTML copy failed. Plain text version has been copied. Please paste in Google Docs.",
+                title: t('text_content_copied_title'),
+                description: t('html_copy_failed_fallback', { app: 'Google Docs' }),
                 duration: 8000,
               });
             });
           } catch (err) {
             console.error("Clipboard operation failed:", err);
-            
+
             // Final fallback
-            const plainText = quiz.title + "\n\n" + 
-              quiz.questions.map((q, i) => 
-                `Question ${i+1}: ${q.questionText}\n` + 
-                q.options.map(o => `${o.id.toUpperCase()}. ${o.text}${o.id === q.correctAnswer && showAnswers ? ' ✓' : ''}`).join('\n') + 
+            const plainText = quiz.title + "\n\n" +
+              quiz.questions.map((q, i) =>
+                `Question ${i+1}: ${q.questionText}\n` +
+                q.options.map(o => `${o.id.toUpperCase()}. ${o.text}${o.id === q.correctAnswer && showAnswers ? ' ✓' : ''}`).join('\n') +
                 (showAnswers ? `\n\n${t('explanation_colon')} ${q.explanation}` : '')
               ).join('\n\n');
-            
+
             try {
               navigator.clipboard.writeText(plainText);
               toast({
-                title: "Text Content Copied",
-                description: "Please paste the content in Google Docs using Ctrl+V (or Cmd+V)",
+                title: t('text_content_copied_title'),
+                description: t('paste_content_in', { app: 'Google Docs' }),
                 duration: 5000,
               });
             } catch (finalErr) {
               toast({
-                title: "Copy Failed",
-                description: "Unable to copy content automatically. Please create your quiz manually.",
+                title: t('copy_failed_title'),
+                description: t('copy_failed'),
                 variant: "destructive",
                 duration: 5000,
               });
             }
           }
-          
+
           break;
         }
         
@@ -814,24 +814,24 @@ const QuizResults: React.FC<QuizResultsProps> = ({
             pptx.writeFile({ fileName: `${safeTitle}.pptx` })
               .then(() => {
                 toast({
-                  title: "PowerPoint File Downloaded",
-                  description: "Microsoft PowerPoint (.pptx) file has been successfully generated",
+                  title: t('pptx_file_downloaded'),
+                  description: t('pptx_file_generated_desc'),
                   duration: 5000,
                 });
               })
               .catch((err) => {
                 console.error("PowerPoint generation error:", err);
                 toast({
-                  title: "Export Failed",
-                  description: "PowerPoint file generation failed. Please try again.",
+                  title: t('export_failed'),
+                  description: t('pptx_generation_failed'),
                   variant: "destructive",
                 });
               });
           }).catch(error => {
             console.error("PowerPoint library loading error:", error);
             toast({
-              title: "Export Failed",
-              description: "PowerPoint functionality failed to load. Please try again.",
+              title: t('export_failed'),
+              description: t('pptx_functionality_failed'),
               variant: "destructive",
             });
           });
@@ -915,60 +915,60 @@ const QuizResults: React.FC<QuizResultsProps> = ({
             
             navigator.clipboard.write(data).then(() => {
               toast({
-                title: "Content Copied",
-                description: "Please use Ctrl+V (or Cmd+V) in Google Slides to paste with formatting",
+                title: t('content_copied_title'),
+                description: t('paste_with_formatting_in', { app: 'Google Slides' }),
                 duration: 8000,
               });
             }).catch(async (err) => {
               console.error("HTML clipboard operation failed:", err);
-              
+
               // Fallback: Copy plain text
-              const plainText = quiz.title + "\n\n" + 
-                quiz.questions.map((q, i) => 
-                  `Question ${i+1}: ${q.questionText}\n` + 
-                  q.options.map(o => `${o.id.toUpperCase()}. ${o.text}${o.id === q.correctAnswer && showAnswers ? ' ✓' : ''}`).join('\n') + 
+              const plainText = quiz.title + "\n\n" +
+                quiz.questions.map((q, i) =>
+                  `Question ${i+1}: ${q.questionText}\n` +
+                  q.options.map(o => `${o.id.toUpperCase()}. ${o.text}${o.id === q.correctAnswer && showAnswers ? ' ✓' : ''}`).join('\n') +
                   (showAnswers ? `\n\n${t('explanation_colon')} ${q.explanation}` : '')
                 ).join('\n\n');
-              
+
               await navigator.clipboard.writeText(plainText);
-              
+
           toast({
-                title: "Text Content Copied",
-                description: "HTML copy failed. Plain text version has been copied. Please paste in Google Slides.",
+                title: t('text_content_copied_title'),
+                description: t('html_copy_failed_fallback', { app: 'Google Slides' }),
                 duration: 8000,
               });
             });
           } catch (err) {
             console.error("Clipboard operation failed:", err);
-            
+
             // Final fallback
-            const plainText = quiz.title + "\n\n" + 
-              quiz.questions.map((q, i) => 
-                `Question ${i+1}: ${q.questionText}\n` + 
-                q.options.map(o => `${o.id.toUpperCase()}. ${o.text}${o.id === q.correctAnswer && showAnswers ? ' ✓' : ''}`).join('\n') + 
+            const plainText = quiz.title + "\n\n" +
+              quiz.questions.map((q, i) =>
+                `Question ${i+1}: ${q.questionText}\n` +
+                q.options.map(o => `${o.id.toUpperCase()}. ${o.text}${o.id === q.correctAnswer && showAnswers ? ' ✓' : ''}`).join('\n') +
                 (showAnswers ? `\n\n${t('explanation_colon')} ${q.explanation}` : '')
               ).join('\n\n');
-            
+
             try {
               navigator.clipboard.writeText(plainText);
             toast({
-                title: "Text Content Copied",
-                description: "Please paste the content in Google Slides using Ctrl+V (or Cmd+V)",
+                title: t('text_content_copied_title'),
+                description: t('paste_content_in', { app: 'Google Slides' }),
                 duration: 5000,
               });
             } catch (finalErr) {
               toast({
-                title: "Copy Failed",
-                description: "Unable to copy content automatically. Please create your quiz manually.",
+                title: t('copy_failed_title'),
+                description: t('copy_failed'),
                 variant: "destructive",
                 duration: 5000,
               });
             }
           }
-          
+
           break;
         }
-        
+
         case 'google-forms': {
           // 為 Google Forms 準備適合的 HTML 格式
           const styles = `
@@ -1046,60 +1046,60 @@ const QuizResults: React.FC<QuizResultsProps> = ({
             
             navigator.clipboard.write(data).then(() => {
             toast({
-              title: "Content Copied",
-                description: "Please use Ctrl+V (or Cmd+V) in Google Forms to paste with formatting",
+              title: t('content_copied_title'),
+                description: t('paste_with_formatting_in', { app: 'Google Forms' }),
                 duration: 8000,
               });
             }).catch(async (err) => {
               console.error("HTML clipboard operation failed:", err);
-              
+
               // Fallback: Copy plain text
-              const plainText = quiz.title + "\n\n" + 
-                quiz.questions.map((q, i) => 
-                  `Question ${i+1}: ${q.questionText}\n` + 
-                  q.options.map(o => `${o.id.toUpperCase()}. ${o.text}${o.id === q.correctAnswer && showAnswers ? ' ✓' : ''}`).join('\n') + 
+              const plainText = quiz.title + "\n\n" +
+                quiz.questions.map((q, i) =>
+                  `Question ${i+1}: ${q.questionText}\n` +
+                  q.options.map(o => `${o.id.toUpperCase()}. ${o.text}${o.id === q.correctAnswer && showAnswers ? ' ✓' : ''}`).join('\n') +
                   (showAnswers ? `\n\n${t('explanation_colon')} ${q.explanation}` : '')
                 ).join('\n\n');
-              
+
               await navigator.clipboard.writeText(plainText);
-              
+
               toast({
-                title: "Text Content Copied",
-                description: "HTML copy failed. Plain text version has been copied. Please paste in Google Forms.",
+                title: t('text_content_copied_title'),
+                description: t('html_copy_failed_fallback', { app: 'Google Forms' }),
                 duration: 8000,
               });
             });
           } catch (err) {
             console.error("Clipboard operation failed:", err);
-            
+
             // Final fallback
-            const plainText = quiz.title + "\n\n" + 
-              quiz.questions.map((q, i) => 
-                `Question ${i+1}: ${q.questionText}\n` + 
-                q.options.map(o => `${o.id.toUpperCase()}. ${o.text}${o.id === q.correctAnswer && showAnswers ? ' ✓' : ''}`).join('\n') + 
+            const plainText = quiz.title + "\n\n" +
+              quiz.questions.map((q, i) =>
+                `Question ${i+1}: ${q.questionText}\n` +
+                q.options.map(o => `${o.id.toUpperCase()}. ${o.text}${o.id === q.correctAnswer && showAnswers ? ' ✓' : ''}`).join('\n') +
                 (showAnswers ? `\n\n${t('explanation_colon')} ${q.explanation}` : '')
               ).join('\n\n');
-            
+
             try {
               navigator.clipboard.writeText(plainText);
               toast({
-                title: "Text Content Copied",
-                description: "Please paste the content in Google Forms using Ctrl+V (or Cmd+V)",
+                title: t('text_content_copied_title'),
+                description: t('paste_content_in', { app: 'Google Forms' }),
                 duration: 5000,
               });
             } catch (finalErr) {
               toast({
-                title: "Copy Failed",
-                description: "Unable to copy content automatically. Please create your quiz manually.",
+                title: t('copy_failed_title'),
+                description: t('copy_failed'),
                 variant: "destructive",
                 duration: 5000,
               });
             }
           }
-          
+
           break;
         }
-          
+
         case 'pdf': {
           // PDF export options
           const exportOptions = {
@@ -1138,15 +1138,15 @@ const QuizResults: React.FC<QuizResultsProps> = ({
           await html2pdfLib().from(element).set(exportOptions).save();
       
       toast({
-              title: "PDF File Downloaded",
-              description: "PDF file has been successfully generated",
+              title: t('pdf_file_downloaded'),
+              description: t('pdf_file_generated_desc'),
               duration: 5000,
             });
           } catch (pdfError) {
             console.error("PDF generation error:", pdfError);
             toast({
-              title: "Export Failed",
-              description: "PDF file generation failed. Please try again.",
+              title: t('export_failed'),
+              description: t('pdf_generation_failed'),
               variant: "destructive",
             });
           }
@@ -1156,8 +1156,8 @@ const QuizResults: React.FC<QuizResultsProps> = ({
     } catch (error) {
       console.error("Export error:", error);
       toast({
-        title: "Export Failed",
-        description: "Failed to export. Please try again.",
+        title: t('export_failed'),
+        description: t('export_failed_generic'),
         variant: "destructive",
       });
     } finally {
@@ -1279,21 +1279,21 @@ const QuizResults: React.FC<QuizResultsProps> = ({
   const handleAddQuestion = () => {
     const newQuestion: QuizQuestion = {
       id: String(Date.now()),
-      questionText: "New Question",
+      questionText: t('new_question'),
       options: [
-        { id: "a", text: "Option A" },
-        { id: "b", text: "Option B" },
-        { id: "c", text: "Option C" },
-        { id: "d", text: "Option D" }
+        { id: "a", text: t('option_a') },
+        { id: "b", text: t('option_b') },
+        { id: "c", text: t('option_c') },
+        { id: "d", text: t('option_d') }
       ],
       correctAnswer: "a",
-      explanation: "Add explanation here"
+      explanation: t('add_explanation')
     };
-    
+
     setEditedQuestions([...editedQuestions, newQuestion]);
     toast({
-      title: "Question Added",
-      description: "A new question has been added to the quiz.",
+      title: t('question_added_title'),
+      description: t('question_added_to_quiz'),
     });
   };
 
@@ -1826,7 +1826,7 @@ const QuizResults: React.FC<QuizResultsProps> = ({
                                       value={question.questionText}
                                       onChange={(e) => handleQuestionEdit(index, 'questionText', e.target.value)}
                                       className="mb-4 text-lg"
-                                      placeholder="Enter question text"
+                                      placeholder={t('enter_question')}
                                     />
                                   ) : (
                                     <h3 className="text-lg font-medium text-gray-900 mb-3">
@@ -1840,14 +1840,14 @@ const QuizResults: React.FC<QuizResultsProps> = ({
                                         <>
                                           {/* 題型選擇 */}
                                           <div className="mb-2">
-                                            <Label className="text-xs text-gray-500 mr-2">題型</Label>
+                                            <Label className="text-xs text-gray-500 mr-2">{t('question_type')}</Label>
                                             <select
                                               value={question.questionType || 'single'}
                                               onChange={e => handleQuestionEdit(index, 'questionType', e.target.value)}
                                               className="border rounded px-2 py-1 text-xs"
                                             >
-                                              <option value="single">單選</option>
-                                              <option value="multiple">複選</option>
+                                              <option value="single">{t('answer_single_select')}</option>
+                                              <option value="multiple">{t('answer_multi_select')}</option>
                                             </select>
                                           </div>
                                           {/* 單選/複選正確答案選擇 */}
@@ -2115,7 +2115,7 @@ export default function AIQuizPage() {
     if (!combinedContent && files.length === 0) {
       toast({
         title: t("error"),
-        description: "Please enter a quiz topic or upload a file.", // Consider adding a translation key
+        description: t("please_enter_topic_or_file"),
         variant: "destructive",
       });
       return;
@@ -2132,7 +2132,7 @@ export default function AIQuizPage() {
     if (!combinedContent.trim()) {
        toast({
         title: t("error"),
-        description: "No text content found to generate quiz. Please check your input or files.", // Consider adding a translation key
+        description: t("no_text_content_found"),
         variant: "destructive",
       });
       setIsGenerating(false);
