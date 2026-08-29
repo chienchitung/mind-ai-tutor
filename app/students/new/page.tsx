@@ -13,6 +13,8 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { useToast } from '@/hooks/use-toast';
+import { useLanguage } from '@/app/contexts/LanguageContext';
+import { useTranslation } from '@/utils/translations';
 import type { Database } from '@/types/supabase';
 
 const subjects = [
@@ -39,6 +41,8 @@ export default function NewStudentPage() {
   });
   const router = useRouter();
   const { toast } = useToast();
+  const { language } = useLanguage();
+  const { t } = useTranslation(language);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -61,14 +65,14 @@ export default function NewStudentPage() {
       }
 
       toast({
-        title: 'Success',
-        description: 'Student added successfully',
+        title: t('success'),
+        description: t('student_added'),
       });
 
       router.push('/dashboard');
     } catch (error: any) {
       toast({
-        title: 'Error',
+        title: t('error'),
         description: error.message,
         variant: 'destructive',
       });
@@ -88,10 +92,10 @@ export default function NewStudentPage() {
 
   return (
     <div className="container mx-auto max-w-2xl py-10">
-      <h1 className="mb-8 text-3xl font-bold">Add New Student</h1>
+      <h1 className="mb-8 text-3xl font-bold">{t('add_new_student')}</h1>
       <form onSubmit={handleSubmit} className="space-y-6">
         <div className="space-y-2">
-          <Label htmlFor="name">Full Name</Label>
+          <Label htmlFor="name">{t('full_name')}</Label>
           <Input
             id="name"
             value={formData.name}
@@ -102,7 +106,7 @@ export default function NewStudentPage() {
           />
         </div>
         <div className="space-y-2">
-          <Label htmlFor="email">Email</Label>
+          <Label htmlFor="email">{t('email')}</Label>
           <Input
             id="email"
             type="email"
@@ -114,7 +118,7 @@ export default function NewStudentPage() {
           />
         </div>
         <div className="space-y-2">
-          <Label htmlFor="grade">Grade</Label>
+          <Label htmlFor="grade">{t('grade')}</Label>
           <Input
             id="grade"
             type="number"
@@ -128,7 +132,7 @@ export default function NewStudentPage() {
           />
         </div>
         <div className="space-y-2">
-          <Label>Subjects</Label>
+          <Label>{t('topics')}</Label>
           <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
             {subjects.map((subject) => (
               <Button
@@ -146,7 +150,7 @@ export default function NewStudentPage() {
           </div>
         </div>
         <Button type="submit" disabled={loading} className="w-full">
-          {loading ? 'Adding Student...' : 'Add Student'}
+          {loading ? t('adding_student') : t('add_student')}
         </Button>
       </form>
     </div>

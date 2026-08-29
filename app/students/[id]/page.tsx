@@ -23,6 +23,8 @@ import { AttendanceTracker } from '@/components/students/AttendanceTracker';
 import { AssignmentTracker } from '@/components/students/AssignmentTracker';
 import { useToast } from '@/hooks/use-toast';
 import { KeyRound, RefreshCw, Copy } from 'lucide-react';
+import { useLanguage } from '@/app/contexts/LanguageContext';
+import { useTranslation } from '@/utils/translations';
 import type { Database } from '@/types/supabase';
 
 type Student = Database['public']['Tables']['students']['Row'];
@@ -34,6 +36,11 @@ function generateLoginCode(length = 8): string {
   crypto.getRandomValues(bytes);
   return Array.from(bytes, (n) => LOGIN_CODE_ALPHABET[n % LOGIN_CODE_ALPHABET.length]).join('');
 }
+
+// Postgrest error code for `.single()` matching zero (or multiple) rows -
+// an expected "not found" outcome, not an unexpected error worth alarming
+// the user with a raw toast for.
+const NO_ROW_ERROR_CODE = 'PGRST116';
 
 // Define the expected params type
 interface StudentPageParams {
@@ -48,6 +55,8 @@ export default function StudentPage({ params: paramsPromise }: { params: Promise
   const [pageParams, setPageParams] = useState<StudentPageParams | null>(null); // State to hold resolved params
   const router = useRouter();
   const { toast } = useToast();
+  const { language } = useLanguage();
+  const { t } = useTranslation(language);
   const supabase = createClientComponentClient<Database>();
 
   useEffect(() => {
@@ -59,15 +68,16 @@ export default function StudentPage({ params: paramsPromise }: { params: Promise
       } catch (error) {
         console.error("Error resolving page params:", error);
         toast({
-          title: 'Error',
-          description: 'Could not load page parameters.',
+          title: t('error'),
+          description: t('error_fetching_students'),
           variant: 'destructive',
         });
         // Optionally redirect or show an error state
       }
     };
     resolveParams();
-  }, [paramsPromise, toast]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [paramsPromise]);
 
   useEffect(() => {
     // Fetch student data only after params are resolved
@@ -88,18 +98,26 @@ export default function StudentPage({ params: paramsPromise }: { params: Promise
 
         setStudent(data);
       } catch (error: any) {
-        toast({
-          title: 'Error',
-          description: error.message,
-          variant: 'destructive',
-        });
+        setStudent(null);
+        // A missing row is an expected "not found" outcome (e.g. a stale
+        // link to a deleted student) - the page already renders a friendly
+        // not-found state for it below, so it doesn't also need a scary
+        // error toast. Only genuinely unexpected errors do.
+        if (error?.code !== NO_ROW_ERROR_CODE) {
+          toast({
+            title: t('error'),
+            description: error.message,
+            variant: 'destructive',
+          });
+        }
       } finally {
         setLoading(false);
       }
     };
 
     fetchStudent();
-  }, [supabase, pageParams, toast]); // Depend on resolved pageParams
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [supabase, pageParams]); // Depend on resolved pageParams
 
   const handleEdit = () => {
     if (!pageParams) return; // Ensure pageParams is available
@@ -126,12 +144,12 @@ export default function StudentPage({ params: paramsPromise }: { params: Promise
 
       setStudent(data);
       toast({
-        title: 'Success',
-        description: 'Login code generated. Share it with the student.',
+        title: t('success'),
+        description: t('login_code_generated'),
       });
     } catch (error: any) {
       toast({
-        title: 'Error',
+        title: t('error'),
         description: error.message,
         variant: 'destructive',
       });
@@ -143,7 +161,7 @@ export default function StudentPage({ params: paramsPromise }: { params: Promise
   const handleCopyLoginCode = () => {
     if (!student?.login_code) return;
     navigator.clipboard.writeText(student.login_code);
-    toast({ title: 'Copied', description: 'Login code copied to clipboard.' });
+    toast({ title: t('success'), description: t('login_code_copied') });
   };
 
   const handleDelete = async () => {
@@ -160,14 +178,14 @@ export default function StudentPage({ params: paramsPromise }: { params: Promise
       }
 
       toast({
-        title: 'Success',
-        description: 'Student deleted successfully',
+        title: t('success'),
+        description: t('student_deleted'),
       });
 
-      router.push('/dashboard');
+      router.push('/students');
     } catch (error: any) {
       toast({
-        title: 'Error',
+        title: t('error'),
         description: error.message,
         variant: 'destructive',
       });
@@ -179,15 +197,16 @@ export default function StudentPage({ params: paramsPromise }: { params: Promise
   if (loading || !pageParams) { // Show loading also if params haven't resolved yet
     return (
       <div className="flex h-[400px] items-center justify-center">
-        <p>Loading student details...</p>
+        <p>{t('loading_student_details')}</p>
       </div>
     );
   }
 
   if (!student) {
     return (
-      <div className="flex h-[400px] items-center justify-center">
-        <p>Student not found</p>
+      <div className="flex h-[400px] flex-col items-center justify-center gap-1">
+        <p className="text-lg font-medium">{t('student_not_found')}</p>
+        <p className="text-sm text-muted-foreground">{t('student_not_found_desc')}</p>
       </div>
     );
   }
@@ -197,22 +216,21 @@ export default function StudentPage({ params: paramsPromise }: { params: Promise
       <div className="flex items-center justify-between">
         <h1 className="text-3xl font-bold">{student.name}</h1>
         <div className="flex gap-2">
-          <Button onClick={handleEdit}>Edit Student</Button>
+          <Button onClick={handleEdit}>{t('edit_student')}</Button>
           <AlertDialog>
             <AlertDialogTrigger asChild>
-              <Button variant="destructive">Delete Student</Button>
+              <Button variant="destructive">{t('delete_student')}</Button>
             </AlertDialogTrigger>
             <AlertDialogContent>
               <AlertDialogHeader>
-                <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
+                <AlertDialogTitle>{t('delete_student_confirm_title')}</AlertDialogTitle>
                 <AlertDialogDescription>
-                  This action cannot be undone. This will permanently delete the
-                  student and all associated data.
+                  {t('delete_student_confirm_desc')}
                 </AlertDialogDescription>
               </AlertDialogHeader>
               <AlertDialogFooter>
                 <AlertDialogCancel asChild>
-                  <Button variant="outline">Cancel</Button>
+                  <Button variant="outline">{t('cancel')}</Button>
                 </AlertDialogCancel>
                 <AlertDialogAction asChild>
                   <Button
@@ -221,7 +239,7 @@ export default function StudentPage({ params: paramsPromise }: { params: Promise
                     variant="destructive"
                     className="bg-red-600 hover:bg-red-700"
                   >
-                    {deleting ? 'Deleting...' : 'Delete'}
+                    {deleting ? t('deleting') : t('delete')}
                   </Button>
                 </AlertDialogAction>
               </AlertDialogFooter>
@@ -234,16 +252,16 @@ export default function StudentPage({ params: paramsPromise }: { params: Promise
         <div className="grid gap-6 md:grid-cols-2">
           <div className="space-y-4">
             <div>
-              <h2 className="text-lg font-semibold">Basic Information</h2>
+              <h2 className="text-lg font-semibold">{t('basic_information')}</h2>
               <div className="mt-2 space-y-2">
                 <p>
-                  <span className="font-medium">Email:</span> {student.email}
+                  <span className="font-medium">{t('email')}:</span> {student.email}
                 </p>
                 <p>
-                  <span className="font-medium">Grade:</span> {student.grade}
+                  <span className="font-medium">{t('grade')}:</span> {student.grade}
                 </p>
                 <p>
-                  <span className="font-medium">Status:</span>{' '}
+                  <span className="font-medium">{t('status')}:</span>{' '}
                   <span
                     className={`inline-block rounded-full px-2 py-1 text-xs font-semibold ${
                       student.status === 'active'
@@ -251,13 +269,13 @@ export default function StudentPage({ params: paramsPromise }: { params: Promise
                         : 'bg-red-100 text-red-800'
                     }`}
                   >
-                    {student.status}
+                    {student.status === 'active' ? t('active') : t('inactive')}
                   </span>
                 </p>
               </div>
             </div>
             <div>
-              <h2 className="text-lg font-semibold">Subjects</h2>
+              <h2 className="text-lg font-semibold">{t('topics')}</h2>
               <ScrollArea className="mt-2 h-[200px] rounded-md border p-4">
                 <div className="space-y-2">
                   {student.subjects.map((subject) => (
@@ -276,11 +294,10 @@ export default function StudentPage({ params: paramsPromise }: { params: Promise
             <div>
               <h2 className="text-lg font-semibold flex items-center gap-2">
                 <KeyRound className="h-4 w-4" />
-                Game Login Code
+                {t('game_login_code')}
               </h2>
               <p className="mt-1 text-sm text-muted-foreground">
-                Give this code to the student to link their game play to this profile.
-                Without it, they can still play anonymously as before.
+                {t('game_login_code_desc')}
               </p>
               <div className="mt-3">
                 {student.login_code ? (
@@ -288,7 +305,7 @@ export default function StudentPage({ params: paramsPromise }: { params: Promise
                     <code className="rounded-md border bg-secondary/50 px-3 py-2 text-lg font-mono tracking-widest">
                       {student.login_code}
                     </code>
-                    <Button variant="outline" size="icon" onClick={handleCopyLoginCode} title="Copy">
+                    <Button variant="outline" size="icon" onClick={handleCopyLoginCode} title={t('copy_login_code')}>
                       <Copy className="h-4 w-4" />
                     </Button>
                     <Button
@@ -296,14 +313,14 @@ export default function StudentPage({ params: paramsPromise }: { params: Promise
                       size="icon"
                       onClick={handleGenerateLoginCode}
                       disabled={generatingCode}
-                      title="Regenerate"
+                      title={t('regenerate_login_code')}
                     >
                       <RefreshCw className="h-4 w-4" />
                     </Button>
                   </div>
                 ) : (
                   <Button onClick={handleGenerateLoginCode} disabled={generatingCode} variant="outline">
-                    {generatingCode ? 'Generating...' : 'Generate Login Code'}
+                    {generatingCode ? t('generating') : t('generate_login_code')}
                   </Button>
                 )}
               </div>
@@ -313,9 +330,9 @@ export default function StudentPage({ params: paramsPromise }: { params: Promise
 
         <Tabs defaultValue="progress" className="mt-6">
           <TabsList>
-            <TabsTrigger value="progress">Progress</TabsTrigger>
-            <TabsTrigger value="attendance">Attendance</TabsTrigger>
-            <TabsTrigger value="assignments">Assignments</TabsTrigger>
+            <TabsTrigger value="progress">{t('progress')}</TabsTrigger>
+            <TabsTrigger value="attendance">{t('attendance')}</TabsTrigger>
+            <TabsTrigger value="assignments">{t('assignments')}</TabsTrigger>
           </TabsList>
           <TabsContent value="progress" className="mt-6">
             <ProgressHistory studentId={student.id} />
