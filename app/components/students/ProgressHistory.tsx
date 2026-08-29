@@ -13,6 +13,8 @@ import {
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { StudentProgressChart } from '@/components/charts/StudentProgressChart';
 import { getStudentProgress } from '@/lib/analytics';
+import { useLanguage } from '@/app/contexts/LanguageContext';
+import { useTranslation } from '@/utils/translations';
 
 interface Progress {
   id: string;
@@ -27,6 +29,8 @@ interface ProgressHistoryProps {
 }
 
 export function ProgressHistory({ studentId }: ProgressHistoryProps) {
+  const { language } = useLanguage();
+  const { t } = useTranslation(language);
   const [progress, setProgress] = useState<Progress[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedSubject, setSelectedSubject] = useState<string | undefined>();
@@ -53,7 +57,7 @@ export function ProgressHistory({ studentId }: ProgressHistoryProps) {
       <div className="space-y-4">
         <Card>
           <CardHeader>
-            <CardTitle>Loading progress data...</CardTitle>
+            <CardTitle>{t('loading_progress_data')}</CardTitle>
           </CardHeader>
         </Card>
       </div>
@@ -65,11 +69,11 @@ export function ProgressHistory({ studentId }: ProgressHistoryProps) {
       <div className="space-y-4">
         <Card>
           <CardHeader>
-            <CardTitle>No progress entries yet</CardTitle>
+            <CardTitle>{t('no_progress_entries')}</CardTitle>
           </CardHeader>
           <CardContent>
             <p className="text-muted-foreground">
-              Add progress entries to track this student's performance.
+              {t('add_progress_entries_desc')}
             </p>
           </CardContent>
         </Card>
@@ -87,7 +91,7 @@ export function ProgressHistory({ studentId }: ProgressHistoryProps) {
             setSelectedSubject(e.target.value || undefined)
           }
         >
-          <option value="">All Subjects</option>
+          <option value="">{t('all_subjects')}</option>
           {subjects.map((subject) => (
             <option key={subject} value={subject}>
               {subject}
@@ -103,16 +107,16 @@ export function ProgressHistory({ studentId }: ProgressHistoryProps) {
 
       <Card>
         <CardHeader>
-          <CardTitle>Progress History</CardTitle>
+          <CardTitle>{t('progress_history')}</CardTitle>
         </CardHeader>
         <CardContent>
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead>Date</TableHead>
-                <TableHead>Subject</TableHead>
-                <TableHead>Score</TableHead>
-                <TableHead>Notes</TableHead>
+                <TableHead>{t('date')}</TableHead>
+                <TableHead>{t('subject_label')}</TableHead>
+                <TableHead>{t('score_label')}</TableHead>
+                <TableHead>{t('notes_label')}</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>

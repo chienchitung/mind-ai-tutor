@@ -20,6 +20,8 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { useToast } from '@/hooks/use-toast';
 import type { Database } from '@/types/supabase';
+import { useLanguage } from '@/app/contexts/LanguageContext';
+import { useTranslation } from '@/utils/translations';
 
 interface Assignment {
   id: string;
@@ -38,6 +40,8 @@ interface AssignmentTrackerProps {
 }
 
 export function AssignmentTracker({ studentId }: AssignmentTrackerProps) {
+  const { language } = useLanguage();
+  const { t } = useTranslation(language);
   const [assignments, setAssignments] = useState<Assignment[]>([]);
   const [loading, setLoading] = useState(true);
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -74,8 +78,8 @@ export function AssignmentTracker({ studentId }: AssignmentTrackerProps) {
     } catch (error) {
       console.error('Failed to fetch assignments:', error);
       toast({
-        title: 'Error',
-        description: 'Failed to fetch assignments',
+        title: t('error'),
+        description: t('failed_fetch_assignments'),
         variant: 'destructive',
       });
     } finally {
@@ -116,14 +120,14 @@ export function AssignmentTracker({ studentId }: AssignmentTrackerProps) {
         dueDate: new Date(),
       });
       toast({
-        title: 'Success',
-        description: 'Assignment added successfully',
+        title: t('success'),
+        description: t('assignment_added'),
       });
     } catch (error) {
       console.error('Failed to add assignment:', error);
       toast({
-        title: 'Error',
-        description: 'Failed to add assignment',
+        title: t('error'),
+        description: t('failed_add_assignment'),
         variant: 'destructive',
       });
     } finally {
@@ -153,14 +157,14 @@ export function AssignmentTracker({ studentId }: AssignmentTrackerProps) {
         )
       );
       toast({
-        title: 'Success',
-        description: 'Assignment status updated',
+        title: t('success'),
+        description: t('assignment_status_updated'),
       });
     } catch (error) {
       console.error('Failed to update assignment:', error);
       toast({
-        title: 'Error',
-        description: 'Failed to update assignment status',
+        title: t('error'),
+        description: t('failed_update_assignment_status'),
         variant: 'destructive',
       });
     }
@@ -180,21 +184,21 @@ export function AssignmentTracker({ studentId }: AssignmentTrackerProps) {
   return (
     <div className="space-y-4">
       <div className="flex justify-between">
-        <h2 className="text-2xl font-bold">Assignments</h2>
+        <h2 className="text-2xl font-bold">{t('assignments')}</h2>
         <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
           <DialogTrigger asChild>
-            <Button>Add Assignment</Button>
+            <Button>{t('add_assignment')}</Button>
           </DialogTrigger>
           <DialogContent>
             <DialogHeader>
-              <DialogTitle>Add New Assignment</DialogTitle>
+              <DialogTitle>{t('add_new_assignment')}</DialogTitle>
               <DialogDescription>
-                Create a new assignment for the student.
+                {t('create_assignment_desc')}
               </DialogDescription>
             </DialogHeader>
             <div className="grid gap-4 py-4">
               <div className="grid gap-2">
-                <Label htmlFor="subject">Subject</Label>
+                <Label htmlFor="subject">{t('subject_label')}</Label>
                 <Input
                   id="subject"
                   value={formData.subject}
@@ -207,7 +211,7 @@ export function AssignmentTracker({ studentId }: AssignmentTrackerProps) {
                 />
               </div>
               <div className="grid gap-2">
-                <Label htmlFor="title">Title</Label>
+                <Label htmlFor="title">{t('title')}</Label>
                 <Input
                   id="title"
                   value={formData.title}
@@ -220,7 +224,7 @@ export function AssignmentTracker({ studentId }: AssignmentTrackerProps) {
                 />
               </div>
               <div className="grid gap-2">
-                <Label htmlFor="description">Description</Label>
+                <Label htmlFor="description">{t('description')}</Label>
                 <Textarea
                   id="description"
                   value={formData.description}
@@ -233,7 +237,7 @@ export function AssignmentTracker({ studentId }: AssignmentTrackerProps) {
                 />
               </div>
               <div className="grid gap-2">
-                <Label>Due Date</Label>
+                <Label>{t('assignment_due_date')}</Label>
                 <Calendar
                   mode="single"
                   selected={formData.dueDate}
@@ -257,7 +261,7 @@ export function AssignmentTracker({ studentId }: AssignmentTrackerProps) {
                   !formData.dueDate
                 }
               >
-                {submitting ? 'Adding...' : 'Add Assignment'}
+                {submitting ? t('adding') : t('add_assignment')}
               </Button>
             </DialogFooter>
           </DialogContent>
@@ -267,13 +271,13 @@ export function AssignmentTracker({ studentId }: AssignmentTrackerProps) {
       {loading ? (
         <Card>
           <CardContent className="p-6">
-            <p>Loading assignments...</p>
+            <p>{t('loading_assignments')}</p>
           </CardContent>
         </Card>
       ) : assignments.length === 0 ? (
         <Card>
           <CardContent className="p-6">
-            <p>No assignments found.</p>
+            <p>{t('no_assignments_found')}</p>
           </CardContent>
         </Card>
       ) : (
@@ -296,17 +300,17 @@ export function AssignmentTracker({ studentId }: AssignmentTrackerProps) {
               <CardContent>
                 <div className="space-y-4">
                   <div>
-                    <p className="text-sm font-medium text-gray-500">Subject</p>
+                    <p className="text-sm font-medium text-gray-500">{t('subject_label')}</p>
                     <p>{assignment.subject}</p>
                   </div>
                   <div>
                     <p className="text-sm font-medium text-gray-500">
-                      Description
+                      {t('description')}
                     </p>
                     <p>{assignment.description}</p>
                   </div>
                   <div>
-                    <p className="text-sm font-medium text-gray-500">Due Date</p>
+                    <p className="text-sm font-medium text-gray-500">{t('assignment_due_date')}</p>
                     <p>{format(new Date(assignment.due_date), 'PPP')}</p>
                   </div>
                   {assignment.status === 'completed' && (
@@ -314,7 +318,7 @@ export function AssignmentTracker({ studentId }: AssignmentTrackerProps) {
                       {assignment.score && (
                         <div>
                           <p className="text-sm font-medium text-gray-500">
-                            Score
+                            {t('score_label')}
                           </p>
                           <p>{assignment.score}%</p>
                         </div>
@@ -322,7 +326,7 @@ export function AssignmentTracker({ studentId }: AssignmentTrackerProps) {
                       {assignment.feedback && (
                         <div>
                           <p className="text-sm font-medium text-gray-500">
-                            Feedback
+                            {t('feedback')}
                           </p>
                           <p>{assignment.feedback}</p>
                         </div>
@@ -336,7 +340,7 @@ export function AssignmentTracker({ studentId }: AssignmentTrackerProps) {
                           updateAssignmentStatus(assignment.id, 'completed')
                         }
                       >
-                        Mark as Completed
+                        {t('mark_as_completed')}
                       </Button>
                     )}
                     {assignment.status === 'completed' && (
@@ -346,7 +350,7 @@ export function AssignmentTracker({ studentId }: AssignmentTrackerProps) {
                           updateAssignmentStatus(assignment.id, 'pending')
                         }
                       >
-                        Mark as Pending
+                        {t('mark_as_pending')}
                       </Button>
                     )}
                   </div>

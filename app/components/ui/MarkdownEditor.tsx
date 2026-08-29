@@ -3,11 +3,22 @@ import dynamic from 'next/dynamic';
 import { useToast } from '@/hooks/use-toast';
 import { v4 as uuidv4 } from 'uuid';
 import 'easymde/dist/easymde.min.css';
+import { useLanguage } from '@/app/contexts/LanguageContext';
+import { useTranslation } from '@/utils/translations';
+
+// 編輯器載入中的顯示元件（獨立元件，以便可以使用 hooks 取得翻譯）
+function EditorLoading() {
+  const { language } = useLanguage();
+  const { t } = useTranslation(language);
+  return (
+    <div className="h-[300px] border rounded-md flex items-center justify-center">{t('loading_editor')}</div>
+  );
+}
 
 // 動態導入以避免 SSR 問題
-const SimpleMDE = dynamic(() => import('react-simplemde-editor'), { 
+const SimpleMDE = dynamic(() => import('react-simplemde-editor'), {
   ssr: false,
-  loading: () => <div className="h-[300px] border rounded-md flex items-center justify-center">載入編輯器中...</div>
+  loading: () => <EditorLoading />
 });
 
 // 注意：在 Next.js 中，我們需要在客戶端組件中動態載入 CSS
@@ -17,12 +28,15 @@ interface MarkdownEditorProps {
   placeholder?: string;
 }
 
-const MarkdownEditor: React.FC<MarkdownEditorProps> = ({ 
-  value, 
-  onChange, 
-  placeholder = '請輸入課程內容，支持 Markdown 格式...' 
+const MarkdownEditor: React.FC<MarkdownEditorProps> = ({
+  value,
+  onChange,
+  placeholder,
 }) => {
   const { toast } = useToast();
+  const { language } = useLanguage();
+  const { t } = useTranslation(language);
+  const resolvedPlaceholder = placeholder ?? t('markdown_placeholder');
   const [isUploading, setIsUploading] = useState(false);
   const editorRef = useRef<any>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -41,26 +55,26 @@ const MarkdownEditor: React.FC<MarkdownEditorProps> = ({
       name: "custom-image",
       action: handleImageButtonClick,
       className: "fa fa-picture-o",
-      title: "插入圖片",
+      title: t('insert_image'),
     };
 
     return {
       spellChecker: false,
       autofocus: false,
-      placeholder: placeholder,
+      placeholder: resolvedPlaceholder,
       status: ['lines', 'words'],
       minHeight: '300px',
       maxHeight: '500px',
       // 替換原始 image 按鈕為我們的自定義按鈕
       toolbar: [
-        'bold', 'italic', 'heading', '|', 
+        'bold', 'italic', 'heading', '|',
         'quote', 'unordered-list', 'ordered-list', '|',
         'link', imageUploadFunction as any, 'table', '|',
         'preview', 'side-by-side', 'fullscreen', '|',
         'guide'
       ] as any,
     };
-  }, [placeholder, handleImageButtonClick]);
+  }, [resolvedPlaceholder, handleImageButtonClick, t]);
 
   // 處理圖片上傳
   const handleImageUpload = useCallback(async (file: File) => {
@@ -71,19 +85,19 @@ const MarkdownEditor: React.FC<MarkdownEditorProps> = ({
       
       // 顯示上傳中的提示
       toast({
-        title: "圖片上傳中",
-        description: "請稍候...",
+        title: t('uploading_image'),
+        description: t('please_wait'),
       });
-      
+
       // 動態導入 supabase 函數
       const { supabase } = await import('@/lib/supabase');
       const supabaseClient = supabase();
-      
+
       // 檢查文件類型
       if (!file.type.includes('image/')) {
         toast({
-          title: "上傳失敗",
-          description: "請選擇有效的圖片文件",
+          title: t('upload_failed'),
+          description: t('please_select_valid_image'),
           variant: "destructive",
         });
         return;
@@ -120,25 +134,25 @@ const MarkdownEditor: React.FC<MarkdownEditorProps> = ({
       onChange(newValue);
       
       toast({
-        title: "圖片上傳成功",
-        description: "圖片已成功插入至編輯器",
+        title: t('image_upload_success'),
+        description: t('image_inserted_success'),
       });
     } catch (error: any) {
       toast({
-        title: "圖片上傳失敗",
-        description: error.message || "請稍後再試",
+        title: t('image_upload_failed'),
+        description: error.message || t('editor_try_again_later'),
         variant: "destructive",
       });
       console.error('圖片上傳錯誤:', error);
     } finally {
       setIsUploading(false);
-      
+
       // 重置檔案輸入，以便能夠選擇相同檔案
       if (fileInputRef.current) {
         fileInputRef.current.value = '';
       }
     }
-  }, [value, onChange, toast]);
+  }, [value, onChange, toast, t]);
 
   // 處理文件選擇
   const handleFileSelect = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
@@ -165,7 +179,7 @@ const MarkdownEditor: React.FC<MarkdownEditorProps> = ({
       />
       {isUploading && (
         <div className="fixed top-0 left-0 right-0 z-50 bg-green-500 text-white text-center py-1 text-sm">
-          圖片上傳中...
+          {t('uploading_image')}...
         </div>
       )}
       <SimpleMDE

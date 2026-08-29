@@ -687,6 +687,63 @@ export const translations = {
     subjects_label: "Subjects",
     updating_student: "Updating Student...",
     update_student: "Update Student",
+
+    // Attendance tracker
+    add_attendance: "Add Attendance",
+    attendance_present: "Present",
+    attendance_absent: "Absent",
+    attendance_late: "Late",
+    add_notes_optional: "Add notes (optional)",
+    adding: "Adding...",
+    monthly_overview: "Monthly Overview",
+    total_days: "Total Days",
+    attendance_history: "Attendance History",
+    loading_attendance_records: "Loading attendance records...",
+    no_attendance_records: "No attendance records found.",
+    failed_fetch_attendance: "Failed to fetch attendance records",
+    attendance_added: "Attendance record added successfully",
+    failed_add_attendance: "Failed to add attendance record",
+
+    // Assignment tracker
+    assignment_added: "Assignment added successfully",
+    failed_add_assignment: "Failed to add assignment",
+    failed_fetch_assignments: "Failed to fetch assignments",
+    assignment_status_updated: "Assignment status updated",
+    failed_update_assignment_status: "Failed to update assignment status",
+    add_assignment: "Add Assignment",
+    add_new_assignment: "Add New Assignment",
+    create_assignment_desc: "Create a new assignment for the student.",
+    subject_label: "Subject",
+    assignment_due_date: "Due Date",
+    loading_assignments: "Loading assignments...",
+    no_assignments_found: "No assignments found.",
+    score_label: "Score",
+    mark_as_completed: "Mark as Completed",
+    mark_as_pending: "Mark as Pending",
+
+    // Progress history
+    loading_progress_data: "Loading progress data...",
+    no_progress_entries: "No progress entries yet",
+    add_progress_entries_desc: "Add progress entries to track this student's performance.",
+    all_subjects: "All Subjects",
+    progress_history: "Progress History",
+    notes_label: "Notes",
+
+    // Reports - student selector
+    no_students_available: "No students available",
+    select_a_student: "Select a student",
+
+    // Markdown editor (component-level, distinct from lesson-form markdown_* keys)
+    loading_editor: "Loading editor...",
+    insert_image: "Insert Image",
+    uploading_image: "Uploading image",
+    please_wait: "Please wait...",
+    upload_failed: "Upload failed",
+    please_select_valid_image: "Please select a valid image file",
+    image_upload_success: "Image uploaded successfully",
+    image_inserted_success: "Image has been inserted into the editor",
+    image_upload_failed: "Image upload failed",
+    editor_try_again_later: "Please try again later",
   },
   'zh-TW': {
     // Command menu translations
@@ -1372,6 +1429,63 @@ export const translations = {
     subjects_label: "科目",
     updating_student: "更新學生資料中...",
     update_student: "更新學生資料",
+
+    // Attendance tracker
+    add_attendance: "新增出席紀錄",
+    attendance_present: "出席",
+    attendance_absent: "缺席",
+    attendance_late: "遲到",
+    add_notes_optional: "新增備註（選填）",
+    adding: "新增中...",
+    monthly_overview: "本月概況",
+    total_days: "總天數",
+    attendance_history: "出席紀錄歷史",
+    loading_attendance_records: "載入出席紀錄中...",
+    no_attendance_records: "找不到出席紀錄。",
+    failed_fetch_attendance: "無法取得出席紀錄",
+    attendance_added: "出席紀錄新增成功",
+    failed_add_attendance: "新增出席紀錄失敗",
+
+    // Assignment tracker
+    assignment_added: "作業新增成功",
+    failed_add_assignment: "新增作業失敗",
+    failed_fetch_assignments: "無法取得作業資料",
+    assignment_status_updated: "作業狀態已更新",
+    failed_update_assignment_status: "更新作業狀態失敗",
+    add_assignment: "新增作業",
+    add_new_assignment: "新增作業項目",
+    create_assignment_desc: "為此學生建立新的作業。",
+    subject_label: "科目",
+    assignment_due_date: "截止日期",
+    loading_assignments: "載入作業中...",
+    no_assignments_found: "找不到作業。",
+    score_label: "分數",
+    mark_as_completed: "標記為已完成",
+    mark_as_pending: "標記為待完成",
+
+    // Progress history
+    loading_progress_data: "載入進度資料中...",
+    no_progress_entries: "尚無進度紀錄",
+    add_progress_entries_desc: "新增進度紀錄以追蹤此學生的學習表現。",
+    all_subjects: "所有科目",
+    progress_history: "進度歷史",
+    notes_label: "備註",
+
+    // Reports - student selector
+    no_students_available: "沒有可用的學生",
+    select_a_student: "選擇學生",
+
+    // Markdown editor (component-level, distinct from lesson-form markdown_* keys)
+    loading_editor: "載入編輯器中...",
+    insert_image: "插入圖片",
+    uploading_image: "圖片上傳中",
+    please_wait: "請稍候...",
+    upload_failed: "上傳失敗",
+    please_select_valid_image: "請選擇有效的圖片文件",
+    image_upload_success: "圖片上傳成功",
+    image_inserted_success: "圖片已成功插入至編輯器",
+    image_upload_failed: "圖片上傳失敗",
+    editor_try_again_later: "請稍後再試",
   }
 };
 

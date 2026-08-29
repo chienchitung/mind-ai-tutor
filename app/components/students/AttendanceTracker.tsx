@@ -8,6 +8,8 @@ import { Calendar } from '@/components/ui/calendar';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { useToast } from '@/hooks/use-toast';
 import type { Database } from '@/types/supabase';
+import { useLanguage } from '@/app/contexts/LanguageContext';
+import { useTranslation } from '@/utils/translations';
 
 interface Attendance {
   id: string;
@@ -22,6 +24,8 @@ interface AttendanceTrackerProps {
 }
 
 export function AttendanceTracker({ studentId }: AttendanceTrackerProps) {
+  const { language } = useLanguage();
+  const { t } = useTranslation(language);
   const [attendance, setAttendance] = useState<Attendance[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedDate, setSelectedDate] = useState<Date | undefined>(new Date());
@@ -53,8 +57,8 @@ export function AttendanceTracker({ studentId }: AttendanceTrackerProps) {
     } catch (error) {
       console.error('Failed to fetch attendance:', error);
       toast({
-        title: 'Error',
-        description: 'Failed to fetch attendance records',
+        title: t('error'),
+        description: t('failed_fetch_attendance'),
         variant: 'destructive',
       });
     } finally {
@@ -87,14 +91,14 @@ export function AttendanceTracker({ studentId }: AttendanceTrackerProps) {
       setAttendance((prev) => [data as Attendance, ...prev]);
       setNotes('');
       toast({
-        title: 'Success',
-        description: 'Attendance record added successfully',
+        title: t('success'),
+        description: t('attendance_added'),
       });
     } catch (error) {
       console.error('Failed to add attendance:', error);
       toast({
-        title: 'Error',
-        description: 'Failed to add attendance record',
+        title: t('error'),
+        description: t('failed_add_attendance'),
         variant: 'destructive',
       });
     } finally {
@@ -129,7 +133,7 @@ export function AttendanceTracker({ studentId }: AttendanceTrackerProps) {
       <div className="grid gap-4 md:grid-cols-2">
         <Card>
           <CardHeader>
-            <CardTitle>Add Attendance</CardTitle>
+            <CardTitle>{t('add_attendance')}</CardTitle>
           </CardHeader>
           <CardContent>
             <div className="space-y-4">
@@ -144,24 +148,24 @@ export function AttendanceTracker({ studentId }: AttendanceTrackerProps) {
                   variant={selectedStatus === 'present' ? 'default' : 'outline'}
                   onClick={() => setSelectedStatus('present')}
                 >
-                  Present
+                  {t('attendance_present')}
                 </Button>
                 <Button
                   variant={selectedStatus === 'absent' ? 'default' : 'outline'}
                   onClick={() => setSelectedStatus('absent')}
                 >
-                  Absent
+                  {t('attendance_absent')}
                 </Button>
                 <Button
                   variant={selectedStatus === 'late' ? 'default' : 'outline'}
                   onClick={() => setSelectedStatus('late')}
                 >
-                  Late
+                  {t('attendance_late')}
                 </Button>
               </div>
               <textarea
                 className="w-full rounded-md border p-2"
-                placeholder="Add notes (optional)"
+                placeholder={t('add_notes_optional')}
                 value={notes}
                 onChange={(e) => setNotes(e.target.value)}
               />
@@ -169,7 +173,7 @@ export function AttendanceTracker({ studentId }: AttendanceTrackerProps) {
                 onClick={handleSubmit}
                 disabled={!selectedDate || submitting}
               >
-                {submitting ? 'Adding...' : 'Add Attendance'}
+                {submitting ? t('adding') : t('add_attendance')}
               </Button>
             </div>
           </CardContent>
@@ -179,20 +183,20 @@ export function AttendanceTracker({ studentId }: AttendanceTrackerProps) {
           <Card>
             <CardHeader>
               <CardTitle>
-                Monthly Overview -{' '}
+                {t('monthly_overview')} -{' '}
                 {selectedDate ? format(selectedDate, 'MMMM yyyy') : ''}
               </CardTitle>
             </CardHeader>
             <CardContent>
               <div className="grid gap-4">
                 <div className="grid grid-cols-2 gap-2">
-                  <div>Total Days:</div>
+                  <div>{t('total_days')}:</div>
                   <div>{monthStats.total}</div>
-                  <div>Present:</div>
+                  <div>{t('attendance_present')}:</div>
                   <div>{monthStats.present}</div>
-                  <div>Absent:</div>
+                  <div>{t('attendance_absent')}:</div>
                   <div>{monthStats.absent}</div>
-                  <div>Late:</div>
+                  <div>{t('attendance_late')}:</div>
                   <div>{monthStats.late}</div>
                 </div>
                 <div className="h-2 rounded-full bg-gray-200">
@@ -213,14 +217,14 @@ export function AttendanceTracker({ studentId }: AttendanceTrackerProps) {
 
       <Card>
         <CardHeader>
-          <CardTitle>Attendance History</CardTitle>
+          <CardTitle>{t('attendance_history')}</CardTitle>
         </CardHeader>
         <CardContent>
           <div className="space-y-4">
             {loading ? (
-              <p>Loading attendance records...</p>
+              <p>{t('loading_attendance_records')}</p>
             ) : attendance.length === 0 ? (
-              <p>No attendance records found.</p>
+              <p>{t('no_attendance_records')}</p>
             ) : (
               <div className="space-y-2">
                 {attendance.map((record) => (
