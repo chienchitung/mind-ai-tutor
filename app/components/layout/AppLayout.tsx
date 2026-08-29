@@ -7,6 +7,8 @@ import { PageTransition } from '@/components/layout/PageTransition';
 import { useToast } from '@/hooks/use-toast';
 import { Button } from '@/components/ui/button';
 import { Menu } from 'lucide-react';
+import { useLanguage } from '@/app/contexts/LanguageContext';
+import { useTranslation } from '@/utils/translations';
 
 interface AppLayoutProps {
   children: ReactNode;
@@ -14,6 +16,8 @@ interface AppLayoutProps {
 
 export function AppLayout({ children }: AppLayoutProps) {
   const router = useRouter();
+  const { language } = useLanguage();
+  const { t } = useTranslation(language);
   const [isLoading, setIsLoading] = useState(true);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
@@ -44,8 +48,8 @@ export function AppLayout({ children }: AppLayoutProps) {
         if (!user) {
           console.log('No authenticated user found, redirecting to login');
           toast({
-            title: 'Authentication required',
-            description: 'Please sign in to access this page',
+            title: t('authentication_required'),
+            description: t('please_sign_in_to_access_page'),
             variant: 'destructive',
           });
           router.push('/login');

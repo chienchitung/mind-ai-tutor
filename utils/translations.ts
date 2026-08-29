@@ -644,6 +644,49 @@ export const translations = {
     ai_interactions_per_lesson: "Avg {count} interactions per lesson",
     ai_interaction_distribution: "AI Interaction Distribution",
     ai_interaction_by_lesson: "AI interactions by lesson",
+
+    // Layout wrappers (AppLayout / PageLayout / Sidebar)
+    authentication_required: "Authentication required",
+    please_sign_in_to_access_page: "Please sign in to access this page",
+    something_went_wrong: "Something went wrong",
+    reload_page: "Reload Page",
+    expand_sidebar: "Expand sidebar",
+    collapse_sidebar: "Collapse sidebar",
+
+    // Profile page
+    profile_settings: "Profile Settings",
+    change_avatar: "Change Avatar",
+    role: "Role",
+    updating: "Updating...",
+    loading_profile: "Loading profile...",
+    no_profile_found: "No profile found",
+
+    // Admin page
+    admin_page_title: "System Administration",
+    admin_page_desc: "Backend system information visible to admin roles only",
+    admin_students_label: "Students",
+    admin_events_label: "Calendar Events",
+    admin_lessons_label: "Lessons",
+    admin_feedback_label: "Feedback",
+    failed_load_admin_data: "Failed to load system information",
+    admin_user_roles_title: "User Roles",
+    admin_user_roles_desc: "All users with a record in the profiles table and their roles",
+    admin_no_profiles: "No users currently have a record in the profiles table.",
+    admin_name_not_set: "(Name not set)",
+    admin_joined_at: "Joined:",
+    admin_role_unset: "unset",
+
+    // Settings page
+    failed_update_profile_retry: "Failed to update profile. Please try again.",
+    coming_soon: "Coming soon",
+    password_change_coming_soon: "Password change feature will be available soon.",
+
+    // Student edit page
+    could_not_load_page_params: "Could not load page parameters.",
+    student_updated: "Student updated successfully",
+    subjects_label: "Subjects",
+    updating_student: "Updating Student...",
+    update_student: "Update Student",
   },
   'zh-TW': {
     // Command menu translations
@@ -1286,6 +1329,49 @@ export const translations = {
     ai_interactions_per_lesson: "平均每課程 {count} 次互動",
     ai_interaction_distribution: "AI 互動分佈",
     ai_interaction_by_lesson: "各課程 AI 互動次數",
+
+    // Layout wrappers (AppLayout / PageLayout / Sidebar)
+    authentication_required: "需要驗證身份",
+    please_sign_in_to_access_page: "請登入以存取此頁面",
+    something_went_wrong: "發生錯誤",
+    reload_page: "重新載入頁面",
+    expand_sidebar: "展開側邊欄",
+    collapse_sidebar: "收合側邊欄",
+
+    // Profile page
+    profile_settings: "個人資料設定",
+    change_avatar: "更換頭像",
+    role: "角色",
+    updating: "更新中...",
+    loading_profile: "載入個人資料中...",
+    no_profile_found: "找不到個人資料",
+
+    // Admin page
+    admin_page_title: "系統管理",
+    admin_page_desc: "僅 admin 角色可見的後台系統資訊",
+    admin_students_label: "學生",
+    admin_events_label: "行事曆事件",
+    admin_lessons_label: "課程",
+    admin_feedback_label: "回饋",
+    failed_load_admin_data: "無法載入系統資訊",
+    admin_user_roles_title: "使用者角色",
+    admin_user_roles_desc: "所有已在 profiles 表建立紀錄的使用者與其角色",
+    admin_no_profiles: "目前沒有使用者在 profiles 表建立紀錄。",
+    admin_name_not_set: "(未設定名稱)",
+    admin_joined_at: "加入時間:",
+    admin_role_unset: "未設定",
+
+    // Settings page
+    failed_update_profile_retry: "更新個人資料失敗，請再試一次。",
+    coming_soon: "即將推出",
+    password_change_coming_soon: "密碼變更功能即將推出。",
+
+    // Student edit page
+    could_not_load_page_params: "無法載入頁面參數。",
+    student_updated: "學生資料更新成功",
+    subjects_label: "科目",
+    updating_student: "更新學生資料中...",
+    update_student: "更新學生資料",
   }
 };
 
