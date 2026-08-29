@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { createClientComponentClient } from '@supabase/auth-helpers-nextjs';
+import { supabase as getSupabaseClient } from '@/lib/supabase';
 import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
@@ -57,7 +57,6 @@ export default function StudentPage({ params: paramsPromise }: { params: Promise
   const { toast } = useToast();
   const { language } = useLanguage();
   const { t } = useTranslation(language);
-  const supabase = createClientComponentClient<Database>();
 
   useEffect(() => {
     // Resolve the params promise when the component mounts
@@ -86,6 +85,7 @@ export default function StudentPage({ params: paramsPromise }: { params: Promise
     const fetchStudent = async () => {
       setLoading(true); // Ensure loading is true when fetch starts
       try {
+        const supabase = getSupabaseClient();
         const { data, error } = await supabase
           .from('students')
           .select('*')
@@ -117,7 +117,7 @@ export default function StudentPage({ params: paramsPromise }: { params: Promise
 
     fetchStudent();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [supabase, pageParams]); // Depend on resolved pageParams
+  }, [pageParams]); // Depend on resolved pageParams
 
   const handleEdit = () => {
     if (!pageParams) return; // Ensure pageParams is available
@@ -130,6 +130,7 @@ export default function StudentPage({ params: paramsPromise }: { params: Promise
     if (!pageParams) return;
     setGeneratingCode(true);
     try {
+      const supabase = getSupabaseClient();
       const code = generateLoginCode();
       const { data, error } = await supabase
         .from('students')
@@ -168,6 +169,7 @@ export default function StudentPage({ params: paramsPromise }: { params: Promise
     if (!pageParams) return; // Ensure pageParams is available
     setDeleting(true);
     try {
+      const supabase = getSupabaseClient();
       const { error } = await supabase
         .from('students')
         .delete()

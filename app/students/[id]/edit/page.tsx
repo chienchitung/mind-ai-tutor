@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { createClientComponentClient } from '@supabase/auth-helpers-nextjs';
+import { supabase as getSupabaseClient } from '@/lib/supabase';
 import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -49,7 +49,6 @@ export default function EditStudentPage({ params: paramsPromise }: { params: Pro
   const [pageParams, setPageParams] = useState<EditStudentPageParams | null>(null); // State to hold resolved params
   const router = useRouter();
   const { toast } = useToast();
-  const supabase = createClientComponentClient<Database>();
 
   useEffect(() => {
     // Resolve the params promise when the component mounts
@@ -76,6 +75,7 @@ export default function EditStudentPage({ params: paramsPromise }: { params: Pro
     const fetchStudent = async () => {
       setLoading(true); // Set loading true when fetching starts
       try {
+        const supabase = getSupabaseClient();
         const { data, error } = await supabase
           .from('students')
           .select('*')
@@ -99,7 +99,8 @@ export default function EditStudentPage({ params: paramsPromise }: { params: Pro
     };
 
     fetchStudent();
-  }, [supabase, pageParams, toast, t]); // Depend on resolved pageParams
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pageParams]); // Depend on resolved pageParams
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -107,6 +108,7 @@ export default function EditStudentPage({ params: paramsPromise }: { params: Pro
 
     setUpdating(true);
     try {
+      const supabase = getSupabaseClient();
       const { error } = await supabase
         .from('students')
         .update({
