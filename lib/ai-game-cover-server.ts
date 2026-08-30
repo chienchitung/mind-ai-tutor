@@ -3,7 +3,10 @@ import { GoogleGenAI } from '@google/genai';
 import { createCoverPrompt, type CoverBrief } from './ai-game-cover';
 
 export async function generateCoverBackground(input: CoverBrief) {
-  const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY!, httpOptions: { timeout: 85000, retryOptions: { attempts: 1 } } });
+  // Must stay safely below the route's maxDuration (60s, the Vercel Hobby
+  // plan's hard ceiling) so a slow response hits our own AI_FAILED handling
+  // instead of being hard-killed by the platform mid-request.
+  const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY!, httpOptions: { timeout: 50000, retryOptions: { attempts: 1 } } });
   const response = await ai.models.generateContent({
     model: process.env.GEMINI_IMAGE_MODEL || 'gemini-3.1-flash-image',
     contents: createCoverPrompt(input),
