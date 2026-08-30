@@ -72,6 +72,8 @@ describe('AI cover workflow', () => {
   it('offers exactly upload/AI entry points and preserves legacy URL on cancel', async () => {
     const onChange = vi.fn(), onFileChange = vi.fn();
     render(<GameCoverInput context={context} chinese value="https://existing.test/old.jpg" file={null} onChange={onChange} onFileChange={onFileChange} onEditingChange={vi.fn()} />);
+    // Cover editing lives behind a dialog trigger, keeping the main form compact.
+    fireEvent.click(screen.getByRole('button', { name: '更換封面' }));
     expect(screen.queryByText('或使用圖片網址')).toBeNull();
     fireEvent.click(screen.getByRole('button', { name: 'AI 生成' }));
     fireEvent.click(screen.getByText('取消，保留原封面'));

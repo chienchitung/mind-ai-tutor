@@ -44,6 +44,7 @@ import * as z from "zod";
 import { useLanguage } from "@/app/contexts/LanguageContext";
 import { useTranslation } from "@/utils/translations";
 import { LessonOrderManager, type LessonOverride } from "@/components/LessonOrderManager";
+import { Accordion, AccordionItem, AccordionTrigger, AccordionContent } from "@/components/ui/accordion";
 import {
   createMappingFromOrder,
   updateLessonOrderMapping,
@@ -96,6 +97,7 @@ export default function DigitalGamesPage() {
   const [lessonOverrides, setLessonOverrides] = useState<Record<string, LessonOverride>>({});
   const [coverFile, setCoverFile] = useState<File | null>(null);
   const [coverEditing, setCoverEditing] = useState(false);
+  const [openSection, setOpenSection] = useState("game-basics");
   const { toast } = useToast();
   const { language } = useLanguage();
   const { t } = useTranslation(language);
@@ -224,6 +226,7 @@ export default function DigitalGamesPage() {
   useEffect(() => {
     setCoverFile(null);
     setCoverEditing(false);
+    setOpenSection("game-basics");
     if (editingGame) {
       form.reset({
         title: editingGame.title,
@@ -536,71 +539,6 @@ export default function DigitalGamesPage() {
                 </Button>}
               />
 
-              {editingGame && (
-                <div className="mb-6">
-                  <Card className="overflow-hidden">
-                    <div className="flex flex-col md:flex-row">
-                      {editingGame.thumbnail_url ? (
-                        <div className="relative w-full md:w-1/3 pt-[56.25%] md:pt-0">
-                          <img
-                            src={editingGame.thumbnail_url}
-                            alt={editingGame.title}
-                            className="absolute inset-0 w-full h-full object-cover md:position-static md:h-auto"
-                          />
-                        </div>
-                      ) : (
-                        <div className="bg-gradient-to-br from-indigo-500 to-purple-500 flex items-center justify-center h-40 md:w-1/3">
-                          <Gamepad2 className="h-16 w-16 text-white/80" />
-                        </div>
-                      )}
-                      <div className="md:w-2/3">
-                        <CardHeader className="pb-2">
-                          <CardTitle className="text-xl">
-                            {editingGame.title}
-                          </CardTitle>
-                          <CardDescription>
-                            {editingGame.description}
-                          </CardDescription>
-                        </CardHeader>
-                        <CardContent>
-                          <div className="mt-2">
-                            <a
-                              href={editingGame.url}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="text-blue-600 flex items-center hover:underline"
-                            >
-                              <ExternalLink className="h-3 w-3 mr-1" />
-                              {t("url")}
-                            </a>
-                          </div>
-                          {editingGame.lesson_ids &&
-                            editingGame.lesson_ids.length > 0 && (
-                              <div className="space-y-1 mt-4">
-                                <p className="text-sm font-medium">
-                                  {t("associated_lessons")}:
-                                </p>
-                                <div className="flex flex-wrap gap-2">
-                                  {editingGame.lesson_ids.map((lessonId) => {
-                                    const lesson = lessons.find(
-                                      (l) => l.id === lessonId,
-                                    );
-                                    return lesson ? (
-                                      <Badge key={lessonId} variant="outline">
-                                        {lesson.title}
-                                      </Badge>
-                                    ) : null;
-                                  })}
-                                </div>
-                              </div>
-                            )}
-                        </CardContent>
-                      </div>
-                    </div>
-                  </Card>
-                </div>
-              )}
-
               <Card className="shadow-none">
                 <CardContent className="pt-5 md:pt-6">
               <Form {...form}>
@@ -609,12 +547,16 @@ export default function DigitalGamesPage() {
                   className="space-y-4"
                   aria-busy={form.formState.isSubmitting}
                 >
-                  <fieldset disabled={form.formState.isSubmitting} className="space-y-4 min-w-0">
-                  <section id="game-basics" className="scroll-mt-24 lg:scroll-mt-64 space-y-4 rounded-xl border border-border/70 p-4 sm:p-5">
-                    <div>
-                      <h3 className="font-semibold">{language === 'zh-TW' ? '遊戲資料' : 'Game details'}</h3>
-                      <p className="mt-1 text-sm text-muted-foreground">{language === 'zh-TW' ? '設定名稱、入口網址與列表顯示內容。' : 'Set the name, launch URL and listing content.'}</p>
-                    </div>
+                  <fieldset disabled={form.formState.isSubmitting} className="min-w-0">
+                  <Accordion type="single" collapsible value={openSection} onValueChange={value => setOpenSection(value)} className="space-y-4">
+                  <AccordionItem value="game-basics" id="game-basics" className="scroll-mt-24 lg:scroll-mt-64">
+                    <AccordionTrigger>
+                      <div className="text-left">
+                        <h3 className="font-semibold">{language === 'zh-TW' ? '遊戲資料' : 'Game details'}</h3>
+                        <p className="mt-1 text-sm text-muted-foreground">{language === 'zh-TW' ? '設定名稱、入口網址與列表顯示內容。' : 'Set the name, launch URL and listing content.'}</p>
+                      </div>
+                    </AccordionTrigger>
+                    <AccordionContent>
                   <div className="grid md:grid-cols-2 gap-4">
                     <FormField
                       control={form.control}
@@ -691,13 +633,17 @@ export default function DigitalGamesPage() {
                       </FormItem>
                     )}
                   />
-                  </section>
+                    </AccordionContent>
+                  </AccordionItem>
 
-                  <section id="game-lessons" className="scroll-mt-24 lg:scroll-mt-64 space-y-4 rounded-xl border border-border/70 p-4 sm:p-5">
-                    <div>
-                      <h3 className="font-semibold">{language === 'zh-TW' ? '學習路線' : 'Learning path'}</h3>
-                      <p className="mt-1 text-sm text-muted-foreground">{language === 'zh-TW' ? '選取並排序課程，直接套用任務地圖。課程名稱與教材保持原樣；可另填這款遊戲專用的摘要與任務情境。' : 'Choose and order lessons to build the mission map. Original lesson names and materials stay intact; summaries and optional mission stories apply only to this game.'}</p>
-                    </div>
+                  <AccordionItem value="game-lessons" id="game-lessons" className="scroll-mt-24 lg:scroll-mt-64">
+                    <AccordionTrigger>
+                      <div className="text-left">
+                        <h3 className="font-semibold">{language === 'zh-TW' ? '學習路線' : 'Learning path'}</h3>
+                        <p className="mt-1 text-sm text-muted-foreground">{language === 'zh-TW' ? '選取並排序課程，直接套用任務地圖。課程名稱與教材保持原樣；可另填這款遊戲專用的摘要與任務情境。' : 'Choose and order lessons to build the mission map. Original lesson names and materials stay intact; summaries and optional mission stories apply only to this game.'}</p>
+                      </div>
+                    </AccordionTrigger>
+                    <AccordionContent>
                   <div className="space-y-2">
                     <FormLabel>
                       {t("associated_lessons")}
@@ -787,7 +733,9 @@ export default function DigitalGamesPage() {
                       )}
                     </div>
                   </div>
-                  </section>
+                    </AccordionContent>
+                  </AccordionItem>
+                  </Accordion>
 
                   <div className="flex justify-end space-x-2 pt-4">
                     <Button
@@ -802,7 +750,6 @@ export default function DigitalGamesPage() {
                       {form.formState.isSubmitting ? (language === 'zh-TW' ? '儲存中…' : 'Saving…') : editingGame ? t("update_game") : t("create_game")}
                     </Button>
                   </div>
-                  {coverEditing && <p className="text-right text-xs text-muted-foreground">{language === 'zh-TW' ? '請先使用此封面或取消封面編輯，再儲存遊戲。' : 'Apply or cancel cover editing before saving the game.'}</p>}
                   </fieldset>
                 </form>
               </Form>
