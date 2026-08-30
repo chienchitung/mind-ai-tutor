@@ -21,7 +21,7 @@
 
 ```text
 GEMINI_API_KEY=<有圖片生成權限的伺服器金鑰>
-GEMINI_IMAGE_MODEL=gemini-3.1-flash-image
+GEMINI_IMAGE_MODEL=gemini-3.6-flash-image
 AI_GAME_COVERS_ENABLED=true
 ```
 
