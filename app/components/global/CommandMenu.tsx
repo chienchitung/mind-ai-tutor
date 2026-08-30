@@ -11,22 +11,23 @@ import {
   CommandList,
   CommandSeparator,
 } from "@/components/ui/command";
-import { 
-  Calculator, 
-  FileSpreadsheet, 
-  BarChart3, 
-  Settings, 
-  Home, 
-  BookOpen, 
-  Gamepad2, 
-  Users, 
+import {
+  Calculator,
+  FileSpreadsheet,
+  BarChart3,
+  Settings,
+  Home,
+  BookOpen,
+  Gamepad2,
+  Users,
   Calendar,
   Bell,
   MessageSquare,
-  Wand2 
+  Wand2
 } from "lucide-react";
 import { useLanguage } from "@/app/contexts/LanguageContext";
 import { useTranslation } from "@/utils/translations";
+import { confirmAppNavigation } from '@/lib/navigation-guard';
 
 interface NavItem {
   icon: React.ElementType;
@@ -51,12 +52,17 @@ export function CommandMenu() {
     };
 
     document.addEventListener("keydown", down);
-    return () => document.removeEventListener("keydown", down);
+    const openFromTopbar = () => setOpen(true);
+    window.addEventListener('mindai:open-command-menu', openFromTopbar);
+    return () => {
+      document.removeEventListener("keydown", down);
+      window.removeEventListener('mindai:open-command-menu', openFromTopbar);
+    };
   }, []);
 
   const runCommand = React.useCallback((command: () => void) => {
     setOpen(false);
-    command();
+    if (confirmAppNavigation()) command();
   }, []);
 
   // Navigation items
@@ -124,15 +130,15 @@ export function CommandMenu() {
   ];
 
   return (
-    <CommandDialog 
-      open={open} 
+    <CommandDialog
+      open={open}
       onOpenChange={setOpen}
       title={t('command_menu')}
     >
       <CommandInput placeholder={`${t('search')}...`} />
       <CommandList>
         <CommandEmpty>{t('no_results_found')}</CommandEmpty>
-        
+
         <CommandGroup heading={t('navigation')}>
           {navItems.map((item) => (
             <CommandItem
@@ -145,11 +151,11 @@ export function CommandMenu() {
             </CommandItem>
           ))}
         </CommandGroup>
-        
+
         <CommandSeparator />
 
         <CommandGroup heading={t('quick_actions')}>
-          <CommandItem 
+          <CommandItem
             onSelect={() => runCommand(() => window.open("https://www.genial.ly", "_blank"))}
           >
             <Calculator className="mr-2 h-4 w-4" />
@@ -159,4 +165,4 @@ export function CommandMenu() {
       </CommandList>
     </CommandDialog>
   );
-} 
+}

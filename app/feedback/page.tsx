@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Star, Download, Calendar, Loader2 } from "lucide-react";
+import { Star, Download, Calendar } from "lucide-react";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import ExcelJS from 'exceljs';
 import { useToast } from '@/hooks/use-toast';
@@ -14,6 +14,8 @@ import { cn } from "@/lib/utils";
 import { badgeVariants } from "@/components/ui/badge";
 import { useLanguage } from "@/app/contexts/LanguageContext";
 import { useTranslation } from "@/utils/translations";
+import { PageHeader } from '@/components/layout/PageHeader';
+import { ErrorState, PageLoader } from '@/components/ui/page-state';
 
 // Define feedback data type
 interface FeedbackItem {
@@ -46,11 +48,11 @@ const FeedbackPage = () => {
     const fetchFeedback = async () => {
       try {
         setIsLoading(true);
-        
+
         // 動態導入 supabase 函數
         const { supabase } = await import('@/lib/supabase');
         const supabaseClient = supabase();
-        
+
         // 使用 supabaseClient 而不是直接使用 supabase
         const { data: supabaseData, error } = await supabaseClient
           .from('feedback')
@@ -65,38 +67,38 @@ const FeedbackPage = () => {
             status
           `)
           .order('created_at', { ascending: false });
-          
+
         if (error) {
           console.error('Supabase error:', error);
           throw error;
         }
 
         let dataToProcess = supabaseData;
-        
+
         if (!supabaseData || supabaseData.length === 0) {
           console.warn('No data returned from Supabase');
           dataToProcess = [];
         }
-        
+
         // Transform the data to match our FeedbackItem interface
         const formattedData: FeedbackItem[] = dataToProcess.map(item => {
           // Cast to any to avoid TypeScript errors
           const itemAny = item as any;
           const createdAt = new Date(itemAny.created_at);
-          
+
           // Format relative time
           const rtf = new Intl.RelativeTimeFormat('en', { numeric: 'auto' });
           const now = new Date();
           const diffInDays = Math.floor((now.getTime() - createdAt.getTime()) / (1000 * 60 * 60 * 24));
           const diffInHours = Math.floor((now.getTime() - createdAt.getTime()) / (1000 * 60 * 60));
-          
+
           let relativeTime;
           if (diffInHours < 24) {
             relativeTime = rtf.format(-diffInHours, 'hour');
           } else {
             relativeTime = rtf.format(-diffInDays, 'day');
           }
-          
+
           return {
             id: itemAny.id,
             student: {
@@ -113,7 +115,7 @@ const FeedbackPage = () => {
             rating: itemAny.rating
           };
         });
-        
+
         setFeedbackData(formattedData);
       } catch (err) {
         console.error('Error fetching feedback:', err);
@@ -122,7 +124,7 @@ const FeedbackPage = () => {
         setIsLoading(false);
       }
     };
-    
+
     fetchFeedback();
   }, []);
 
@@ -193,23 +195,23 @@ const FeedbackPage = () => {
       });
     }
   };
-  
+
   // Render stars based on rating
   const renderStars = (rating: number) => {
     return Array(5).fill(0).map((_, index) => (
-      <Star 
-        key={index} 
-        className={`h-4 w-4 ${index < rating ? "text-yellow-400 fill-yellow-400" : "text-gray-300"}`} 
+      <Star
+        key={index}
+        className={`h-4 w-4 ${index < rating ? "text-yellow-400 fill-yellow-400" : "text-gray-300"}`}
       />
     ));
   };
-  
+
   // Display status badge
   const renderStatusBadge = (status: string, rawStatus: string) => {
     const isNotResponded = rawStatus === 'not_responded';
     return (
       <div className={cn(
-        badgeVariants({ 
+        badgeVariants({
           variant: isNotResponded ? "destructive" : "outline",
           className: "text-xs"
         })
@@ -221,45 +223,43 @@ const FeedbackPage = () => {
 
   // Render loading state
   if (isLoading) {
-    return (
-      <div className="flex flex-col items-center justify-center h-[50vh]">
-        <Loader2 className="h-8 w-8 animate-spin text-primary mb-4" />
-        <p className="text-muted-foreground">{t('loading_feedback_data')}</p>
-      </div>
-    );
+    return <PageLoader />;
   }
 
   // Render error state
   if (error) {
     return (
-      <div className="flex flex-col items-center justify-center h-[50vh]">
-        <p className="text-destructive mb-4">{error}</p>
-        <Button onClick={() => window.location.reload()}>
-          {t('try_again')}
-        </Button>
-      </div>
+      <ErrorState
+        title={language === 'zh-TW' ? '無法載入學生回饋' : 'Unable to load feedback'}
+        description={error}
+        retryLabel={t('try_again')}
+        onRetry={() => window.location.reload()}
+      />
     );
   }
-  
+
   return (
-    <div className="container mx-auto py-6 space-y-6">
-      <div className="flex justify-between items-center">
-        <div className="flex items-center gap-2">
-          <h1 className="text-2xl font-bold tracking-tight">{t('student_feedback')}</h1>
-        </div>
-        <Button onClick={downloadExcelData} className="flex items-center gap-2">
-          <Download className="h-4 w-4" />
-          {t('export_to_excel')}
-        </Button>
-      </div>
-      
+    <div className="space-y-6">
+      <PageHeader
+        heading={t('student_feedback')}
+        text={language === 'zh-TW' ? '追蹤學生意見、回覆狀態與需要處理的問題。' : 'Track student comments, response status and items that need attention.'}
+        actions={
+          <Button onClick={downloadExcelData} className="flex items-center gap-2">
+            <Download className="h-4 w-4" />
+            {t('export_to_excel')}
+          </Button>
+        }
+      />
+
       <Tabs defaultValue="all">
-        <TabsList className="mb-6">
+        <div className="mb-6 overflow-x-auto pb-1">
+        <TabsList className="w-max min-w-full sm:min-w-0">
           <TabsTrigger value="all">{t('all_feedback')}</TabsTrigger>
           <TabsTrigger value="unresponded">{t('unresponded')}</TabsTrigger>
           <TabsTrigger value="responded">{t('responded')}</TabsTrigger>
         </TabsList>
-        
+        </div>
+
         <TabsContent value="all" className="space-y-4">
           {feedbackData.length === 0 ? (
             <div className="text-center py-10">
@@ -305,13 +305,13 @@ const FeedbackPage = () => {
                       {renderStars(feedback.rating)}
                     </div>
                   </div>
-                  
+
                 </CardContent>
               </Card>
             ))
           )}
         </TabsContent>
-        
+
         <TabsContent value="unresponded" className="space-y-4">
           {feedbackData.filter((f: FeedbackItem) => f.rawStatus === 'not_responded').length === 0 ? (
             <div className="text-center py-10">
@@ -357,13 +357,13 @@ const FeedbackPage = () => {
                       {renderStars(feedback.rating)}
                     </div>
                   </div>
-                  
+
                 </CardContent>
               </Card>
             ))
           )}
         </TabsContent>
-        
+
         <TabsContent value="responded" className="space-y-4">
           {feedbackData.filter((f: FeedbackItem) => f.rawStatus === 'responded').length === 0 ? (
             <div className="text-center py-10">
@@ -409,7 +409,7 @@ const FeedbackPage = () => {
                       {renderStars(feedback.rating)}
                     </div>
                   </div>
-                  
+
                 </CardContent>
               </Card>
             ))
@@ -420,4 +420,4 @@ const FeedbackPage = () => {
   );
 };
 
-export default FeedbackPage; 
+export default FeedbackPage;

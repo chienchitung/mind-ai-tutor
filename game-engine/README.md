@@ -13,6 +13,8 @@
 
 `digital_games.lesson_ids` 是關卡成員與順序的唯一來源。舊的 `lesson_order_mappings` 只供舊版 Excel 入口相容，不再供新遊戲使用。
 
+教師端不再限制每款遊戲只能選 5 關。編輯遊戲時可為各關設定「前導課程／一般關卡／最終挑戰」以及學習路線圖短摘要；這些遊戲專屬設定會存入 `digital_games.settings.lessonOverrides`，因此同一堂課可在不同遊戲中使用不同編號、角色與摘要。
+
 可在 `digital_games.settings` 設定：
 
 ```json
@@ -26,11 +28,20 @@
     "xpPerLesson": 20,
     "claimCost": 50,
     "completionUrl": "https://example.com/complete"
+  },
+  "lessonOverrides": {
+    "<lesson-id>": {
+      "number": 0,
+      "role": "intro",
+      "cardDescription": "這一關顯示在學習路線圖的短摘要"
+    }
   }
 }
 ```
 
-若某堂課是前導課程，可在 `lessons.metadata` 加入 `{"game_role":"intro"}`；最後一堂課預設為最終關，也可明確設定 `{"game_role":"final"}`。
+`lessons.metadata` 的 `game_role`、`game_number`、`card_description` 仍作為舊資料的 fallback；新設定以遊戲本身的 `settings.lessonOverrides` 為優先。最後一堂課若未明確設定角色，仍會預設為最終關。
+
+既有 Excel Master 若是在資料驅動改版前建立，請執行 `scripts/restore_excel_master_manifest.sql`。它會補回第 0 關、恢復原本六關順序與短摘要，而且可安全重複執行。
 
 # Excel Master Game 互動式學習平台
 

@@ -6,6 +6,8 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button";
 import { useLanguage } from "@/app/contexts/LanguageContext";
 import { useTranslation } from "@/utils/translations";
+import { PageHeader } from '@/components/layout/PageHeader';
+import { ErrorState, PageLoader } from '@/components/ui/page-state';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -13,17 +15,16 @@ import { Badge } from "@/components/ui/badge";
 import { ModernDateRangePicker } from "@/components/ui/modern-date-range-picker";
 import { DateRange } from "react-day-picker";
 import { useToast } from "@/components/ui/use-toast";
-import { 
-  GraduationCap, 
-  BookOpen, 
-  MessageSquare, 
-  Bell, 
+import {
+  GraduationCap,
+  BookOpen,
+  MessageSquare,
+  Bell,
   Award,
   Search,
   Filter,
   SlidersHorizontal,
   CheckCircle,
-  Loader2,
   X
 } from "lucide-react";
 import { formatDistanceToNow } from 'date-fns';
@@ -88,7 +89,7 @@ function ActivityIcon({ type }: { type: string }) {
 function ActivityTypeBadge({ type, source }: { type: string; source: string }) {
   const { language } = useLanguage();
   const { t } = useTranslation(language);
-  
+
   switch (type) {
     case 'student_progress':
       return <Badge variant="outline" className="bg-gray-50 text-black border-gray-200 text-xs py-1 px-2 rounded-md">{t('progress')}</Badge>;
@@ -107,9 +108,9 @@ function ActivityTypeBadge({ type, source }: { type: string; source: string }) {
 
 const formatTimeAgo = (date: Date, language: string) => {
   const locale = language === 'zh-TW' ? zhTW : enUS;
-  return formatDistanceToNow(date, { 
+  return formatDistanceToNow(date, {
     addSuffix: true,
-    locale: locale 
+    locale: locale
   });
 };
 
@@ -126,7 +127,7 @@ function ActivitiesPageContent() {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const { toast } = useToast();
-  
+
   // Fetch activities from Supabase
   useEffect(() => {
     const fetchActivities = async () => {
@@ -134,14 +135,14 @@ function ActivitiesPageContent() {
         setIsLoading(true);
         console.log("Fetching activities from database...");
         let allActivities: Activity[] = [];
-        
+
         // 動態導入 supabase 函數
         const { supabase } = await import('@/lib/supabase');
         const supabaseClient = supabase();
-        
+
         // 使用 as any 臨時解決類型問題
         const supabaseWithTypes = supabaseClient as any;
-        
+
         // 1. Fetch lessons data and convert to activities
         try {
           const { data: lessonsData, error: lessonsError } = await supabaseWithTypes
@@ -149,7 +150,7 @@ function ActivitiesPageContent() {
             .select('id, title, description, updated_at')
             .order('updated_at', { ascending: false })
             .limit(20);
-            
+
           if (lessonsError) {
             console.error('Error fetching lessons:', lessonsError);
           } else if (lessonsData && lessonsData.length > 0) {
@@ -175,7 +176,7 @@ function ActivitiesPageContent() {
         } catch (err) {
           console.error('Error in lessons fetch:', err);
         }
-        
+
         // 2. Fetch events data (reminders)
         try {
           const { data: eventsData, error: eventsError } = await supabaseWithTypes
@@ -183,7 +184,7 @@ function ActivitiesPageContent() {
             .select('id, title, description, created_at, type')
             .order('created_at', { ascending: false })
             .limit(20);
-            
+
           if (eventsError) {
             console.error('Error fetching events:', eventsError);
           } else if (eventsData && eventsData.length > 0) {
@@ -209,7 +210,7 @@ function ActivitiesPageContent() {
         } catch (err) {
           console.error('Error in events fetch:', err);
         }
-        
+
         // 3. Fetch feedback data
         try {
           const { data: feedbackData, error: feedbackError } = await supabaseWithTypes
@@ -217,7 +218,7 @@ function ActivitiesPageContent() {
             .select('id, content, student_name, course, created_at, status')
             .order('created_at', { ascending: false })
             .limit(20);
-            
+
           if (feedbackError) {
             console.error('Error fetching feedback:', feedbackError);
           } else if (feedbackData && feedbackData.length > 0) {
@@ -243,7 +244,7 @@ function ActivitiesPageContent() {
         } catch (err) {
           console.error('Error in feedback fetch:', err);
         }
-        
+
         // Check if we have any activities at all
         if (allActivities.length === 0) {
           console.warn('No activities data found in database');
@@ -262,18 +263,18 @@ function ActivitiesPageContent() {
         setIsLoading(false);
       }
     };
-    
+
     fetchActivities();
   }, []);
-  
+
   const handleSearch = (e: React.ChangeEvent<HTMLInputElement>) => {
     setSearchQuery(e.target.value);
   };
-  
+
   const handleTabChange = (value: string) => {
     setSelectedActivityType(value);
   };
-  
+
   const handleMarkAllAsRead = () => {
     // In a real app, we would update the read status in the database
     setActivities(activities.map(activity => ({ ...activity, read: true })));
@@ -283,13 +284,13 @@ function ActivitiesPageContent() {
       duration: 3000
     });
   };
-  
+
   const handleActivityClick = (activity: Activity) => {
     // Mark as read
-    setActivities(activities.map(a => 
+    setActivities(activities.map(a =>
       a.id === activity.id ? { ...a, read: true } : a
     ));
-    
+
     // Navigate to sidebar main page based on source
     switch (activity.source) {
       case 'lessons':
@@ -305,30 +306,30 @@ function ActivitiesPageContent() {
         router.push('/dashboard');
     }
   };
-  
+
   // Filter and sort activities
   const filteredActivities = activities.filter(activity => {
     // Filter by search query
-    const matchesSearch = searchQuery === "" || 
+    const matchesSearch = searchQuery === "" ||
       activity.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
       activity.description.toLowerCase().includes(searchQuery.toLowerCase());
-    
+
     // Filter by activity type
-    const matchesType = selectedActivityType === "all" || 
+    const matchesType = selectedActivityType === "all" ||
       activity.type === selectedActivityType;
-    
+
     // Filter by read status
-    const matchesReadStatus = filterType === "all" || 
-      (filterType === "read" && activity.read) || 
+    const matchesReadStatus = filterType === "all" ||
+      (filterType === "read" && activity.read) ||
       (filterType === "unread" && !activity.read);
-    
+
     // Filter by date range
     let matchesDateRange = true;
     if (selectedDateRange?.from) {
       const activityDate = new Date(activity.timestamp);
       const fromDate = new Date(selectedDateRange.from);
       fromDate.setHours(0, 0, 0, 0);
-      
+
       if (selectedDateRange.to) {
         const toDate = new Date(selectedDateRange.to);
         toDate.setHours(23, 59, 59, 999);
@@ -339,7 +340,7 @@ function ActivitiesPageContent() {
                            activityDate.getFullYear() === fromDate.getFullYear();
       }
     }
-    
+
     return matchesSearch && matchesType && matchesReadStatus && matchesDateRange;
   }).sort((a, b) => {
     // Sort by timestamp (newest or oldest)
@@ -350,37 +351,35 @@ function ActivitiesPageContent() {
 
   // Render loading state
   if (isLoading) {
-    return (
-      <div className="flex flex-col items-center justify-center h-[50vh]">
-        <Loader2 className="h-8 w-8 animate-spin text-primary mb-4" />
-        <p className="text-muted-foreground">{t('loading_activities')}</p>
-      </div>
-    );
+    return <PageLoader />;
   }
 
   // Render error state
   if (error) {
     return (
-      <div className="flex flex-col items-center justify-center h-[50vh]">
-        <p className="text-destructive mb-4">{error}</p>
-        <Button onClick={() => window.location.reload()}>
-          {t('try_again')}
-        </Button>
-      </div>
+      <ErrorState
+        title={language === 'zh-TW' ? '無法載入活動紀錄' : 'Unable to load activities'}
+        description={error}
+        retryLabel={t('try_again')}
+        onRetry={() => window.location.reload()}
+      />
     );
   }
-  
+
   return (
-    <div className="container mx-auto py-6 space-y-6">
-      <div className="flex justify-between items-center">
-          <h1 className="text-2xl font-bold tracking-tight">{t('activity_feed')}</h1>
-        <Button onClick={handleMarkAllAsRead} className="bg-black hover:bg-gray-800">
-          <CheckCircle className="mr-2 h-4 w-4" />
-          {t('mark_all_as_read')}
-        </Button>
-      </div>
-      
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+    <div className="space-y-6">
+      <PageHeader
+        heading={t('activity_feed')}
+        text={language === 'zh-TW' ? '集中查看課程更新、提醒、回饋與學習成就。' : 'Review course updates, reminders, feedback and achievements in one place.'}
+        actions={
+          <Button onClick={handleMarkAllAsRead}>
+            <CheckCircle className="mr-2 h-4 w-4" />
+            {t('mark_all_as_read')}
+          </Button>
+        }
+      />
+
+      <div className="app-panel grid grid-cols-1 gap-3 p-4 md:grid-cols-2 lg:grid-cols-3">
         <div className="col-span-1">
           <ModernDateRangePicker
             value={selectedDateRange}
@@ -401,17 +400,19 @@ function ActivitiesPageContent() {
           </div>
         </div>
       </div>
-      
+
       <div className="flex flex-wrap gap-2 items-center justify-between">
         <Tabs defaultValue="all" onValueChange={handleTabChange} className="w-full">
-          <TabsList className="mb-4 w-full sm:w-auto">
+          <div className="mb-4 overflow-x-auto pb-1">
+          <TabsList className="w-max min-w-full sm:min-w-0">
             <TabsTrigger value="all">{t('all')}</TabsTrigger>
             <TabsTrigger value="course_update">{t('update')}</TabsTrigger>
             <TabsTrigger value="reminder">{t('reminders')}</TabsTrigger>
             <TabsTrigger value="feedback">{t('feedback')}</TabsTrigger>
             <TabsTrigger value="achievement">{t('achievement')}</TabsTrigger>
           </TabsList>
-          
+          </div>
+
           <div className="flex flex-col sm:flex-row gap-2 mt-2">
             <Select value={filterType} onValueChange={setFilterType}>
               <SelectTrigger className="w-[150px]">
@@ -424,7 +425,7 @@ function ActivitiesPageContent() {
                 <SelectItem value="unread">{t('unread')}</SelectItem>
               </SelectContent>
             </Select>
-            
+
             <Select value={sortOrder} onValueChange={setSortOrder}>
               <SelectTrigger className="w-[150px]">
                 <SlidersHorizontal className="w-4 h-4 mr-2" />
@@ -435,9 +436,9 @@ function ActivitiesPageContent() {
                 <SelectItem value="oldest">{t('oldest_first')}</SelectItem>
               </SelectContent>
             </Select>
-            
-            <Button 
-              variant="outline" 
+
+            <Button
+              variant="outline"
               onClick={() => {
                 setSearchQuery("");
                 setFilterType("all");
@@ -451,7 +452,7 @@ function ActivitiesPageContent() {
               {t('activities_clear_filters')}
             </Button>
           </div>
-          
+
           {/* Activities list */}
           <TabsContent value="all" className="mt-4">
             {filteredActivities.length === 0 ? (
@@ -462,7 +463,7 @@ function ActivitiesPageContent() {
             ) : (
               <div className="space-y-4">
                 {filteredActivities.map((activity) => (
-                  <Card 
+                  <Card
                     key={activity.id}
                     className={`hover:bg-muted/10 transition-colors cursor-pointer ${
                       !activity.read ? 'border-l-4 border-l-primary' : ''
@@ -496,7 +497,7 @@ function ActivitiesPageContent() {
               </div>
             )}
           </TabsContent>
-          
+
           <TabsContent value="course_update" className="mt-4">
             {filteredActivities.filter(a => a.type === 'course_update').length === 0 ? (
               <div className="flex flex-col items-center justify-center py-8 px-4 text-center">
@@ -506,7 +507,7 @@ function ActivitiesPageContent() {
             ) : (
               <div className="space-y-4">
                 {filteredActivities.filter(a => a.type === 'course_update').map((activity) => (
-                  <Card 
+                  <Card
                     key={activity.id}
                     className={`hover:bg-muted/10 transition-colors cursor-pointer ${
                       !activity.read ? 'border-l-4 border-l-primary' : ''
@@ -540,7 +541,7 @@ function ActivitiesPageContent() {
               </div>
             )}
           </TabsContent>
-          
+
           <TabsContent value="reminder" className="mt-4">
             {filteredActivities.filter(a => a.type === 'reminder').length === 0 ? (
               <div className="flex flex-col items-center justify-center py-8 px-4 text-center">
@@ -550,7 +551,7 @@ function ActivitiesPageContent() {
             ) : (
               <div className="space-y-4">
                 {filteredActivities.filter(a => a.type === 'reminder').map((activity) => (
-                  <Card 
+                  <Card
                     key={activity.id}
                     className={`hover:bg-muted/10 transition-colors cursor-pointer ${
                       !activity.read ? 'border-l-4 border-l-primary' : ''
@@ -584,7 +585,7 @@ function ActivitiesPageContent() {
               </div>
             )}
           </TabsContent>
-          
+
           <TabsContent value="feedback" className="mt-4">
             {filteredActivities.filter(a => a.type === 'feedback').length === 0 ? (
               <div className="flex flex-col items-center justify-center py-8 px-4 text-center">
@@ -594,7 +595,7 @@ function ActivitiesPageContent() {
             ) : (
               <div className="space-y-4">
                 {filteredActivities.filter(a => a.type === 'feedback').map((activity) => (
-                  <Card 
+                  <Card
                     key={activity.id}
                     className={`hover:bg-muted/10 transition-colors cursor-pointer ${
                       !activity.read ? 'border-l-4 border-l-primary' : ''
@@ -628,7 +629,7 @@ function ActivitiesPageContent() {
               </div>
             )}
           </TabsContent>
-          
+
           <TabsContent value="achievement" className="mt-4">
             {filteredActivities.filter(a => a.type === 'achievement').length === 0 ? (
               <div className="flex flex-col items-center justify-center py-8 px-4 text-center">
@@ -638,7 +639,7 @@ function ActivitiesPageContent() {
             ) : (
               <div className="space-y-4">
                 {filteredActivities.filter(a => a.type === 'achievement').map((activity) => (
-                  <Card 
+                  <Card
                     key={activity.id}
                     className={`hover:bg-muted/10 transition-colors cursor-pointer ${
                       !activity.read ? 'border-l-4 border-l-primary' : ''
@@ -680,4 +681,4 @@ function ActivitiesPageContent() {
 
 export default function ActivitiesPage() {
   return <ActivitiesPageContent />;
-} 
+}

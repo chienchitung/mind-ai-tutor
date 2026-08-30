@@ -3,9 +3,8 @@
 import { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
-import { PageHeader } from '../components/ui/page-header';
+import { PageHeader } from '@/components/layout/PageHeader';
 import { Check, X } from 'lucide-react';
-import { useToast } from '@/hooks/use-toast';
 import { useEffect } from 'react';
 import { useLanguage } from '@/app/contexts/LanguageContext';
 import { useTranslation } from '@/utils/translations';
@@ -24,19 +23,9 @@ interface Plan {
   recommended?: boolean;
 }
 
-// 定義 Supabase 客戶端類型，避免類型錯誤
-interface SupabaseClientWithAuth {
-  auth: {
-    getUser: () => Promise<{data: {user: any}}>;
-    updateUser: (options: {data: any}) => Promise<{error: any}>;
-  }
-};
-
 export default function SubscriptionPage() {
-  const [user, setUser] = useState<any>(null);
   const [currentPlan, setCurrentPlan] = useState('Free plan');
-  const [isLoading, setIsLoading] = useState(false);
-  const { toast } = useToast();
+  const [isLoading, setIsLoading] = useState(true);
   const { language } = useLanguage();
   const { t } = useTranslation(language);
 
@@ -46,17 +35,18 @@ export default function SubscriptionPage() {
         // 動態導入 supabase 函數
         const { supabase } = await import('@/lib/supabase');
         const supabaseClient = supabase();
-        
+
         // 明確轉換類型
-        const supabaseWithTypes = supabaseClient as unknown as SupabaseClientWithAuth;
-        
+        const supabaseWithTypes = supabaseClient;
+
         const { data: { user } } = await supabaseWithTypes.auth.getUser();
         if (user) {
-          setUser(user);
           setCurrentPlan(user.user_metadata?.subscription_plan || 'Free plan');
         }
       } catch (error) {
         console.error('Error fetching user:', error);
+      } finally {
+        setIsLoading(false);
       }
     };
 
@@ -109,91 +99,29 @@ export default function SubscriptionPage() {
     },
   ];
 
-  const handlePlanChange = async (planName: string) => {
-    if (!user) return;
-
-    if (planName === 'Free' && currentPlan === 'Free plan') {
-      toast({
-        title: `${t('already_on')} ${t('free_plan')}`,
-        description: `${t('already_using')} ${t('free_plan')}.`,
-      });
-      return;
-    }
-
-    if (planName === 'Pro' && currentPlan === 'Pro plan') {
-      toast({
-        title: `${t('already_on')} ${t('pro_plan')}`,
-        description: `${t('already_using')} ${t('pro_plan')}.`,
-      });
-      return;
-    }
-
-    if (planName === 'Enterprise' && currentPlan === 'Enterprise plan') {
-      toast({
-        title: `${t('already_on')} ${t('enterprise_plan')}`,
-        description: `${t('already_using')} ${t('enterprise_plan')}.`,
-      });
-      return;
-    }
-
-    try {
-      setIsLoading(true);
-
-      // 動態導入 supabase 函數
-      const { supabase } = await import('@/lib/supabase');
-      const supabaseClient = supabase();
-      
-      // 顯式轉換類型以解決類型檢查問題
-      const supabaseWithTypes = supabaseClient as unknown as SupabaseClientWithAuth;
-
-      // In a real app, this would integrate with a payment processor
-      // For now, we'll just update the user metadata
-      const { error } = await supabaseWithTypes.auth.updateUser({
-        data: {
-          subscription_plan: `${planName} plan`
-        }
-      });
-
-      if (error) throw error;
-
-      setCurrentPlan(`${planName} plan`);
-
-      const planTranslationKey = planName === 'Free' 
-        ? 'free_plan' 
-        : planName === 'Pro' 
-          ? 'pro_plan' 
-          : 'enterprise_plan';
-
-      toast({
-        title: t('plan_updated'),
-        description: `${t('now_on')} ${t(planTranslationKey)}.`,
-      });
-    } catch (error: any) {
-      toast({
-        title: t('error_updating_plan'),
-        description: error.message || t('failed_update_plan'),
-        variant: 'destructive',
-      });
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
   return (
-    <div className="container mx-auto py-6 space-y-8">
-      <PageHeader 
-        heading={t('subscription_plans')} 
-        description={t('choose_plan')}
+    <div className="space-y-8">
+      <PageHeader
+        heading={t('subscription_plans')}
+        text={t('choose_plan')}
       />
 
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+      <div className="app-panel flex flex-col gap-3 p-4 sm:flex-row sm:items-center sm:justify-between">
+        <div>
+          <p className="text-sm text-muted-foreground">{t('current_plan')}</p>
+          <p className="mt-1 font-semibold">{currentPlan}</p>
+        </div>
+        <p className="text-sm text-muted-foreground">{language === 'zh-TW' ? '方案與價格僅供預覽，尚未開放線上付款及自助升級。帳號方案標記不代表付款狀態。' : 'Plans and prices are a preview. Online payment and self-service upgrades are not available. The account plan label does not indicate payment status.'}</p>
+      </div>
+
+      <div className="grid grid-cols-1 gap-5 lg:grid-cols-3">
         {plans.map((plan) => (
-          <Card 
-            key={plan.name} 
-            className={`flex flex-col ${plan.recommended ? 'border-primary shadow-md' : ''}`}
+          <Card
+            key={plan.name}
+            className={`relative flex flex-col overflow-hidden shadow-none ${plan.recommended ? 'border-primary ring-1 ring-primary/20' : ''}`}
           >
             {plan.recommended && (
-              <div className="bg-primary text-primary-foreground text-center py-1 text-sm font-medium">
+              <div className="bg-primary px-3 py-1.5 text-center text-sm font-medium text-primary-foreground">
                 {t('recommended')}
               </div>
             )}
@@ -222,13 +150,12 @@ export default function SubscriptionPage() {
               </ul>
             </CardContent>
             <CardFooter>
-              <Button 
-                className="w-full" 
+              <Button
+                className="w-full"
                 variant={currentPlan === `${plan.name} plan` ? 'outline' : 'default'}
-                disabled={isLoading || currentPlan === `${plan.name} plan`}
-                onClick={() => handlePlanChange(plan.name)}
+                disabled
               >
-                {isLoading ? t('processing') : plan.buttonText}
+                {isLoading ? t('processing') : currentPlan === `${plan.name} plan` ? t('current_plan') : (language === 'zh-TW' ? '尚未開放' : 'Not available yet')}
               </Button>
             </CardFooter>
           </Card>
@@ -246,4 +173,4 @@ export default function SubscriptionPage() {
       </div>
     </div>
   );
-} 
+}

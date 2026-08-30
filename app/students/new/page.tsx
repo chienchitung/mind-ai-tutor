@@ -16,6 +16,7 @@ import { useToast } from '@/hooks/use-toast';
 import { useLanguage } from '@/app/contexts/LanguageContext';
 import { useTranslation } from '@/utils/translations';
 import type { Database } from '@/types/supabase';
+import { PageHeader } from '@/components/layout/PageHeader';
 
 const subjects = [
   'Mathematics',
@@ -51,7 +52,7 @@ export default function NewStudentPage() {
     try {
       const { supabase } = await import('@/lib/supabase');
       const supabaseClient = supabase();
-      
+
       const { error } = await supabaseClient.from('students').insert({
         name: formData.name,
         email: formData.email,
@@ -91,9 +92,9 @@ export default function NewStudentPage() {
   };
 
   return (
-    <div className="container mx-auto max-w-2xl py-10">
-      <h1 className="mb-8 text-3xl font-bold">{t('add_new_student')}</h1>
-      <form onSubmit={handleSubmit} className="space-y-6">
+    <div className="space-y-6">
+      <PageHeader heading={t('add_new_student')} text={language === 'zh-TW' ? '建立學生資料，設定年級與學習主題。' : 'Create a student profile with their grade and learning topics.'} />
+      <form onSubmit={handleSubmit} className="app-panel mx-auto max-w-2xl space-y-6 p-5 sm:p-6">
         <div className="space-y-2">
           <Label htmlFor="name">{t('full_name')}</Label>
           <Input
@@ -141,7 +142,8 @@ export default function NewStudentPage() {
                 variant={
                   formData.subjects.includes(subject) ? 'default' : 'outline'
                 }
-                className="justify-start"
+                className="h-auto min-h-10 justify-start whitespace-normal text-left"
+                aria-pressed={formData.subjects.includes(subject)}
                 onClick={() => handleSubjectToggle(subject)}
               >
                 {subject}
@@ -149,10 +151,15 @@ export default function NewStudentPage() {
             ))}
           </div>
         </div>
-        <Button type="submit" disabled={loading} className="w-full">
+        <div className="flex flex-wrap justify-end gap-2 border-t border-border/70 pt-5">
+          <Button type="button" variant="outline" disabled={loading} onClick={() => router.push('/students')}>
+            {t('cancel')}
+          </Button>
+        <Button type="submit" disabled={loading}>
           {loading ? t('adding_student') : t('add_student')}
         </Button>
+        </div>
       </form>
     </div>
   );
-} 
+}

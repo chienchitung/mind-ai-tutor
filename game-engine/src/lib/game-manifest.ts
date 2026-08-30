@@ -1,5 +1,5 @@
 import { supabase } from './supabase'
-import type { GameDefinition, GameSettings } from '@/types/game'
+import type { GameDefinition, GameLessonOverride, GameSettings } from '@/types/game'
 import type { Lesson } from '@/types/lesson'
 
 interface ManifestLessonRow {
@@ -33,19 +33,48 @@ function asNumber(value: unknown): number | undefined {
   return typeof value === 'number' && Number.isFinite(value) ? value : undefined
 }
 
-function mapLesson(row: ManifestLessonRow): Lesson {
-  const metadata = row.metadata ?? {}
-  const role = asString(metadata.game_role)
-  const configuredNumber = asNumber(metadata.game_number)
+function asRecord(value: unknown): Record<string, unknown> {
+  if (value && typeof value === 'object' && !Array.isArray(value)) {
+    return value as Record<string, unknown>
+  }
+
+  if (typeof value === 'string') {
+    try {
+      return asRecord(JSON.parse(value))
+    } catch {
+      return {}
+    }
+  }
+
+  return {}
+}
+
+function compactDescription(value: string): string {
+  const compact = value.replace(/\s+/g, ' ').trim()
+  return compact.length > 120 ? `${compact.slice(0, 119)}…` : compact
+}
+
+function mapLesson(
+  row: ManifestLessonRow,
+  override: GameLessonOverride = {},
+): Lesson {
+  const metadata = asRecord(row.metadata)
+  const metadataRole = asString(metadata.game_role)
+  const role = override.role ?? (
+    metadataRole === 'intro' || metadataRole === 'final' ? metadataRole : 'standard'
+  )
+  const configuredNumber = override.number ?? asNumber(metadata.game_number)
+  const metadataDescription = asString(metadata.card_description)
+  const description = override.cardDescription ?? metadataDescription ?? row.description ?? ''
 
   return {
     lesson_id: row.id,
     number: configuredNumber ?? row.position,
     title: row.title,
-    description: row.description ?? '',
+    description: compactDescription(description),
     content: row.teaching_content ?? row.markdown_content ?? '',
     duration: row.duration ? String(row.duration) : undefined,
-    role: role === 'intro' || role === 'final' ? role : 'standard',
+    role,
     isFinal: role === 'final',
     showGame: role === 'final' || Boolean(row.genially_link),
     geniallyLink: row.genially_link,
@@ -70,7 +99,11 @@ export async function getPublicGameManifest(gameId: string): Promise<GameDefinit
     throw new Error('Game not found or is not active')
   }
 
-  const lessons = (payload.lessons ?? []).map(mapLesson)
+  const settings = payload.settings ?? {}
+  const lessonOverrides = settings.lessonOverrides ?? {}
+  const lessons = (payload.lessons ?? []).map(row =>
+    mapLesson(row, lessonOverrides[row.id]),
+  )
 
   // The shared template always has a final challenge. Existing games predate
   // metadata.game_role, so the last configured lesson is the safe backwards-
@@ -89,7 +122,7 @@ export async function getPublicGameManifest(gameId: string): Promise<GameDefinit
     title: payload.title,
     description: payload.description ?? '',
     thumbnailUrl: payload.thumbnail_url,
-    settings: payload.settings ?? {},
+    settings,
     lessons,
   }
 }

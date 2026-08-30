@@ -545,7 +545,7 @@ export default function HomePage({ gameId }: { gameId?: string }) {
                                     </div>
                                     <div className="flex-1">
                                       <h2 className="text-lg font-semibold text-gray-900">{lesson.title}</h2>
-                                      <p className="text-sm text-gray-600 mt-1">{lesson.description}</p>
+                                      <p className="text-sm text-gray-600 mt-1 line-clamp-2">{lesson.description}</p>
                                     </div>
                                     <div>
                                       <div className={`

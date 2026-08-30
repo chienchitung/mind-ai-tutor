@@ -10,6 +10,10 @@ import { useToast } from '@/hooks/use-toast';
 import type { Database } from '@/types/supabase';
 import { useLanguage } from '@/app/contexts/LanguageContext';
 import { useTranslation } from '@/utils/translations';
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
+import { PageHeader } from '@/components/layout/PageHeader';
+import { EmptyState, PageLoader } from '@/components/ui/page-state';
+import { UserRound } from 'lucide-react';
 
 type Profile = Database['public']['Tables']['profiles']['Row'];
 
@@ -101,38 +105,47 @@ export default function ProfilePage() {
   };
 
   if (loading) {
-    return (
-      <div className="flex h-[400px] items-center justify-center">
-        <p>{t('loading_profile')}</p>
-      </div>
-    );
+    return <PageLoader />;
   }
 
   if (!profile) {
     return (
-      <div className="flex h-[400px] items-center justify-center">
-        <p>{t('no_profile_found')}</p>
-      </div>
+      <EmptyState
+        title={t('no_profile_found')}
+        description={language === 'zh-TW' ? '目前帳號沒有可編輯的個人資料。' : 'There is no editable profile for this account.'}
+        icon={UserRound}
+      />
     );
   }
 
   return (
-    <div className="container mx-auto max-w-2xl py-10">
-      <h1 className="mb-8 text-3xl font-bold">{t('profile_settings')}</h1>
-      <div className="space-y-8">
-        <div className="flex items-center gap-4">
-          <Avatar className="h-20 w-20">
-            <AvatarImage src={profile.avatar_url || undefined} />
-            <AvatarFallback>
-              {profile.full_name
-                ?.split(' ')
-                .map((n) => n[0])
-                .join('')}
-            </AvatarFallback>
-          </Avatar>
-          <Button variant="outline">{t('change_avatar')}</Button>
-        </div>
-        <form onSubmit={handleUpdateProfile} className="space-y-4">
+    <div className="space-y-6">
+      <PageHeader
+        heading={t('profile_settings')}
+        text={language === 'zh-TW' ? '更新你的公開名稱與個人資料。' : 'Update your display name and profile information.'}
+      />
+      <Card className="mx-auto w-full max-w-2xl shadow-none">
+        <CardHeader>
+          <CardTitle>{t('profile_information')}</CardTitle>
+          <CardDescription>{t('update_personal_information')}</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="mb-6 flex items-center gap-4 rounded-xl bg-muted/50 p-4">
+            <Avatar className="h-16 w-16">
+              <AvatarImage src={profile.avatar_url || undefined} alt={profile.full_name || ''} />
+              <AvatarFallback>
+                {profile.full_name
+                  ?.split(' ')
+                  .map((n) => n[0])
+                  .join('')}
+              </AvatarFallback>
+            </Avatar>
+            <div className="min-w-0">
+              <p className="truncate font-medium">{profile.full_name}</p>
+              <p className="text-sm capitalize text-muted-foreground">{profile.role}</p>
+            </div>
+          </div>
+          <form onSubmit={handleUpdateProfile} className="space-y-5">
           <div className="space-y-2">
             <Label htmlFor="full_name">{t('full_name')}</Label>
             <Input
@@ -147,11 +160,14 @@ export default function ProfilePage() {
             <Label htmlFor="role">{t('role')}</Label>
             <Input id="role" value={profile.role} disabled />
           </div>
+          <div className="flex justify-end border-t border-border/70 pt-5">
           <Button type="submit" disabled={updating}>
             {updating ? t('updating') : t('update_profile')}
           </Button>
-        </form>
-      </div>
+          </div>
+          </form>
+        </CardContent>
+      </Card>
     </div>
   );
-} 
+}

@@ -32,6 +32,10 @@ import {
   Clock,
   Book,
   X,
+  Search,
+  Grid,
+  List,
+  Loader2,
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -39,13 +43,15 @@ import { useForm } from "react-hook-form";
 import * as z from "zod";
 import { useLanguage } from "@/app/contexts/LanguageContext";
 import { useTranslation } from "@/utils/translations";
-import { LessonOrderManager } from "@/components/LessonOrderManager";
-import { getLessonNumber } from "@/lib/utils";
+import { LessonOrderManager, type LessonOverride } from "@/components/LessonOrderManager";
 import {
   createMappingFromOrder,
   updateLessonOrderMapping,
-  getLessonOrderMapping,
 } from "@/lib/lessonOrderUtils";
+import { PageLoader } from '@/components/ui/page-state';
+import { EditorWorkspace } from '@/components/layout/EditorWorkspace';
+import { useUnsavedChanges } from '@/hooks/useUnsavedChanges';
+import { DeleteConfirmation } from '@/components/ui/delete-confirmation';
 
 interface Lesson {
   id: string;
@@ -65,24 +71,54 @@ interface DigitalGame {
   created_at: string;
   user_id: string;
   is_active?: boolean;
+  settings?: {
+    lessonOverrides?: Record<string, LessonOverride>;
+    [key: string]: unknown;
+  };
+}
+
+function normalizeLessonOverrides(
+  lessonIds: string[],
+  overrides: Record<string, LessonOverride>,
+  lessons: Lesson[],
+): Record<string, LessonOverride> {
+  const startsWithIntro = overrides[lessonIds[0]]?.role === 'intro';
+
+  return lessonIds.reduce<Record<string, LessonOverride>>((result, lessonId, index) => {
+    const lesson = lessons.find(item => item.id === lessonId);
+    const existing = overrides[lessonId] ?? {};
+    result[lessonId] = {
+      ...existing,
+      number: startsWithIntro ? index : index + 1,
+      role: existing.role ?? 'standard',
+      cardDescription: existing.cardDescription ?? lesson?.description ?? '',
+    };
+    return result;
+  }, {});
 }
 
 export default function DigitalGamesPage() {
   const [digitalGames, setDigitalGames] = useState<DigitalGame[]>([]);
+  const [deleteTarget, setDeleteTarget] = useState<DigitalGame | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
   const [lessons, setLessons] = useState<Lesson[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [showEditForm, setShowEditForm] = useState(false);
   const [editingGame, setEditingGame] = useState<DigitalGame | null>(null);
+  const [gameSearch, setGameSearch] = useState("");
+  const [lessonSearch, setLessonSearch] = useState("");
+  const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
   const [selectedLessons, setSelectedLessons] = useState<string[]>([]);
-  const [lessonOrderMapping, setLessonOrderMapping] = useState<
-    Record<string, number>
-  >({});
-  const [gameOrderMappings, setGameOrderMappings] = useState<
-    Record<string, Record<string, number>>
-  >({});
+  const [lessonOverrides, setLessonOverrides] = useState<Record<string, LessonOverride>>({});
   const { toast } = useToast();
   const { language } = useLanguage();
   const { t } = useTranslation(language);
+  const normalizedGameSearch = gameSearch.trim().toLowerCase();
+  const visibleGames = digitalGames.filter((game) =>
+    !normalizedGameSearch
+    || game.title.toLowerCase().includes(normalizedGameSearch)
+    || game.description?.toLowerCase().includes(normalizedGameSearch)
+  );
 
   // Form schema with translated validation messages
   const digitalGameFormSchema = z.object({
@@ -126,25 +162,6 @@ export default function DigitalGamesPage() {
     return engineBaseUrl ? `${engineBaseUrl}/games/${game.id}` : game.url;
   };
 
-  // Sort lessons by their order if they are in the selectedLessons array
-  const getSortedLessonIds = (lessonIds: string[], gameId: string) => {
-    if (!lessonIds?.length) return [];
-
-    // Create a copy of the array to sort
-    return [...lessonIds].sort((a, b) => {
-      // First check the dynamic mapping
-      const orderA =
-        gameOrderMappings[gameId]?.[a] ||
-        lessonOrderMapping[a] ||
-        getLessonNumber(a);
-      const orderB =
-        gameOrderMappings[gameId]?.[b] ||
-        lessonOrderMapping[b] ||
-        getLessonNumber(b);
-      return orderA - orderB;
-    });
-  };
-
   // Form setup
   const form = useForm<z.infer<typeof digitalGameFormSchema>>({
     resolver: zodResolver(digitalGameFormSchema),
@@ -175,7 +192,7 @@ export default function DigitalGamesPage() {
           error: userError,
         } = await supabaseWithTypes.auth.getUser();
 
-        if (userError) throw userError;
+        if (userError || !user) throw userError || new Error("Please sign in again.");
 
         // Fetch lessons for selection
         const { data: lessonsData, error: lessonsError } =
@@ -194,35 +211,6 @@ export default function DigitalGamesPage() {
 
         if (gamesError) {
           throw gamesError;
-        }
-
-        // Fetch lesson order mapping if user is logged in
-        if (user) {
-          const mapping = await getLessonOrderMapping(
-            supabaseWithTypes,
-            user.id,
-            "global",
-          );
-          setLessonOrderMapping(mapping);
-        }
-
-        // 如果用戶已登入並有遊戲，則為每個遊戲載入排序
-        if (user && gamesData && gamesData.length > 0) {
-          const mappings: Record<string, Record<string, number>> = {};
-
-          // 為每個遊戲查詢排序映射
-          for (const game of gamesData) {
-            if (game.lesson_ids && game.lesson_ids.length > 0) {
-              const mapping = await getLessonOrderMapping(
-                supabaseWithTypes,
-                user.id,
-                game.id,
-              );
-              mappings[game.id] = mapping;
-            }
-          }
-
-          setGameOrderMappings(mappings);
         }
 
         setLessons(lessonsData || []);
@@ -257,6 +245,11 @@ export default function DigitalGamesPage() {
         lessonIds: editingGame.lesson_ids || [],
       });
       setSelectedLessons(editingGame.lesson_ids || []);
+      setLessonOverrides(normalizeLessonOverrides(
+        editingGame.lesson_ids || [],
+        editingGame.settings?.lessonOverrides || {},
+        lessons,
+      ));
     } else {
       form.reset({
         title: "",
@@ -266,8 +259,23 @@ export default function DigitalGamesPage() {
         lessonIds: [],
       });
       setSelectedLessons([]);
+      setLessonOverrides({});
     }
-  }, [editingGame, form]);
+  }, [editingGame, form, lessons]);
+
+  const pathDirty = JSON.stringify({ ids: selectedLessons, overrides: lessonOverrides }) !== JSON.stringify({
+    ids: editingGame?.lesson_ids || [],
+    overrides: normalizeLessonOverrides(editingGame?.lesson_ids || [], editingGame?.settings?.lessonOverrides || {}, lessons),
+  });
+  const confirmLeave = useUnsavedChanges(showEditForm && (form.formState.isDirty || pathDirty), showEditForm && form.formState.isSubmitting);
+  const closeEditor = () => {
+    if (!confirmLeave()) return;
+    setShowEditForm(false);
+    setEditingGame(null);
+    setSelectedLessons([]);
+    setLessonOverrides({});
+    form.reset();
+  };
 
   const onSubmit = async (values: z.infer<typeof digitalGameFormSchema>) => {
     try {
@@ -290,6 +298,7 @@ export default function DigitalGamesPage() {
       // 保存當前編輯的遊戲ID，避免狀態變更導致的副作用
       const currentEditingGameId = editingGame?.id;
 
+      const normalizedOverrides = normalizeLessonOverrides(selectedLessons, lessonOverrides, lessons);
       const gameData = {
         title: values.title,
         description: values.description,
@@ -298,21 +307,14 @@ export default function DigitalGamesPage() {
         lesson_ids: selectedLessons,
         user_id: user.id,
         is_active: true,
+        settings: {
+          ...(editingGame?.settings || {}),
+          lessonOverrides: normalizedOverrides,
+        },
       };
 
       // 確保我們有最新的課程映射
-      const currentGameId = currentEditingGameId || "temp-game-id";
-      let currentMapping = gameOrderMappings[currentGameId];
-      
-      // 如果映射不存在或需要更新，則從當前選擇創建一個新的映射
-      if (!currentMapping || Object.keys(currentMapping).length !== selectedLessons.length) {
-        currentMapping = createMappingFromOrder(selectedLessons);
-        // 更新本地狀態
-        setGameOrderMappings((prev) => ({
-          ...prev,
-          [currentGameId]: currentMapping,
-        }));
-      }
+      const currentMapping = createMappingFromOrder(selectedLessons);
 
       if (currentEditingGameId) {
         // Update existing game
@@ -364,15 +366,6 @@ export default function DigitalGamesPage() {
             currentMapping,
           );
 
-          // 更新本地狀態，使用實際的遊戲ID替換臨時ID
-          setGameOrderMappings((prev) => {
-            const updated = { ...prev };
-            if (updated[currentGameId]) {
-              updated[data.id] = updated[currentGameId];
-              delete updated[currentGameId];
-            }
-            return updated;
-          });
         }
 
         setDigitalGames((prev) => [...prev, data]);
@@ -387,6 +380,7 @@ export default function DigitalGamesPage() {
       setEditingGame(null);
       form.reset();
       setSelectedLessons([]);
+      setLessonOverrides({});
     } catch (error: any) {
       toast({
         title: t("error"),
@@ -398,6 +392,8 @@ export default function DigitalGamesPage() {
   };
 
   const deleteGame = async (gameId: string) => {
+    if (isDeleting) return;
+    setIsDeleting(true);
     try {
       // 動態導入 supabase 函數
       const { supabase } = await import("@/lib/supabase");
@@ -437,13 +433,8 @@ export default function DigitalGamesPage() {
 
       // 3. 更新本地狀態
       setDigitalGames((prev) => prev.filter((game) => game.id !== gameId));
+      setDeleteTarget(null);
       
-      // 也從本地映射狀態中移除
-      setGameOrderMappings((prev) => {
-        const updated = { ...prev };
-        delete updated[gameId];
-        return updated;
-      });
 
       toast({
         title: t("success"),
@@ -455,155 +446,137 @@ export default function DigitalGamesPage() {
         description: error.message || t("error_delete_game"),
         variant: "destructive",
       });
+    } finally {
+      setIsDeleting(false);
     }
   };
 
   const handleLessonSelection = (lessonId: string) => {
-    setSelectedLessons((prev) => {
-      let newSelection;
-      
-      if (prev.includes(lessonId)) {
-        // 移除課程
-        newSelection = prev.filter((id) => id !== lessonId);
-        
-        // 更新當前遊戲的課程順序映射，但跳過資料庫更新
-        const currentGameId = editingGame?.id || "temp-game-id";
-        setGameOrderMappings((prevMappings) => {
-          const updatedMapping = { ...prevMappings };
-          
-          // 如果存在該遊戲的映射，則更新它
-          if (updatedMapping[currentGameId]) {
-            // 創建新的映射對象，刪除被移除的課程
-            const newMapping = { ...updatedMapping[currentGameId] };
-            delete newMapping[lessonId];
-            
-            // 更新映射，確保序號連續
-            const remainingLessons = newSelection;
-            const reorderedMapping = createMappingFromOrder(remainingLessons);
-            updatedMapping[currentGameId] = reorderedMapping;
-          }
-          
-          return updatedMapping;
-        });
-
-        // 不自動更新資料庫 - 刪除課程時不觸發自動更新通知
-        
-        return newSelection;
+    const newSelection = selectedLessons.includes(lessonId)
+      ? selectedLessons.filter(id => id !== lessonId)
+      : [...selectedLessons, lessonId];
+    setSelectedLessons(newSelection);
+    setLessonOverrides(previous => {
+      const next = { ...previous };
+      if (selectedLessons.includes(lessonId)) {
+        delete next[lessonId];
       } else {
-        // 新增課程
-        newSelection = [...prev, lessonId];
-        
-        // 更新當前遊戲的課程順序映射，為新課程分配序號
-        const currentGameId = editingGame?.id || "temp-game-id";
-        setGameOrderMappings((prevMappings) => {
-          const updatedMapping = { ...prevMappings };
-          
-          // 為新課程分配序號
-          if (!updatedMapping[currentGameId]) {
-            updatedMapping[currentGameId] = {};
+        const lesson = lessons.find(item => item.id === lessonId);
+        next[lessonId] = {
+          role: 'standard',
+          cardDescription: lesson?.description ?? '',
+        };
+      }
+      return normalizeLessonOverrides(newSelection, next, lessons);
+    });
+
+  };
+
+  const handleLessonOverrideChange = (lessonId: string, override: Partial<LessonOverride>) => {
+    setLessonOverrides(previous => {
+      const next = { ...previous };
+
+      if (override.role === 'intro' || override.role === 'final') {
+        Object.entries(next).forEach(([id, existing]) => {
+          if (id !== lessonId && existing.role === override.role) {
+            next[id] = { ...existing, role: 'standard' };
           }
-          
-          // 使用 createMappingFromOrder 確保序號連續
-          updatedMapping[currentGameId] = createMappingFromOrder(newSelection);
-          
-          return updatedMapping;
         });
       }
-      
-      return newSelection;
+
+      next[lessonId] = { ...next[lessonId], ...override };
+      return normalizeLessonOverrides(selectedLessons, next, lessons);
     });
   };
 
-  const handleLessonReorder = async (reorderedLessons: string[], skipDbUpdate = false) => {
+  const handleLessonReorder = (reorderedLessons: string[]) => {
     setSelectedLessons(reorderedLessons);
-
-    // 遊戲 ID（如果正在編輯遊戲，使用該遊戲 ID；否則創建一個臨時 ID）
-    const currentGameId = editingGame?.id || "temp-game-id";
-
-    // 紀錄呼叫情況，用於偵錯
-    if (skipDbUpdate) {
-      console.log(`handleLessonReorder called with skipDbUpdate=true, lessons: ${reorderedLessons.length}`);
-    }
-
-    // 根據重排列的順序創建新的映射
-    const newMapping = createMappingFromOrder(reorderedLessons);
-
-    // 更新特定遊戲的排序映射
-    setGameOrderMappings((prev) => ({
-      ...prev,
-      [currentGameId]: newMapping,
-    }));
-
-    // 如果不是臨時 ID（即正在編輯已有遊戲）並且不是跳過資料庫更新，則保存到資料庫
-    if (currentGameId !== "temp-game-id" && !skipDbUpdate) {
-      try {
-        // 動態導入 supabase 函數
-        const { supabase } = await import("@/lib/supabase");
-        const supabaseClient = supabase();
-
-        // 獲取當前用戶
-        const {
-          data: { user },
-        } = await supabaseClient.auth.getUser();
-
-        if (user) {
-          await updateLessonOrderMapping(
-            supabaseClient,
-            user.id,
-            currentGameId,
-            newMapping,
-          );
-        }
-      } catch (error) {
-        console.error("Failed to update lesson order mapping:", error);
-      }
-    }
+    setLessonOverrides(previous => normalizeLessonOverrides(reorderedLessons, previous, lessons));
   };
 
   return (
     <div className="space-y-6">
+      <DeleteConfirmation name={deleteTarget?.title ?? null} busy={isDeleting} onCancel={() => setDeleteTarget(null)} onConfirm={() => { if (deleteTarget) void deleteGame(deleteTarget.id); }} />
       <PageHeader
         heading={t("digital_games")}
         text={t("manage_games")}
         actions={
-          !showEditForm && (
+          !showEditForm && (<>
+            <div className="flex rounded-lg bg-muted p-1" aria-label={language === 'zh-TW' ? '檢視模式' : 'View mode'}>
+              <Button
+                variant={viewMode === 'grid' ? 'default' : 'ghost'}
+                size="sm"
+                className="h-8 px-2.5"
+                onClick={() => setViewMode('grid')}
+                aria-label={language === 'zh-TW' ? '卡片檢視' : 'Grid view'}
+              >
+                <Grid className="h-4 w-4" />
+              </Button>
+              <Button
+                variant={viewMode === 'list' ? 'default' : 'ghost'}
+                size="sm"
+                className="h-8 px-2.5"
+                onClick={() => setViewMode('list')}
+                aria-label={language === 'zh-TW' ? '列表檢視' : 'List view'}
+              >
+                <List className="h-4 w-4" />
+              </Button>
+            </div>
             <Button
               onClick={() => {
                 setEditingGame(null);
                 setShowEditForm(true);
                 setSelectedLessons([]);
+                setLessonOverrides({});
                 form.reset();
               }}
             >
               <PlusCircle className="mr-2 h-4 w-4" />
               {t("create_game")}
             </Button>
-          )
+          </>)
         }
       />
 
+      {!showEditForm && !isLoading && (
+        <div className="app-panel flex flex-col gap-3 p-4 sm:flex-row sm:items-center sm:justify-between">
+          <div className="relative w-full sm:max-w-sm">
+            <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+            <Input
+              value={gameSearch}
+              onChange={(event) => setGameSearch(event.target.value)}
+              placeholder={language === 'zh-TW' ? '搜尋遊戲名稱或說明' : 'Search games by name or description'}
+              className="pl-9"
+            />
+          </div>
+          <span className="text-sm text-muted-foreground">
+            {language === 'zh-TW' ? `顯示 ${visibleGames.length} / ${digitalGames.length} 款遊戲` : `Showing ${visibleGames.length} of ${digitalGames.length} games`}
+          </span>
+        </div>
+      )}
+
       {isLoading ? (
-        <div className="text-center py-10">{t("loading_games")}</div>
+        <PageLoader />
       ) : (
         <>
           {showEditForm ? (
             <>
-              <div className="mb-6 flex justify-between items-center">
-                <h2 className="text-xl font-semibold">
-                  {editingGame ? t("edit_game") : t("create_game")}
-                </h2>
-                <Button
+              <EditorWorkspace
+                title={editingGame ? t("edit_game") : t("create_game")}
+                description={language === 'zh-TW' ? '先完成遊戲資料，再安排學習路線與各關卡顯示內容。' : 'Complete the game details, then arrange the learning path and level content.'}
+                sections={[
+                  { id: 'game-basics', label: language === 'zh-TW' ? '遊戲資料' : 'Game details' },
+                  { id: 'game-lessons', label: language === 'zh-TW' ? '學習路線' : 'Learning path' },
+                ]}
+                actions={<Button
                   variant="outline"
                   size="sm"
-                  onClick={() => {
-                    setShowEditForm(false);
-                    setEditingGame(null);
-                    form.reset();
-                  }}
+                  disabled={form.formState.isSubmitting}
+                  onClick={closeEditor}
                 >
                   {t("cancel")}
-                </Button>
-              </div>
+                </Button>}
+              />
 
               {editingGame && (
                 <div className="mb-6">
@@ -670,11 +643,20 @@ export default function DigitalGamesPage() {
                 </div>
               )}
 
+              <Card className="shadow-none">
+                <CardContent className="pt-5 md:pt-6">
               <Form {...form}>
                 <form
                   onSubmit={form.handleSubmit(onSubmit)}
                   className="space-y-4"
+                  aria-busy={form.formState.isSubmitting}
                 >
+                  <fieldset disabled={form.formState.isSubmitting} className="space-y-4 min-w-0">
+                  <section id="game-basics" className="scroll-mt-24 lg:scroll-mt-64 space-y-4 rounded-xl border border-border/70 p-4 sm:p-5">
+                    <div>
+                      <h3 className="font-semibold">{language === 'zh-TW' ? '遊戲資料' : 'Game details'}</h3>
+                      <p className="mt-1 text-sm text-muted-foreground">{language === 'zh-TW' ? '設定名稱、入口網址與列表顯示內容。' : 'Set the name, launch URL and listing content.'}</p>
+                    </div>
                   <div className="grid md:grid-cols-2 gap-4">
                     <FormField
                       control={form.control}
@@ -744,7 +726,13 @@ export default function DigitalGamesPage() {
                       </FormItem>
                     )}
                   />
+                  </section>
 
+                  <section id="game-lessons" className="scroll-mt-24 lg:scroll-mt-64 space-y-4 rounded-xl border border-border/70 p-4 sm:p-5">
+                    <div>
+                      <h3 className="font-semibold">{language === 'zh-TW' ? '學習路線' : 'Learning path'}</h3>
+                      <p className="mt-1 text-sm text-muted-foreground">{language === 'zh-TW' ? '選取並排序關卡；此處的名稱與摘要會覆蓋課程預設值。' : 'Choose and reorder levels; names and summaries here override lesson defaults.'}</p>
+                    </div>
                   <div className="space-y-2">
                     <FormLabel>
                       {t("associated_lessons")}
@@ -753,10 +741,13 @@ export default function DigitalGamesPage() {
                       {selectedLessons.length > 0 && (
                         <div className="mb-3">
                           <LessonOrderManager
+                            disabled={form.formState.isSubmitting}
                             selectedLessons={selectedLessons}
                             onLessonsReordered={handleLessonReorder}
                             onLessonRemoved={handleLessonSelection}
                             lessons={lessons}
+                            lessonOverrides={lessonOverrides}
+                            onLessonOverrideChange={handleLessonOverrideChange}
                           />
                         </div>
                       )}
@@ -767,27 +758,8 @@ export default function DigitalGamesPage() {
                             <Input
                               placeholder={t("search_lessons")}
                               className="mb-2"
-                              onChange={(e) => {
-                                const searchValue =
-                                  e.target.value.toLowerCase();
-                                const lessonsContainer =
-                                  document.getElementById("lessons-container");
-                                if (lessonsContainer) {
-                                  Array.from(lessonsContainer.children).forEach(
-                                    (child) => {
-                                      const text =
-                                        child.textContent?.toLowerCase() || "";
-                                      if (text.includes(searchValue)) {
-                                        (child as HTMLElement).style.display =
-                                          "flex";
-                                      } else {
-                                        (child as HTMLElement).style.display =
-                                          "none";
-                                      }
-                                    },
-                                  );
-                                }
-                              }}
+                              value={lessonSearch}
+                              onChange={(e) => setLessonSearch(e.target.value)}
                             />
                           </div>
 
@@ -798,16 +770,17 @@ export default function DigitalGamesPage() {
                             {lessons
                               .filter(
                                 (lesson) =>
-                                  !selectedLessons.includes(lesson.id),
+                                  !selectedLessons.includes(lesson.id)
+                                  && (!lessonSearch.trim()
+                                    || lesson.title.toLowerCase().includes(lessonSearch.trim().toLowerCase())
+                                    || lesson.description?.toLowerCase().includes(lessonSearch.trim().toLowerCase())),
                               )
                               .map((lesson) => (
-                                <div
+                                <button
+                                  type="button"
                                   key={lesson.id}
-                                  className="flex items-start space-x-2 py-2 px-2 border border-transparent hover:border-muted-foreground/20 hover:bg-muted/40 rounded-md cursor-pointer"
-                                  onClick={() =>
-                                    selectedLessons.length < 5 &&
-                                    handleLessonSelection(lesson.id)
-                                  }
+                                  className="flex w-full items-start space-x-2 rounded-md border border-transparent px-2 py-2 text-left hover:border-muted-foreground/20 hover:bg-muted/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                                  onClick={() => handleLessonSelection(lesson.id)}
                                 >
                                   <div className="flex-1">
                                     <div className="font-medium">
@@ -830,18 +803,10 @@ export default function DigitalGamesPage() {
                                       </Badge>
                                     </div>
                                   </div>
-                                  <Button
-                                    variant="outline"
-                                    size="sm"
-                                    className="h-6 rounded-full"
-                                    onClick={(e) => {
-                                      e.stopPropagation();
-                                      handleLessonSelection(lesson.id);
-                                    }}
-                                  >
+                                  <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full border bg-background" aria-hidden="true">
                                     <PlusCircle className="h-3 w-3" />
-                                  </Button>
-                                </div>
+                                  </span>
+                                </button>
                               ))}
                           </div>
 
@@ -857,66 +822,87 @@ export default function DigitalGamesPage() {
                       )}
                     </div>
                   </div>
+                  </section>
 
                   <div className="flex justify-end space-x-2 pt-4">
                     <Button
                       type="button"
                       variant="outline"
-                      onClick={() => {
-                        setShowEditForm(false);
-                        setEditingGame(null);
-                        form.reset();
-                      }}
+                      onClick={closeEditor}
                     >
                       {t("cancel")}
                     </Button>
-                    <Button type="submit">
-                      {editingGame ? t("update_game") : t("create_game")}
+                    <Button type="submit" disabled={form.formState.isSubmitting}>
+                      {form.formState.isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                      {form.formState.isSubmitting ? (language === 'zh-TW' ? '儲存中…' : 'Saving…') : editingGame ? t("update_game") : t("create_game")}
                     </Button>
                   </div>
+                  </fieldset>
                 </form>
               </Form>
+                </CardContent>
+              </Card>
             </>
           ) : (
             <>
-              {digitalGames.length === 0 ? (
+              {visibleGames.length === 0 ? (
                 <div className="text-center py-10">
                   <Gamepad2 className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
                   <h3 className="text-lg font-medium mb-2">
-                    {t("no_games_yet")}
+                    {digitalGames.length === 0 ? t("no_games_yet") : t('no_results_found')}
                   </h3>
                   <p className="text-muted-foreground mb-4">
-                    {t("add_first_game")}
+                    {digitalGames.length === 0
+                      ? t("add_first_game")
+                      : (language === 'zh-TW' ? '請調整搜尋關鍵字後再試一次。' : 'Adjust your search and try again.')}
                   </p>
                   <Button
                     onClick={() => {
-                      setEditingGame(null);
-                      setShowEditForm(true);
+                      if (digitalGames.length === 0) {
+                        setEditingGame(null);
+                        setShowEditForm(true);
+                      } else {
+                        setGameSearch('');
+                      }
                     }}
                   >
-                    <PlusCircle className="mr-2 h-4 w-4" />
-                    {t("create_game")}
+                    {digitalGames.length === 0 && <PlusCircle className="mr-2 h-4 w-4" />}
+                    {digitalGames.length === 0
+                      ? t("create_game")
+                      : (language === 'zh-TW' ? '清除搜尋' : 'Clear search')}
                   </Button>
                 </div>
               ) : (
-                <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
-                  {digitalGames.map((game) => (
-                    <Card key={game.id} className="flex flex-col h-full">
+                <div className={viewMode === 'grid' ? "grid gap-4 md:grid-cols-2 xl:grid-cols-3" : "space-y-3"}>
+                  {visibleGames.map((game) => (
+                    viewMode === 'grid' ? <Card key={game.id} className="flex h-full flex-col overflow-hidden shadow-none transition-colors hover:border-foreground/25">
                       {game.thumbnail_url ? (
                         <div className="relative w-full pt-[56.25%]">
                           <img
                             src={game.thumbnail_url}
                             alt={game.title}
-                            className="absolute inset-0 w-full h-full object-cover rounded-t-lg"
+                            className="absolute inset-0 h-full w-full object-cover"
                           />
                         </div>
                       ) : (
-                        <div className="bg-gradient-to-br from-indigo-500 to-purple-500 flex items-center justify-center h-40 rounded-t-lg">
-                          <Gamepad2 className="h-16 w-16 text-white/80" />
+                        <div className="flex h-40 items-center justify-center bg-foreground">
+                          <Gamepad2 className="h-14 w-14 text-background/80" />
                         </div>
                       )}
 
                       <CardHeader className="pb-2">
+                        <div className="mb-2 flex items-center justify-between gap-3">
+                          <Badge variant={game.is_active === false ? 'secondary' : 'default'}>
+                            {game.is_active === false
+                              ? (language === 'zh-TW' ? '草稿' : 'Draft')
+                              : (language === 'zh-TW' ? '已發布' : 'Published')}
+                          </Badge>
+                          <span className="text-xs text-muted-foreground">
+                            {language === 'zh-TW'
+                              ? `${game.lesson_ids?.length || 0} 個關卡`
+                              : `${game.lesson_ids?.length || 0} levels`}
+                          </span>
+                        </div>
                         <CardTitle className="text-xl">{game.title}</CardTitle>
                         <CardDescription className="line-clamp-2">
                           {game.description}
@@ -931,28 +917,20 @@ export default function DigitalGamesPage() {
                                 {t("associated_lessons")}:
                               </p>
                               <div className="flex flex-wrap gap-1">
-                                {getSortedLessonIds(
-                                  game.lesson_ids,
-                                  game.id,
-                                ).map((lessonId) => {
+                                {game.lesson_ids.map((lessonId, index) => {
                                   const lesson = lessons.find(
                                     (l) => l.id === lessonId,
                                   );
-                                  // 獲取遊戲特定的課程編號
-                                  const lessonNumber =
-                                    gameOrderMappings[game.id]?.[lessonId] ||
-                                    lessonOrderMapping[lessonId] ||
-                                    getLessonNumber(lessonId);
+                                  // Use the same ordered IDs and display overrides as the game manifest.
+                                  const override = game.settings?.lessonOverrides?.[lessonId];
+                                  const lessonNumber = override?.number ?? index + 1;
                                   return lesson ? (
                                     <Badge
                                       key={lessonId}
                                       variant="outline"
                                       className="text-xs"
                                     >
-                                      {lessonNumber > 0
-                                        ? `${lessonNumber}. `
-                                        : ""}
-                                      {lesson.title}
+                                      {lessonNumber}. {lesson.title}
                                     </Badge>
                                   ) : null;
                                 })}
@@ -982,20 +960,62 @@ export default function DigitalGamesPage() {
                                 setEditingGame(game);
                                 setShowEditForm(true);
                               }}
+                              aria-label={`${t("edit_game")}: ${game.title}`}
                             >
                               <Pencil className="h-4 w-4" />
                             </Button>
                             <Button
                               variant="ghost"
                               size="sm"
-                              onClick={() => deleteGame(game.id)}
+                              onClick={() => setDeleteTarget(game)}
+                              aria-label={`${t("delete")}: ${game.title}`}
                             >
                               <Trash2 className="h-4 w-4" />
                             </Button>
                           </div>
                         </div>
                       </CardFooter>
-                    </Card>
+                    </Card> : (
+                      <Card key={game.id} className="shadow-none transition-colors hover:border-foreground/25">
+                        <div className="flex flex-col gap-4 p-4 sm:flex-row sm:items-center sm:p-5">
+                          <div className="flex h-14 w-14 shrink-0 items-center justify-center overflow-hidden rounded-xl bg-foreground">
+                            {game.thumbnail_url ? (
+                              <img src={game.thumbnail_url} alt="" className="h-full w-full object-cover" />
+                            ) : (
+                              <Gamepad2 className="h-6 w-6 text-background/80" />
+                            )}
+                          </div>
+                          <div className="min-w-0 flex-1">
+                            <div className="flex flex-wrap items-center gap-2">
+                              <h3 className="font-semibold">{game.title}</h3>
+                              <Badge variant={game.is_active === false ? 'secondary' : 'default'}>
+                                {game.is_active === false
+                                  ? (language === 'zh-TW' ? '草稿' : 'Draft')
+                                  : (language === 'zh-TW' ? '已發布' : 'Published')}
+                              </Badge>
+                            </div>
+                            <p className="mt-1 line-clamp-1 text-sm text-muted-foreground">{game.description}</p>
+                            <p className="mt-1 text-xs text-muted-foreground">
+                              {language === 'zh-TW' ? `${game.lesson_ids?.length || 0} 個關卡` : `${game.lesson_ids?.length || 0} levels`}
+                            </p>
+                          </div>
+                          <div className="flex shrink-0 flex-wrap items-center gap-2">
+                            <Button variant="outline" size="sm" asChild>
+                              <a href={getGameEngineUrl(game)} target="_blank" rel="noopener noreferrer">
+                                <ExternalLink className="mr-2 h-4 w-4" />
+                                {t("play_game")}
+                              </a>
+                            </Button>
+                            <Button variant="ghost" size="sm" onClick={() => { setEditingGame(game); setShowEditForm(true); }}>
+                              <Pencil className="mr-2 h-4 w-4" />{t("edit")}
+                            </Button>
+                            <Button variant="ghost" size="sm" className="text-destructive hover:bg-destructive/10" onClick={() => setDeleteTarget(game)}>
+                              <Trash2 className="mr-2 h-4 w-4" />{t("delete")}
+                            </Button>
+                          </div>
+                        </div>
+                      </Card>
+                    )
                   ))}
                 </div>
               )}

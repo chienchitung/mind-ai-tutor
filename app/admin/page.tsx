@@ -4,9 +4,11 @@ import { useEffect, useState } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { PageHeader } from '@/components/layout/PageHeader';
-import { Loader2, Users, Calendar, BookOpen, MessageSquare } from 'lucide-react';
+import { Users, Calendar, BookOpen, MessageSquare, Search, ShieldCheck } from 'lucide-react';
 import { useLanguage } from '@/app/contexts/LanguageContext';
 import { useTranslation } from '@/utils/translations';
+import { Input } from '@/components/ui/input';
+import { ErrorState, PageLoader } from '@/components/ui/page-state';
 
 interface ProfileRow {
   id: string;
@@ -29,6 +31,7 @@ export default function AdminPage() {
   const [tableCounts, setTableCounts] = useState<TableCount[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [search, setSearch] = useState('');
 
   useEffect(() => {
     const loadAdminData = async () => {
@@ -71,20 +74,26 @@ export default function AdminPage() {
   }, [t]);
 
   if (isLoading) {
-    return (
-      <div className="flex items-center justify-center min-h-[50vh]">
-        <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
-      </div>
-    );
+    return <PageLoader />;
   }
 
   if (error) {
     return (
-      <div className="p-6">
-        <p className="text-destructive">{error}</p>
-      </div>
+      <ErrorState
+        title={t('failed_load_admin_data')}
+        description={error}
+        retryLabel={t('try_again')}
+        onRetry={() => window.location.reload()}
+      />
     );
   }
+
+  const normalizedSearch = search.trim().toLowerCase();
+  const filteredProfiles = profiles.filter((profile) =>
+    !normalizedSearch
+    || profile.full_name?.toLowerCase().includes(normalizedSearch)
+    || profile.role?.toLowerCase().includes(normalizedSearch)
+  );
 
   return (
     <div className="space-y-6">
@@ -93,9 +102,9 @@ export default function AdminPage() {
         text={t('admin_page_desc')}
       />
 
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
         {tableCounts.map((item) => (
-          <Card key={item.label}>
+          <Card key={item.label} className="shadow-none">
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
               <CardTitle className="text-sm font-medium">{item.label}</CardTitle>
               {item.icon}
@@ -107,32 +116,51 @@ export default function AdminPage() {
         ))}
       </div>
 
-      <Card>
-        <CardHeader>
-          <CardTitle>{t('admin_user_roles_title')}</CardTitle>
-          <CardDescription>
-            {t('admin_user_roles_desc')}
-          </CardDescription>
+      <Card className="overflow-hidden shadow-none">
+        <CardHeader className="gap-4 border-b border-border/70 sm:flex-row sm:items-center sm:justify-between sm:space-y-0">
+          <div>
+            <CardTitle className="flex items-center gap-2">
+              <ShieldCheck className="h-5 w-5" />
+              {t('admin_user_roles_title')}
+            </CardTitle>
+            <CardDescription className="mt-1.5">
+              {t('admin_user_roles_desc')}
+            </CardDescription>
+          </div>
+          <div className="relative w-full sm:w-72">
+            <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+            <Input
+              value={search}
+              onChange={(event) => setSearch(event.target.value)}
+              placeholder={language === 'zh-TW' ? '搜尋姓名或角色' : 'Search name or role'}
+              className="pl-9"
+            />
+          </div>
         </CardHeader>
-        <CardContent>
-          {profiles.length === 0 ? (
-            <p className="text-sm text-muted-foreground">
+        <CardContent className="p-0 md:p-0">
+          {filteredProfiles.length === 0 ? (
+            <p className="px-6 py-12 text-center text-sm text-muted-foreground">
               {t('admin_no_profiles')}
             </p>
           ) : (
-            <div className="space-y-2">
-              {profiles.map((profile) => (
+            <div>
+              <div className="hidden grid-cols-[minmax(0,1fr)_160px_140px] gap-4 bg-muted/35 px-6 py-3 text-xs font-semibold uppercase tracking-wide text-muted-foreground md:grid">
+                <span>{language === 'zh-TW' ? '成員' : 'Member'}</span>
+                <span>{language === 'zh-TW' ? '加入日期' : 'Joined'}</span>
+                <span>{language === 'zh-TW' ? '角色' : 'Role'}</span>
+              </div>
+              {filteredProfiles.map((profile) => (
                 <div
                   key={profile.id}
-                  className="flex items-center justify-between border-b py-2 last:border-0"
+                  className="grid gap-3 border-t border-border/70 px-6 py-4 first:border-t-0 md:grid-cols-[minmax(0,1fr)_160px_140px] md:items-center md:gap-4"
                 >
-                  <div>
+                  <div className="min-w-0">
                     <p className="font-medium">{profile.full_name || t('admin_name_not_set')}</p>
-                    <p className="text-xs text-muted-foreground">
-                      {t('admin_joined_at')}{' '}
-                      {new Date(profile.created_at).toLocaleDateString(language === 'zh-TW' ? 'zh-TW' : 'en-US')}
-                    </p>
+                    <p className="truncate text-xs text-muted-foreground">{profile.user_id}</p>
                   </div>
+                  <p className="text-sm text-muted-foreground">
+                    {new Date(profile.created_at).toLocaleDateString(language === 'zh-TW' ? 'zh-TW' : 'en-US')}
+                  </p>
                   <Badge variant={profile.role === 'admin' ? 'default' : 'secondary'}>
                     {profile.role || t('admin_role_unset')}
                   </Badge>

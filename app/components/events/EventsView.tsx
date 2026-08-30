@@ -16,7 +16,7 @@ export function EventsView() {
 
   const ViewContent = () => {
     const { activeView } = useEvents();
-    
+
     const renderView = () => {
       switch (activeView) {
         case "list":
@@ -37,17 +37,17 @@ export function EventsView() {
     return (
       <div className="space-y-6">
         <EventsHeader onAddEvent={() => setShowEventForm(true)} />
-        
-        <Card className="bg-background border shadow-sm">
+
+        <Card className="border bg-card shadow-none">
           <div className="p-4 md:p-6">
             {renderView()}
           </div>
         </Card>
-        
+
         {showEventForm && (
-          <EventFormDialog 
-            open={showEventForm} 
-            onOpenChange={setShowEventForm} 
+          <EventFormDialog
+            open={showEventForm}
+            onOpenChange={setShowEventForm}
             initialEvent={editingEvent}
             mode={editingEvent ? "edit" : "create"}
           />
@@ -61,4 +61,4 @@ export function EventsView() {
       <ViewContent />
     </EventProvider>
   );
-} 
+}

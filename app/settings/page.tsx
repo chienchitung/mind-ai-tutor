@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { PageHeader } from '../components/ui/page-header';
+import { PageHeader } from '@/components/layout/PageHeader';
 import { useEffect } from 'react';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
@@ -13,25 +13,21 @@ import { useToast } from '@/hooks/use-toast';
 import { User, Mail, CreditCard } from 'lucide-react';
 import { useLanguage } from '@/app/contexts/LanguageContext';
 import { useTranslation } from '@/utils/translations';
-
-// 定義 Supabase 客戶端類型，避免類型錯誤
-interface SupabaseClientWithAuth {
-  auth: {
-    getUser: () => Promise<{data: {user: any}}>;
-    updateUser: (options: {data: any}) => Promise<{error: any}>;
-  }
-}
+import { PageLoader } from '@/components/ui/page-state';
+import { ChangePasswordForm } from '@/components/settings/ChangePasswordForm';
+import type { User as AuthUser } from '@supabase/supabase-js';
 
 export default function SettingsPage() {
-  const [user, setUser] = useState<any>(null);
+  const [user, setUser] = useState<AuthUser | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [isUpdating, setIsUpdating] = useState(false);
   const [firstName, setFirstName] = useState('');
   const [lastName, setLastName] = useState('');
   const [email, setEmail] = useState('');
   const { toast } = useToast();
   const { language } = useLanguage();
   const { t } = useTranslation(language);
-  
+
   // Fetch user data
   useEffect(() => {
     const getUser = async () => {
@@ -39,30 +35,23 @@ export default function SettingsPage() {
         // 動態導入 supabase 函數
         const { supabase } = await import('@/lib/supabase');
         const supabaseClient = supabase();
-        
+
         // 使用更明確的轉換方式
-        const supabaseWithTypes = supabaseClient as unknown as SupabaseClientWithAuth;
-        console.log("Got Supabase client:", !!supabaseWithTypes); // 偵錯用
-        
+        const supabaseWithTypes = supabaseClient;
         const { data: { user } } = await supabaseWithTypes.auth.getUser();
-        console.log("Got user data:", user); // 偵錯用，顯示完整用戶數據
-        
+
         if (user) {
           setUser(user);
           setEmail(user.email || '');
-          
+
           // 處理從不同來源獲取名字的情況
           let extractedFirstName = '';
           let extractedLastName = '';
-          
-          console.log("User metadata:", user.user_metadata);
-          console.log("App metadata:", user.app_metadata);
-          
+
           // 使用已保存的 first_name 和 last_name（優先）
           if (user.user_metadata?.first_name && user.user_metadata?.last_name) {
             extractedFirstName = user.user_metadata.first_name;
             extractedLastName = user.user_metadata.last_name;
-            console.log("Using stored first_name and last_name");
           }
           // 對於 Google 登入，使用 Google 提供的命名規則
           else if (user.app_metadata?.provider === 'google') {
@@ -70,7 +59,6 @@ export default function SettingsPage() {
             if (user.user_metadata?.given_name && user.user_metadata?.family_name) {
               extractedFirstName = user.user_metadata.given_name;
               extractedLastName = user.user_metadata.family_name;
-              console.log("Using Google given_name and family_name");
             }
             // 如果沒有明確的 given_name 和 family_name，使用完整名稱
             else if (user.user_metadata?.name) {
@@ -83,7 +71,6 @@ export default function SettingsPage() {
                 extractedFirstName = nameParts[0] || '';
                 extractedLastName = '';
               }
-              console.log("Using split name parts from Google name");
             }
           }
           // 如果有 full_name，拆分它
@@ -96,7 +83,6 @@ export default function SettingsPage() {
               extractedFirstName = nameParts[0] || '';
               extractedLastName = '';
             }
-            console.log("Using split name parts from full_name");
           }
           // 如果有 name，拆分它
           else if (user.user_metadata?.name) {
@@ -108,19 +94,16 @@ export default function SettingsPage() {
               extractedFirstName = nameParts[0] || '';
               extractedLastName = '';
             }
-            console.log("Using split name parts from name");
           }
           // 最後使用郵件地址
           else if (user.email) {
             extractedFirstName = user.email.split('@')[0];
             extractedLastName = '';
-            console.log("Using email prefix as name");
           }
-          
+
           setFirstName(extractedFirstName);
           setLastName(extractedLastName);
-          
-          console.log("Extracted name:", extractedFirstName, extractedLastName); // 偵錯用
+
         }
       } catch (error) {
         console.error('Error fetching user:', error);
@@ -133,16 +116,17 @@ export default function SettingsPage() {
   }, []);
 
   const handleUpdateProfile = async () => {
+    if (isUpdating || !user) return;
     try {
-      setIsLoading(true);
-      
+      setIsUpdating(true);
+
       // 動態導入 supabase 函數
       const { supabase } = await import('@/lib/supabase');
       const supabaseClient = supabase();
-      
+
       // 顯式轉換類型以解決類型檢查問題
-      const supabaseWithTypes = supabaseClient as unknown as SupabaseClientWithAuth;
-      
+      const supabaseWithTypes = supabaseClient;
+
       const { error } = await supabaseWithTypes.auth.updateUser({
         data: {
           first_name: firstName,
@@ -175,35 +159,25 @@ export default function SettingsPage() {
         variant: 'destructive'
       });
     } finally {
-      setIsLoading(false);
+      setIsUpdating(false);
     }
   };
 
-  const handleChangePassword = () => {
-    // Implement password change
-    toast({
-      title: t('coming_soon'),
-      description: t('password_change_coming_soon')
-    });
-  };
 
   if (isLoading) {
-    return (
-      <div className="flex items-center justify-center h-[50vh]">
-        <div className="h-8 w-8 animate-spin rounded-full border-b-2 border-primary"></div>
-      </div>
-    );
+    return <PageLoader />;
   }
 
   return (
-    <div className="container mx-auto py-6 space-y-8">
-      <PageHeader 
-        heading={t('settings')} 
-        description={t('manage_settings')}
+    <div className="space-y-8">
+      <PageHeader
+        heading={t('settings')}
+        text={t('manage_settings')}
       />
 
       <Tabs defaultValue="profile" className="w-full">
-        <TabsList className="grid w-full grid-cols-3 mb-8">
+        <div className="mb-8 overflow-x-auto pb-1">
+        <TabsList className="grid min-w-[30rem] grid-cols-3 sm:min-w-0 sm:w-full">
           <TabsTrigger value="profile" className="flex items-center gap-2">
             <User className="h-4 w-4" />
             <span>{t('profile')}</span>
@@ -217,9 +191,10 @@ export default function SettingsPage() {
             <span>{t('billing')}</span>
           </TabsTrigger>
         </TabsList>
+        </div>
 
         <TabsContent value="profile" className="space-y-6">
-          <Card>
+          <Card className="shadow-none">
             <CardHeader>
               <CardTitle>{t('profile_information')}</CardTitle>
               <CardDescription>{t('update_personal_information')}</CardDescription>
@@ -244,31 +219,31 @@ export default function SettingsPage() {
               <div className="grid gap-4 sm:grid-cols-2">
                 <div className="space-y-2">
                   <Label htmlFor="firstName">{t('first_name')}</Label>
-                  <Input 
-                    id="firstName" 
-                    value={firstName} 
-                    onChange={(e) => setFirstName(e.target.value)} 
+                  <Input
+                    id="firstName"
+                    value={firstName}
+                    onChange={(e) => setFirstName(e.target.value)}
                   />
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="lastName">{t('last_name')}</Label>
-                  <Input 
-                    id="lastName" 
-                    value={lastName} 
-                    onChange={(e) => setLastName(e.target.value)} 
+                  <Input
+                    id="lastName"
+                    value={lastName}
+                    onChange={(e) => setLastName(e.target.value)}
                   />
                 </div>
               </div>
 
-              <Button onClick={handleUpdateProfile} disabled={isLoading}>
-                {t('update_profile')}
+              <Button onClick={handleUpdateProfile} disabled={isUpdating}>
+                {isUpdating ? t('updating') : t('update_profile')}
               </Button>
             </CardContent>
           </Card>
         </TabsContent>
 
         <TabsContent value="account" className="space-y-6">
-          <Card>
+          <Card className="shadow-none">
             <CardHeader>
               <CardTitle>{t('account')}</CardTitle>
               <CardDescription>{t('manage_account_details')}</CardDescription>
@@ -282,21 +257,13 @@ export default function SettingsPage() {
                 </p>
             </div>
 
-              <div className="space-y-2">
-                <h3 className="text-lg font-medium">{t('password')}</h3>
-              <p className="text-sm text-muted-foreground">
-                  {t('change_password_description')}
-                </p>
-                <Button variant="outline" onClick={handleChangePassword}>
-                  {t('change_password')}
-                  </Button>
-            </div>
+              <ChangePasswordForm />
             </CardContent>
           </Card>
         </TabsContent>
 
         <TabsContent value="billing" className="space-y-6">
-          <Card>
+          <Card className="shadow-none">
             <CardHeader>
               <CardTitle>{t('subscription')}</CardTitle>
               <CardDescription>{t('manage_subscription')}</CardDescription>
@@ -305,16 +272,16 @@ export default function SettingsPage() {
               <div className="flex items-center justify-between p-4 border rounded-lg">
                 <div>
                   <h3 className="text-lg font-medium">
-                    {user?.user_metadata?.subscription_plan === 'Free plan' 
-                      ? t('free_plan') 
-                      : user?.user_metadata?.subscription_plan === 'Pro plan' 
+                    {user?.user_metadata?.subscription_plan === 'Free plan'
+                      ? t('free_plan')
+                      : user?.user_metadata?.subscription_plan === 'Pro plan'
                         ? t('pro_plan')
                         : user?.user_metadata?.subscription_plan === 'Enterprise plan'
                           ? t('enterprise_plan')
                           : user?.user_metadata?.subscription_plan || t('free_plan')}
                   </h3>
                   <p className="text-sm text-muted-foreground">
-                    {user?.user_metadata?.subscription_plan === 'Free plan' 
+                    {user?.user_metadata?.subscription_plan === 'Free plan'
                       ? t('basic_features_description')
                       : t('full_access_description')}
                   </p>
@@ -329,4 +296,4 @@ export default function SettingsPage() {
       </Tabs>
     </div>
   );
-} 
+}

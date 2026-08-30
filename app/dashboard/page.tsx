@@ -18,6 +18,9 @@ import { format, compareDesc } from 'date-fns';
 import { TourGuide } from '@/components/TourGuide';
 import { useLanguage } from '@/app/contexts/LanguageContext';
 import { useTranslation } from '@/utils/translations';
+import { PageHeader } from '@/components/layout/PageHeader';
+import { PageLoader } from '@/components/ui/page-state';
+import Link from 'next/link';
 
 // Define Stats type
 type Stats = {
@@ -49,9 +52,9 @@ function DashboardContent() {
   const { events } = useEvents();
   const { language } = useLanguage();
   const { t } = useTranslation(language);
-  
+
   // Sort events by date (newest first)
-  const sortedEvents = [...events].sort((a, b) => 
+  const sortedEvents = [...events].sort((a, b) =>
     compareDesc(new Date(a.startDate), new Date(b.startDate))
   ).slice(0, 3); // Only get the first 3 for display
 
@@ -60,7 +63,7 @@ function DashboardContent() {
     const date = new Date(timestamp);
     const now = new Date();
     const diffInHours = Math.floor((now.getTime() - date.getTime()) / (1000 * 60 * 60));
-    
+
     if (diffInHours < 1) return t('just_now');
     if (diffInHours < 24) return t('hours_ago', { n: diffInHours });
     if (diffInHours < 48) return t('yesterday');
@@ -116,11 +119,11 @@ function DashboardContent() {
       setActivitiesLoading(true);
       try {
         let allActivities: Activity[] = [];
-        
+
         // 動態導入 supabase 函數以避免服務器端渲染問題
         const { supabase } = await import('../../lib/supabase');
         const supabaseClient = supabase();
-        
+
         // 1. Fetch recent lessons data
         try {
           const { data: lessonsData, error: lessonsError } = await supabaseClient
@@ -128,7 +131,7 @@ function DashboardContent() {
             .select('id, title, updated_at')
             .order('updated_at', { ascending: false })
             .limit(5);
-            
+
           if (lessonsError) {
             console.error('Error fetching lessons:', lessonsError);
           } else if (lessonsData) {
@@ -144,7 +147,7 @@ function DashboardContent() {
         } catch (err) {
           console.error('Error in lessons fetch:', err);
         }
-        
+
         // 2. Fetch events data
         try {
           const { data: eventsData, error: eventsError } = await supabaseClient
@@ -152,7 +155,7 @@ function DashboardContent() {
             .select('id, title, created_at')
             .order('created_at', { ascending: false })
             .limit(5);
-            
+
           if (eventsError) {
             console.error('Error fetching events:', eventsError);
           } else if (eventsData) {
@@ -168,7 +171,7 @@ function DashboardContent() {
         } catch (err) {
           console.error('Error in events fetch:', err);
         }
-        
+
         // 3. Fetch feedback data
         try {
           const { data: feedbackData, error: feedbackError } = await supabaseClient
@@ -176,7 +179,7 @@ function DashboardContent() {
             .select('id, student_name, created_at')
             .order('created_at', { ascending: false })
             .limit(5);
-            
+
           if (feedbackError) {
             console.error('Error fetching feedback:', feedbackError);
           } else if (feedbackData) {
@@ -192,7 +195,7 @@ function DashboardContent() {
         } catch (err) {
           console.error('Error in feedback fetch:', err);
         }
-        
+
         // Sort all activities by timestamp (newest first)
         allActivities.sort((a, b) =>
           new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()
@@ -211,11 +214,7 @@ function DashboardContent() {
   }, []);
 
   if (loading) {
-    return (
-      <div className="flex h-64 items-center justify-center">
-        <Loader2 className="h-8 w-8 animate-spin text-primary" />
-      </div>
-    );
+    return <PageLoader />;
   }
 
   // Helper function to get appropriate icon based on event type
@@ -233,138 +232,156 @@ function DashboardContent() {
   };
 
   return (
-    <div className="w-full space-y-6 pb-8">
-      {/* Welcome banner */}
-      <div className="bg-primary/10 rounded-lg p-4 md:p-6">
-        <h2 className="text-xl md:text-2xl font-bold mb-2">{t('welcome_title')}</h2>
-        <p className="text-muted-foreground mb-4">
-          {t('welcome_description')}
-        </p>
-        <div className="flex flex-wrap gap-3">
-          <Button variant="default" className="bg-[#0f172a]" asChild>
-            <a href="/lessons">
+    <div className="w-full space-y-7 pb-8">
+      <PageHeader
+        heading={t('welcome_title')}
+        text={t('welcome_description')}
+        actions={
+          <>
+            <Button variant="outline" onClick={() => setShowTour(true)}>
+              {t('take_tour')}
+            </Button>
+            <Button asChild>
+            <Link href="/lessons">
               {t('get_started')}
               <ArrowUpRight className="ml-2 h-4 w-4" />
-            </a>
-          </Button>
-          <Button variant="outline" onClick={() => setShowTour(true)}>
-            {t('take_tour')}
-          </Button>
-        </div>
-      </div>
+            </Link>
+            </Button>
+          </>
+        }
+      />
 
       {/* Stats cards */}
-      <div className="grid gap-3 grid-cols-2 lg:grid-cols-4" data-tour="stats">
-        <Card className="bg-white border border-gray-200">
-          <CardContent className="p-4 md:p-6">
-            <p className="text-sm text-muted-foreground">{t('active_students')}</p>
-            <div className="mt-1">
-              <h3 className="text-2xl md:text-3xl font-bold">{stats.activeStudents}</h3>
+      <section>
+        <div className="mb-3 flex items-center justify-between">
+          <p className="app-kicker">{language === 'zh-TW' ? '教學概況' : 'Teaching overview'}</p>
+          <span className="text-xs text-muted-foreground">{language === 'zh-TW' ? '即時資料' : 'Live data'}</span>
+        </div>
+        <div className="grid grid-cols-2 gap-3 lg:grid-cols-4" data-tour="stats">
+        <Card className="shadow-none">
+          <CardContent className="p-4 md:p-5">
+            <div className="mb-5 flex items-center justify-between">
+              <p className="text-sm font-medium text-muted-foreground">{t('active_students')}</p>
+              <span className="rounded-lg bg-muted p-2"><Users className="h-4 w-4" /></span>
             </div>
+            <h3 className="text-3xl font-semibold tracking-tight">{stats.activeStudents}</h3>
+            <p className="mt-1 text-xs text-muted-foreground">{language === 'zh-TW' ? '目前啟用的學生' : 'Currently active learners'}</p>
           </CardContent>
         </Card>
-        
-        <Card className="bg-white border border-gray-200">
-          <CardContent className="p-4 md:p-6">
-            <p className="text-sm text-muted-foreground">{t('completed_lessons')}</p>
-            <div className="mt-1">
-              <h3 className="text-2xl md:text-3xl font-bold">{stats.completedLessons}</h3>
+
+        <Card className="shadow-none">
+          <CardContent className="p-4 md:p-5">
+            <div className="mb-5 flex items-center justify-between">
+              <p className="text-sm font-medium text-muted-foreground">{t('completed_lessons')}</p>
+              <span className="rounded-lg bg-muted p-2"><GraduationCap className="h-4 w-4" /></span>
             </div>
+            <h3 className="text-3xl font-semibold tracking-tight">{stats.completedLessons}</h3>
+            <p className="mt-1 text-xs text-muted-foreground">{language === 'zh-TW' ? '已完成的指派' : 'Completed assignments'}</p>
           </CardContent>
         </Card>
-        
-        <Card className="bg-white border border-gray-200">
-          <CardContent className="p-4 md:p-6">
-            <p className="text-sm text-muted-foreground">{t('active_courses')}</p>
-            <div className="mt-1">
-              <h3 className="text-2xl md:text-3xl font-bold">{stats.activeCourses}</h3>
+
+        <Card className="shadow-none">
+          <CardContent className="p-4 md:p-5">
+            <div className="mb-5 flex items-center justify-between">
+              <p className="text-sm font-medium text-muted-foreground">{t('active_courses')}</p>
+              <span className="rounded-lg bg-muted p-2"><BookOpen className="h-4 w-4" /></span>
             </div>
+            <h3 className="text-3xl font-semibold tracking-tight">{stats.activeCourses}</h3>
+            <p className="mt-1 text-xs text-muted-foreground">{language === 'zh-TW' ? '可使用的課程內容' : 'Available lesson content'}</p>
           </CardContent>
         </Card>
-        
-        <Card className="bg-white border border-gray-200">
-          <CardContent className="p-4 md:p-6">
-            <p className="text-sm text-muted-foreground">{t('avg_completion_rate')}</p>
-            <div className="mt-1">
-              <h3 className="text-2xl md:text-3xl font-bold">{stats.completionRate}</h3>
+
+        <Card className="shadow-none">
+          <CardContent className="p-4 md:p-5">
+            <div className="mb-5 flex items-center justify-between">
+              <p className="text-sm font-medium text-muted-foreground">{t('avg_completion_rate')}</p>
+              <span className="rounded-lg bg-muted p-2"><BarChart2 className="h-4 w-4" /></span>
             </div>
+            <h3 className="text-3xl font-semibold tracking-tight">{stats.completionRate}</h3>
+            <p className="mt-1 text-xs text-muted-foreground">{language === 'zh-TW' ? '所有指派的完成比例' : 'Across all assignments'}</p>
           </CardContent>
         </Card>
       </div>
+      </section>
 
-      {/* Top actions cards with buttons at bottom */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-        <Card className="h-full hover:shadow-md transition-shadow" data-tour="student-management">
+      <div className="flex items-end justify-between">
+        <div>
+          <p className="app-kicker">{language === 'zh-TW' ? '快速操作' : 'Quick actions'}</p>
+          <h2 className="mt-1 text-xl font-semibold tracking-tight">{language === 'zh-TW' ? '繼續今天的工作' : 'Continue your work'}</h2>
+        </div>
+      </div>
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
+        <Card className="group h-full shadow-none transition-colors hover:border-foreground/30" data-tour="student-management">
           <CardContent className="p-4 md:p-6 flex flex-col h-full">
             <div className="mb-4">
-              <div className="p-2 bg-gray-100 w-fit rounded-lg">
-                <Users className="h-5 w-5 text-gray-500" />
+              <div className="w-fit rounded-xl bg-foreground p-2 text-background">
+                <Users className="h-5 w-5" />
               </div>
             </div>
             <h3 className="text-lg font-medium mb-1">{t('student_management')}</h3>
             <p className="text-sm text-muted-foreground">{t('student_management_desc')}</p>
             <div className="mt-auto pt-4">
-              <Button variant="outline" className="w-full justify-between" asChild>
-                <a href="/students">
+              <Button variant="ghost" className="w-full justify-between px-0 hover:bg-transparent" asChild>
+                <Link href="/students">
                   {t('view')} <ArrowUpRight className="h-4 w-4" />
-                </a>
+                </Link>
               </Button>
             </div>
           </CardContent>
         </Card>
 
-        <Card className="h-full hover:shadow-md transition-shadow" data-tour="lessons">
+        <Card className="group h-full shadow-none transition-colors hover:border-foreground/30" data-tour="lessons">
           <CardContent className="p-4 md:p-6 flex flex-col h-full">
             <div className="mb-4">
-              <div className="p-2 bg-gray-100 w-fit rounded-lg">
-                <BookOpen className="h-5 w-5 text-gray-500" />
+              <div className="w-fit rounded-xl bg-foreground p-2 text-background">
+                <BookOpen className="h-5 w-5" />
               </div>
             </div>
             <h3 className="text-lg font-medium mb-1">{t('lessons_title')}</h3>
             <p className="text-sm text-muted-foreground">{t('lessons_desc')}</p>
             <div className="mt-auto pt-4">
-              <Button variant="outline" className="w-full justify-between" asChild>
-                <a href="/lessons">
+              <Button variant="ghost" className="w-full justify-between px-0 hover:bg-transparent" asChild>
+                <Link href="/lessons">
                   {t('view')} <ArrowUpRight className="h-4 w-4" />
-                </a>
+                </Link>
               </Button>
             </div>
           </CardContent>
         </Card>
 
-        <Card className="h-full hover:shadow-md transition-shadow" data-tour="digital-games">
+        <Card className="group h-full shadow-none transition-colors hover:border-foreground/30" data-tour="digital-games">
           <CardContent className="p-4 md:p-6 flex flex-col h-full">
             <div className="mb-4">
-              <div className="p-2 bg-gray-100 w-fit rounded-lg">
-                <Gamepad2 className="h-5 w-5 text-gray-500" />
+              <div className="w-fit rounded-xl bg-foreground p-2 text-background">
+                <Gamepad2 className="h-5 w-5" />
               </div>
             </div>
             <h3 className="text-lg font-medium mb-1">{t('digital_games_title')}</h3>
             <p className="text-sm text-muted-foreground">{t('digital_games_desc')}</p>
             <div className="mt-auto pt-4">
-              <Button variant="outline" className="w-full justify-between" asChild>
-                <a href="/digital-games">
+              <Button variant="ghost" className="w-full justify-between px-0 hover:bg-transparent" asChild>
+                <Link href="/digital-games">
                   {t('view')} <ArrowUpRight className="h-4 w-4" />
-                </a>
+                </Link>
               </Button>
             </div>
           </CardContent>
         </Card>
 
-        <Card className="h-full hover:shadow-md transition-shadow" data-tour="analytics">
+        <Card className="group h-full shadow-none transition-colors hover:border-foreground/30" data-tour="analytics">
           <CardContent className="p-4 md:p-6 flex flex-col h-full">
             <div className="mb-4">
-              <div className="p-2 bg-gray-100 w-fit rounded-lg">
-                <BarChart2 className="h-5 w-5 text-gray-500" />
+              <div className="w-fit rounded-xl bg-foreground p-2 text-background">
+                <BarChart2 className="h-5 w-5" />
               </div>
             </div>
             <h3 className="text-lg font-medium mb-1">{t('learning_analytics')}</h3>
             <p className="text-sm text-muted-foreground">{t('learning_analytics_desc')}</p>
             <div className="mt-auto pt-4">
-              <Button variant="outline" className="w-full justify-between" asChild>
-                <a href="/reports">
+              <Button variant="ghost" className="w-full justify-between px-0 hover:bg-transparent" asChild>
+                <Link href="/reports">
                   {t('view')} <ArrowUpRight className="h-4 w-4" />
-                </a>
+                </Link>
               </Button>
             </div>
           </CardContent>
@@ -372,18 +389,18 @@ function DashboardContent() {
       </div>
 
       {/* Bottom area: upcoming events and recent activities */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-5">
         {/* Upcoming events */}
-        <Card>
+        <Card className="shadow-none lg:col-span-2">
           <CardHeader className="flex flex-row items-center justify-between p-4 md:p-6 pb-2">
             <CardTitle className="text-lg md:text-xl flex items-center gap-2">
               <Calendar className="h-5 w-5" />
               {t('upcoming_events')}
             </CardTitle>
             <Button variant="ghost" size="sm" className="text-sm gap-1" asChild>
-              <a href="/events">
+              <Link href="/events">
                 {t('view_all')} <ArrowUpRight className="h-4 w-4" />
-              </a>
+              </Link>
             </Button>
           </CardHeader>
           <CardDescription className="px-4 md:px-6">
@@ -393,8 +410,8 @@ function DashboardContent() {
             <div className="space-y-3">
               {sortedEvents.length > 0 ? (
                 sortedEvents.map((event) => (
-                  <div key={event.id} className="flex items-center p-3 bg-muted/30 rounded-md">
-                    <div className="bg-gray-100 p-2 rounded-lg mr-3">
+                  <div key={event.id} className="flex items-center rounded-xl border border-transparent bg-muted/45 p-3 transition-colors hover:border-border">
+                    <div className="mr-3 rounded-lg bg-card p-2">
                       {getEventIcon(event.type)}
                     </div>
                     <div className="flex-1">
@@ -415,13 +432,13 @@ function DashboardContent() {
         </Card>
 
         {/* Recent activities - UPDATED WITH REAL-TIME DATA */}
-        <Card>
+        <Card className="shadow-none lg:col-span-3">
           <CardHeader className="flex flex-row items-center justify-between p-4 md:p-6 pb-2">
             <CardTitle className="text-lg md:text-xl">{t('recent_activity')}</CardTitle>
             <Button variant="ghost" size="sm" className="text-sm gap-1" asChild>
-              <a href="/activities">
+              <Link href="/activities">
                 {t('view_all')} <ArrowUpRight className="h-4 w-4" />
-              </a>
+              </Link>
             </Button>
           </CardHeader>
           <CardDescription className="px-4 md:px-6">
@@ -435,11 +452,14 @@ function DashboardContent() {
             ) : (
               <div className="space-y-0">
                 {recentActivities.map((activity) => (
-                  <div key={activity.id} className="py-4 border-b border-gray-200 last:border-0">
-                    <p className="font-medium">{activity.title}</p>
-                    <p className="text-sm text-muted-foreground">
-                      {formatTimeAgo(activity.timestamp)}
-                    </p>
+                  <div key={activity.id} className="flex items-center gap-3 border-b border-border/70 py-4 last:border-0">
+                    <span className="h-2 w-2 shrink-0 rounded-full bg-foreground" />
+                    <div className="min-w-0 flex-1">
+                      <p className="truncate font-medium">{activity.title}</p>
+                      <p className="text-sm text-muted-foreground">
+                        {formatTimeAgo(activity.timestamp)}
+                      </p>
+                    </div>
                   </div>
                 ))}
               </div>
@@ -459,4 +479,4 @@ export default function DashboardPage() {
       <DashboardContent />
     </EventProvider>
   );
-} 
+}

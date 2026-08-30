@@ -5,10 +5,9 @@ import { useRouter } from 'next/navigation';
 import { Sidebar } from '@/components/layout/Sidebar';
 import { PageTransition } from '@/components/layout/PageTransition';
 import { useToast } from '@/hooks/use-toast';
-import { Button } from '@/components/ui/button';
-import { Menu } from 'lucide-react';
 import { useLanguage } from '@/app/contexts/LanguageContext';
 import { useTranslation } from '@/utils/translations';
+import { AppTopbar } from '@/components/layout/AppTopbar';
 
 interface AppLayoutProps {
   children: ReactNode;
@@ -89,10 +88,6 @@ export function AppLayout({ children }: AppLayoutProps) {
     setIsSidebarCollapsed(collapsed);
   };
 
-  const toggleMenu = () => {
-    setIsMenuOpen(!isMenuOpen);
-  };
-
   if (isLoading) {
     return (
       <div className="flex h-screen items-center justify-center">
@@ -109,40 +104,29 @@ export function AppLayout({ children }: AppLayoutProps) {
   const sidebarWidth = isMobile ? 0 : (isSidebarCollapsed ? 70 : 256);
 
   return (
-    <div className="flex h-screen overflow-hidden bg-gray-50">
+    <div className="flex h-screen overflow-hidden bg-background">
       <Sidebar 
-        className={isSidebarCollapsed ? 'w-[70px]' : 'w-64'} 
+        className={!isMobile && isSidebarCollapsed ? 'w-[70px]' : 'w-64'}
         onCollapseChange={handleSidebarCollapse}
         isOpen={isMenuOpen}
         onOpenChange={setIsMenuOpen}
       />
       
-      <main 
+      <main
         style={{ 
           marginLeft: isMobile ? '0' : `${sidebarWidth}px`,
           transition: 'margin-left 0.3s ease-in-out',
           width: `calc(100% - ${sidebarWidth}px)`
         }}
-        className="h-full"
+        className="h-full min-w-0"
       >
         <div className="h-full overflow-auto">
-          <div className="mx-auto px-4 md:px-6 py-4 pb-8 max-w-7xl">
+          <AppTopbar onOpenMenu={() => setIsMenuOpen(true)} />
+          <div className="mx-auto w-full max-w-[1440px] px-4 py-6 pb-10 md:px-8 md:py-8">
             <PageTransition>{children}</PageTransition>
           </div>
         </div>
       </main>
-
-      {/* 移動端菜單按鈕 */}
-      <div className="fixed left-4 top-4 z-50 md:hidden">
-        <Button 
-          variant="ghost" 
-          size="sm" 
-          className="bg-white rounded-md shadow-sm" 
-          onClick={toggleMenu}
-        >
-          <Menu className="h-5 w-5" />
-        </Button>
-      </div>
     </div>
   );
-} 
+}

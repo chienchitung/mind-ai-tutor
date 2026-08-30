@@ -6,7 +6,7 @@ import { PageHeader } from '@/components/layout/PageHeader';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { PlusCircle, Book, Clock, Users, Grid, List, Pencil, ExternalLink, ChevronDown, ChevronUp, X, Trash2, Wand2, Eye, Edit } from 'lucide-react';
+import { PlusCircle, Book, Clock, Users, Grid, List, Pencil, ExternalLink, ChevronDown, ChevronUp, X, Trash2, Wand2, Eye, Edit, Search, Loader2 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -21,6 +21,10 @@ import { useLanguage } from '@/app/contexts/LanguageContext';
 import { useTranslation } from '@/utils/translations';
 import MarkdownEditor from '@/app/components/ui/MarkdownEditor';
 import MarkdownRenderer from '@/app/components/ui/MarkdownRenderer';
+import { EmptyState, PageLoader } from '@/components/ui/page-state';
+import { EditorWorkspace } from '@/components/layout/EditorWorkspace';
+import { useUnsavedChanges } from '@/hooks/useUnsavedChanges';
+import { DeleteConfirmation } from '@/components/ui/delete-confirmation';
 
 interface PracticeExercise {
   question: string;
@@ -42,16 +46,6 @@ interface Lesson {
   markdown_content?: string; // 新增 markdown_content 欄位
 }
 
-// Helper function to safely stringify objects for database storage
-function safeStringify(obj: any): string {
-  try {
-    return JSON.stringify(obj);
-  } catch (error) {
-    console.error('Error stringifying object:', error);
-    return '[]';
-  }
-}
-
 // Helper function to safely parse JSON strings from database
 function safeParse(str: string, defaultValue: any = []): any {
   try {
@@ -62,33 +56,10 @@ function safeParse(str: string, defaultValue: any = []): any {
   }
 }
 
-// Add the keyframes style to the document
-const style = document.createElement('style');
-style.textContent = `
-  @keyframes dots {
-    0%, 20% { opacity: 0; }
-    50% { opacity: 1; }
-    100% { opacity: 0; }
-  }
-  
-  .content-transition {
-    transition: opacity 0.3s ease-in-out;
-  }
-  
-  .content-enter {
-    opacity: 0;
-  }
-  
-  .content-enter-active {
-    opacity: 1;
-  }
-`;
-if (typeof document !== 'undefined') {
-  document.head.appendChild(style);
-}
-
 export default function LessonsPage() {
   const [lessons, setLessons] = useState<Lesson[]>([]);
+  const [deleteTarget, setDeleteTarget] = useState<Lesson | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
   const [openCreateDialog, setOpenCreateDialog] = useState(false);
@@ -101,6 +72,7 @@ export default function LessonsPage() {
   const [expandedLessons, setExpandedLessons] = useState<{ [key: string]: boolean }>({});
   const [expandedExercises, setExpandedExercises] = useState<{ [key: string]: boolean }>({});
   const [showEditForm, setShowEditForm] = useState(false);
+  const [lessonSearch, setLessonSearch] = useState('');
   const { language } = useLanguage();
   const { t } = useTranslation(language);
   const [markdownEditorMode, setMarkdownEditorMode] = useState<'edit' | 'preview'>('edit');
@@ -112,23 +84,6 @@ export default function LessonsPage() {
     empty: t('markdown_empty'),
   }), [t]);
 
-  // Generate a brief plain-text description from markdown content to satisfy DB schemas
-  function summarizeMarkdownToDescription(content: string, maxLength: number = 200): string {
-    if (!content) return '';
-    // Remove code blocks
-    let text = content.replace(/```[\s\S]*?```/g, ' ');
-    // Remove inline code
-    text = text.replace(/`[^`]*`/g, ' ');
-    // Remove images/links but keep alt/text
-    text = text.replace(/!\[[^\]]*\]\([^\)]*\)/g, ' ');
-    text = text.replace(/\[[^\]]*\]\([^\)]*\)/g, (m) => m.replace(/\[[^\]]*\]\([^\)]*\)/, ' '));
-    // Remove markdown headings/formatting symbols
-    text = text.replace(/[#>*_\-]+/g, ' ');
-    // Collapse whitespace
-    text = text.replace(/\s+/g, ' ').trim();
-    return text.length > maxLength ? text.slice(0, maxLength - 1) + '…' : text;
-  }
-
   // Simple UUID v4/standard validator (accepts hyphenated 36-char string)
   function isUuid(id: string): boolean {
     return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(id);
@@ -137,11 +92,12 @@ export default function LessonsPage() {
   // Form schema with translated validation messages
   const lessonFormSchema = z.object({
     title: z.string().min(1, t('required_title')),
+    cardDescription: z.string().min(1, t('required_lesson_card_summary')).max(160, t('lesson_card_summary_too_long')),
     markdownContent: z.string().min(1, t('required_content')),
     duration: z.number().min(1, t('duration') + " " + t('exercise_required')),
     level: z.string().min(1, t('level') + " " + t('exercise_required')),
     topics: z.string().min(1, t('required_topics')),
-    geniallyLink: z.string().url(t('enter_genially_url')).optional(),
+    geniallyLink: z.union([z.string().url(t('enter_genially_url')), z.literal('')]).optional(),
     teachingContent: z.string().min(1, t('create_exercise') + " " + t('exercise_required')),
     practiceExercises: z.array(z.object({
       question: z.string().min(1, t('question') + " " + t('exercise_required')),
@@ -162,6 +118,7 @@ export default function LessonsPage() {
     resolver: zodResolver(lessonFormSchema),
     defaultValues: {
       title: "",
+      cardDescription: "",
       markdownContent: "",
       duration: 30,
       level: "Beginner",
@@ -171,6 +128,15 @@ export default function LessonsPage() {
       practiceExercises: [{ question: "", answer: "", explanation: "" }]
     }
   });
+
+  const confirmLeave = useUnsavedChanges(showEditForm && form.formState.isDirty, showEditForm && (form.formState.isSubmitting || isGenerating));
+  const closeEditor = () => {
+    if (!confirmLeave()) return;
+    setShowEditForm(false);
+    setEditingLesson(null);
+    form.reset();
+    setPracticeExercises([{ question: '', answer: '', explanation: '' }]);
+  };
 
   useEffect(() => {
     const fetchLessons = async () => {
@@ -238,6 +204,7 @@ export default function LessonsPage() {
     if (editingLesson) {
       form.reset({
         title: editingLesson.title,
+        cardDescription: editingLesson.description || '',
         markdownContent: editingLesson.markdown_content || '',
         duration: editingLesson.duration,
         level: editingLesson.level,
@@ -283,7 +250,7 @@ export default function LessonsPage() {
     }
     updatedExercises[index][field] = value;
     setPracticeExercises(updatedExercises);
-    form.setValue('practiceExercises', updatedExercises);
+    form.setValue('practiceExercises', updatedExercises, { shouldDirty: true, shouldValidate: true });
   };
 
   const onSubmit = async (values: z.infer<typeof lessonFormSchema>) => {
@@ -299,7 +266,6 @@ export default function LessonsPage() {
       const topicsArray = values.topics.split(',').map(topic => topic.trim());
       
       // Basic lesson data that should work with any schema
-      const derivedDescription = summarizeMarkdownToDescription(values.markdownContent || '');
       const basicLessonData = {
         title: values.title,
         duration: values.duration,
@@ -307,7 +273,7 @@ export default function LessonsPage() {
         // Topics might need to be stored as a string in some DB schemas
         topics: topicsArray,
         // Keep description for backward-compat or DB constraints
-        description: derivedDescription,
+        description: values.cardDescription.trim(),
       } as any;
 
       // Create a JSON-friendly version of the data for storage
@@ -315,7 +281,8 @@ export default function LessonsPage() {
         genially_link: values.geniallyLink || '',
         teaching_content: values.teachingContent,
         practice_exercises: practiceExercises,
-        markdown_content: values.markdownContent || ''
+        markdown_content: values.markdownContent || '',
+        card_description: values.cardDescription.trim(),
       };
 
       // Store extended data as JSON in 'metadata' field if it exists
@@ -326,10 +293,10 @@ export default function LessonsPage() {
         // If not, the error handling below will catch it
         genially_link: values.geniallyLink || '',
         teaching_content: values.teachingContent,
-        practice_exercises: safeStringify(practiceExercises),
+        practice_exercises: practiceExercises,
         markdown_content: values.markdownContent || '',
         // Also try a metadata field that might exist
-        metadata: safeStringify(jsonExtras)
+        metadata: jsonExtras
       };
 
       if (editingLesson) {
@@ -421,7 +388,7 @@ export default function LessonsPage() {
         const processedInserted: Lesson = {
           id: inserted.id,
           title: inserted.title,
-          description: inserted.description ?? summarizeMarkdownToDescription(values.markdownContent || ''),
+          description: inserted.description ?? values.cardDescription.trim(),
           duration: inserted.duration ?? basicLessonData.duration,
           level: inserted.level ?? basicLessonData.level,
           topics: Array.isArray(inserted.topics) ? inserted.topics : (typeof inserted.topics === 'string' ? safeParse(inserted.topics, []) : []),
@@ -458,12 +425,9 @@ export default function LessonsPage() {
 
   // Add delete lesson function after the onSubmit function
   const deleteLesson = async (lessonId: string) => {
-    if (!confirm(t('delete_lesson_confirm'))) {
-      return;
-    }
-    
+    if (isDeleting) return;
     try {
-      setIsLoading(true);
+      setIsDeleting(true);
       
       // 動態導入 supabase 函數
       const { supabase } = await import('@/lib/supabase');
@@ -472,45 +436,8 @@ export default function LessonsPage() {
       // 使用 as any 臨時解決類型問題
       const supabaseWithTypes = supabaseClient as any;
       
-      // If the ID is not a UUID, the row was created locally without persisted ID; remove locally.
-      if (!isUuid(lessonId)) {
-        const target = lessons.find(l => l.id === lessonId);
-        if (!target) {
-          throw new Error('Lesson not found in local state');
-        }
-        // Try to delete by strong identifiers first: created_at + title
-        let del = supabaseWithTypes
-          .from('lessons')
-          .delete()
-          .eq('title', target.title);
-        if (target.created_at) {
-          del = del.eq('created_at', target.created_at);
-        }
-        // Request returning rows to confirm deletion
-        let { error: delError, data: delData } = await del.select('*');
-        if (delError) {
-          throw new Error(delError.message || JSON.stringify(delError));
-        }
-        // If no rows were deleted, fallback to a looser match (title + duration + level)
-        if (!delData || delData.length === 0) {
-          const fallback = await supabaseWithTypes
-            .from('lessons')
-            .delete()
-            .eq('title', target.title)
-            .eq('duration', target.duration)
-            .eq('level', target.level)
-            .select('*');
-          if (fallback.error) {
-            throw new Error(fallback.error.message || JSON.stringify(fallback.error));
-          }
-          if (!fallback.data || fallback.data.length === 0) {
-            throw new Error('No matching row found to delete on server');
-          }
-        }
-        setLessons(lessons.filter(lesson => lesson.id !== lessonId));
-        toast({ title: t('lesson_deleted'), description: t('lesson_delete_success') });
-        return;
-      }
+      // Never guess a destructive target using non-unique titles.
+      if (!isUuid(lessonId)) throw new Error('Invalid lesson ID; refresh the list before deleting.');
 
       // Delete the lesson from Supabase using UUID id
       const { error } = await supabaseWithTypes
@@ -525,6 +452,7 @@ export default function LessonsPage() {
       
       // Remove the lesson from the local state
       setLessons(lessons.filter(lesson => lesson.id !== lessonId));
+      setDeleteTarget(null);
       
       toast({
         title: t('lesson_deleted'),
@@ -542,7 +470,7 @@ export default function LessonsPage() {
         console.error('Error deleting lesson (stringified):', String(error));
       }
     } finally {
-      setIsLoading(false);
+      setIsDeleting(false);
     }
   };
 
@@ -582,8 +510,17 @@ export default function LessonsPage() {
     }));
   };
 
+  const normalizedLessonSearch = lessonSearch.trim().toLowerCase();
+  const visibleLessons = lessons.filter((lesson) =>
+    !normalizedLessonSearch
+    || lesson.title.toLowerCase().includes(normalizedLessonSearch)
+    || lesson.description?.toLowerCase().includes(normalizedLessonSearch)
+    || lesson.topics?.some((topic) => topic.toLowerCase().includes(normalizedLessonSearch))
+  );
+
   return (
     <div className="space-y-6">
+      <DeleteConfirmation name={deleteTarget?.title ?? null} busy={isDeleting} onCancel={() => setDeleteTarget(null)} onConfirm={() => { if (deleteTarget) void deleteLesson(deleteTarget.id); }} />
       <PageHeader
         heading={t('lessons')}
         text={t('manage_lessons')}
@@ -634,39 +571,47 @@ export default function LessonsPage() {
           </div>
         }
       />
+
+      {!showEditForm && !isLoading && (
+        <div className="app-panel flex flex-col gap-3 p-4 sm:flex-row sm:items-center sm:justify-between">
+          <div className="relative w-full sm:max-w-sm">
+            <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+            <Input
+              value={lessonSearch}
+              onChange={(event) => setLessonSearch(event.target.value)}
+              placeholder={language === 'zh-TW' ? '搜尋課程、摘要或主題' : 'Search lessons, summaries or topics'}
+              className="pl-9"
+            />
+          </div>
+          <span className="text-sm text-muted-foreground">
+            {language === 'zh-TW' ? `顯示 ${visibleLessons.length} / ${lessons.length} 堂課程` : `Showing ${visibleLessons.length} of ${lessons.length} lessons`}
+          </span>
+        </div>
+      )}
       
       {isLoading ? (
-        <div className="flex justify-center items-center py-20 min-h-[60vh]">
-          <p className="text-lg">{t('loading_lessons')}</p>
-        </div>
+        <PageLoader />
       ) : (
         <div className="content-transition">
           {showEditForm ? (
             <div className="min-h-[60vh]">
-              <div className="mb-6 flex justify-between items-center">
-                <h2 className="text-xl font-semibold">{editingLesson ? t('edit_lesson') : t('create_lesson')}</h2>
-                <Button 
+              <EditorWorkspace
+                title={editingLesson ? t('edit_lesson') : t('create_lesson')}
+                description={language === 'zh-TW' ? '依序完成基本資料、教材內容與練習題。' : 'Complete the basics, lesson content and practice exercise in order.'}
+                sections={[
+                  { id: 'lesson-basics', label: language === 'zh-TW' ? '基本資料' : 'Basics' },
+                  { id: 'lesson-content', label: language === 'zh-TW' ? '教材內容' : 'Content' },
+                  { id: 'lesson-practice', label: language === 'zh-TW' ? '練習題' : 'Practice' },
+                ]}
+                actions={<Button
                   variant="outline" 
                   size="sm" 
-                  onClick={() => {
-                    setShowEditForm(false);
-                    setEditingLesson(null);
-                    form.reset({
-                      title: "",
-                      markdownContent: "",
-                      duration: 30,
-                      level: "Beginner",
-                      topics: "",
-                      geniallyLink: "",
-                      teachingContent: "",
-                      practiceExercises: [{ question: "", answer: "", explanation: "" }]
-                    });
-                    setPracticeExercises([{ question: "", answer: "", explanation: "" }]);
-                  }}
+                  disabled={form.formState.isSubmitting}
+                  onClick={closeEditor}
                 >
                   {t('cancel')}
-                </Button>
-              </div>
+                </Button>}
+              />
               
               {editingLesson && (
                 <div className="mb-6">
@@ -703,8 +648,16 @@ export default function LessonsPage() {
                 </div>
               )}
               
+              <Card className="shadow-none">
+                <CardContent className="pt-5 md:pt-6">
               <Form {...form}>
-                <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
+                <form onSubmit={form.handleSubmit(onSubmit)} aria-busy={form.formState.isSubmitting}>
+                  <fieldset disabled={form.formState.isSubmitting} className="space-y-4 min-w-0">
+                  <section id="lesson-basics" className="scroll-mt-24 lg:scroll-mt-64 space-y-4 rounded-xl border border-border/70 p-4 sm:p-5">
+                    <div>
+                      <h3 className="font-semibold">{language === 'zh-TW' ? '基本資料' : 'Lesson basics'}</h3>
+                      <p className="mt-1 text-sm text-muted-foreground">{language === 'zh-TW' ? '設定學生在列表中會先看到的資訊。' : 'Set the information students see first in the lesson list.'}</p>
+                    </div>
                   <div className="grid md:grid-cols-2 gap-4">
                     <FormField
                       control={form.control}
@@ -768,6 +721,28 @@ export default function LessonsPage() {
                       />
                     </div>
                   </div>
+
+                  <FormField
+                    control={form.control}
+                    name="cardDescription"
+                    render={({ field }: { field: any }) => (
+                      <FormItem>
+                        <FormLabel>{t('lesson_card_summary')}</FormLabel>
+                        <FormControl>
+                          <Textarea
+                            placeholder={t('lesson_card_summary_placeholder')}
+                            className="min-h-20"
+                            maxLength={160}
+                            {...field}
+                          />
+                        </FormControl>
+                        <p className="text-xs text-muted-foreground">
+                          {t('lesson_card_summary_help')}
+                        </p>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
                   
                   <div className="grid md:grid-cols-2 gap-4">
                     <FormField
@@ -806,8 +781,14 @@ export default function LessonsPage() {
                       )}
                     />
                   </div>
+                  </section>
                   
                   {/* Markdown 內容編輯區塊 */}
+                  <section id="lesson-content" className="scroll-mt-24 lg:scroll-mt-64 space-y-4 rounded-xl border border-border/70 p-4 sm:p-5">
+                    <div>
+                      <h3 className="font-semibold">{language === 'zh-TW' ? '教材內容' : 'Lesson content'}</h3>
+                      <p className="mt-1 text-sm text-muted-foreground">{language === 'zh-TW' ? '撰寫完整教學內容，並可隨時切換預覽。' : 'Write the full lesson and switch to preview at any time.'}</p>
+                    </div>
                   <FormField
                     control={form.control}
                     name="markdownContent"
@@ -867,7 +848,13 @@ export default function LessonsPage() {
                       </FormItem>
                     )}
                   />
+                  </section>
 
+                  <section id="lesson-practice" className="scroll-mt-24 lg:scroll-mt-64 space-y-4 rounded-xl border border-border/70 p-4 sm:p-5">
+                    <div>
+                      <h3 className="font-semibold">{language === 'zh-TW' ? '練習題' : 'Practice exercise'}</h3>
+                      <p className="mt-1 text-sm text-muted-foreground">{language === 'zh-TW' ? '建立可檢核學習成果的題目、答案與解析。' : 'Add a question, answer and explanation to check learning.'}</p>
+                    </div>
                   <FormField
                     control={form.control}
                     name="teachingContent"
@@ -889,6 +876,7 @@ export default function LessonsPage() {
                     <Button
                       type="button"
                       className="bg-black text-white hover:bg-black/90 transition-all duration-200 flex items-center"
+                      disabled={isGenerating || form.formState.isSubmitting}
                       onClick={async () => {
                         const content = form.getValues("teachingContent");
                         const level = form.getValues("level");
@@ -914,7 +902,7 @@ export default function LessonsPage() {
                           }
                           const exercise = await response.json();
                           setPracticeExercises([exercise]);
-                          form.setValue("practiceExercises", [exercise]);
+                          form.setValue("practiceExercises", [exercise], { shouldDirty: true, shouldValidate: true });
                         } catch (error) {
                           toast({
                             title: t('generation_failed'),
@@ -926,13 +914,10 @@ export default function LessonsPage() {
                         }
                       }}
                     >
-                      <Wand2 className="mr-2 h-4 w-4" />
+                      {isGenerating ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Wand2 className="mr-2 h-4 w-4" />}
                       {isGenerating ? (
                         <span className="inline-flex items-center">
                           {t('generating')}
-                          <span className="ml-1 animate-[dots_1.5s_infinite]">.</span>
-                          <span className="ml-0.5 animate-[dots_1.5s_infinite_0.2s]">.</span>
-                          <span className="ml-0.5 animate-[dots_1.5s_infinite_0.4s]">.</span>
                         </span>
                       ) : (
                         t('generate_exercise')
@@ -989,43 +974,48 @@ export default function LessonsPage() {
                       </FormItem>
                     )}
                   />
+                  </section>
                   
                   <div className="flex justify-end gap-2 pt-4">
                     <Button 
                       type="button" 
                       variant="outline" 
-                      onClick={() => {
-                        setShowEditForm(false);
-                        setEditingLesson(null);
-                        form.reset({
-                          title: "",
-                          markdownContent: "",
-                          duration: 30,
-                          level: "Beginner",
-                          topics: "",
-                          geniallyLink: "",
-                          teachingContent: "",
-                          practiceExercises: [{ question: "", answer: "", explanation: "" }]
-                        });
-                        setPracticeExercises([{ question: "", answer: "", explanation: "" }]);
-                      }}
+                      onClick={closeEditor}
                     >
                       {t('cancel')}
                     </Button>
-                    <Button type="submit">
-                      {editingLesson ? t('save_changes') : t('create_lesson')}
+                    <Button type="submit" disabled={form.formState.isSubmitting || isGenerating}>
+                      {form.formState.isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                      {form.formState.isSubmitting ? (language === 'zh-TW' ? '儲存中…' : 'Saving…') : editingLesson ? t('save_changes') : t('create_lesson')}
                     </Button>
                   </div>
+                  </fieldset>
                 </form>
               </Form>
+                </CardContent>
+              </Card>
             </div>
           ) : (
             <div>
+              {visibleLessons.length === 0 && (
+                <EmptyState
+                  title={lessons.length === 0
+                    ? (language === 'zh-TW' ? '尚未建立課程' : 'No lessons yet')
+                    : t('no_results_found')}
+                  description={lessons.length === 0
+                    ? (language === 'zh-TW' ? '建立第一堂課程，開始安排教學內容與練習。' : 'Create your first lesson to start organizing content and exercises.')
+                    : (language === 'zh-TW' ? '請調整搜尋關鍵字後再試一次。' : 'Adjust your search and try again.')}
+                  icon={Book}
+                  action={lessons.length > 0 ? (
+                    <Button variant="outline" onClick={() => setLessonSearch('')}>{language === 'zh-TW' ? '清除搜尋' : 'Clear search'}</Button>
+                  ) : undefined}
+                />
+              )}
               {/* Grid View */}
-              {viewMode === 'grid' && (
-                <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3 min-h-[60vh]">
-                  {lessons.map((lesson) => (
-                    <Card key={lesson.id} className="flex flex-col h-full min-h-[15rem]">
+              {visibleLessons.length > 0 && viewMode === 'grid' && (
+                <div className="grid min-h-[60vh] gap-4 md:grid-cols-2 xl:grid-cols-3">
+                  {visibleLessons.map((lesson) => (
+                    <Card key={lesson.id} className="flex min-h-[15rem] h-full flex-col shadow-none transition-colors hover:border-foreground/25">
                       <CardHeader className="pb-2">
                         <CardTitle className="text-xl">{lesson.title}</CardTitle>
                         <CardDescription className="line-clamp-2">
@@ -1062,7 +1052,7 @@ export default function LessonsPage() {
                     variant="ghost" 
                     size="sm" 
                     className="text-destructive hover:bg-destructive/10" 
-                    onClick={() => deleteLesson(lesson.id)}
+                    onClick={() => setDeleteTarget(lesson)}
                   >
                     <Trash2 className="h-4 w-4 mr-1" />
                     {t('delete')}
@@ -1091,14 +1081,14 @@ export default function LessonsPage() {
               )}
               
               {/* List View */}
-              {viewMode === 'list' && (
-                <div className="space-y-4 min-h-[60vh]">
-                  {lessons.map((lesson) => (
-                    <Card key={lesson.id} className="min-h-[6rem]">
+              {visibleLessons.length > 0 && viewMode === 'list' && (
+                <div className="min-h-[60vh] space-y-3">
+                  {visibleLessons.map((lesson) => (
+                    <Card key={lesson.id} className="min-h-[6rem] shadow-none transition-colors hover:border-foreground/25">
                       <div className="p-6">
-                        <div className="flex items-start justify-between">
+                        <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
                           <div className="space-y-1 flex-1">
-                            <div className="flex items-center">
+                            <div className="flex flex-wrap items-center gap-2">
                               <h3 className="text-lg font-medium mr-2">{lesson.title}</h3>
                               <Badge variant="outline" className={getLevelColor(lesson.level)}>
                                 {translateLevel(lesson.level)}
@@ -1108,7 +1098,7 @@ export default function LessonsPage() {
                               {lesson.description}
                             </p>
                           </div>
-                          <div className="flex items-center space-x-2">
+                          <div className="flex shrink-0 flex-wrap items-center gap-2">
                             {/* Duration */}
                             <div className="flex items-center text-sm text-muted-foreground">
                               <Clock className="h-4 w-4 mr-1" />
@@ -1136,7 +1126,7 @@ export default function LessonsPage() {
                               variant="ghost" 
                               size="sm" 
                               className="text-destructive hover:bg-destructive/10" 
-                              onClick={() => deleteLesson(lesson.id)}
+                              onClick={() => setDeleteTarget(lesson)}
                             >
                               <Trash2 className="h-4 w-4 mr-1" />
                               {t('delete')}

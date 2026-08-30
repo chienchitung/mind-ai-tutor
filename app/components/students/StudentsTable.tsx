@@ -16,22 +16,30 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { Trash2 } from "lucide-react";
+import { MoreHorizontal, Trash2 } from "lucide-react";
 import { StudentStatusBadge } from "./StudentStatusBadge";
 import { useLanguage } from "@/app/contexts/LanguageContext";
 import { useTranslation } from "@/utils/translations";
 import { useToast } from "@/hooks/use-toast";
 import type { Database } from "@/types/supabase";
+import { StudentFilters } from './StudentFilters';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
 
 type Student = Database['public']['Tables']['students']['Row'];
 
 interface StudentsTableProps {
   students: Student[];
   selectedTab: "all" | "active";
+  onSelectedTabChange: (tab: "all" | "active") => void;
   onStudentDeleted?: (id: string) => void;
 }
 
-export function StudentsTable({ students, selectedTab, onStudentDeleted }: StudentsTableProps) {
+export function StudentsTable({ students, selectedTab, onSelectedTabChange, onStudentDeleted }: StudentsTableProps) {
   const { language } = useLanguage();
   const { t } = useTranslation(language);
   const { toast } = useToast();
@@ -125,17 +133,22 @@ export function StudentsTable({ students, selectedTab, onStudentDeleted }: Stude
       id: "actions",
       header: '',
       cell: ({ row }) => (
-        <Button
-          variant="ghost"
-          size="icon"
-          title={t('delete_student')}
-          onClick={(e) => {
-            e.stopPropagation();
-            setStudentToDelete(row.original);
-          }}
-        >
-          <Trash2 className="h-4 w-4 text-destructive" />
-        </Button>
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button variant="ghost" size="icon" title={language === 'zh-TW' ? '更多操作' : 'More actions'}>
+              <MoreHorizontal className="h-4 w-4" />
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end">
+            <DropdownMenuItem
+              className="text-destructive focus:text-destructive"
+              onClick={() => setStudentToDelete(row.original)}
+            >
+              <Trash2 className="mr-2 h-4 w-4" />
+              {t('delete_student')}
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
       ),
     },
   ];
@@ -153,6 +166,7 @@ export function StudentsTable({ students, selectedTab, onStudentDeleted }: Stude
         data={filteredStudents}
         searchColumn="name"
         searchPlaceholder={t('search_by_name')}
+        toolbar={<StudentFilters selectedTab={selectedTab} setSelectedTab={onSelectedTabChange} />}
       />
       <AlertDialog open={!!studentToDelete} onOpenChange={(open) => !open && setStudentToDelete(null)}>
         <AlertDialogContent>

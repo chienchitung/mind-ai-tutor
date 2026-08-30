@@ -17,6 +17,8 @@ import { useToast } from '@/hooks/use-toast';
 import type { Database } from '@/types/supabase';
 import { useLanguage } from '@/app/contexts/LanguageContext';
 import { useTranslation } from '@/utils/translations';
+import { PageHeader } from '@/components/layout/PageHeader';
+import { EmptyState, PageLoader } from '@/components/ui/page-state';
 
 type Student = Database['public']['Tables']['students']['Row'];
 
@@ -156,25 +158,19 @@ export default function EditStudentPage({ params: paramsPromise }: { params: Pro
   };
 
   if (loading || !pageParams) { // Show loading also if params haven't resolved yet
-    return (
-      <div className="flex h-[400px] items-center justify-center">
-        <p>{t('loading_student_details')}</p>
-      </div>
-    );
+    return <PageLoader />;
   }
 
   if (!student) {
     return (
-      <div className="flex h-[400px] items-center justify-center">
-        <p>{t('student_not_found')}</p>
-      </div>
+      <EmptyState title={t('student_not_found')} description={t('student_not_found_desc')} />
     );
   }
 
   return (
-    <div className="container mx-auto max-w-2xl py-10">
-      <h1 className="mb-8 text-3xl font-bold">{t('edit_student')}</h1>
-      <form onSubmit={handleSubmit} className="space-y-6">
+    <div className="space-y-6">
+      <PageHeader heading={t('edit_student')} text={student.name} />
+      <form onSubmit={handleSubmit} className="app-panel mx-auto max-w-2xl space-y-6 p-5 sm:p-6">
         <div className="space-y-2">
           <Label htmlFor="name">{t('full_name')}</Label>
           <Input
@@ -245,7 +241,8 @@ export default function EditStudentPage({ params: paramsPromise }: { params: Pro
                 variant={
                   student.subjects.includes(subject) ? 'default' : 'outline'
                 }
-                className="justify-start"
+                className="h-auto min-h-10 justify-start whitespace-normal text-left"
+                aria-pressed={student.subjects.includes(subject)}
                 onClick={() => handleSubjectToggle(subject)}
               >
                 {subject}
@@ -253,7 +250,7 @@ export default function EditStudentPage({ params: paramsPromise }: { params: Pro
             ))}
           </div>
         </div>
-        <div className="flex gap-2">
+        <div className="flex flex-wrap justify-end gap-2 border-t border-border/70 pt-5">
           <Button
             type="button"
             variant="outline"

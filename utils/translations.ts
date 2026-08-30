@@ -332,6 +332,15 @@ export const translations = {
     enter_answer: "Enter the answer",
     enter_explanation: "Enter the explanation",
     enter_lesson_title: "Enter lesson title",
+    lesson_card_summary: "Learning map summary",
+    lesson_card_summary_placeholder: "Briefly describe what students will learn in this lesson",
+    lesson_card_summary_help: "Shown on the game learning map. Keep it concise; full lesson content belongs below.",
+    required_lesson_card_summary: "Learning map summary is required",
+    lesson_card_summary_too_long: "Learning map summary must be 160 characters or fewer",
+    lesson_role: "Lesson role",
+    lesson_role_intro: "Intro lesson",
+    lesson_role_standard: "Standard lesson",
+    lesson_role_final: "Final challenge",
     save_changes: "Save Changes",
     edit: "Edit",
     delete: "Delete",
@@ -1119,6 +1128,15 @@ export const translations = {
     enter_answer: "輸入答案",
     enter_explanation: "輸入解釋",
     enter_lesson_title: "輸入課程標題",
+    lesson_card_summary: "學習路線圖摘要",
+    lesson_card_summary_placeholder: "簡短說明學生在這一關會學到什麼",
+    lesson_card_summary_help: "這段文字會顯示在遊戲的學習路線圖；完整教學內容請填寫在下方。",
+    required_lesson_card_summary: "請輸入學習路線圖摘要",
+    lesson_card_summary_too_long: "學習路線圖摘要不可超過 160 個字",
+    lesson_role: "關卡角色",
+    lesson_role_intro: "前導課程",
+    lesson_role_standard: "一般關卡",
+    lesson_role_final: "最終挑戰",
     save_changes: "儲存變更",
     edit: "編輯",
     delete: "刪除",
@@ -1595,4 +1613,4 @@ export function useTranslation(language: Language) {
   };
 
   return { t };
-} 
+}

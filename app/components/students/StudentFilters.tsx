@@ -12,15 +12,15 @@ interface StudentFiltersProps {
 export function StudentFilters({ selectedTab, setSelectedTab }: StudentFiltersProps) {
   const { language } = useLanguage();
   const { t } = useTranslation(language);
-  
+
   return (
-    <div className="flex items-center pb-4">
+    <div className="flex items-center">
       <Tabs value={selectedTab} onValueChange={(value) => setSelectedTab(value as "all" | "active")}>
-        <TabsList>
+        <TabsList className="h-9">
           <TabsTrigger value="all">{t('all_students')}</TabsTrigger>
           <TabsTrigger value="active">{t('active_students_tab')}</TabsTrigger>
         </TabsList>
       </Tabs>
     </div>
   );
-} 
+}

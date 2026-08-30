@@ -14,17 +14,17 @@ interface EventsHeaderProps {
 export function EventsHeader({ onAddEvent }: EventsHeaderProps) {
   const { language } = useLanguage();
   const { t } = useTranslation(language);
-  
+
   return (
-    <div className="flex flex-col space-y-4 sm:flex-row sm:items-center sm:justify-between w-full">
-      <ViewSelector />
+    <div className="app-panel flex w-full flex-col gap-3 p-3 sm:flex-row sm:items-center sm:justify-between">
+      <div className="overflow-x-auto pb-1 sm:pb-0"><ViewSelector /></div>
 
       <div className="flex items-center gap-2">
-        <Button size="sm" onClick={onAddEvent} className="h-8">
+        <Button size="sm" onClick={onAddEvent} className="h-9 w-full sm:w-auto">
           <PlusCircle className="mr-2 h-4 w-4" />
           {t('add_event')}
         </Button>
       </div>
     </div>
   );
-} 
+}

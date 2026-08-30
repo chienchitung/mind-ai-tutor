@@ -14,10 +14,17 @@ export interface GameRewards {
   completionUrl?: string
 }
 
+export interface GameLessonOverride {
+  number?: number
+  role?: 'intro' | 'standard' | 'final'
+  cardDescription?: string
+}
+
 export interface GameSettings {
   tutorPrompt?: string
   theme?: GameTheme
   rewards?: GameRewards
+  lessonOverrides?: Record<string, GameLessonOverride>
 }
 
 export interface GameDefinition {

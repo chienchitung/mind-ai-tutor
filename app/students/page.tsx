@@ -4,9 +4,9 @@ import { useState, useEffect, useRef } from 'react';
 import Link from 'next/link';
 import { PageHeader } from '@/components/layout/PageHeader';
 import { StudentStats } from '@/components/students/StudentStats';
-import { StudentFilters } from '@/components/students/StudentFilters';
 import { StudentsTable } from '@/components/students/StudentsTable';
 import { Button, buttonVariants } from '@/components/ui/button';
+import { PageLoader } from '@/components/ui/page-state';
 import { Download, Upload, FileDown, Plus } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import ExcelJS from 'exceljs';
@@ -294,7 +294,7 @@ export default function StudentsPage() {
         heading={t('students')}
         text={t('manage_students')}
         actions={
-          <div className="flex gap-2">
+          <div className="flex flex-wrap gap-2">
             <input
               ref={fileInputRef}
               type="file"
@@ -334,16 +334,14 @@ export default function StudentsPage() {
       />
 
       {isLoading ? (
-        <div className="flex justify-center py-8">
-          <p>{t('loading_student_data')}</p>
-        </div>
+        <PageLoader />
       ) : (
         <>
           <StudentStats students={students} />
-          <StudentFilters selectedTab={selectedTab} setSelectedTab={setSelectedTab} />
           <StudentsTable
             students={students}
             selectedTab={selectedTab}
+            onSelectedTabChange={setSelectedTab}
             onStudentDeleted={(id) => setStudents((prev) => prev.filter((s) => s.id !== id))}
           />
         </>

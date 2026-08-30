@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useRef, useEffect } from "react";
+import React, { useState, useRef, useEffect, useCallback } from "react";
 import { Sparkles, Loader2, Lightbulb, Wand2, ArrowLeft, Download, Edit, ArrowRight, FileDown, Printer, Save, GripVertical, ArrowUp, ArrowDown, Plus, PlayCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
@@ -8,8 +8,8 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { useToast } from "@/hooks/use-toast";
-import { Sidebar } from "@/app/components/layout/Sidebar";
 import { cn } from "@/lib/utils";
+import { PageHeader } from "@/components/layout/PageHeader";
 import { 
   DragDropContext, 
   Draggable, 
@@ -23,30 +23,8 @@ import { useLanguage } from "@/app/contexts/LanguageContext";
 import { useTranslation } from "@/utils/translations";
 
 // Import text extraction libraries
-import mammoth from 'mammoth';
-
-// Define the Quiz types
-interface QuizOption {
-  id: string;
-  text: string;
-}
-
-interface QuizQuestion {
-  id: string;
-  questionText: string;
-  options: QuizOption[];
-  questionType?: 'single' | 'multiple'; // 新增題型欄位
-  correctAnswer: string | string[]; // 支援單選/複選
-  explanation: string;
-}
-
-interface Quiz {
-  id: string;
-  title: string;
-  questions: QuizQuestion[];
-  createdAt?: Date;
-  updatedAt?: Date;
-}
+import { quizPayloadSchema, parseSavedQuiz, isCorrectQuizAnswer, isCorrectQuizOption, type Quiz, type QuizQuestion } from '@/lib/quiz';
+import { useUnsavedChanges } from '@/hooks/useUnsavedChanges';
 
 // QuizCreator component
 interface QuizCreatorProps {
@@ -101,19 +79,16 @@ const QuizCreator: React.FC<QuizCreatorProps> = ({
   };
   
   return (
-    <div className="max-w-3xl mx-auto">
-      <Card className="bg-gradient-to-r from-indigo-50 to-purple-50 p-8 rounded-xl shadow-lg border-0">
-        <div className="flex flex-col items-center mb-8">
-          <div className="w-16 h-16 bg-gradient-to-br from-indigo-500 to-purple-600 rounded-full flex items-center justify-center text-white mb-5">
-            <Wand2 size={28} />
+    <div className="mx-auto max-w-3xl">
+      <Card className="border-border/80 p-5 shadow-none sm:p-8">
+        <div className="mb-7 flex items-center gap-4 border-b border-border/70 pb-5">
+          <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-primary text-primary-foreground">
+            <Wand2 size={22} />
           </div>
-          
-          <h1 className="text-3xl font-bold mb-3" style={{ color: '#1e40af' }}>
-            {t('ai_quiz_generator')}
-          </h1>
-          <p className="text-center max-w-md" style={{ color: '#4b5563' }}>
-            {t('create_custom_quizzes')}
-          </p>
+          <div>
+            <h2 className="text-lg font-semibold">{t('enter_quiz_topic')}</h2>
+            <p className="mt-1 text-sm text-muted-foreground">{t('create_custom_quizzes')}</p>
+          </div>
         </div>
 
         <div className="space-y-6">
@@ -224,6 +199,7 @@ const QuizCreator: React.FC<QuizCreatorProps> = ({
                 className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
                 multiple
                 accept="image/*,.doc,.docx,.pdf,.txt"
+                aria-label={t('upload_files_label')}
               />
               <div className="flex flex-col items-center justify-center gap-4">
                 <div className="w-12 h-12 rounded-full bg-white flex items-center justify-center group-hover:bg-blue-50 transition-colors duration-300">
@@ -270,8 +246,10 @@ const QuizCreator: React.FC<QuizCreatorProps> = ({
                         <span className="text-sm text-slate-600">{file.name}</span>
                       </div>
                       <button
+                        type="button"
                         onClick={() => handleRemoveFile(file.name)}
                         className="text-slate-400 hover:text-red-500 transition-colors duration-200"
+                        aria-label={`${t('delete')}: ${file.name}`}
                       >
                         <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
@@ -318,7 +296,7 @@ const QuizCreator: React.FC<QuizCreatorProps> = ({
 interface QuizResultsProps {
   quiz: Quiz;
   onBack: () => void;
-  onSave: () => void;
+  onSave: (quiz: Quiz) => Promise<boolean>;
   isSaving: boolean;
 }
 
@@ -331,7 +309,6 @@ const QuizResults: React.FC<QuizResultsProps> = ({
   const [isExporting, setIsExporting] = useState(false);
   const [isPrinting, setIsPrinting] = useState(false);
   const [showAnswers, setShowAnswers] = useState(false); // Changed initial state to false for student version by default
-  const [html2pdfLib, setHtml2pdfLib] = useState<any>(null);
   const [exportFormat, setExportFormat] = useState<string>('pdf');
   const [showExportOptions, setShowExportOptions] = useState(false);
   const quizContentRef = useRef<HTMLDivElement>(null);
@@ -347,20 +324,13 @@ const QuizResults: React.FC<QuizResultsProps> = ({
   const [quizScore, setQuizScore] = useState<number | null>(null);
   const [showUserReview, setShowUserReview] = useState(false); // New state for user's answer review
 
-  // Load the HTML2PDF library dynamically
-  useEffect(() => {
-    const loadHtml2pdf = async () => {
-      if (typeof window !== 'undefined') {
-        try {
-          const html2pdfModule = await import('html2pdf.js');
-          setHtml2pdfLib(() => html2pdfModule.default || html2pdfModule);
-        } catch (error) {
-          console.error('Failed to load html2pdf.js:', error);
-        }
-      }
-    };
-    loadHtml2pdf();
-  }, []);
+  const draftDirty = JSON.stringify(editedQuestions) !== JSON.stringify(quiz.questions);
+  const confirmLeave = useUnsavedChanges(!quiz.persisted || draftDirty, isSaving);
+  useEffect(() => { setEditedQuestions(quiz.questions); }, [quiz.questions]);
+  const saveDraft = async () => {
+    if (isSaving) return false;
+    return onSave({ ...quiz, questions: editedQuestions });
+  };
 
   // Handle clicks outside the export dropdown
   useEffect(() => {
@@ -392,16 +362,7 @@ const QuizResults: React.FC<QuizResultsProps> = ({
       return;
     }
 
-    // Only check for PDF library when exporting PDF
-    if (format === 'pdf' && !html2pdfLib) {
-      toast({
-        title: t('export_failed'),
-        description: t('pdf_library_not_loaded'),
-        variant: "destructive"
-      });
-      return;
-    }
-    
+    if (isExporting || isSaving || isEditing) return;
     setIsExporting(true);
     try {
       // Create a clone of the quiz content to modify for export
@@ -420,7 +381,7 @@ const QuizResults: React.FC<QuizResultsProps> = ({
       switch (format) {
         case 'microsoft-word': {
           // 動態導入docx庫，避免SSR問題
-          import('docx').then(async (docx) => {
+          await import('docx').then(async (docx) => {
             try {
               // Create Document with explicit typing
               // Add questions directly to the first section we created above
@@ -438,7 +399,7 @@ const QuizResults: React.FC<QuizResultsProps> = ({
                 
                 // Add options
                 question.options.forEach(option => {
-                  const isCorrect = option.id === question.correctAnswer;
+                  const isCorrect = isCorrectQuizOption(option.id, question.correctAnswer);
                   
                   questionParagraphs.push(
                     new docx.Paragraph({
@@ -579,7 +540,7 @@ const QuizResults: React.FC<QuizResultsProps> = ({
 
             // 添加選項
             question.options.forEach(option => {
-              const isCorrect = option.id === question.correctAnswer;
+              const isCorrect = isCorrectQuizOption(option.id, question.correctAnswer);
               docContent += `
                 <div class="option ${isCorrect && showAnswers ? 'correct' : ''}">
                   ${option.id.toUpperCase()}. ${option.text} ${isCorrect && showAnswers ? ' ✓' : ''}
@@ -628,7 +589,7 @@ const QuizResults: React.FC<QuizResultsProps> = ({
               const plainText = quiz.title + "\n\n" +
                 quiz.questions.map((q, i) =>
                   `Question ${i+1}: ${q.questionText}\n` +
-                  q.options.map(o => `${o.id.toUpperCase()}. ${o.text}${o.id === q.correctAnswer && showAnswers ? ' ✓' : ''}`).join('\n') +
+                  q.options.map(o => `${o.id.toUpperCase()}. ${o.text}${isCorrectQuizOption(o.id, q.correctAnswer) && showAnswers ? ' ✓' : ''}`).join('\n') +
                   (showAnswers ? `\n\n${t('explanation_colon')} ${q.explanation}` : '')
                 ).join('\n\n');
 
@@ -647,7 +608,7 @@ const QuizResults: React.FC<QuizResultsProps> = ({
             const plainText = quiz.title + "\n\n" +
               quiz.questions.map((q, i) =>
                 `Question ${i+1}: ${q.questionText}\n` +
-                q.options.map(o => `${o.id.toUpperCase()}. ${o.text}${o.id === q.correctAnswer && showAnswers ? ' ✓' : ''}`).join('\n') +
+                q.options.map(o => `${o.id.toUpperCase()}. ${o.text}${isCorrectQuizOption(o.id, q.correctAnswer) && showAnswers ? ' ✓' : ''}`).join('\n') +
                 (showAnswers ? `\n\n${t('explanation_colon')} ${q.explanation}` : '')
               ).join('\n\n');
 
@@ -736,7 +697,7 @@ const QuizResults: React.FC<QuizResultsProps> = ({
 
             // 添加選項
             question.options.forEach(option => {
-              const isCorrect = option.id === question.correctAnswer;
+              const isCorrect = isCorrectQuizOption(option.id, question.correctAnswer);
               docContent += `
                 <div class="option ${isCorrect && showAnswers ? 'correct' : ''}">
                   ${option.id.toUpperCase()}. ${option.text} ${isCorrect && showAnswers ? ' ✓' : ''}
@@ -785,7 +746,7 @@ const QuizResults: React.FC<QuizResultsProps> = ({
               const plainText = quiz.title + "\n\n" +
                 quiz.questions.map((q, i) =>
                   `Question ${i+1}: ${q.questionText}\n` +
-                  q.options.map(o => `${o.id.toUpperCase()}. ${o.text}${o.id === q.correctAnswer && showAnswers ? ' ✓' : ''}`).join('\n') +
+                  q.options.map(o => `${o.id.toUpperCase()}. ${o.text}${isCorrectQuizOption(o.id, q.correctAnswer) && showAnswers ? ' ✓' : ''}`).join('\n') +
                   (showAnswers ? `\n\n${t('explanation_colon')} ${q.explanation}` : '')
                 ).join('\n\n');
 
@@ -804,7 +765,7 @@ const QuizResults: React.FC<QuizResultsProps> = ({
             const plainText = quiz.title + "\n\n" +
               quiz.questions.map((q, i) =>
                 `Question ${i+1}: ${q.questionText}\n` +
-                q.options.map(o => `${o.id.toUpperCase()}. ${o.text}${o.id === q.correctAnswer && showAnswers ? ' ✓' : ''}`).join('\n') +
+                q.options.map(o => `${o.id.toUpperCase()}. ${o.text}${isCorrectQuizOption(o.id, q.correctAnswer) && showAnswers ? ' ✓' : ''}`).join('\n') +
                 (showAnswers ? `\n\n${t('explanation_colon')} ${q.explanation}` : '')
               ).join('\n\n');
 
@@ -867,7 +828,7 @@ const QuizResults: React.FC<QuizResultsProps> = ({
 
             // 添加選項
             question.options.forEach(option => {
-              const isCorrect = option.id === question.correctAnswer;
+              const isCorrect = isCorrectQuizOption(option.id, question.correctAnswer);
               docContent += `
                 <div class="option ${isCorrect && showAnswers ? 'correct' : ''}">
                   ${option.id.toUpperCase()}. ${option.text} ${isCorrect && showAnswers ? ' ✓' : ''}
@@ -916,7 +877,7 @@ const QuizResults: React.FC<QuizResultsProps> = ({
               const plainText = quiz.title + "\n\n" +
                 quiz.questions.map((q, i) =>
                   `Question ${i+1}: ${q.questionText}\n` +
-                  q.options.map(o => `${o.id.toUpperCase()}. ${o.text}${o.id === q.correctAnswer && showAnswers ? ' ✓' : ''}`).join('\n') +
+                  q.options.map(o => `${o.id.toUpperCase()}. ${o.text}${isCorrectQuizOption(o.id, q.correctAnswer) && showAnswers ? ' ✓' : ''}`).join('\n') +
                   (showAnswers ? `\n\n${t('explanation_colon')} ${q.explanation}` : '')
                 ).join('\n\n');
 
@@ -935,7 +896,7 @@ const QuizResults: React.FC<QuizResultsProps> = ({
             const plainText = quiz.title + "\n\n" +
               quiz.questions.map((q, i) =>
                 `Question ${i+1}: ${q.questionText}\n` +
-                q.options.map(o => `${o.id.toUpperCase()}. ${o.text}${o.id === q.correctAnswer && showAnswers ? ' ✓' : ''}`).join('\n') +
+                q.options.map(o => `${o.id.toUpperCase()}. ${o.text}${isCorrectQuizOption(o.id, q.correctAnswer) && showAnswers ? ' ✓' : ''}`).join('\n') +
                 (showAnswers ? `\n\n${t('explanation_colon')} ${q.explanation}` : '')
               ).join('\n\n');
 
@@ -960,13 +921,15 @@ const QuizResults: React.FC<QuizResultsProps> = ({
         }
 
         case 'pdf': {
+          const pdfModule = await import('html2pdf.js');
+          const html2pdfLib = pdfModule.default;
           // PDF export options
           const exportOptions = {
-            margin: [10, 10, 10, 10],
+            margin: [10, 10, 10, 10] as [number, number, number, number],
             filename: `${safeTitle}.pdf`,
-            image: { type: 'jpeg', quality: 0.98 },
+            image: { type: 'jpeg' as const, quality: 0.98 },
             html2canvas: { scale: 2, useCORS: true },
-            jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' }
+            jsPDF: { unit: 'mm' as const, format: 'a4', orientation: 'portrait' as const }
           };
           
           // Apply special PDF fixes for number alignment
@@ -1136,8 +1099,9 @@ const QuizResults: React.FC<QuizResultsProps> = ({
   };
 
   const handleAddQuestion = () => {
+    if (isSaving) return;
     const newQuestion: QuizQuestion = {
-      id: String(Date.now()),
+      id: crypto.randomUUID(),
       questionText: t('new_question'),
       options: [
         { id: "a", text: t('option_a') },
@@ -1157,6 +1121,7 @@ const QuizResults: React.FC<QuizResultsProps> = ({
   };
 
   const moveQuestion = (index: number, direction: 'up' | 'down') => {
+    if (isSaving) return;
     const newQuestions = [...editedQuestions];
     if (direction === 'up' && index > 0) {
       [newQuestions[index], newQuestions[index - 1]] = [newQuestions[index - 1], newQuestions[index]];
@@ -1166,17 +1131,15 @@ const QuizResults: React.FC<QuizResultsProps> = ({
     setEditedQuestions(newQuestions);
   };
 
-  const handleEditToggle = () => {
-    if (isEditing) {
-      // Save changes
-      quiz.questions = editedQuestions;
-      onSave();
-    }
+  const handleEditToggle = async () => {
+    if (isSaving) return;
+    if (isEditing && !(await saveDraft())) return;
     setIsEditing(!isEditing);
   };
 
   const handleQuestionEdit = (index: number, field: string, value: any) => {
-    const newQuestions = [...editedQuestions];
+    if (isSaving) return;
+    const newQuestions = editedQuestions.map(question => ({ ...question, options: question.options.map(option => ({ ...option })) }));
     if (field === 'questionText') {
       newQuestions[index].questionText = value;
     } else if (field.startsWith('option-')) {
@@ -1195,7 +1158,7 @@ const QuizResults: React.FC<QuizResultsProps> = ({
   };
 
   const handleDragEnd = (result: any) => {
-    if (!result.destination) return;
+    if (isSaving || !result.destination) return;
     
     const items = Array.from(editedQuestions);
     const [reorderedItem] = items.splice(result.source.index, 1);
@@ -1206,8 +1169,9 @@ const QuizResults: React.FC<QuizResultsProps> = ({
 
   // 增加一個新的函數，用於在指定索引處插入新問題
   const handleAddQuestionAtIndex = (index: number) => {
+    if (isSaving) return;
     const newQuestion: QuizQuestion = {
-      id: String(Date.now()),
+      id: crypto.randomUUID(),
       questionText: t('new_question'),
       options: [
         { id: "a", text: t('option_a') },
@@ -1243,7 +1207,7 @@ const QuizResults: React.FC<QuizResultsProps> = ({
   const handleSubmitQuiz = () => {
     let score = 0;
     quiz.questions.forEach(question => {
-      if (userAnswers[question.id] === question.correctAnswer) {
+      if (isCorrectQuizAnswer(userAnswers[question.id], question.correctAnswer)) {
         score++;
       }
     });
@@ -1284,9 +1248,7 @@ const QuizResults: React.FC<QuizResultsProps> = ({
               const userAnswer = userAnswers[question.id];
               const correctAnswer = question.correctAnswer;
               const isMultiple = question.questionType === 'multiple';
-              const isCorrect = isMultiple
-                ? Array.isArray(userAnswer) && Array.isArray(correctAnswer) && correctAnswer.every(ans => userAnswer.includes(ans)) && userAnswer.length === correctAnswer.length
-                : userAnswer === correctAnswer;
+              const isCorrect = isCorrectQuizAnswer(userAnswer, correctAnswer);
 
               return (
                 <div key={question.id} className={`mb-6 pb-6 border-b ${isCorrect ? 'border-green-200' : 'border-red-200'}`}> 
@@ -1418,7 +1380,7 @@ const QuizResults: React.FC<QuizResultsProps> = ({
       <div className="flex justify-between items-center mb-6">
         <Button 
           variant="ghost" 
-          onClick={onBack}
+          onClick={() => { if (confirmLeave()) onBack(); }}
           className="text-indigo-700 hover:text-indigo-900 hover:bg-indigo-50"
         >
           <ArrowLeft className="mr-2 h-4 w-4" /> {t('back_to_generator')}
@@ -1463,15 +1425,15 @@ const QuizResults: React.FC<QuizResultsProps> = ({
           </CardHeader>
           
           <CardContent className="p-6">
-            <div className="flex items-center justify-between mb-8 print-hidden">
+            <div className="mb-8 flex flex-col gap-4 print-hidden">
               <p className="text-indigo-900">
                 {t('quiz_created_on', { date: new Date().toLocaleDateString() })}
               </p>
-              <div className="flex gap-3">
+              <div className="flex flex-wrap gap-3">
                 <Button 
                   variant="outline" 
                   className="border-indigo-300 text-indigo-700"
-                  onClick={onSave}
+                  onClick={() => void saveDraft()}
                   disabled={isSaving}
                 >
                   {isSaving ? (
@@ -1490,9 +1452,11 @@ const QuizResults: React.FC<QuizResultsProps> = ({
                     variant="outline"
                     className="border-indigo-300 text-indigo-700"
                     onClick={() => setShowExportOptions(!showExportOptions)}
+                    disabled={isExporting || isSaving || isEditing}
+                    aria-expanded={showExportOptions}
                     ref={exportButtonRef}
                   >
-                    <FileDown className="mr-2 h-4 w-4" /> {t('export_quiz')}
+                    {isExporting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <FileDown className="mr-2 h-4 w-4" />} {t('export_quiz')}
                   </Button>
                   
                   {showExportOptions && (
@@ -1598,6 +1562,7 @@ const QuizResults: React.FC<QuizResultsProps> = ({
                   variant="outline"
                   className="border-indigo-300 text-indigo-700"
                   onClick={handleStartQuiz}
+                  disabled={isEditing || isSaving}
                   // disabled={isPrinting} // Removed disabled state related to printing
                 >
                     <>
@@ -1608,6 +1573,7 @@ const QuizResults: React.FC<QuizResultsProps> = ({
                   variant="outline"
                   className="border-indigo-300 text-indigo-700 hover:bg-indigo-50"
                   onClick={handleEditToggle}
+                  disabled={isSaving}
                 >
                   {isEditing ? (
                     <>
@@ -1622,10 +1588,11 @@ const QuizResults: React.FC<QuizResultsProps> = ({
               </div>
             </div>
             
+            <fieldset disabled={isSaving} className="min-w-0">
             <DragDropContext onDragEnd={handleDragEnd}>
               <Droppable 
                 droppableId="questions" 
-                isDropDisabled={!isEditing}
+                isDropDisabled={!isEditing || isSaving}
                 isCombineEnabled={false}
                 ignoreContainerClipping={false}
                 type="DEFAULT"
@@ -1641,7 +1608,7 @@ const QuizResults: React.FC<QuizResultsProps> = ({
                         key={question.id} 
                         draggableId={question.id} 
                         index={index}
-                        isDragDisabled={!isEditing}
+                        isDragDisabled={!isEditing || isSaving}
                       >
                         {(provided: DraggableProvided) => (
                           <div
@@ -1761,7 +1728,7 @@ const QuizResults: React.FC<QuizResultsProps> = ({
                                               showAnswers && (
                                                 (Array.isArray(question.correctAnswer) 
                                                   ? question.correctAnswer.includes(option.id)
-                                                  : option.id === question.correctAnswer)
+                                                  : isCorrectQuizOption(option.id, question.correctAnswer))
                                               ) 
                                                 ? "bg-green-50 border-green-300" 
                                                 : "bg-white border-gray-200"
@@ -1771,7 +1738,7 @@ const QuizResults: React.FC<QuizResultsProps> = ({
                                               showAnswers && (
                                                 (Array.isArray(question.correctAnswer) 
                                                   ? question.correctAnswer.includes(option.id)
-                                                  : option.id === question.correctAnswer)
+                                                  : isCorrectQuizOption(option.id, question.correctAnswer))
                                               )
                                                 ? "bg-green-600 text-white" 
                                                 : "bg-gray-100 text-gray-700"
@@ -1783,14 +1750,14 @@ const QuizResults: React.FC<QuizResultsProps> = ({
                                             <span className={showAnswers && (
                                               Array.isArray(question.correctAnswer)
                                                 ? question.correctAnswer.includes(option.id)
-                                                : option.id === question.correctAnswer
+                                                : isCorrectQuizOption(option.id, question.correctAnswer)
                                             ) ? "text-green-800 font-medium" : ""}>
                                               {option.text}
                                             </span>
                                             {showAnswers && (
                                               Array.isArray(question.correctAnswer)
                                                 ? question.correctAnswer.includes(option.id)
-                                                : option.id === question.correctAnswer
+                                                : isCorrectQuizOption(option.id, question.correctAnswer)
                                             ) && (
                                               <span className="ml-auto text-green-600 text-sm font-medium correct-answer-indicator">
                                                 {t('correct_answer')}
@@ -1841,6 +1808,7 @@ const QuizResults: React.FC<QuizResultsProps> = ({
                 )}
               </Droppable>
             </DragDropContext>
+            </fieldset>
           </CardContent>
         </Card>
       </div>
@@ -1861,11 +1829,37 @@ export default function AIQuizPage() {
   const [level, setLevel] = useState("intermediate");
   const [isGenerating, setIsGenerating] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
-  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
-  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
   const { toast } = useToast();
   const { language } = useLanguage();
   const { t } = useTranslation(language);
+
+  const [isLibraryLoading, setIsLibraryLoading] = useState(true);
+  const [libraryError, setLibraryError] = useState<string | null>(null);
+  const saveInFlight = useRef(false);
+  useUnsavedChanges(!currentQuiz && quizzes.some(quiz => !quiz.persisted), isGenerating);
+
+  const storageError = useCallback((code: string) => {
+    if (code === 'QUIZ_STORAGE_NOT_READY') return language === 'zh-TW' ? '測驗儲存尚未啟用，請先在 Supabase 執行 add_ai_quizzes.sql。' : 'Quiz storage is not ready. Run add_ai_quizzes.sql in Supabase first.';
+    if (code === 'UNAUTHORIZED') return language === 'zh-TW' ? '登入已失效，請重新登入。' : 'Your session has expired. Please sign in again.';
+    if (code === 'INVALID_QUIZ') return language === 'zh-TW' ? '請確認每題都有題目、選項內容及正確答案，再重新儲存。' : 'Check every question, option and correct answer before saving.';
+    return language === 'zh-TW' ? '無法連線至測驗儲存服務，請稍後重試。' : 'Unable to reach quiz storage. Please try again.';
+  }, [language]);
+
+  const loadSavedQuizzes = useCallback(async () => {
+    setIsLibraryLoading(true);
+    setLibraryError(null);
+    try {
+      const response = await fetch('/api/quizzes', { cache: 'no-store' });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || 'QUIZ_STORAGE_ERROR');
+      const saved = data.map(parseSavedQuiz) as Quiz[];
+      setQuizzes(previous => [...previous, ...saved.filter(quiz => !previous.some(existing => existing.id === quiz.id))]);
+    } catch (error) {
+      setLibraryError(storageError(error instanceof Error ? error.message : 'QUIZ_STORAGE_ERROR'));
+    } finally { setIsLibraryLoading(false); }
+  }, [storageError]);
+
+  useEffect(() => { void loadSavedQuizzes(); }, [loadSavedQuizzes]);
 
   const MAX_FILE_SIZE_MB = 25; // Changed from 5 to 25
   const MAX_FILE_SIZE_BYTES = MAX_FILE_SIZE_MB * 1024 * 1024;
@@ -1881,6 +1875,7 @@ export default function AIQuizPage() {
 
   const extractTextFromDocx = async (file: File): Promise<string> => {
     const arrayBuffer = await file.arrayBuffer();
+    const mammoth = await import('mammoth');
     const result = await mammoth.extractRawText({ arrayBuffer });
     return result.value;
   };
@@ -2021,14 +2016,14 @@ export default function AIQuizPage() {
 
       // Create a new quiz with the response data
       const newQuiz: Quiz = {
-        id: Math.random().toString(),
+        id: crypto.randomUUID(),
         title: generatedQuiz.title || `Quiz on ${inputContent}`,
         questions: generatedQuiz.questions,
         createdAt: new Date(),
         updatedAt: new Date()
       };
 
-      setQuizzes([...quizzes, newQuiz]);
+      setQuizzes(previous => [newQuiz, ...previous]);
       setCurrentQuiz(newQuiz);
       toast({
         title: t('success'),
@@ -2046,26 +2041,29 @@ export default function AIQuizPage() {
     }
   };
 
-  const handleSaveQuiz = async () => {
-    if (!currentQuiz) return;
-    
+  const handleSaveQuiz = async (draft: Quiz): Promise<boolean> => {
+    if (saveInFlight.current) return false;
+    const parsed = quizPayloadSchema.safeParse(draft);
+    if (!parsed.success) {
+      toast({ title: t('error'), description: storageError('INVALID_QUIZ'), variant: 'destructive' });
+      return false;
+    }
+    saveInFlight.current = true;
     setIsSaving(true);
     try {
-      // Here you would normally save to a database
-      // For now, we'll just simulate a delay
-      await new Promise(resolve => setTimeout(resolve, 1000));
-      
-      toast({
-        title: t('success'),
-        description: t('quiz_saved'),
-      });
+      const response = await fetch('/api/quizzes', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(parsed.data) });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || 'QUIZ_STORAGE_ERROR');
+      const saved = parseSavedQuiz(data);
+      setQuizzes(previous => [saved, ...previous.filter(quiz => quiz.id !== saved.id)]);
+      setCurrentQuiz(saved);
+      toast({ title: t('success'), description: t('quiz_saved') });
+      return true;
     } catch (error) {
-      toast({
-        title: t('error'),
-        description: t('error_saving_quiz'),
-        variant: "destructive",
-      });
+      toast({ title: t('error'), description: storageError(error instanceof Error ? error.message : 'QUIZ_STORAGE_ERROR'), variant: 'destructive' });
+      return false;
     } finally {
+      saveInFlight.current = false;
       setIsSaving(false);
     }
   };
@@ -2073,44 +2071,27 @@ export default function AIQuizPage() {
   // If we're viewing a specific quiz
   if (currentQuiz) {
     return (
-      <div className="flex h-screen">
-        <Sidebar 
-          isOpen={isSidebarOpen} 
-          onOpenChange={setIsSidebarOpen}
-          onCollapseChange={setIsSidebarCollapsed}
-        />
-        <div className={cn(
-          "flex-1 overflow-auto transition-all duration-300",
-          isSidebarCollapsed ? "ml-[70px]" : "ml-64"
-        )}>
-          <div className="p-6">
-            <QuizResults 
-              quiz={currentQuiz}
-              onBack={() => setCurrentQuiz(null)}
-              onSave={handleSaveQuiz}
-              isSaving={isSaving}
-            />
-          </div>
-        </div>
-      </div>
+      <QuizResults
+        key={currentQuiz.id}
+        quiz={currentQuiz}
+        onBack={() => setCurrentQuiz(null)}
+        onSave={handleSaveQuiz}
+        isSaving={isSaving}
+      />
     );
   }
 
   return (
-    <div className="flex h-screen">
-      <Sidebar 
-        isOpen={isSidebarOpen} 
-        onOpenChange={setIsSidebarOpen}
-        onCollapseChange={setIsSidebarCollapsed}
-      />
-      <div className={cn(
-        "flex-1 overflow-auto transition-all duration-300",
-        isSidebarCollapsed ? "ml-[70px]" : "ml-64"
-      )}>
-        <div className="p-6">
+    <div className="space-y-6">
+      <PageHeader heading={t('ai_quiz_generator')} text={t('create_custom_quizzes')} />
+      {libraryError && <div role="alert" className="app-panel mx-auto flex max-w-3xl flex-wrap items-center gap-3 border-destructive/30 p-4 text-sm">
+        <p className="flex-1">{libraryError}</p>
+        <Button variant="outline" size="sm" onClick={() => void loadSavedQuizzes()}>{language === 'zh-TW' ? '重試' : 'Retry'}</Button>
+      </div>}
+      {isLibraryLoading && <p role="status" className="text-center text-sm text-muted-foreground">{language === 'zh-TW' ? '正在載入已儲存測驗…' : 'Loading saved quizzes…'}</p>}
           {isGenerating && (
-            <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-              <div className="bg-white p-8 rounded-xl shadow-lg flex flex-col items-center max-w-md w-full">
+            <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" role="status" aria-live="polite">
+              <div className="flex w-full max-w-md flex-col items-center rounded-2xl bg-card p-8 shadow-xl">
                 <Loader2 className="h-12 w-12 text-indigo-600 animate-spin mb-4" />
                 <h3 className="text-xl font-semibold mb-2">{t('generating')}</h3>
                 <p className="text-gray-500 text-center mb-4">
@@ -2144,36 +2125,33 @@ export default function AIQuizPage() {
           />
           
           {quizzes.length > 0 && !currentQuiz && (
-            <div className="space-y-4 mt-8 max-w-3xl mx-auto">
-              <h2 className="text-2xl font-bold text-indigo-900">{t('recent_quizzes')}</h2>
+            <section className="mx-auto mt-8 max-w-3xl space-y-4" aria-labelledby="recent-quizzes-title">
+              <h2 id="recent-quizzes-title" className="text-xl font-semibold">{t('recent_quizzes')}</h2>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 {quizzes.map((quiz) => (
-                  <div 
+                  <button
+                    type="button"
                     key={quiz.id} 
-                    className="bg-white rounded-lg shadow hover:shadow-md transition-shadow border border-purple-100 overflow-hidden cursor-pointer group"
+                    className="group overflow-hidden rounded-xl border border-border bg-card text-left transition-colors hover:border-foreground/30 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                     onClick={() => setCurrentQuiz(quiz)}
                   >
                     <div className="bg-gradient-to-r from-indigo-600 to-purple-600 text-white p-4">
                       <h3 className="font-semibold text-lg">{quiz.title}</h3>
-                      <p className="text-sm text-white/80">{quiz.questions.length} questions</p>
+                      <p className="text-sm text-white/80">{t('questions_count', { count: quiz.questions.length })} · {quiz.persisted ? (language === 'zh-TW' ? '已儲存' : 'Saved') : (language === 'zh-TW' ? '未儲存' : 'Unsaved')}</p>
                     </div>
                     <div className="p-4 flex justify-between items-center">
                       <p className="text-gray-600">
                         {t('created_on', { date: quiz.createdAt?.toLocaleDateString() || '-' })}
                       </p>
-                      <button 
-                        className="text-indigo-600 hover:text-indigo-800 font-medium flex items-center group-hover:translate-x-1 transition-transform"
-                      >
+                      <span className="flex items-center font-medium text-primary transition-transform group-hover:translate-x-1">
                         {t('view_quiz')} <ArrowRight className="ml-1 h-4 w-4" />
-                      </button>
+                      </span>
                     </div>
-                  </div>
+                  </button>
                 ))}
               </div>
-            </div>
+            </section>
           )}
-        </div>
-      </div>
     </div>
   );
 }

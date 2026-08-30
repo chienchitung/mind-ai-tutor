@@ -20,7 +20,7 @@ export function StudentStats({ students }: StudentStatsProps) {
   const inactiveStudents = totalStudents - activeStudents;
 
   return (
-    <div className="grid gap-6 md:grid-cols-3 mb-6">
+    <div className="mb-6 grid gap-3 sm:grid-cols-3">
       <StudentCard title={t('total_students')} count={totalStudents} />
       <StudentCard title={t('active_students')} count={activeStudents} />
       <StudentCard title={t('inactive_students')} count={inactiveStudents} />

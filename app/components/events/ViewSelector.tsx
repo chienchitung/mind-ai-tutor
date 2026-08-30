@@ -2,7 +2,7 @@
 
 import React from "react";
 import { useEvents } from "@/contexts/EventContext";
-import { LayoutList, KanbanSquare, Table2, CalendarDays, GanttChartSquare } from "lucide-react";
+import { KanbanSquare, Table2, CalendarDays, GanttChartSquare } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useLanguage } from "@/app/contexts/LanguageContext";
 import { useTranslation } from "@/utils/translations";
@@ -11,9 +11,9 @@ export function ViewSelector() {
   const { activeView, setActiveView } = useEvents();
   const { language } = useLanguage();
   const { t } = useTranslation(language);
-  
+
   return (
-    <div className="flex items-center space-x-1">
+    <div className="flex w-max items-center space-x-1 rounded-lg bg-muted p-1">
       <Button
         variant={activeView === 'table' ? 'default' : 'ghost'}
         size="sm"
@@ -24,7 +24,7 @@ export function ViewSelector() {
         <Table2 className="h-4 w-4 mr-1" />
         <span>{t('table')}</span>
       </Button>
-      
+
       <Button
         variant={activeView === 'kanban' ? 'default' : 'ghost'}
         size="sm"
@@ -35,7 +35,7 @@ export function ViewSelector() {
         <KanbanSquare className="h-4 w-4 mr-1" />
         <span>{t('kanban')}</span>
       </Button>
-      
+
       <Button
         variant={activeView === 'calendar' ? 'default' : 'ghost'}
         size="sm"
@@ -46,7 +46,7 @@ export function ViewSelector() {
         <CalendarDays className="h-4 w-4 mr-1" />
         <span>{t('calendar')}</span>
       </Button>
-      
+
       <Button
         variant={activeView === 'timeline' ? 'default' : 'ghost'}
         size="sm"
@@ -59,4 +59,4 @@ export function ViewSelector() {
       </Button>
     </div>
   );
-} 
+}

@@ -15,6 +15,12 @@ export type Json =
 export interface Database {
   public: {
     Tables: {
+      // Added by scripts/add_ai_quizzes.sql.
+      ai_quizzes: {
+        Row: { id: string; user_id: string; title: string; questions: Json; created_at: string; updated_at: string };
+        Insert: { id?: string; user_id: string; title: string; questions: Json; created_at?: string; updated_at?: string };
+        Update: { title?: string; questions?: Json; updated_at?: string };
+      };
       assignments: {
         Row: {
           id: string;

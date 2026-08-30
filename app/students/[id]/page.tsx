@@ -5,7 +5,8 @@ import { supabase as getSupabaseClient } from '@/lib/supabase';
 import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { Separator } from '@/components/ui/separator';
+import { PageHeader } from '@/components/layout/PageHeader';
+import { EmptyState, PageLoader } from '@/components/ui/page-state';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -197,27 +198,19 @@ export default function StudentPage({ params: paramsPromise }: { params: Promise
   };
 
   if (loading || !pageParams) { // Show loading also if params haven't resolved yet
-    return (
-      <div className="flex h-[400px] items-center justify-center">
-        <p>{t('loading_student_details')}</p>
-      </div>
-    );
+    return <PageLoader />;
   }
 
   if (!student) {
     return (
-      <div className="flex h-[400px] flex-col items-center justify-center gap-1">
-        <p className="text-lg font-medium">{t('student_not_found')}</p>
-        <p className="text-sm text-muted-foreground">{t('student_not_found_desc')}</p>
-      </div>
+      <EmptyState title={t('student_not_found')} description={t('student_not_found_desc')} />
     );
   }
 
   return (
-    <div className="container mx-auto max-w-4xl py-10">
-      <div className="flex items-center justify-between">
-        <h1 className="text-3xl font-bold">{student.name}</h1>
-        <div className="flex gap-2">
+    <div className="space-y-6">
+      <PageHeader heading={student.name} text={language === 'zh-TW' ? '查看學生資料、登入碼與學習紀錄。' : 'Review the student profile, login code and learning history.'}
+        actions={<div className="flex flex-wrap gap-2">
           <Button onClick={handleEdit}>{t('edit_student')}</Button>
           <AlertDialog>
             <AlertDialogTrigger asChild>
@@ -247,16 +240,15 @@ export default function StudentPage({ params: paramsPromise }: { params: Promise
               </AlertDialogFooter>
             </AlertDialogContent>
           </AlertDialog>
-        </div>
-      </div>
-      <Separator className="my-6" />
+        </div>}
+      />
       <div className="space-y-6">
         <div className="grid gap-6 md:grid-cols-2">
-          <div className="space-y-4">
+          <div className="app-panel min-w-0 space-y-5 p-5 sm:p-6">
             <div>
               <h2 className="text-lg font-semibold">{t('basic_information')}</h2>
               <div className="mt-2 space-y-2">
-                <p>
+                <p className="break-words">
                   <span className="font-medium">{t('email')}:</span> {student.email}
                 </p>
                 <p>
@@ -292,7 +284,7 @@ export default function StudentPage({ params: paramsPromise }: { params: Promise
               </ScrollArea>
             </div>
           </div>
-          <div className="space-y-4">
+          <div className="app-panel min-w-0 space-y-4 p-5 sm:p-6">
             <div>
               <h2 className="text-lg font-semibold flex items-center gap-2">
                 <KeyRound className="h-4 w-4" />
@@ -303,11 +295,11 @@ export default function StudentPage({ params: paramsPromise }: { params: Promise
               </p>
               <div className="mt-3">
                 {student.login_code ? (
-                  <div className="flex items-center gap-2">
+                  <div className="flex flex-wrap items-center gap-2">
                     <code className="rounded-md border bg-secondary/50 px-3 py-2 text-lg font-mono tracking-widest">
                       {student.login_code}
                     </code>
-                    <Button variant="outline" size="icon" onClick={handleCopyLoginCode} title={t('copy_login_code')}>
+                    <Button variant="outline" size="icon" onClick={handleCopyLoginCode} title={t('copy_login_code')} aria-label={t('copy_login_code')}>
                       <Copy className="h-4 w-4" />
                     </Button>
                     <Button
@@ -316,6 +308,7 @@ export default function StudentPage({ params: paramsPromise }: { params: Promise
                       onClick={handleGenerateLoginCode}
                       disabled={generatingCode}
                       title={t('regenerate_login_code')}
+                      aria-label={t('regenerate_login_code')}
                     >
                       <RefreshCw className="h-4 w-4" />
                     </Button>
@@ -331,11 +324,13 @@ export default function StudentPage({ params: paramsPromise }: { params: Promise
         </div>
 
         <Tabs defaultValue="progress" className="mt-6">
-          <TabsList>
+          <div className="overflow-x-auto pb-1">
+          <TabsList className="w-max min-w-full sm:min-w-0">
             <TabsTrigger value="progress">{t('progress')}</TabsTrigger>
             <TabsTrigger value="attendance">{t('attendance')}</TabsTrigger>
             <TabsTrigger value="assignments">{t('assignments')}</TabsTrigger>
           </TabsList>
+          </div>
           <TabsContent value="progress" className="mt-6">
             <ProgressHistory studentId={student.id} />
           </TabsContent>

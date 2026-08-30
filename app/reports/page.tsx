@@ -2,9 +2,8 @@
 
 import { useState, useEffect, useMemo } from 'react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Loader2, Download, BarChart2, Clock, Calendar, Sparkles, MessageSquare } from 'lucide-react';
+import { BarChart2, Clock, Calendar, MessageSquare } from 'lucide-react';
 import { StudentSelector } from './components/StudentSelector';
 import { GameSelector, ALL_GAMES, UNCLASSIFIED_GAME } from './components/GameSelector';
 import { TimeSpentChart } from './components/TimeSpentChart';
@@ -16,6 +15,8 @@ import { useLanguage } from '@/app/contexts/LanguageContext';
 import { useTranslation } from '@/utils/translations';
 import { AIAnalysisReport } from './components/AIAnalysisReport';
 import { AIInteractionChart } from './components/AIInteractionChart';
+import { PageHeader } from '@/components/layout/PageHeader';
+import { PageLoader } from '@/components/ui/page-state';
 
 // Define LearningRecord type based on the Supabase schema
 interface LearningRecord {
@@ -110,11 +111,11 @@ export default function ReportsPage() {
     const fetchStudents = async () => {
       try {
         console.log('Fetching students from learning_records_view...');
-        
+
         // 動態導入 supabase 函數
         const { supabase } = await import('../../lib/supabase');
         const supabaseClient = supabase();
-        
+
         // Try to fetch from the view
         const { data, error } = await supabaseClient
           .from('learning_records_view')
@@ -133,7 +134,7 @@ export default function ReportsPage() {
           new Map((data || []).map(item => [item.student_id, { id: item.student_id, name: item.student_name }]))
             .values()
         ) as { id: string; name: string }[];
-        
+
         console.log('Unique students found:', uniqueStudents);
         setStudents(uniqueStudents);
 
@@ -156,7 +157,7 @@ export default function ReportsPage() {
         // 動態導入 supabase 函數
         const { supabase } = await import('../../lib/supabase');
         const supabaseClient = supabase();
-        
+
         const { data, error } = await supabaseClient
           .from('lessons')
           .select('id, title');
@@ -185,7 +186,7 @@ export default function ReportsPage() {
         // 動態導入 supabase 函數
         const { supabase } = await import('../../lib/supabase');
         const supabaseClient = supabase();
-        
+
         // Fetch learning records
         const { data: recordsData, error: recordsError } = await supabaseClient
           .from('learning_records_view')
@@ -257,26 +258,26 @@ export default function ReportsPage() {
     }
 
     // Helper functions for consistent field access
-    const getCompletionField = (record: LearningRecord) => 
+    const getCompletionField = (record: LearningRecord) =>
       record.completed_at_taipei || record.completed_at || record.end_time;
-    
+
     const calculateTimeSpent = (record: LearningRecord): number => {
       // If time_spent_seconds is available, use it
       if (record.time_spent_seconds) return record.time_spent_seconds;
-      
+
       // If duration is available, use it
       if (record.duration) return record.duration;
-      
+
       // Try to calculate from start and end times
       const startTime = record.started_at_taipei || record.started_at || record.start_time;
       const endTime = record.completed_at_taipei || record.completed_at || record.end_time;
-      
+
       if (startTime && endTime) {
         const start = new Date(startTime).getTime();
         const end = new Date(endTime).getTime();
         return (end - start) / 1000; // Convert milliseconds to seconds
       }
-      
+
       return 0; // Default if no data available
     };
 
@@ -284,7 +285,7 @@ export default function ReportsPage() {
     const totalTimeSpent = records.reduce((sum, record) => sum + calculateTimeSpent(record), 0);
     const completedLessons = records.filter(record => getCompletionField(record)).length;
     const completionRate = (completedLessons / totalRecords) * 100;
-    
+
     // Category distribution
     const categoryCounts: Record<string, number> = {};
     records.forEach(record => {
@@ -299,18 +300,18 @@ export default function ReportsPage() {
       const sortedRecords = [...records].sort((a, b) => {
         const dateA = a.started_at_taipei || a.started_at || a.start_time;
         const dateB = b.started_at_taipei || b.started_at || b.start_time;
-        
+
         if (!dateA) return 1;  // Push records without dates to the end
         if (!dateB) return -1; // Keep records with dates at the beginning
-        
+
         return new Date(dateB).getTime() - new Date(dateA).getTime(); // Descending order
       });
-      
+
       const mostRecentRecord = sortedRecords[0];
-      const dateField = mostRecentRecord.started_at_taipei || 
-                        mostRecentRecord.started_at || 
+      const dateField = mostRecentRecord.started_at_taipei ||
+                        mostRecentRecord.started_at ||
                         mostRecentRecord.start_time;
-      
+
       if (dateField) {
         // 使用as進行類型斷言
         lastActive = new Date(dateField).toISOString() as any;
@@ -374,7 +375,7 @@ export default function ReportsPage() {
   const formatTime = (seconds: number) => {
     const hours = Math.floor(seconds / 3600);
     const minutes = Math.floor((seconds % 3600) / 60);
-    
+
     if (hours > 0) {
       return `${hours}h ${minutes}m`;
     }
@@ -384,21 +385,21 @@ export default function ReportsPage() {
   // Format date to human readable format
   const formatDate = (dateString: string | undefined) => {
     if (!dateString) return 'N/A';
-    
+
     try {
       const date = new Date(dateString);
-      
+
       // Format: yyyy-mm-dd h:mmAM/h:mmPM (with proper capitalization)
       const year = date.getFullYear();
       const month = String(date.getMonth() + 1).padStart(2, '0');
       const day = String(date.getDate()).padStart(2, '0');
-      
+
       let hours = date.getHours();
       const ampm = hours >= 12 ? 'PM' : 'AM'; // Use uppercase AM/PM
       hours = hours % 12;
       hours = hours ? hours : 12; // convert 0 to 12
       const minutes = String(date.getMinutes()).padStart(2, '0');
-      
+
       return `${year}-${month}-${day} ${hours}:${minutes}${ampm}`;
     } catch (error) {
       console.error('Error formatting date:', error);
@@ -407,7 +408,7 @@ export default function ReportsPage() {
   };
 
   // Get the student name for display and export
-  const selectedStudentName = selectedStudent 
+  const selectedStudentName = selectedStudent
     ? students.find(s => s.id === selectedStudent)?.name || ''
     : '';
 
@@ -426,41 +427,51 @@ export default function ReportsPage() {
         index === self.findIndex(r => r.lesson_id === record.lesson_id)
       )
       .map(record => record.lesson_id);
-      
+
     return uniqueLessonIds.map(id => {
       const stringId = String(id);
       const lesson = lessons.find(l => String(l.id) === stringId);
       return lesson ? lesson.title : String(id);
     });
   };
-  
+
   // Get ordered course titles once
   const orderedCourseTitles = getOrderedCourseTitles();
 
   if (loading && !learningRecords.length) {
-    return (
-      <div className="flex h-64 items-center justify-center">
-        <Loader2 className="h-8 w-8 animate-spin text-primary" />
-      </div>
-    );
+    return <PageLoader />;
   }
 
   // Prepare safe rendering of data with fallbacks
-  const getStartTime = (record: LearningRecord) => 
+  const getStartTime = (record: LearningRecord) =>
     record.started_at_taipei || record.started_at || record.start_time;
-  const getEndTime = (record: LearningRecord) => 
+  const getEndTime = (record: LearningRecord) =>
     record.completed_at_taipei || record.completed_at || record.end_time;
-  const getDuration = (record: LearningRecord) => 
+  const getDuration = (record: LearningRecord) =>
     record.time_spent_seconds || record.duration || 0;
 
   return (
-    <div className="w-full space-y-6 pb-8">
-      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-8">
-        <div>
-          <h1 className="text-2xl font-bold">{t('learning_reports')}</h1>
-          <p className="text-muted-foreground">{t('analyze_learning_patterns')}</p>
+    <div className="w-full space-y-7 pb-8">
+      <PageHeader
+        heading={t('learning_reports')}
+        text={t('analyze_learning_patterns')}
+        actions={
+          <ExportButton
+            records={filteredRecords}
+            studentName={selectedStudentName}
+            disabled={loading}
+          />
+        }
+      />
+
+      <div className="app-panel sticky top-20 z-10 flex flex-col gap-3 p-4 sm:flex-row sm:items-center">
+        <div className="mr-auto">
+          <p className="app-kicker">{language === 'zh-TW' ? '報表範圍' : 'Report scope'}</p>
+          <p className="mt-1 text-sm text-muted-foreground">
+            {language === 'zh-TW' ? '選擇學生與遊戲，所有數據會同步更新' : 'Choose a student and game to update every metric'}
+          </p>
         </div>
-        <div className="flex flex-wrap gap-2">
+        <div className="flex flex-col gap-2 sm:flex-row">
           <StudentSelector
             students={students}
             selectedStudent={selectedStudent}
@@ -473,16 +484,11 @@ export default function ReportsPage() {
             allGamesLabel={t('all_games')}
             unclassifiedLabel={t('unclassified_game')}
           />
-          <ExportButton
-            records={filteredRecords}
-            studentName={selectedStudentName}
-            disabled={loading}
-          />
         </div>
       </div>
 
       {learningRecords.length > 0 && gameBreakdown.length > 1 && (
-        <Card>
+        <Card className="shadow-none">
           <CardHeader>
             <CardTitle>{t('games_comparison')}</CardTitle>
             <CardDescription>{t('games_comparison_desc')}</CardDescription>
@@ -515,7 +521,7 @@ export default function ReportsPage() {
       )}
 
       {filteredRecords.length === 0 ? (
-        <Card>
+        <Card className="shadow-none">
           <CardContent className="flex flex-col items-center justify-center p-6 h-64">
             <BarChart2 className="h-12 w-12 text-muted-foreground mb-4 opacity-50" />
             <h3 className="text-xl font-medium mb-2">{t('no_learning_data')}</h3>
@@ -531,8 +537,8 @@ export default function ReportsPage() {
       ) : (
         <>
           {/* Stats Overview */}
-          <div className="grid gap-4 grid-cols-1 md:grid-cols-2 lg:grid-cols-4">
-            <Card>
+          <div className="grid grid-cols-1 gap-3 md:grid-cols-2 lg:grid-cols-4">
+            <Card className="shadow-none">
               <CardContent className="p-4 md:p-6">
                 <div className="flex items-center justify-between">
                   <p className="text-sm text-muted-foreground">{t('total_learning_time')}</p>
@@ -547,7 +553,7 @@ export default function ReportsPage() {
               </CardContent>
             </Card>
 
-            <Card>
+            <Card className="shadow-none">
               <CardContent className="p-4 md:p-6">
                 <div className="flex items-center justify-between">
                   <p className="text-sm text-muted-foreground">{t('completion_rate')}</p>
@@ -564,7 +570,7 @@ export default function ReportsPage() {
               </CardContent>
             </Card>
 
-            <Card>
+            <Card className="shadow-none">
               <CardContent className="p-4 md:p-6">
                 <div className="flex items-center justify-between">
                   <p className="text-sm text-muted-foreground">{t('last_activity')}</p>
@@ -581,7 +587,7 @@ export default function ReportsPage() {
               </CardContent>
             </Card>
 
-            <Card>
+            <Card className="shadow-none">
               <CardContent className="p-4 md:p-6">
                 <div className="flex items-center justify-between">
                   <p className="text-sm text-muted-foreground">{t('ai_interaction_count')}</p>
@@ -601,16 +607,18 @@ export default function ReportsPage() {
 
           {/* Data Visualization Tabs */}
           <Tabs defaultValue="time-spent" className="w-full">
-            <TabsList className="mb-4">
+            <div className="mb-4 overflow-x-auto pb-1">
+            <TabsList className="w-max">
               <TabsTrigger value="time-spent">{t('time_distribution')}</TabsTrigger>
               <TabsTrigger value="completion">{t('completion_rates')}</TabsTrigger>
               <TabsTrigger value="timeline">{t('learning_timeline')}</TabsTrigger>
               <TabsTrigger value="categories">{t('categories')}</TabsTrigger>
               <TabsTrigger value="ai-interactions">{t('ai_interaction_distribution')}</TabsTrigger>
             </TabsList>
-            
+            </div>
+
             <TabsContent value="time-spent" className="mt-0">
-              <Card>
+              <Card className="shadow-none">
                 <CardHeader>
                   <CardTitle>{t('learning_time_distribution')}</CardTitle>
                   <CardDescription>
@@ -626,9 +634,9 @@ export default function ReportsPage() {
                 </CardContent>
               </Card>
             </TabsContent>
-            
+
             <TabsContent value="completion" className="mt-0">
-              <Card>
+              <Card className="shadow-none">
                 <CardHeader>
                   <CardTitle>{t('lesson_completion_analysis')}</CardTitle>
                   <CardDescription>
@@ -640,9 +648,9 @@ export default function ReportsPage() {
                 </CardContent>
               </Card>
             </TabsContent>
-            
+
             <TabsContent value="timeline" className="mt-0">
-              <Card>
+              <Card className="shadow-none">
                 <CardHeader>
                   <CardTitle>{t('learning_activity_timeline')}</CardTitle>
                   <CardDescription>
@@ -658,9 +666,9 @@ export default function ReportsPage() {
                 </CardContent>
               </Card>
             </TabsContent>
-            
+
             <TabsContent value="categories" className="mt-0">
-              <Card>
+              <Card className="shadow-none">
                 <CardHeader>
                   <CardTitle>{t('category_distribution')}</CardTitle>
                   <CardDescription>
@@ -674,7 +682,7 @@ export default function ReportsPage() {
             </TabsContent>
 
             <TabsContent value="ai-interactions" className="mt-0">
-              <Card>
+              <Card className="shadow-none">
                 <CardHeader>
                   <CardTitle>{t('ai_interaction_distribution')}</CardTitle>
                   <CardDescription>
@@ -693,7 +701,7 @@ export default function ReportsPage() {
           </Tabs>
 
           {/* Recent Records */}
-          <Card>
+          <Card className="shadow-none">
             <CardHeader>
               <CardTitle>{t('recent_learning')}</CardTitle>
               <CardDescription>
@@ -751,7 +759,7 @@ export default function ReportsPage() {
               </div>
             </CardContent>
           </Card>
-          
+
           {/* AI Analysis Report - Add this new section */}
           <AIAnalysisReport
             learningRecords={filteredRecords}
@@ -762,4 +770,4 @@ export default function ReportsPage() {
       )}
     </div>
   );
-} 
+}
