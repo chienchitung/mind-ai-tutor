@@ -8,7 +8,7 @@ export async function generateCoverBackground(input: CoverBrief) {
   // instead of being hard-killed by the platform mid-request.
   const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY!, httpOptions: { timeout: 50000, retryOptions: { attempts: 1 } } });
   const response = await ai.models.generateContent({
-    model: process.env.GEMINI_IMAGE_MODEL || 'gemini-3.1-flash-image',
+    model: process.env.GEMINI_IMAGE_MODEL || 'gemini-3.6-flash-image',
     contents: createCoverPrompt(input),
     config: { responseModalities: ['IMAGE'], imageConfig: { aspectRatio: '16:9', imageSize: '1K' } },
   });

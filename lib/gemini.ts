@@ -4,7 +4,7 @@ import { GoogleGenAI } from '@google/genai';
 // Server-only: this module must never be imported from a 'use client' component,
 // since GEMINI_API_KEY would otherwise be bundled into the browser JS.
 const apiKey = process.env.GEMINI_API_KEY;
-const model = process.env.GEMINI_MODEL || 'gemini-3.7-flash';
+const model = process.env.GEMINI_MODEL || 'gemini-3.6-flash';
 
 if (!apiKey) {
   console.error('Missing Gemini API key. Please check your .env.local file.');
