@@ -11,7 +11,7 @@ describe('image model adapter', () => {
   it('uses a server-only key, explicit image model, timeout, no automatic retry and 16:9', async () => {
     generateContent.mockResolvedValue({ candidates: [{ content: { parts: [image] } }] });
     expect(await generateCoverBackground(brief)).toEqual(image.inlineData);
-    expect(construct).toHaveBeenCalledWith({ apiKey: 'server-test-key', httpOptions: { timeout: 85000, retryOptions: { attempts: 1 } } });
+    expect(construct).toHaveBeenCalledWith({ apiKey: 'server-test-key', httpOptions: { timeout: 50000, retryOptions: { attempts: 1 } } });
     expect(generateContent).toHaveBeenCalledWith(expect.objectContaining({ model: 'gemini-3.1-flash-image', config: { responseModalities: ['IMAGE'], imageConfig: { aspectRatio: '16:9', imageSize: '1K' } } }));
   });
   it('skips thinking images and uses the final image', async () => {
