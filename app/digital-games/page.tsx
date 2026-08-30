@@ -52,6 +52,10 @@ import { PageLoader } from '@/components/ui/page-state';
 import { EditorWorkspace } from '@/components/layout/EditorWorkspace';
 import { useUnsavedChanges } from '@/hooks/useUnsavedChanges';
 import { DeleteConfirmation } from '@/components/ui/delete-confirmation';
+import { GameCoverInput } from '@/components/GameCoverInput';
+import { normalizeLessonOverrides, serializeLessonOverrides } from "@/lib/game-lesson-settings";
+import { coverErrorMessage } from '@/lib/game-cover';
+import { GameCoverSaveRejected, saveWithGameCover } from '@/lib/game-cover-storage';
 
 interface Lesson {
   id: string;
@@ -77,26 +81,6 @@ interface DigitalGame {
   };
 }
 
-function normalizeLessonOverrides(
-  lessonIds: string[],
-  overrides: Record<string, LessonOverride>,
-  lessons: Lesson[],
-): Record<string, LessonOverride> {
-  const startsWithIntro = overrides[lessonIds[0]]?.role === 'intro';
-
-  return lessonIds.reduce<Record<string, LessonOverride>>((result, lessonId, index) => {
-    const lesson = lessons.find(item => item.id === lessonId);
-    const existing = overrides[lessonId] ?? {};
-    result[lessonId] = {
-      ...existing,
-      number: startsWithIntro ? index : index + 1,
-      role: existing.role ?? 'standard',
-      cardDescription: existing.cardDescription ?? lesson?.description ?? '',
-    };
-    return result;
-  }, {});
-}
-
 export default function DigitalGamesPage() {
   const [digitalGames, setDigitalGames] = useState<DigitalGame[]>([]);
   const [deleteTarget, setDeleteTarget] = useState<DigitalGame | null>(null);
@@ -110,6 +94,8 @@ export default function DigitalGamesPage() {
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
   const [selectedLessons, setSelectedLessons] = useState<string[]>([]);
   const [lessonOverrides, setLessonOverrides] = useState<Record<string, LessonOverride>>({});
+  const [coverFile, setCoverFile] = useState<File | null>(null);
+  const [coverEditing, setCoverEditing] = useState(false);
   const { toast } = useToast();
   const { language } = useLanguage();
   const { t } = useTranslation(language);
@@ -127,7 +113,7 @@ export default function DigitalGamesPage() {
       .string()
       .min(1, t("description") + " " + t("exercise_required")),
     url: z.string().url(t("enter_url")),
-    thumbnailUrl: z
+    thumbnailUrl: coverFile ? z.string().optional() : z
       .union([z.string().url(t("enter_thumbnail_url")), z.string().length(0)])
       .optional(),
     lessonIds: z
@@ -236,6 +222,8 @@ export default function DigitalGamesPage() {
 
   // Set form values when editing
   useEffect(() => {
+    setCoverFile(null);
+    setCoverEditing(false);
     if (editingGame) {
       form.reset({
         title: editingGame.title,
@@ -267,17 +255,20 @@ export default function DigitalGamesPage() {
     ids: editingGame?.lesson_ids || [],
     overrides: normalizeLessonOverrides(editingGame?.lesson_ids || [], editingGame?.settings?.lessonOverrides || {}, lessons),
   });
-  const confirmLeave = useUnsavedChanges(showEditForm && (form.formState.isDirty || pathDirty), showEditForm && form.formState.isSubmitting);
+  const confirmLeave = useUnsavedChanges(showEditForm && (form.formState.isDirty || pathDirty || Boolean(coverFile) || coverEditing), showEditForm && form.formState.isSubmitting);
   const closeEditor = () => {
     if (!confirmLeave()) return;
     setShowEditForm(false);
     setEditingGame(null);
     setSelectedLessons([]);
     setLessonOverrides({});
+    setCoverFile(null);
+    setCoverEditing(false);
     form.reset();
   };
 
   const onSubmit = async (values: z.infer<typeof digitalGameFormSchema>) => {
+    if (coverEditing) return;
     try {
       // 動態導入 supabase 函數
       const { supabase } = await import("@/lib/supabase");
@@ -298,7 +289,7 @@ export default function DigitalGamesPage() {
       // 保存當前編輯的遊戲ID，避免狀態變更導致的副作用
       const currentEditingGameId = editingGame?.id;
 
-      const normalizedOverrides = normalizeLessonOverrides(selectedLessons, lessonOverrides, lessons);
+      const normalizedOverrides = serializeLessonOverrides(normalizeLessonOverrides(selectedLessons, lessonOverrides, lessons));
       const gameData = {
         title: values.title,
         description: values.description,
@@ -313,68 +304,33 @@ export default function DigitalGamesPage() {
         },
       };
 
-      // 確保我們有最新的課程映射
       const currentMapping = createMappingFromOrder(selectedLessons);
-
-      if (currentEditingGameId) {
-        // Update existing game
-        const { error } = await supabaseWithTypes
-          .from("digital_games")
-          .update(gameData)
-          .eq("id", currentEditingGameId)
-          .eq("user_id", user.id);
-
-        if (error) throw error;
-
-        setDigitalGames((prev) =>
-          prev.map((game) =>
-            game.id === currentEditingGameId ? { ...game, ...gameData } : game,
-          ),
-        );
-
-        // 如果正在編輯，儲存目前的排序
-        if (user && selectedLessons.length > 0) {
-          await updateLessonOrderMapping(
-            supabaseWithTypes,
-            user.id,
-            currentEditingGameId,
-            currentMapping,
-          );
-        }
-
-        toast({
-          title: t("success"),
-          description: t("game_updated"),
-        });
-      } else {
-        // Create new game
-        const { data, error } = await supabaseWithTypes
-          .from("digital_games")
-          .insert([gameData])
-          .select()
-          .single();
-
-        if (error) throw error;
-
-        // 當創建新遊戲時，儲存排序
-        if (user && selectedLessons.length > 0 && data) {
-          // 更新映射中的遊戲ID
-          await updateLessonOrderMapping(
-            supabaseWithTypes,
-            user.id,
-            data.id,
-            currentMapping,
-          );
-
-        }
-
-        setDigitalGames((prev) => [...prev, data]);
-
-        toast({
-          title: t("success"),
-          description: t("game_created"),
-        });
+      const savedGame = await saveWithGameCover(
+        supabaseClient, user.id, coverFile, values.thumbnailUrl || '',
+        async thumbnailUrl => {
+          const payload = { ...gameData, thumbnail_url: thumbnailUrl };
+          const query = currentEditingGameId
+            ? supabaseClient.from('digital_games').update(payload).eq('id', currentEditingGameId).eq('user_id', user.id)
+            : supabaseClient.from('digital_games').insert([payload]);
+          const { data, error } = await query.select().single();
+          if (error) {
+            // Only confirmed database rejections permit removing the new upload.
+            const Rejection = /^(?:[0-9A-Z]{5}|PGRST116)$/.test(error.code || '') ? GameCoverSaveRejected : Error;
+            throw new Rejection(error.message);
+          }
+          if (!data) throw new Error(t('error_save_game'));
+          return data as DigitalGame;
+        },
+      );
+      setCoverFile(null);
+      setCoverEditing(false);
+      setDigitalGames(previous => currentEditingGameId
+        ? previous.map(game => game.id === savedGame.id ? savedGame : game)
+        : [...previous, savedGame]);
+      if (selectedLessons.length > 0) {
+        await updateLessonOrderMapping(supabaseWithTypes, user.id, savedGame.id, currentMapping);
       }
+      toast({ title: t('success'), description: currentEditingGameId ? t('game_updated') : t('game_created') });
 
       setShowEditForm(false);
       setEditingGame(null);
@@ -384,7 +340,9 @@ export default function DigitalGamesPage() {
     } catch (error: any) {
       toast({
         title: t("error"),
-        description: error.message || t("error_save_game"),
+        description: error instanceof Error && error.message.startsWith('COVER_')
+          ? coverErrorMessage(error, language === 'zh-TW')
+          : error.message || t("error_save_game"),
         variant: "destructive",
       });
       console.error("Error saving game:", error);
@@ -713,15 +671,15 @@ export default function DigitalGamesPage() {
                     name="thumbnailUrl"
                     render={({ field }) => (
                       <FormItem>
-                        <FormLabel>
-                          {t("thumbnail_url")} ({t("optional")})
-                        </FormLabel>
-                        <FormControl>
-                          <Input
-                            placeholder={t("enter_thumbnail_url")}
-                            {...field}
-                          />
-                        </FormControl>
+                        <GameCoverInput
+                          value={field.value || ''}
+                          file={coverFile}
+                          onChange={field.onChange}
+                          onFileChange={setCoverFile}
+                          onEditingChange={setCoverEditing}
+                          disabled={form.formState.isSubmitting}
+                          chinese={language === 'zh-TW'}
+                        />
                         <FormMessage />
                       </FormItem>
                     )}
@@ -731,7 +689,7 @@ export default function DigitalGamesPage() {
                   <section id="game-lessons" className="scroll-mt-24 lg:scroll-mt-64 space-y-4 rounded-xl border border-border/70 p-4 sm:p-5">
                     <div>
                       <h3 className="font-semibold">{language === 'zh-TW' ? '學習路線' : 'Learning path'}</h3>
-                      <p className="mt-1 text-sm text-muted-foreground">{language === 'zh-TW' ? '選取並排序關卡；此處的名稱與摘要會覆蓋課程預設值。' : 'Choose and reorder levels; names and summaries here override lesson defaults.'}</p>
+                      <p className="mt-1 text-sm text-muted-foreground">{language === 'zh-TW' ? '選取並排序課程，直接套用任務地圖。課程名稱與教材保持原樣；可另填這款遊戲專用的摘要與任務情境。' : 'Choose and order lessons to build the mission map. Original lesson names and materials stay intact; summaries and optional mission stories apply only to this game.'}</p>
                     </div>
                   <div className="space-y-2">
                     <FormLabel>
@@ -832,11 +790,12 @@ export default function DigitalGamesPage() {
                     >
                       {t("cancel")}
                     </Button>
-                    <Button type="submit" disabled={form.formState.isSubmitting}>
+                    <Button type="submit" disabled={form.formState.isSubmitting || coverEditing}>
                       {form.formState.isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                       {form.formState.isSubmitting ? (language === 'zh-TW' ? '儲存中…' : 'Saving…') : editingGame ? t("update_game") : t("create_game")}
                     </Button>
                   </div>
+                  {coverEditing && <p className="text-right text-xs text-muted-foreground">{language === 'zh-TW' ? '請先使用此封面或取消裁切，再儲存遊戲。' : 'Apply or cancel the crop before saving the game.'}</p>}
                   </fieldset>
                 </form>
               </Form>

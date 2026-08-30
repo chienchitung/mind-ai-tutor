@@ -1,6 +1,7 @@
 import { supabase } from './supabase'
-import type { GameDefinition, GameLessonOverride, GameSettings } from '@/types/game'
-import type { Lesson } from '@/types/lesson'
+import type { GameDefinition, GameLessonOverride, GameSettings } from '../types/game'
+import type { Lesson } from '../types/lesson'
+import { normalizeMission } from './mission'
 
 interface ManifestLessonRow {
   id: string
@@ -82,6 +83,7 @@ function mapLesson(
     markdownContent: row.markdown_content,
     practiceExercises: row.practice_exercises,
     metadata,
+    mission: normalizeMission(override.mission),
   }
 }
 

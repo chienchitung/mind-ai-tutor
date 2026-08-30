@@ -1,6 +1,6 @@
 import { createClient } from '@supabase/supabase-js'
 import { v4 as uuidv4 } from 'uuid'
-import { gameStorageKey } from '@/lib/game-storage'
+import { gameStorageKey } from './game-storage'
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!

@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 390 80" role="img" aria-label="Excel Master">
+  <rect x="5" y="13" width="67" height="62" rx="16" fill="#1764d8"/>
+  <rect x="12" y="29" width="53" height="38" rx="8" fill="#e9f5ff"/>
+  <path d="M15 22h17m6 0h5M29 31v34m18-34v34M14 47h49" fill="none" stroke="#8ccef0" stroke-width="3" stroke-linecap="round"/>
+  <path d="M22 57h16V43h17V25" fill="none" stroke="#0f8a91" stroke-width="7" stroke-linecap="round" stroke-linejoin="round"/>
+  <circle cx="22" cy="57" r="5" fill="#0f8a91" stroke="white" stroke-width="3"/>
+  <circle cx="38" cy="43" r="5" fill="#1764d8" stroke="white" stroke-width="3"/>
+  <path d="M55 26V5l17 5-17 6" fill="#16bce0"/>
+  <path d="M55 26V5" stroke="#102f56" stroke-width="4" stroke-linecap="round"/>
+  <text x="88" y="53" fill="#102f56" font-family="Arial Rounded MT Bold, Trebuchet MS, Arial, sans-serif" font-size="42" font-weight="900" letter-spacing="-1.5">Excel Master</text>
+</svg>

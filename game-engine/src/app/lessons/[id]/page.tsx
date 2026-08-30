@@ -7,7 +7,7 @@ import { Badge } from "@/components/ui/badge"
 import { Card } from "@/components/ui/card"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { ScrollArea } from "@/components/ui/scroll-area"
-import { Star, MessageCircle, ChevronRight, ChevronLeft, FileSpreadsheet, Trophy, Flame, X, Gift, CheckCircle, XCircle, KeyRound, Image as ImageIcon, Zap } from 'lucide-react'
+import { Star, MessageCircle, ChevronRight, ChevronLeft, FileSpreadsheet, Trophy, X, Gift, CheckCircle, XCircle, KeyRound, Image as ImageIcon, Zap } from 'lucide-react'
 import { lessons as legacyLessons } from '@/data/lessons'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
@@ -24,6 +24,9 @@ import { getPublicGameManifest } from '@/lib/game-manifest'
 import { gameStorageKey } from '@/lib/game-storage'
 import type { Lesson } from '@/types/lesson'
 import type { GameDefinition } from '@/types/game'
+import { GameBrand } from '@/components/GameBrand'
+import { MissionBrief } from '@/components/MissionBrief'
+import { gameThemeStyle } from '@/lib/mission'
 
 
 const ChatMessage = ({ message, isUser, imageUrl }: { message: string; isUser: boolean; imageUrl?: string }) => {
@@ -1137,7 +1140,7 @@ export default function ExcelLearningPlatform({
     }
     
     const newMessage: ChatMessage = {
-      id: Date.now().toString(),
+      id: crypto.randomUUID(),
       content: chatInput.trim(),
       isUser: true,
       timestamp: new Date(),
@@ -1214,7 +1217,7 @@ export default function ExcelLearningPlatform({
       
       // 立即添加一個空的機器人消息來顯示打字動畫
       const tempBotMessage: ChatMessage = {
-        id: (Date.now() + 1).toString(),
+        id: crypto.randomUUID(),
         content: '',
         isUser: false,
         timestamp: new Date()
@@ -1446,12 +1449,12 @@ export default function ExcelLearningPlatform({
                     {lessonState.isCorrect ? (
                       <>
                         <Star className="h-5 w-5 fill-current" />
-                        <span className="font-medium">太棒了！答案正確！獲得 10 星星！</span>
+                        <span className="font-medium">答案正確！看看解析，再試著說明你的方法。</span>
                       </>
                     ) : (
                       <>
                         <X className="h-5 w-5" />
-                        <span className="font-medium">答案不正確，請重試。</span>
+                        <span className="font-medium">還差一步。檢查題目條件與解析，再試一次。</span>
                       </>
                     )}
                   </div>
@@ -1614,81 +1617,26 @@ export default function ExcelLearningPlatform({
   }
 
   return (
-    <div className="min-h-screen bg-[#F9FAFB]">
-      <header className="bg-white border-b sticky top-0 z-50">
-        <div className="container mx-auto h-16 md:h-20 flex items-center justify-between px-4 md:px-6">
-          <Link href={gameId ? `/games/${gameId}` : "/"} className="flex items-center py-2 hover:opacity-80 transition-opacity">
-            <div className="flex items-center">
-              <span className="text-xl md:text-3xl font-bold bg-gradient-to-r from-blue-500 to-cyan-500 bg-clip-text text-transparent">
-                {gameDefinition?.settings.theme?.brandLabel ?? gameDefinition?.title ?? 'excel master'}
-              </span>
-              <div className="w-5 h-5 md:w-6 md:h-6 relative mx-0.5">
-                <FileSpreadsheet className="w-5 h-5 md:w-6 md:h-6 text-cyan-500" />
-                <div className="absolute -top-1 -right-1 w-1.5 h-1.5 md:w-2 md:h-2 bg-blue-500 rounded-full" />
-              </div>
-            </div>
-          </Link>
-
-          <div className="flex items-center gap-2 md:gap-6">
-            <div className="hidden sm:flex items-center gap-2 md:gap-3 px-3 md:px-4 py-2 bg-[#F5F7FF] rounded-xl">
-              <div className="flex items-center gap-1 md:gap-2">
-                <Trophy className="h-4 w-4 md:h-5 md:w-5 text-[#2B4EFF]" />
-                <span className="font-semibold text-gray-900 text-sm md:text-base">Level {lessonState.level}</span>
-              </div>
-              <div className="h-4 md:h-5 w-px bg-gray-200" />
-              <div className="flex flex-col w-28 md:w-36">
-                <div className="flex justify-between items-center text-xs md:text-sm text-gray-600 mb-1">
-                  <span>經驗值</span>
-                  <span>{lessonState.exp % 100}/100 XP</span>
-                </div>
-                <div className="relative h-1.5 bg-gray-200 rounded-full overflow-hidden">
-                  <div 
-                    className="absolute top-0 left-0 h-full bg-[#2B4EFF] transition-all duration-300"
-                    style={{ width: `${lessonState.exp % 100}%` }}
-                  />
-                </div>
-              </div>
-            </div>
-
-            <div className="flex items-center gap-1.5 md:gap-3">
-              <div className="flex items-center gap-1 md:gap-2 px-2 md:px-4 py-1.5 md:py-2 bg-[#FFF5E5] rounded-xl">
-                <Star className="h-4 w-4 md:h-5 md:w-5 text-[#FF9900] fill-[#FF9900]" />
-                <span className="font-semibold text-[#B36B00] text-xs md:text-base">{lessonState.stars}</span>
-              </div>
-              <div className="flex items-center gap-1 md:gap-2 px-2 md:px-4 py-1.5 md:py-2 bg-[#FFE5E5] rounded-xl">
-                <Flame className="h-4 w-4 md:h-5 md:w-5 text-[#FF4B4B]" />
-                <span className="font-semibold text-[#CC0000] text-xs md:text-base">{lessonState.streak} 天</              span>
-              </div>
-            </div>
-          </div>
-
-          <div className="hidden sm:flex items-center gap-3 px-2 md:px-4">
-            <div className="flex flex-col items-end">
-              <div className="flex items-center gap-1 md:gap-2 text-xs md:text-sm mb-1">
-                <span className="text-gray-500">課程進度</span>
-                <span className="font-medium">{lessonState.completedLessons.length}/{lessons.length}</span>
-              </div>
-              <div className="w-24 md:w-32 h-1.5 bg-gray-100 rounded-full overflow-hidden">
-                <div 
-                  className="h-full bg-[#58CC02] transition-all duration-300"
-                  style={{ width: `${lessons.length ? (lessonState.completedLessons.length / lessons.length) * 100 : 0}%` }}
-                />
-              </div>
-            </div>
-          </div>
+    <div className="quest-shell" style={gameThemeStyle(gameDefinition?.settings.theme)}>
+      <a className="quest-skip" href="#lesson-workspace">跳至任務工作臺</a>
+      <header className="quest-header">
+        <div className="quest-header-inner">
+          <Link href={gameId ? `/games/${gameId}` : "/"} aria-label="返回任務基地"><GameBrand game={gameDefinition} legacy={!gameId} /></Link>
+          <span className="quest-header-label">任務工作臺 · 第 {lessonNumber} 關</span>
+          <div className="quest-player-stats"><span>Lv. {lessonState.level}</span><span>{lessonState.exp} XP</span><span><Star size={16} aria-hidden="true" />{lessonState.stars}</span></div>
         </div>
       </header>
 
-      <div className="container mx-auto px-4 py-6 md:py-8 flex flex-col md:flex-row gap-4 md:gap-6">
-        <main className={`transition-all duration-300 ${lessonState.showChat ? (isExpanded ? 'w-0 md:w-0' : 'w-full md:w-[calc(100%-24rem)]') : 'w-full'}`}>
-          <div className="mb-6 md:mb-8">
+      <div className="quest-workspace flex flex-col md:flex-row gap-4 md:gap-6">
+        <main id="lesson-workspace" className={`transition-all duration-300 ${lessonState.showChat ? (isExpanded ? 'hidden' : 'w-full lg:w-[calc(100%-400px)]') : 'w-full'}`}>
+          <div className="quest-lesson-heading">
             <div className="flex items-center gap-4 mb-4">
               <Link 
                 href={gameId ? `/games/${gameId}` : "/"}
                 className="flex items-center gap-2 text-gray-600 hover:text-blue-600 transition-colors"
               >
                 <ChevronLeft className="h-4 w-4 md:h-5 md:w-5" />
-                <span className="text-sm md:text-base">返回首頁</span>
+                <span className="text-sm md:text-base">返回任務基地</span>
               </Link>
               <div className="h-4 w-px bg-gray-200" />
               <Badge variant="outline" className="bg-blue-600 text-white border-0 text-sm md:text-base">
@@ -1699,6 +1647,7 @@ export default function ExcelLearningPlatform({
             <p className="text-sm md:text-base text-gray-600">{currentLesson?.description}</p>
           </div>
 
+          {currentLesson && <MissionBrief lesson={currentLesson} completed={lessonState.completedLessons.includes(currentLesson.lesson_id)} />}
           <Tabs ref={tabsRef} defaultValue={isFinalLesson(lessonState.currentLesson) ? 'game' : 'content'} className="mb-6 md:mb-8">
             {!isIntroLesson(lessonState.currentLesson) && (
             <TabsList className="grid w-full gap-2 border-b border-gray-100 mb-2" style={{ gridTemplateColumns: `repeat(${showTabs.length}, 1fr)` }}>
@@ -1715,7 +1664,7 @@ export default function ExcelLearningPlatform({
                     focus:outline-none
                   `}
                 >
-                  課程內容
+                  學習資料
                 </TabsTrigger>
               )}
               {showTabs.includes('practice') && (
@@ -1732,7 +1681,7 @@ export default function ExcelLearningPlatform({
                   `}
                 >
                   <Zap className="w-5 h-5" />
-                  挑戰題
+                  任務挑戰
                 </TabsTrigger>
               )}
               {showTabs.includes('game') && (
@@ -1749,7 +1698,7 @@ export default function ExcelLearningPlatform({
                   `}
                 >
                   <FileSpreadsheet className="w-5 h-5" />
-                  遊戲關卡
+                  互動關卡
                 </TabsTrigger>
               )}
             </TabsList>
@@ -2163,12 +2112,14 @@ export default function ExcelLearningPlatform({
 
         {/* AI 助教側邊面板 */}
         <div 
+          inert={!lessonState.showChat}
+          aria-hidden={!lessonState.showChat}
           className={`
-            fixed inset-0 md:inset-auto md:top-[4rem] md:right-0 md:h-[calc(100vh-4rem)] 
+            fixed inset-0 lg:inset-auto lg:top-[80px] lg:right-0 lg:h-[calc(100dvh-80px)]
             bg-white border-l z-50 transition-all duration-300
             ${lessonState.showChat 
-              ? 'translate-x-0 ' + (isExpanded ? 'w-full md:w-full' : 'w-full md:w-[480px]')
-              : 'translate-x-full w-full md:w-0'
+              ? 'translate-x-0 ' + (isExpanded ? 'w-full' : 'w-full lg:w-[400px]')
+              : 'translate-x-full w-full lg:w-0'
             }
           `}
         >
@@ -2180,7 +2131,7 @@ export default function ExcelLearningPlatform({
                 </div>
                 <div>
                   <h2 className="font-semibold text-gray-900 text-lg">Ellis</h2>
-                  <p className="text-sm text-gray-500">隨時為您解答問題</p>
+                  <p className="text-sm text-gray-500">一起釐清問題，探索你的解法</p>
                 </div>
               </div>
               <div className="flex items-center gap-2">
@@ -2188,6 +2139,7 @@ export default function ExcelLearningPlatform({
                   variant="ghost" 
                   size="icon"
                   onClick={toggleExpand}
+                  aria-label={isExpanded ? '縮小 AI 導師面板' : '展開 AI 導師面板'}
                   className="hover:bg-gray-100 rounded-lg"
                 >
                   {isExpanded ? (
@@ -2204,6 +2156,7 @@ export default function ExcelLearningPlatform({
                   variant="ghost" 
                   size="icon"
                   onClick={toggleChat}
+                  aria-label="關閉 AI 導師"
                   className="hover:bg-gray-100 rounded-lg"
                 >
                   <X className="h-5 w-5 text-gray-500" />
@@ -2363,17 +2316,22 @@ export default function ExcelLearningPlatform({
 
       {/* 獎勵兌換視窗 */}
       <Dialog open={showRewardDialog} onOpenChange={setShowRewardDialog}>
-        <DialogContent className="sm:max-w-[500px]">
+        <DialogContent className="sm:max-w-[560px] max-h-[90dvh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2 text-xl">
               <Gift className="h-6 w-6 text-[#FF9900]" />
-              兌換獎勵
+              學習旅程成果
             </DialogTitle>
             <DialogDescription asChild>
               <div className="space-y-4 text-base text-muted-foreground">
-                <div>恭喜完成所有課程！</div>
+                <div className="rounded-xl border border-emerald-100 bg-emerald-50 p-4">
+                  <p className="font-semibold text-emerald-900">每一步探索，都留下了足跡。</p>
+                  <p className="mt-2 text-sm text-slate-600">{currentLesson?.mission?.completionMessage || '本次任務已完成。回顧這些課程，試著說明你使用過的方法。'}</p>
+                  <ul className="quest-result-list">{lessons.filter(item => lessonState.completedLessons.includes(item.lesson_id)).map(item => <li key={item.lesson_id}><CheckCircle size={16} /><span>{item.title}</span></li>)}</ul>
+                  <p className="mt-3 text-xs text-slate-500">以上為課程完成紀錄，不等同於獨立技能評量。</p>
+                </div>
                 {completionTime && (
-                  <div className="space-y-2">
+                  <details className="space-y-2"><summary className="cursor-pointer text-sm text-slate-600">查看時間紀錄（不代表學習能力）</summary>
                     <div className="flex items-center gap-2">
                       <span className="text-[#2B4EFF] font-semibold">
                         完成時間：{completionTime}
@@ -2402,12 +2360,13 @@ export default function ExcelLearningPlatform({
                         </div>
                       </div>
                     </div>
-                  </div>
+                  </details>
                 )}
                 <div>您可以使用 {rewardClaimCost} 顆星星兌換特別獎勵。</div>
               </div>
             </DialogDescription>
           </DialogHeader>
+          <Link href={gameId ? `/games/${gameId}` : '/'} className="quest-button">返回任務基地</Link>
           <div className="p-6">
             <div className="space-y-6">
               <div className="flex items-center justify-between p-4 bg-[#FFF5E5] rounded-xl">

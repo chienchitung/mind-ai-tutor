@@ -1,3 +1,5 @@
+import type { GameMission } from './game'
+
 export interface Question {
   id: number;
   description: string;
@@ -25,6 +27,7 @@ export interface Lesson {
   markdownContent?: string | null;
   practiceExercises?: unknown;
   metadata?: Record<string, unknown>;
+  mission?: GameMission;
 }
 
 export interface LessonProgress {

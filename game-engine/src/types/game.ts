@@ -18,6 +18,15 @@ export interface GameLessonOverride {
   number?: number
   role?: 'intro' | 'standard' | 'final'
   cardDescription?: string
+  mission?: GameMission
+}
+
+/** Optional presentation only. Never changes assessment or lesson identity. */
+export interface GameMission {
+  scenario?: string
+  objective?: string
+  mentorMessage?: string
+  completionMessage?: string
 }
 
 export interface GameSettings {

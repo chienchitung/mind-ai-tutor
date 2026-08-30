@@ -21,7 +21,6 @@ import {
   PanelLeft,
   Settings,
   ShieldCheck,
-  Sparkles,
   Users,
   Wand2,
   X,
@@ -48,6 +47,7 @@ import {
 import { useLanguage, type Language } from '@/app/contexts/LanguageContext';
 import { useTranslation, translations } from '@/utils/translations';
 import { confirmAppNavigation } from '@/lib/navigation-guard';
+import { BrandLogo } from './BrandLogo';
 
 interface SidebarProps {
   className?: string;
@@ -204,22 +204,14 @@ export function Sidebar({
       >
         <div className={cn('flex h-16 items-center border-b border-border/70 px-3', isCollapsed ? 'justify-center' : 'justify-between')}>
           {!isCollapsed && (
-            <Link href="/dashboard" className="flex min-w-0 items-center gap-2.5">
-              <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-foreground text-background">
-                <Sparkles className="h-5 w-5" />
-              </span>
-              <span className="min-w-0">
-                <span className="block truncate text-sm font-semibold tracking-tight">MindAiTutor</span>
-                <span className="block text-[10px] uppercase tracking-[0.16em] text-muted-foreground">
-                  {language === 'zh-TW' ? '教師工作台' : 'Teacher workspace'}
-                </span>
-              </span>
+            <Link href="/dashboard" className="flex min-w-0 flex-1 items-center" aria-label="MindAiTutor">
+              <BrandLogo />
             </Link>
           )}
           <Button
             variant="ghost"
             size="icon"
-            className="hidden md:inline-flex"
+            className="hidden shrink-0 md:inline-flex"
             onClick={handleCollapse}
             aria-label={isCollapsed ? t('expand_sidebar') : t('collapse_sidebar')}
           >
@@ -228,7 +220,7 @@ export function Sidebar({
           <Button
             variant="ghost"
             size="icon"
-            className="ml-auto md:hidden"
+            className="ml-auto shrink-0 md:hidden"
             onClick={() => onOpenChange?.(false)}
             aria-label={language === 'zh-TW' ? '關閉導覽選單' : 'Close navigation'}
           >

@@ -1599,7 +1599,7 @@ export const translations = {
   }
 };
 
-export function useTranslation(language: Language) {
+function createTranslation(language: Language) {
   const t = (key: TranslationKey, params?: Record<string, string | number>) => {
     let translation = translations[language]?.[key] || translations['en'][key];
     
@@ -1613,4 +1613,15 @@ export function useTranslation(language: Language) {
   };
 
   return { t };
+}
+
+// A translator changes only when its language changes, not on every render.
+// Effects depending on `t` (such as the admin overview loader) must not loop.
+const translationHelpers = {
+  en: createTranslation('en'),
+  'zh-TW': createTranslation('zh-TW'),
+};
+
+export function useTranslation(language: Language) {
+  return translationHelpers[language] || translationHelpers.en;
 }
