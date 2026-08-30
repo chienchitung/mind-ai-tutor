@@ -4,7 +4,9 @@ import { coverRequestSchema } from '@/lib/ai-game-cover';
 import { generateCoverBackground } from '@/lib/ai-game-cover-server';
 
 export const runtime = 'nodejs';
-export const maxDuration = 120;
+// Capped at 60 - Vercel's Hobby plan rejects any Serverless Function
+// maxDuration above 60 seconds outright, failing the whole deployment.
+export const maxDuration = 60;
 const fail = (error: string, status: number) => NextResponse.json({ error }, { status, headers: { 'Cache-Control': 'private, no-store' } });
 
 export async function POST(request: Request) {
