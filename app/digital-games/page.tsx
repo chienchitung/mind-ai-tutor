@@ -672,6 +672,13 @@ export default function DigitalGamesPage() {
                     render={({ field }) => (
                       <FormItem>
                         <GameCoverInput
+                          key={editingGame?.id || 'new-game'}
+                          context={{ title: form.watch('title') || '', description: form.watch('description') || '', topics: selectedLessons.map(id => {
+                            const lesson = lessons.find(item => item.id === id);
+                            if (!lesson) return '';
+                            const objective = lessonOverrides[id]?.mission?.objective || lesson.description || '';
+                            return `${lesson.title}${objective ? `：${objective}` : ''}`;
+                          }).filter(Boolean) }}
                           value={field.value || ''}
                           file={coverFile}
                           onChange={field.onChange}
@@ -795,7 +802,7 @@ export default function DigitalGamesPage() {
                       {form.formState.isSubmitting ? (language === 'zh-TW' ? '儲存中…' : 'Saving…') : editingGame ? t("update_game") : t("create_game")}
                     </Button>
                   </div>
-                  {coverEditing && <p className="text-right text-xs text-muted-foreground">{language === 'zh-TW' ? '請先使用此封面或取消裁切，再儲存遊戲。' : 'Apply or cancel the crop before saving the game.'}</p>}
+                  {coverEditing && <p className="text-right text-xs text-muted-foreground">{language === 'zh-TW' ? '請先使用此封面或取消封面編輯，再儲存遊戲。' : 'Apply or cancel cover editing before saving the game.'}</p>}
                   </fieldset>
                 </form>
               </Form>
