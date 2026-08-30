@@ -7,7 +7,7 @@ import { Badge } from "@/components/ui/badge"
 import { Card } from "@/components/ui/card"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { ScrollArea } from "@/components/ui/scroll-area"
-import { Star, MessageCircle, ChevronRight, ChevronLeft, FileSpreadsheet, Trophy, X, Gift, CheckCircle, XCircle, KeyRound, Image as ImageIcon, Zap } from 'lucide-react'
+import { Star, ChevronRight, ChevronLeft, FileSpreadsheet, Trophy, X, Gift, CheckCircle, Image as ImageIcon, Zap } from 'lucide-react'
 import { lessons as legacyLessons } from '@/data/lessons'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
@@ -18,7 +18,9 @@ import { saveLearningRecord, saveLeaderboardEntry, getPlayerRank, getLeaderboard
 import { initializeGemini, getChatResponse } from '@/lib/gemini'
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm'
-import { RobotAvatar } from '@/components/RobotAvatar'
+import { MentorAvatar } from '@/components/MentorAvatar'
+import { LessonAnswer, LessonMarkdown, ChallengeHeading } from '@/components/LessonChallenge'
+import { initialLessonTab, lessonStage, mentorGreeting, mentorPrompts } from '@/lib/lesson-presentation'
 import { getLearningRecordId, getOrCreateQuestionCount, incrementQuestionCount, saveChatMessage } from '@/lib/supabase'
 import { getPublicGameManifest } from '@/lib/game-manifest'
 import { gameStorageKey } from '@/lib/game-storage'
@@ -70,8 +72,8 @@ const ChatMessage = ({ message, isUser, imageUrl }: { message: string; isUser: b
         {!isUser && (
           <div className="flex w-full gap-3">
             <div className="flex-shrink-0">
-              <div className="w-10 h-10 rounded-full bg-white flex items-center justify-center overflow-hidden border-2 border-gray-200">
-                <RobotAvatar className="w-full h-full" />
+              <div className="lesson-avatar-small">
+                <MentorAvatar className="w-full h-full" />
               </div>
             </div>
             <div className="flex-grow">
@@ -249,26 +251,6 @@ const ChatMessage = ({ message, isUser, imageUrl }: { message: string; isUser: b
       </div>
     </div>
   );
-};
-
-const getInitialMessage = (gameTitle = '學習挑戰', lessonCount = 5) => {
-  return `# 您好，我是艾利斯，${gameTitle}學習助手！
-
-我可以協助您理解目前的課程內容與練習：
-
-* 共有${lessonCount}個關卡
-* 完成練習可獲得星星和經驗值
-* 累積足夠星星可兌換特別獎勵
-* 您可以針對課程與題目向我提問
-* 可以上傳截圖以獲得更精確的協助
-
-## 如何使用我的協助：
-
-1. **關於課程內容**：詢問關於當前課程的概念和技巧
-2. **關於練習題**：我可以提供循序漸進的引導和提示
-3. **延伸問題**：詢問課程相關的概念與操作技巧
-
-請告訴我您需要什麼幫助？`;
 };
 
 // 定義聊天上下文介面
@@ -661,7 +643,7 @@ export default function ExcelLearningPlatform({
   const [chatMessages, setChatMessages] = useState<ChatMessage[]>([
     {
       id: '1',
-      content: getInitialMessage(),
+      content: mentorGreeting(),
       isUser: false,
       timestamp: new Date()
     }
@@ -671,24 +653,59 @@ export default function ExcelLearningPlatform({
   const chatInputRef = useRef<HTMLTextAreaElement>(null);
 
   const tabsRef = useRef<HTMLDivElement>(null);
-  const router = useRouter();
-
+  const chatPanelRef = useRef<HTMLDivElement>(null);
+  const chatToggleRef = useRef<HTMLButtonElement>(null);
+  const [wasCompletedOnEntry, setWasCompletedOnEntry] = useState(false);
+  const [compactChat, setCompactChat] = useState(false);
   useEffect(() => {
-    if (tabsRef.current) {
-      const activeValue = isFinalLesson(lessonState.currentLesson) ? 'game' : 'content';
-      const tabsElement = tabsRef.current;
-      const activeTab = tabsElement.querySelector(`[data-state="active"]`);
-      if (!activeTab) {
-        const targetTab = tabsElement.querySelector(`[data-value="${activeValue}"]`);
-        if (targetTab instanceof HTMLElement) {
-          targetTab.click();
-        }
+    setWasCompletedOnEntry(getProgress(gameId).completedLessons.includes(resolvedParams.id));
+  }, [gameId, resolvedParams.id]);
+  useEffect(() => {
+    const query = window.matchMedia('(max-width: 1099px)');
+    const update = () => setCompactChat(query.matches);
+    update();
+    query.addEventListener('change', update);
+    return () => query.removeEventListener('change', update);
+  }, []);
+  useEffect(() => {
+    if (!lessonState.showChat || !(compactChat || isExpanded)) return;
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    return () => { document.body.style.overflow = previousOverflow; };
+  }, [lessonState.showChat, compactChat, isExpanded]);
+  useEffect(() => {
+    if (!lessonState.showChat) return;
+    const previousFocus = document.activeElement as HTMLElement | null;
+    const fallbackFocus = chatToggleRef.current;
+    const frame = requestAnimationFrame(() => chatInputRef.current?.focus());
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        setLessonState(previous => ({ ...previous, showChat: false }));
+        return;
       }
-    }
-  }, [lessonState.currentLesson]);
+      if (event.key !== 'Tab' || !(compactChat || isExpanded)) return;
+      const elements = Array.from(chatPanelRef.current?.querySelectorAll<HTMLElement>('button:not([disabled]), textarea, input:not([type="file"]), summary, a[href], [tabindex="0"]') || []).filter(element => element.offsetParent !== null);
+      const first = elements[0], last = elements[elements.length - 1];
+      if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last?.focus(); }
+      if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first?.focus(); }
+    };
+    document.addEventListener('keydown', onKeyDown);
+    return () => {
+      cancelAnimationFrame(frame);
+      document.removeEventListener('keydown', onKeyDown);
+      if (previousFocus?.isConnected) previousFocus.focus();
+      else fallbackFocus?.focus();
+    };
+  }, [lessonState.showChat, compactChat, isExpanded]);
+  const router = useRouter();
 
   // 修改獲取當前課程的方式
   const currentLesson = lessons.find(lesson => lesson.lesson_id === lessonState.currentLesson);
+  const stage = lessonStage(wasCompletedOnEntry, lessonState.hasSubmitted, lessonState.isCorrect);
+  const greeting = mentorGreeting(currentLesson?.title, currentLesson?.mission?.mentorMessage);
+  useEffect(() => {
+    setChatMessages(previous => previous.map(message => message.id === '1' ? { ...message, content: greeting } : message));
+  }, [greeting]);
 
   useEffect(() => {
     // Save initial welcome message to local state instead of Supabase
@@ -696,7 +713,7 @@ export default function ExcelLearningPlatform({
       try {
         // Add welcome message to pending messages
         setPendingChatMessages([{
-          content: getInitialMessage(gameDefinition?.title, lessons.length || 5),
+          content: mentorGreeting(currentLesson?.title, currentLesson?.mission?.mentorMessage),
           is_user: false,
           timestamp: new Date().toISOString(),
         }]);
@@ -706,7 +723,7 @@ export default function ExcelLearningPlatform({
     };
     
     saveInitialMessage();
-  }, [lessonState.currentLesson, gameDefinition?.title, lessons.length]);
+  }, [lessonState.currentLesson, currentLesson?.title, currentLesson?.mission?.mentorMessage]);
 
   const geminiReadyRef = useRef(false);
   useEffect(() => {
@@ -1418,166 +1435,13 @@ export default function ExcelLearningPlatform({
     }
   };
 
-  // Update renderQuestion function to properly display only the answer input field
-  const renderQuestion = () => {
-    if (exercisesData.length === 0) return null;
-    
-    return (
-      <div className="bg-gray-50 rounded-xl p-6">
-        <div className="flex items-start gap-4">
-          <div className="w-10 h-10 rounded-xl bg-[#58CC02] flex items-center justify-center flex-shrink-0">
-            <MessageCircle className="h-5 w-5 text-white" />
-          </div>
-          <div className="flex-1">
-            <h3 className="font-semibold text-lg mb-3">您的答案</h3>
-            <div className="space-y-4">
-              <input
-                type="text"
-                value={lessonState.answer}
-                onChange={handleAnswerChange}
-                className="w-full p-4 border border-gray-200 rounded-xl text-lg focus:outline-none focus:ring-2 focus:ring-[#2B4EFF] focus:border-transparent"
-                placeholder="輸入您的答案..."
-                disabled={lessonState.hasSubmitted && lessonState.isCorrect}
-              />
-              {lessonState.hasSubmitted && (
-                <div className={`p-4 rounded-xl ${
-                  lessonState.isCorrect 
-                    ? 'bg-[#E5FFE1] text-[#58CC02]' 
-                    : 'bg-[#FFE5E5] text-[#FF4B4B]'
-                }`}>
-                  <div className="flex items-center gap-2 mb-2">
-                    {lessonState.isCorrect ? (
-                      <>
-                        <Star className="h-5 w-5 fill-current" />
-                        <span className="font-medium">答案正確！看看解析，再試著說明你的方法。</span>
-                      </>
-                    ) : (
-                      <>
-                        <X className="h-5 w-5" />
-                        <span className="font-medium">還差一步。檢查題目條件與解析，再試一次。</span>
-                      </>
-                    )}
-                  </div>
-                  {currentExplanation && (
-                    <div className="mt-3 p-3 bg-white rounded-lg text-gray-700">
-                      <h4 className="font-medium mb-1">解釋說明：</h4>
-                      <div className="prose prose-sm max-w-none">
-                        <ReactMarkdown 
-                          remarkPlugins={[remarkGfm]}
-                          components={{
-                            p: ({children}) => <p className="mb-2 last:mb-0">{children}</p>,
-                            li: ({children}) => <li className="mb-1">{children}</li>,
-                            code: ({ children, className, node, ...rest }) => {
-                              const match = /language-(\w+)/.exec(className || '')
-                              return match 
-                                ? <pre className="p-4 bg-gray-100 rounded overflow-x-auto"><code className={className}>{children}</code></pre>
-                                : <code className="px-1 py-0.5 bg-gray-100 rounded text-blue-600">{children}</code>
-                            }
-                          }}
-                        >
-                          {formatExplanation(currentExplanation)}
-                        </ReactMarkdown>
-                      </div>
-                    </div>
-                  )}
-                </div>
-              )}
-              <Button 
-                onClick={lessonState.isCorrect ? handleContinue : handleAnswerSubmit}
-                className={`w-full py-4 text-lg font-semibold rounded-xl transition-transform hover:scale-105 ${
-                  lessonState.hasSubmitted && lessonState.isCorrect
-                    ? 'bg-[#58CC02] hover:bg-[#46a001]'
-                    : 'bg-[#2B4EFF] hover:bg-blue-700'
-                } text-white`}
-                disabled={!lessonState.isCorrect && !lessonState.answer.trim()}
-              >
-                {lessonState.hasSubmitted && lessonState.isCorrect ? '繼續' : '檢查答案'}
-              </Button>
-            </div>
-          </div>
-        </div>
-      </div>
-    );
-  };
-
-  // Update the final question rendering for consistency
-  const renderFinalQuestion = () => {
-    if (!exercisesData || exercisesData.length === 0) return null;
-    
-    return (
-      <div className="bg-white rounded-xl p-6 border border-gray-200">
-        <div className="flex items-start">
-          <div className="flex-1">
-            <div className="flex items-center mb-4">
-              <div className="w-10 h-10 rounded-xl bg-[#2B4EFF] flex items-center justify-center flex-shrink-0 mr-3">
-                <KeyRound className="h-5 w-5 text-white" />
-              </div>
-              <h3 className="font-semibold text-lg">終極密碼</h3>
-            </div>
-            
-            {lessonState.hasSubmitted && lessonState.isCorrect && (
-              <div className="p-4 rounded-lg mb-4 bg-[#E5FFE1] border border-[#C8F0C3]">
-                <div className="flex items-center">
-                  <CheckCircle className="h-5 w-5 text-[#58CC02] mr-2" />
-                  <p className="font-medium text-[#58CC02]">
-                    答案正確！
-                  </p>
-                </div>
-              </div>
-            )}
-            
-            {lessonState.hasSubmitted && !lessonState.isCorrect && (
-              <div className="p-4 rounded-lg mb-4 bg-[#FFE5E5] border border-[#F0C3C3]">
-                <div className="flex items-center">
-                  <XCircle className="h-5 w-5 text-[#FF4B4B] mr-2" />
-                  <p className="font-medium text-[#FF4B4B]">
-                    答案不正確，請重試。
-                  </p>
-                </div>
-              </div>
-            )}
-            
-            <div className="space-y-4">
-              <div className="flex flex-col">
-                <label htmlFor="answer" className="font-medium text-gray-700 mb-2">
-                  輸入你的答案：
-                </label>
-                <div className="relative">
-                  <input
-                    id="answer"
-                    type="text"
-                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                    placeholder="在此輸入答案..."
-                    value={lessonState.answer}
-                    onChange={handleAnswerChange}
-                    disabled={lessonState.hasSubmitted && lessonState.isCorrect}
-                  />
-                </div>
-              </div>
-              {!lessonState.hasSubmitted || !lessonState.isCorrect ? (
-                <button
-                  className="w-full px-4 py-3 bg-[#2B4EFF] text-white font-medium rounded-lg hover:bg-blue-700 transition-colors"
-                  onClick={handleAnswerSubmit}
-                  disabled={!lessonState.answer.trim()}
-                >
-                  提交答案
-                </button>
-              ) : (
-                lessonState.isCorrect && (
-                  <button
-                    className="w-full px-4 py-3 bg-[#58CC02] text-white font-medium rounded-lg hover:bg-[#46a001] transition-colors"
-                    onClick={handleContinue}
-                  >
-                    完成課程
-                  </button>
-                )
-              )}
-            </div>
-          </div>
-        </div>
-      </div>
-    );
-  };
+  const renderAnswer = (final = false) => exercisesData.length > 0 ? (
+    <LessonAnswer answer={lessonState.answer} submitted={lessonState.hasSubmitted} correct={lessonState.isCorrect}
+      stage={stage} final={final} explanation={!final && currentExplanation ? formatExplanation(currentExplanation) : null}
+      completionMessage={currentLesson?.mission?.completionMessage}
+      onChange={handleAnswerChange} onSubmit={handleAnswerSubmit} onContinue={handleContinue}
+      onHint={() => { setLessonState(previous => ({ ...previous, showChat: true })); handleInsertPreset(mentorPrompts[1].prompt); }} />
+  ) : null;
 
   // 添加 geniallyLink 狀態來存儲連結
   const [geniallyLink, setGeniallyLink] = useState<string | null>(null);
@@ -1592,15 +1456,6 @@ export default function ExcelLearningPlatform({
   // 增加內容加載狀態
   const [contentLoading, setContentLoading] = useState(true);
 
-  // 預設提問模板
-  const presetQuestions: string[] = [
-    '我不確定應該用哪個函數來解這題，能一步一步引導我嗎？',
-    '請用生活化的例子解釋一下 VLOOKUP 的用途與限制。',
-    '我寫了這個公式但結果怪怪的，可以幫我檢查嗎：=VLOOKUP( , , , )',
-    '如果我要同時根據兩個條件做查找，應該怎麼做？',
-    '能給我 3 個練習題，從簡單到中等，再附上解答嗎？',
-    '請把剛剛的重點整理成 5 行筆記，便於我複習。'
-  ];
   const starsPerLesson = gameDefinition?.settings.rewards?.starsPerLesson ?? 10;
   const xpPerLesson = gameDefinition?.settings.rewards?.xpPerLesson ?? 20;
   const rewardClaimCost = gameDefinition?.settings.rewards?.claimCost ?? 50;
@@ -1617,20 +1472,20 @@ export default function ExcelLearningPlatform({
   }
 
   return (
-    <div className="quest-shell" style={gameThemeStyle(gameDefinition?.settings.theme)}>
+    <div className="quest-shell lesson-shell" style={gameThemeStyle(gameDefinition?.settings.theme)}>
       <a className="quest-skip" href="#lesson-workspace">跳至任務工作臺</a>
-      <header className="quest-header">
+      <header className="quest-header" inert={lessonState.showChat && (compactChat || isExpanded)}>
         <div className="quest-header-inner">
           <Link href={gameId ? `/games/${gameId}` : "/"} aria-label="返回任務基地"><GameBrand game={gameDefinition} legacy={!gameId} /></Link>
-          <span className="quest-header-label">任務工作臺 · 第 {lessonNumber} 關</span>
+          <span className="quest-header-label">任務工作臺</span>
           <div className="quest-player-stats"><span>Lv. {lessonState.level}</span><span>{lessonState.exp} XP</span><span><Star size={16} aria-hidden="true" />{lessonState.stars}</span></div>
         </div>
       </header>
 
-      <div className="quest-workspace flex flex-col md:flex-row gap-4 md:gap-6">
-        <main id="lesson-workspace" className={`transition-all duration-300 ${lessonState.showChat ? (isExpanded ? 'hidden' : 'w-full lg:w-[calc(100%-400px)]') : 'w-full'}`}>
-          <div className="quest-lesson-heading">
-            <div className="flex items-center gap-4 mb-4">
+      <div className={`quest-workspace lesson-layout ${lessonState.showChat ? 'chat-open' : ''} ${isExpanded && lessonState.showChat ? 'chat-expanded' : ''}`}>
+        <main id="lesson-workspace" className="lesson-main" inert={lessonState.showChat && (compactChat || isExpanded)}>
+          <div className="lesson-heading">
+            <div className="lesson-breadcrumb">
               <Link 
                 href={gameId ? `/games/${gameId}` : "/"}
                 className="flex items-center gap-2 text-gray-600 hover:text-blue-600 transition-colors"
@@ -1642,27 +1497,21 @@ export default function ExcelLearningPlatform({
               <Badge variant="outline" className="bg-blue-600 text-white border-0 text-sm md:text-base">
                 {isIntroLesson(lessonState.currentLesson) ? '前導課程' : `第 ${lessonNumber} 關`}
               </Badge>
+              {wasCompletedOnEntry && <span className="lesson-state is-review">已完成 · 複習中</span>}
+              <button ref={chatToggleRef} type="button" className="lesson-ask" onClick={toggleChat} aria-controls="ellis-panel" aria-expanded={lessonState.showChat} aria-label={lessonState.showChat ? "關閉 AI 導師" : "開啟 AI 導師"}><MentorAvatar />Ellis 導師</button>
             </div>
             <h1 className="text-xl md:text-2xl font-bold mb-2">{currentLesson?.title}</h1>
-            <p className="text-sm md:text-base text-gray-600">{currentLesson?.description}</p>
+
           </div>
 
-          {currentLesson && <MissionBrief lesson={currentLesson} completed={lessonState.completedLessons.includes(currentLesson.lesson_id)} />}
-          <Tabs ref={tabsRef} defaultValue={isFinalLesson(lessonState.currentLesson) ? 'game' : 'content'} className="mb-6 md:mb-8">
+          {currentLesson && <MissionBrief lesson={currentLesson} />}
+          <Tabs key={lessonState.currentLesson + (currentLesson?.role || "")} ref={tabsRef} defaultValue={initialLessonTab(isIntroLesson(lessonState.currentLesson), isFinalLesson(lessonState.currentLesson))} className="lesson-tabs">
             {!isIntroLesson(lessonState.currentLesson) && (
-            <TabsList className="grid w-full gap-2 border-b border-gray-100 mb-2" style={{ gridTemplateColumns: `repeat(${showTabs.length}, 1fr)` }}>
+            <TabsList className="lesson-tab-list" style={{ gridTemplateColumns: `repeat(${showTabs.length}, 1fr)` }}>
               {showTabs.includes('content') && (
                 <TabsTrigger
                   value="content"
-                  className={`
-                    flex items-center justify-center gap-2 px-6 py-2 rounded-full border-2 border-[#58CC02] font-bold text-base
-                    text-[#58CC02] bg-white
-                    transition-all duration-200
-                    shadow-sm
-                    data-[state=active]:bg-[#58CC02] data-[state=active]:text-white data-[state=active]:shadow-lg
-                    hover:bg-[#E6F9E6] hover:text-[#58CC02] cursor-pointer
-                    focus:outline-none
-                  `}
+                  className="lesson-tab"
                 >
                   學習資料
                 </TabsTrigger>
@@ -1670,15 +1519,7 @@ export default function ExcelLearningPlatform({
               {showTabs.includes('practice') && (
                 <TabsTrigger
                   value="practice"
-                  className={`
-                    flex items-center justify-center gap-2 px-6 py-2 rounded-full border-2 border-[#58CC02] font-bold text-base
-                    text-[#58CC02] bg-white
-                    transition-all duration-200
-                    shadow-sm
-                    data-[state=active]:bg-[#58CC02] data-[state=active]:text-white data-[state=active]:shadow-lg
-                    hover:bg-[#E6F9E6] hover:text-[#58CC02] cursor-pointer
-                    focus:outline-none
-                  `}
+                  className="lesson-tab"
                 >
                   <Zap className="w-5 h-5" />
                   任務挑戰
@@ -1687,15 +1528,7 @@ export default function ExcelLearningPlatform({
               {showTabs.includes('game') && (
                 <TabsTrigger
                   value="game"
-                  className={`
-                    flex items-center justify-center gap-2 px-6 py-2 rounded-full border-2 border-[#58CC02] font-bold text-base
-                    text-[#58CC02] bg-white
-                    transition-all duration-200
-                    shadow-sm
-                    data-[state=active]:bg-[#58CC02] data-[state=active]:text-white data-[state=active]:shadow-lg
-                    hover:bg-[#E6F9E6] hover:text-[#58CC02] cursor-pointer
-                    focus:outline-none
-                  `}
+                  className="lesson-tab"
                 >
                   <FileSpreadsheet className="w-5 h-5" />
                   互動關卡
@@ -1885,145 +1718,31 @@ export default function ExcelLearningPlatform({
             
             {showTabs.includes('practice') && (
               <TabsContent value="practice">
-                <Card className="bg-white rounded-2xl shadow-sm border border-gray-100">
-                  <div className="bg-gray-900 text-white p-4 rounded-t-2xl">
-                    <div className="flex items-center justify-between">
-                      <h2 className="text-lg md:text-xl font-semibold">挑戰題</h2>
-                      <div className="flex items-center gap-2">
-                        <div className="flex items-center gap-1 text-sm">
-                          <Star className="h-4 w-4 text-yellow-400 fill-yellow-400" />
-                          <span>+{starsPerLesson}</span>
-                        </div>
-                        <div className="flex items-center gap-1 text-sm">
-                          <Trophy className="h-4 w-4 text-blue-400" />
-                          <span>+{xpPerLesson} XP</span>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                  <div className="p-6">
-                    {/* 進度指示器 */}
-                    <div className="mb-6">
-                      <div className="flex items-center justify-between mb-2">
-                        <span className="text-sm text-gray-500">練習進度</span>
-                        <span className="text-sm font-medium">{lessonState.hasSubmitted ? "1/1" : "0/1"}</span>
-                      </div>
-                      <div className="h-2 bg-gray-100 rounded-full">
-                        <div 
-                          className="h-full bg-[#58CC02] rounded-full transition-all duration-300" 
-                          style={{ width: lessonState.hasSubmitted ? '100%' : '0%' }} 
-                        />
-                      </div>
-                    </div>
-
-                    {/* 練習題目區塊 */}
-                    <div className="bg-gray-50 rounded-xl p-6 mb-6">
-                      <div className="flex items-start gap-4">
-                        <div className="w-10 h-10 rounded-xl bg-[#2B4EFF] flex items-center justify-center flex-shrink-0">
-                          <FileSpreadsheet className="h-5 w-5 text-white" />
-                        </div>
-                        <div className="flex-1">
-                          <h3 className="font-semibold text-lg mb-3">練習題目</h3>
-                          {exercisesData.length > 0 ? (
-                            <div className="prose prose-sm max-w-none">
-                              <ReactMarkdown 
-                                remarkPlugins={[remarkGfm]}
-                                components={{
-                                  table: ({ children }) => (
-                                    <div className="overflow-x-auto my-4">
-                                      <table className="min-w-full border-collapse border border-gray-300">
-                                        {children}
-                                      </table>
-                                    </div>
-                                  ),
-                                  th: ({ children }) => (
-                                    <th className="border border-gray-300 bg-gray-100 px-4 py-2 text-left">
-                                      {children}
-                                    </th>
-                                  ),
-                                  td: ({ children }) => (
-                                    <td className="border border-gray-300 px-4 py-2 bg-white">
-                                      {children}
-                                    </td>
-                                  ),
-                                  p: ({ children }) => (
-                                    <p className="mb-4 last:mb-0 whitespace-pre-wrap">
-                                      {children}
-                                    </p>
-                                  )
-                                }}
-                              >
-                                {formatExerciseContent(exercisesData[0].question)}
-                              </ReactMarkdown>
-                            </div>
-                          ) : (
-                            <p className="text-gray-700 mb-4">請完成遊戲後，輸入最終答案。</p>
-                          )}
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* 答案輸入區塊 */}
-                    {renderQuestion()}
+                <Card className="lesson-challenge-card">
+                  <ChallengeHeading stage={stage} stars={starsPerLesson} xp={xpPerLesson} />
+                  <div className="lesson-challenge-body">
+                    <section className="lesson-task" aria-label="任務題目">
+                      <h3>這次要解決的問題</h3>
+                      {exercisesData.length > 0 ? <LessonMarkdown>{formatExerciseContent(exercisesData[0].question)}</LessonMarkdown> : <p className="lesson-empty">目前尚無可顯示的題目。請先查看學習資料，或聯絡老師確認關卡設定。</p>}
+                    </section>
+                    {renderAnswer()}
                   </div>
                 </Card>
               </TabsContent>
             )}
-            
+
             <TabsContent 
               value="game" 
               forceMount
               className={isFinalLesson(lessonState.currentLesson) ? 'block' : 'hidden'}
             >
-              <Card className="bg-white rounded-2xl shadow-sm border border-gray-100">
-                <div className="bg-gray-900 text-white p-4 rounded-t-2xl">
-                  <div className="flex items-center justify-between">
-                    <h2 className="text-lg md:text-xl font-semibold">遊戲關卡</h2>
-                    <div className="flex items-center gap-2">
-                      <div className="flex items-center gap-1 text-sm">
-                        <Star className="h-4 w-4 text-yellow-400 fill-yellow-400" />
-                        <span>+{starsPerLesson}</span>
-                      </div>
-                      <div className="flex items-center gap-1 text-sm">
-                        <Trophy className="h-4 w-4 text-blue-400" />
-                        <span>+{xpPerLesson} XP</span>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-                <div className="p-6">
-                  {/* 進度指示器 */}
-                  <div className="mb-6">
-                    <div className="flex items-center justify-between mb-2">
-                      <span className="text-sm text-gray-500">練習進度</span>
-                      <span className="text-sm font-medium">{lessonState.hasSubmitted ? "1/1" : "0/1"}</span>
-                    </div>
-                    <div className="h-2 bg-gray-100 rounded-full">
-                      <div 
-                        className="h-full bg-[#58CC02] rounded-full transition-all duration-300" 
-                        style={{ width: lessonState.hasSubmitted ? '100%' : '0%' }} 
-                      />
-                    </div>
-                  </div>
-
-                  {/* 遊戲說明區塊 */}
-                  <div className="space-y-6">
-                    <div className="bg-gray-50 rounded-xl p-6">
-                      <div className="flex items-start gap-4">
-                        <div className="w-10 h-10 rounded-xl bg-[#2B4EFF] flex items-center justify-center flex-shrink-0">
-                          <FileSpreadsheet className="h-5 w-5 text-white" />
-                        </div>
-                        <div className="flex-1">
-                          <h3 className="font-semibold text-lg mb-3">{currentLesson?.title ?? '綜合測驗說明'}</h3>
-                          <p className="text-gray-700 mb-4">{currentLesson?.description}</p>
-                          <p className="text-blue-600 font-semibold">完成遊戲後，輸入最終答案即可完成這個關卡。</p>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
+              <Card className="lesson-challenge-card">
+                <ChallengeHeading final stage={stage} stars={starsPerLesson} xp={xpPerLesson} />
+                <div className="lesson-challenge-body">
+                  <p className="lesson-interactive-note">完成互動教材後，在下方輸入最終答案。觀看教材不會自動通關。</p>
 
                   {/* 遊戲區塊 */}
-                  <div className="bg-gray-50 rounded-xl p-6">
+                  <div className="lesson-interactive">
                     <div style={{width: '100%', margin: '0 auto', maxWidth: '1200px'}}>
                       <div style={{position: 'relative', paddingBottom: '56.25%', paddingTop: 0, height: 0}}>
                         {geniallyLink ? (
@@ -2050,13 +1769,13 @@ export default function ExcelLearningPlatform({
                   </div>
 
                   {/* 答案輸入區塊 */}
-                  {renderFinalQuestion()}
+                  {renderAnswer(true)}
                 </div>
               </Card>
             </TabsContent>
           </Tabs>
 
-          <div className="flex justify-between items-center">
+          <div className="lesson-navigation">
             <div>
               {isIntroLesson(lessonState.currentLesson) ? null : (
                 getPrevLessonId(lessonState.currentLesson) ? (
@@ -2110,24 +1829,16 @@ export default function ExcelLearningPlatform({
           </div>
         </main>
 
-        {/* AI 助教側邊面板 */}
-        <div 
-          inert={!lessonState.showChat}
-          aria-hidden={!lessonState.showChat}
-          className={`
-            fixed inset-0 lg:inset-auto lg:top-[80px] lg:right-0 lg:h-[calc(100dvh-80px)]
-            bg-white border-l z-50 transition-all duration-300
-            ${lessonState.showChat 
-              ? 'translate-x-0 ' + (isExpanded ? 'w-full' : 'w-full lg:w-[400px]')
-              : 'translate-x-full w-full lg:w-0'
-            }
-          `}
-        >
+        {/* Chat stays mounted so closing it preserves the draft and conversation. */}
+        <div ref={chatPanelRef} id="ellis-panel" role={compactChat || isExpanded ? 'dialog' : 'complementary'}
+          aria-modal={lessonState.showChat && (compactChat || isExpanded) ? true : undefined}
+          aria-label="Ellis AI 導師" inert={!lessonState.showChat} aria-hidden={!lessonState.showChat}
+          className={`lesson-chat ${lessonState.showChat ? 'is-open' : ''}`}>
           <div className="h-full flex flex-col">
-            <div className="p-4 border-b bg-[#F8F9FB] flex items-center justify-between">
+            <div className="lesson-chat-header">
               <div className="flex items-center gap-3">
-                <div className="w-12 h-12 rounded-full bg-white flex items-center justify-center overflow-hidden border-2 border-gray-200">
-                  <RobotAvatar className="w-full h-full" />
+                <div className="lesson-avatar-large">
+                  <MentorAvatar className="w-full h-full" />
                 </div>
                 <div>
                   <h2 className="font-semibold text-gray-900 text-lg">Ellis</h2>
@@ -2164,8 +1875,9 @@ export default function ExcelLearningPlatform({
               </div>
             </div>
 
-            <ScrollArea className="flex-1 px-6 py-4">
-              <div className="space-y-6 max-w-3xl mx-auto">
+            <ScrollArea className="lesson-chat-scroll flex-1 min-h-0">
+              <div className="space-y-5 max-w-3xl mx-auto">
+                <details className="lesson-chat-help"><summary>如何使用 AI 導師？</summary><p>可以詢問題目條件、解題方向，或上傳截圖。AI 回覆可能有誤，請對照老師教材；最後仍需自行作答。快捷按鈕只填入提問，不會自動發送。</p></details>
                 {chatMessages.map((message) => (
                   <ChatMessage
                     key={message.id}
@@ -2178,7 +1890,7 @@ export default function ExcelLearningPlatform({
               </div>
             </ScrollArea>
 
-            <div className="p-6 border-t bg-white">
+            <div className="lesson-chat-composer">
               {/* 圖片預覽區域 */}
               {imagePreview && (
                   <div className="max-w-3xl mx-auto mb-4 relative">
@@ -2191,6 +1903,8 @@ export default function ExcelLearningPlatform({
                         className="max-h-48 rounded mx-auto object-contain"
                       />
                     <button 
+                      type="button"
+                      aria-label="移除待上傳圖片"
                       onClick={handleCancelImage}
                       className="absolute top-2 right-2 bg-gray-800 bg-opacity-50 text-white rounded-full p-1 hover:bg-opacity-70"
                     >
@@ -2200,24 +1914,11 @@ export default function ExcelLearningPlatform({
                 </div>
               )}
               
-              {/* 預設提問模板 */}
-              <div className="max-w-3xl mx-auto mb-3">
-                <div className="flex gap-2 overflow-x-auto pb-1">
-                  {presetQuestions.map((q, idx) => (
-                    <button
-                      key={idx}
-                      type="button"
-                      onClick={() => handleInsertPreset(q)}
-                      className="whitespace-nowrap px-3 py-1.5 text-xs md:text-sm border rounded-full bg-gray-50 hover:bg-gray-100 text-gray-700"
-                      title={q}
-                    >
-                      {q.length > 18 ? q.slice(0, 18) + '…' : q}
-                    </button>
-                  ))}
-                </div>
+              <div className="lesson-prompt-buttons" aria-label="提問方向">
+                {mentorPrompts.map(item => <button key={item.label} type="button" onClick={() => handleInsertPreset(item.prompt)} title={item.prompt}>{item.label}</button>)}
               </div>
 
-              <div className="flex items-center gap-3 max-w-3xl mx-auto">
+              <div className="lesson-message-input">
                 {/* 圖片上傳按鈕 */}
                 <input
                   type="file"
@@ -2227,12 +1928,9 @@ export default function ExcelLearningPlatform({
                   className="hidden"
                   id="image-upload"
                 />
-                <label 
-                  htmlFor="image-upload"
-                  className="p-2.5 border rounded-xl cursor-pointer hover:bg-gray-50"
-                >
+                <button type="button" aria-label="上傳圖片給 AI 導師" onClick={() => fileInputRef.current?.click()} className="lesson-upload-button">
                   <ImageIcon className="h-5 w-5 text-gray-500" />
-                </label>
+                </button>
                 
                 {/* 文字輸入框 */}
                 <textarea
@@ -2243,8 +1941,8 @@ export default function ExcelLearningPlatform({
                     e.currentTarget.style.height = '4rem';
                     e.currentTarget.style.height = `${e.currentTarget.scrollHeight}px`;
                   }}
-                  onKeyPress={(e) => {
-                    if (e.key === 'Enter' && !e.shiftKey) {
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' && !e.shiftKey && !e.nativeEvent.isComposing) {
                       handleSendMessage();
                       e.preventDefault();
                     }
@@ -2277,14 +1975,16 @@ export default function ExcelLearningPlatform({
                       }
                     }
                   }}
-                  placeholder="輸入您的問題..."
-                  className="flex-1 px-4 py-3 border rounded-xl text-sm md:text-base focus:outline-none focus:ring-2 focus:ring-[#2B4EFF] focus:border-transparent resize-none h-16"
+                  aria-label="給 Ellis 的問題"
+                  placeholder="告訴 Ellis，你卡在哪一步…"
+                  className="lesson-chat-textarea"
                 />
                 
                 {/* 發送按鈕 */}
                 <Button 
                   onClick={handleSendMessage}
-                  className="bg-[#2B4EFF] hover:bg-blue-700 text-white rounded-xl px-6 text-sm md:text-base"
+                  className="lesson-send-button"
+                  disabled={!chatInput.trim() && !imagePreview}
                 >
                   發送
                 </Button>
@@ -2293,24 +1993,10 @@ export default function ExcelLearningPlatform({
           </div>
         </div>
 
-        {/* AI 助教切換按鈕 */}
         {!lessonState.showChat && (
-          <div className="fixed right-4 bottom-4 z-50">
-            <Button
-              onClick={toggleChat}
-              className="
-                bg-white hover:bg-gray-50 text-white 
-                rounded-full w-16 h-16 md:w-20 md:h-20 shadow-lg 
-                flex items-center justify-center overflow-hidden border-2 border-gray-200
-                transition-opacity duration-300
-              "
-            >
-              <RobotAvatar className="w-full h-full scale-110" />
-            </Button>
-            <span className="absolute -top-1 -right-1 w-6 h-6 md:w-7 md:h-7 bg-[#FF4B4B] rounded-full flex items-center justify-center text-white text-sm font-bold shadow-lg border-2 border-white">
-              1
-            </span>
-          </div>
+          <button type="button" onClick={toggleChat} className="lesson-chat-launcher" aria-label="開啟 Ellis AI 導師" aria-controls="ellis-panel">
+            <MentorAvatar /><span>問問 Ellis</span>
+          </button>
         )}
       </div>
 
