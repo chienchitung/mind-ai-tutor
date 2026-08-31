@@ -1,4 +1,4 @@
-import { NextResponse } from 'next/server';
+import { NextResponse, after } from 'next/server';
 import { getServerClient } from '@/app/lib/supabase';
 import { voteSchema } from '@/lib/live-session';
 import { broadcastLiveUpdate } from '@/lib/live-broadcast';
@@ -34,11 +34,10 @@ export async function POST(request: Request, { params }: { params: Promise<{ cod
     }
     const result = Array.isArray(data) ? data[0] : data;
 
-    try {
-      await broadcastLiveUpdate(row.session_id, 'poll:tally', {
-        pollId: row.active_poll_id, voteCounts: result.vote_counts, voteTotal: result.vote_total,
-      });
-    } catch (cause) { console.error('live vote broadcast failed:', cause); }
+    // See app/api/live-sessions/[id]/route.ts - broadcast never gates the response.
+    after(() => broadcastLiveUpdate(row.session_id, 'poll:tally', {
+      pollId: row.active_poll_id, voteCounts: result.vote_counts, voteTotal: result.vote_total,
+    }).catch((cause) => console.error('live vote broadcast failed:', cause)));
 
     return NextResponse.json(
       { voteCounts: result.vote_counts, voteTotal: result.vote_total },
