@@ -25,7 +25,7 @@ beforeEach(() => {
   broadcastLiveUpdate.mockReset().mockResolvedValue(undefined);
   chain = Object.fromEntries(['update', 'eq', 'select', 'maybeSingle'].map((name) => [name, vi.fn()]));
   for (const name of ['update', 'eq', 'select']) chain[name].mockReturnValue(chain);
-  chain.maybeSingle.mockResolvedValue({ data: { id, status: 'paused' }, error: null });
+  chain.maybeSingle.mockResolvedValue({ data: { id, status: 'paused', deck_url: null, deck_page: 1 }, error: null });
   auth = vi.fn().mockResolvedValue({ data: { user: { id: 'owner' } }, error: null });
   from = vi.fn().mockReturnValue(chain);
   getServerClient.mockResolvedValue({ auth: { getUser: auth }, from });
@@ -40,19 +40,28 @@ describe('PATCH /api/live-sessions/[id]', () => {
   it('rejects cross-origin requests', async () => {
     expect((await PATCH(request({ status: 'paused' }, 'https://other.local'), { params: params() })).status).toBe(403);
   });
-  it('rejects a malformed id and an invalid status', async () => {
+  it('rejects a malformed id, an invalid status, and an empty body', async () => {
     expect((await PATCH(request(), { params: params('not-a-uuid') })).status).toBe(400);
     expect((await PATCH(request({ status: 'archived' }), { params: params() })).status).toBe(400);
+    expect((await PATCH(request({}), { params: params() })).status).toBe(400);
     expect(from).not.toHaveBeenCalled();
   });
   it('updates the status, scoped to the verified owner, and broadcasts it', async () => {
     const response = await PATCH(request(), { params: params() });
     expect(response.status).toBe(200);
-    expect(await response.json()).toEqual({ id, status: 'paused' });
+    expect(await response.json()).toEqual({ id, status: 'paused', deckUrl: null, deckPage: 1 });
     expect(chain.update).toHaveBeenCalledWith(expect.objectContaining({ status: 'paused' }));
     expect(chain.eq).toHaveBeenCalledWith('id', id);
     expect(chain.eq).toHaveBeenCalledWith('user_id', 'owner');
     expect(broadcastLiveUpdate).toHaveBeenCalledWith(id, 'session:status', { status: 'paused' });
+  });
+  it('updates the deck url/page without broadcasting (presenter-only state)', async () => {
+    chain.maybeSingle.mockResolvedValue({ data: { id, status: 'open', deck_url: 'https://example.test/deck.pdf', deck_page: 3 }, error: null });
+    const response = await PATCH(request({ deckUrl: 'https://example.test/deck.pdf', deckPage: 3 }), { params: params() });
+    expect(response.status).toBe(200);
+    expect(await response.json()).toEqual({ id, status: 'open', deckUrl: 'https://example.test/deck.pdf', deckPage: 3 });
+    expect(chain.update).toHaveBeenCalledWith(expect.objectContaining({ deck_url: 'https://example.test/deck.pdf', deck_page: 3 }));
+    expect(broadcastLiveUpdate).not.toHaveBeenCalled();
   });
   it('returns 404 when nothing owned by this user matched', async () => {
     chain.maybeSingle.mockResolvedValue({ data: null, error: null });
@@ -74,7 +83,7 @@ describe('GET /api/live-sessions/[id]', () => {
     sessionsChain = Object.fromEntries(['select', 'eq', 'maybeSingle'].map((name) => [name, vi.fn()]));
     for (const name of ['select', 'eq']) sessionsChain[name].mockReturnValue(sessionsChain);
     sessionsChain.maybeSingle.mockResolvedValue({
-      data: { id, title: 'Excel 樞紐分析入門', status: 'open', join_code: '482910', active_poll_id: 'poll-1' }, error: null,
+      data: { id, title: 'Excel 樞紐分析入門', status: 'open', join_code: '482910', active_poll_id: 'poll-1', deck_url: null, deck_page: 1 }, error: null,
     });
     pollsChain = Object.fromEntries(['select', 'eq', 'maybeSingle'].map((name) => [name, vi.fn()]));
     for (const name of ['select', 'eq']) pollsChain[name].mockReturnValue(pollsChain);
@@ -106,6 +115,7 @@ describe('GET /api/live-sessions/[id]', () => {
       sessionId: id, title: 'Excel 樞紐分析入門', status: 'open', joinCode: '482910',
       poll: { pollId: 'poll-1', question: 'SUMIF?', options: ['A', 'B'], voteCounts: [1, 2], voteTotal: 3 },
       pulse: { pulseCounts: [0, 1, 0, 1, 0], pulseTotal: 2, pulseAverage: 3 },
+      deckUrl: null, deckPage: 1,
     });
   });
   it('returns a null poll when no poll is active yet', async () => {

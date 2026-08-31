@@ -76,6 +76,15 @@ describe('actual Postgres live-session migration', () => {
     expect(result.rows).toHaveLength(0);
   });
 
+  it('resolves a session with no active poll yet without erroring', async () => {
+    await asOwner(owner, () => db.query('update public.live_sessions set active_poll_id = null where id = $1', [sessionId]));
+    const result = await lookupByCode();
+    const row = result.rows[0] as any;
+    expect(row.poll_question).toBeNull();
+    expect(row.vote_counts).toEqual([]);
+    expect(row.vote_total).toBe(0);
+  });
+
   it('tallies votes and lets a participant change their vote without double-counting', async () => {
     expect(await vote(participantA, 0)).toEqual({ vote_counts: [1, 0, 0, 0], vote_total: 1 });
     expect(await vote(participantB, 0)).toEqual({ vote_counts: [2, 0, 0, 0], vote_total: 2 });

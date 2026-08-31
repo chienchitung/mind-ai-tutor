@@ -18,6 +18,7 @@ const row = {
   active_poll_id: 'p1', poll_question: 'SUMIF?', poll_options: ['A', 'B'],
   vote_counts: [3, 1], vote_total: 4,
   pulse_counts: [0, 1, 2, 0, 0], pulse_total: 3, pulse_average: '2.33',
+  deck_url: 'https://example.test/deck.pdf', deck_page: 2,
 };
 
 describe('GET /api/live/[code]', () => {
@@ -33,6 +34,7 @@ describe('GET /api/live/[code]', () => {
       sessionId: 's1', title: 'Excel 樞紐分析入門', status: 'open',
       poll: { pollId: 'p1', question: 'SUMIF?', options: ['A', 'B'], voteCounts: [3, 1], voteTotal: 4 },
       pulse: { pulseCounts: [0, 1, 2, 0, 0], pulseTotal: 3, pulseAverage: 2.33 },
+      deckUrl: 'https://example.test/deck.pdf', deckPage: 2,
     });
     expect(rpc).toHaveBeenCalledWith('get_live_session_by_code', { p_code: '482910' });
   });

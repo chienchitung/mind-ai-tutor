@@ -2,15 +2,22 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import { useParams } from 'next/navigation';
-import { Loader2 } from 'lucide-react';
+import { Loader2, ThumbsUp } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
+import { Textarea } from '@/components/ui/textarea';
 import { supabase } from '@/lib/supabase';
 import { useLanguage } from '@/app/contexts/LanguageContext';
 import { useTranslation } from '@/utils/translations';
-import { participantStorageKey, type LiveSessionPublicState } from '@/lib/live-session';
+import { participantStorageKey, QUESTION_LENSES, type LiveSessionPublicState, type LiveQuestion, type QuestionLens } from '@/lib/live-session';
 
 const PULSE_FACES = ['😵', '😕', '🙂', '😄', '🤩'];
+const REACTION_KINDS = ['applause', 'insight', 'resonate', 'pause'] as const;
+const REACTION_EMOJI: Record<(typeof REACTION_KINDS)[number], string> = { applause: '👏', insight: '💡', resonate: '❤️', pause: '✋' };
+
+function sortQuestions(a: LiveQuestion, b: LiveQuestion): number {
+  return b.upvotes - a.upvotes || a.createdAt.localeCompare(b.createdAt);
+}
 
 function getParticipantId(sessionId: string): string {
   const key = participantStorageKey(sessionId);
@@ -39,6 +46,14 @@ export default function AudiencePage() {
   const [pulsing, setPulsing] = useState(false);
   const [voteError, setVoteError] = useState('');
 
+  const [questions, setQuestions] = useState<LiveQuestion[]>([]);
+  const [qaText, setQaText] = useState('');
+  const [qaLens, setQaLens] = useState<QuestionLens>('clarify');
+  const [qaSending, setQaSending] = useState(false);
+  const [qaError, setQaError] = useState('');
+  const [upvotedIds, setUpvotedIds] = useState<Set<string>>(new Set());
+  const [reacting, setReacting] = useState<string | null>(null);
+
   const load = useCallback(async () => {
     try {
       const response = await fetch(`/api/live/${code}`, { cache: 'no-store' });
@@ -54,6 +69,19 @@ export default function AudiencePage() {
 
   useEffect(() => { void load(); }, [load]);
   useEffect(() => { setParticipantId(getParticipantId(code)); }, [code]);
+
+  const loadQuestions = useCallback(async () => {
+    if (!participantId) return;
+    try {
+      const response = await fetch(`/api/live/${code}/questions?participantId=${participantId}`, { cache: 'no-store' });
+      if (!response.ok) return;
+      setQuestions(await response.json());
+    } catch {
+      // Best-effort - the panel just stays empty until the next successful load or broadcast.
+    }
+  }, [code, participantId]);
+
+  useEffect(() => { void loadQuestions(); }, [loadQuestions]);
 
   useEffect(() => {
     if (!data?.sessionId) return;
@@ -76,9 +104,23 @@ export default function AudiencePage() {
       .on('broadcast', { event: 'session:status' }, ({ payload }) => {
         setData((previous) => (previous ? { ...previous, status: (payload as { status: LiveSessionPublicState['status'] }).status } : previous));
       })
+      .on('broadcast', { event: 'question:new' }, ({ payload }) => {
+        const incoming = payload as LiveQuestion;
+        setQuestions((previous) => (previous.some((item) => item.id === incoming.id) ? previous : [...previous, incoming].sort(sortQuestions)));
+      })
+      .on('broadcast', { event: 'question:upvote' }, ({ payload }) => {
+        const { questionId, upvotes } = payload as { questionId: string; upvotes: number };
+        setQuestions((previous) => previous.map((item) => (item.id === questionId ? { ...item, upvotes } : item)).sort(sortQuestions));
+      })
+      .on('broadcast', { event: 'question:moderated' }, () => {
+        // Whether a question was just hidden or re-shown, refetching is the
+        // simplest way to stay consistent with what this participant may or
+        // may not be allowed to see - the broadcast alone doesn't carry enough.
+        void loadQuestions();
+      })
       .subscribe();
     return () => { void client.removeChannel(channel); };
-  }, [data?.sessionId]);
+  }, [data?.sessionId, loadQuestions]);
 
   const castVote = async (optionIndex: number) => {
     if (!data?.poll || voting || !participantId || data.status !== 'open') return;
@@ -116,6 +158,55 @@ export default function AudiencePage() {
       // Best-effort; the pulse is a lightweight signal, not worth a blocking error state.
     } finally {
       setPulsing(false);
+    }
+  };
+
+  const submitQuestion = async (event: React.FormEvent) => {
+    event.preventDefault();
+    if (!participantId || !qaText.trim() || qaSending || data?.status !== 'open') return;
+    setQaSending(true);
+    setQaError('');
+    try {
+      const response = await fetch(`/api/live/${code}/questions`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ participantId, text: qaText.trim(), lens: qaLens }),
+      });
+      if (!response.ok) throw new Error();
+      const created = (await response.json()) as LiveQuestion;
+      setQuestions((previous) => (previous.some((item) => item.id === created.id) ? previous : [...previous, { ...created, isMine: true }]).sort(sortQuestions));
+      setQaText('');
+    } catch {
+      setQaError(t('live_qa_send_error'));
+    } finally {
+      setQaSending(false);
+    }
+  };
+
+  const upvoteQuestion = async (id: string) => {
+    if (!participantId || upvotedIds.has(id) || data?.status !== 'open') return;
+    setUpvotedIds((previous) => new Set(previous).add(id));
+    try {
+      const response = await fetch(`/api/live/${code}/questions/${id}/upvote`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ participantId }),
+      });
+      if (!response.ok) throw new Error();
+      const result = await response.json();
+      setQuestions((previous) => previous.map((item) => (item.id === id ? { ...item, upvotes: result.upvotes } : item)).sort(sortQuestions));
+    } catch {
+      setUpvotedIds((previous) => { const next = new Set(previous); next.delete(id); return next; });
+    }
+  };
+
+  const sendReaction = async (kind: string) => {
+    if (data?.status !== 'open' || reacting) return;
+    setReacting(kind);
+    try {
+      await fetch(`/api/live/${code}/react`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ kind }) });
+    } catch {
+      // Best-effort - a dropped reaction just doesn't show up on the projector.
+    } finally {
+      setTimeout(() => setReacting(null), 400);
     }
   };
 
@@ -176,6 +267,64 @@ export default function AudiencePage() {
                 );
               })}
             </div>
+          </div>
+
+          <div className="border-t pt-4">
+            <p className="mb-2 text-xs uppercase tracking-wide text-muted-foreground">{t('live_reactions_title')}</p>
+            <div className="flex justify-between gap-2">
+              {REACTION_KINDS.map((kind) => (
+                <button key={kind} type="button" disabled={data.status !== 'open'} onClick={() => void sendReaction(kind)}
+                  aria-label={t(`live_reaction_${kind}` as const)}
+                  className={`flex h-11 flex-1 items-center justify-center rounded-full border text-lg transition-transform disabled:opacity-50 ${reacting === kind ? 'scale-110 border-primary bg-primary/10' : 'hover:border-foreground/30'}`}>
+                  {REACTION_EMOJI[kind]}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div className="border-t pt-4">
+            <p className="mb-2 text-xs uppercase tracking-wide text-muted-foreground">{t('live_qa_title')}</p>
+            <form onSubmit={submitQuestion} className="space-y-2">
+              <div className="flex flex-wrap gap-1.5">
+                {QUESTION_LENSES.map((lens) => (
+                  <button key={lens} type="button" onClick={() => setQaLens(lens)}
+                    className={`rounded-full border px-2.5 py-1 text-[11px] font-medium transition-colors ${qaLens === lens ? 'border-primary bg-primary text-primary-foreground' : 'text-muted-foreground hover:border-foreground/30'}`}>
+                    {t(`live_qa_lens_${lens}` as const)}
+                  </button>
+                ))}
+              </div>
+              <div className="flex gap-2">
+                <Textarea value={qaText} onChange={(event) => setQaText(event.target.value)} rows={1} maxLength={500}
+                  placeholder={t('live_qa_ask_placeholder')} disabled={qaSending || data.status !== 'open'} className="min-h-0 resize-none py-2" />
+                <Button type="submit" size="sm" disabled={qaSending || !qaText.trim() || data.status !== 'open'}>
+                  {qaSending ? <Loader2 className="h-4 w-4 animate-spin" /> : t('live_qa_submit')}
+                </Button>
+              </div>
+              {qaError && <p role="alert" className="text-xs text-destructive">{qaError}</p>}
+            </form>
+
+            {questions.length === 0 ? (
+              <p className="mt-3 text-center text-xs text-muted-foreground">{t('live_qa_empty')}</p>
+            ) : (
+              <ul className="mt-3 space-y-2">
+                {questions.map((item) => (
+                  <li key={item.id} className="flex items-start justify-between gap-2 rounded-lg border p-2.5 text-xs">
+                    <div className="min-w-0">
+                      <span className="mb-1 inline-block rounded bg-muted px-1.5 py-0.5 text-[10px] uppercase tracking-wide text-muted-foreground">{t(`live_qa_lens_${item.lens}` as const)}</span>
+                      <p className="break-words">{item.text}</p>
+                      {item.isMine && item.visibility === 'author_only' && (
+                        <p className="mt-1 text-[10px] text-muted-foreground">{t('live_qa_mine_hidden')}</p>
+                      )}
+                    </div>
+                    <button type="button" disabled={upvotedIds.has(item.id) || data.status !== 'open'} onClick={() => void upvoteQuestion(item.id)}
+                      aria-label={t('live_qa_upvote')}
+                      className={`flex shrink-0 items-center gap-1 rounded-full border px-2 py-1 font-mono disabled:opacity-70 ${upvotedIds.has(item.id) ? 'border-primary bg-primary/10 text-primary' : 'hover:border-foreground/30'}`}>
+                      <ThumbsUp className="h-3 w-3" />{item.upvotes}
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            )}
           </div>
         </CardContent>
       </Card>

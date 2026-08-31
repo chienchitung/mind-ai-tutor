@@ -1,6 +1,6 @@
 import { NextResponse, after } from 'next/server';
 import { getServerClient } from '@/app/lib/supabase';
-import { statusSchema } from '@/lib/live-session';
+import { sessionPatchSchema } from '@/lib/live-session';
 import { broadcastLiveUpdate } from '@/lib/live-broadcast';
 
 const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -17,7 +17,7 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
     if (authError || !user) return NextResponse.json({ error: 'UNAUTHORIZED' }, { status: 401 });
 
     const { data: session, error: sessionError } = await client.from('live_sessions')
-      .select('id, title, status, join_code, active_poll_id').eq('id', id).eq('user_id', user.id).maybeSingle();
+      .select('id, title, status, join_code, active_poll_id, deck_url, deck_page').eq('id', id).eq('user_id', user.id).maybeSingle();
     if (sessionError) return NextResponse.json({ error: 'LIVE_STORAGE_ERROR' }, { status: 500 });
     if (!session) return NextResponse.json({ error: 'NOT_FOUND' }, { status: 404 });
 
@@ -49,6 +49,8 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
           pulseTotal: pulseRow?.pulse_total ?? 0,
           pulseAverage: pulseRow?.pulse_average === null || pulseRow?.pulse_average === undefined ? null : Number(pulseRow.pulse_average),
         },
+        deckUrl: session.deck_url ?? null,
+        deckPage: session.deck_page ?? 1,
       },
       { headers: { 'Cache-Control': 'private, no-store' } },
     );
@@ -65,26 +67,39 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
     if (!uuid.test(id)) return NextResponse.json({ error: 'INVALID_SESSION' }, { status: 400 });
     let json: unknown;
     try { json = await request.json(); } catch { return NextResponse.json({ error: 'INVALID_INPUT' }, { status: 400 }); }
-    const parsed = statusSchema.safeParse(json);
+    const parsed = sessionPatchSchema.safeParse(json);
     if (!parsed.success) return NextResponse.json({ error: 'INVALID_INPUT' }, { status: 400 });
     const client = await getServerClient();
     const { data: { user }, error: authError } = await client.auth.getUser();
     if (authError || !user) return NextResponse.json({ error: 'UNAUTHORIZED' }, { status: 401 });
+
+    const update: Record<string, unknown> = { updated_at: new Date().toISOString() };
+    if (parsed.data.status !== undefined) update.status = parsed.data.status;
+    if (parsed.data.deckUrl !== undefined) update.deck_url = parsed.data.deckUrl;
+    if (parsed.data.deckPage !== undefined) update.deck_page = parsed.data.deckPage;
+
     const { data, error } = await client.from('live_sessions')
-      .update({ status: parsed.data.status, updated_at: new Date().toISOString() })
+      .update(update)
       .eq('id', id).eq('user_id', user.id)
-      .select('id, status').maybeSingle();
+      .select('id, status, deck_url, deck_page').maybeSingle();
     if (error) return NextResponse.json({ error: 'LIVE_STORAGE_ERROR' }, { status: 500 });
     if (!data) return NextResponse.json({ error: 'NOT_FOUND' }, { status: 404 });
 
     // Scheduled after the response is sent: a slow or hung Realtime connect
     // must never delay the click that triggered it - the write already
     // committed, so the client's own optimistic update is the source of
-    // truth for its own action either way.
-    after(() => broadcastLiveUpdate(id, 'session:status', { status: data.status })
-      .catch((cause) => console.error('live-sessions status broadcast failed:', cause)));
+    // truth for its own action either way. Deck page changes are presenter-
+    // only state (the audience never sees the deck), so only a status change
+    // is worth broadcasting.
+    if (parsed.data.status !== undefined) {
+      after(() => broadcastLiveUpdate(id, 'session:status', { status: data.status })
+        .catch((cause) => console.error('live-sessions status broadcast failed:', cause)));
+    }
 
-    return NextResponse.json(data, { headers: { 'Cache-Control': 'private, no-store' } });
+    return NextResponse.json(
+      { id: data.id, status: data.status, deckUrl: data.deck_url ?? null, deckPage: data.deck_page ?? 1 },
+      { headers: { 'Cache-Control': 'private, no-store' } },
+    );
   } catch {
     return NextResponse.json({ error: 'LIVE_STORAGE_ERROR' }, { status: 500 });
   }

@@ -22,11 +22,26 @@ export interface LiveSessionPublicState {
   status: LiveSessionStatus;
   poll: LivePollState | null;
   pulse: LivePulseState;
+  deckUrl: string | null;
+  deckPage: number;
 }
 
 /** Adds the join code, only ever returned to the verified session owner. */
 export interface LiveSessionOwnerState extends LiveSessionPublicState {
   joinCode: string;
+}
+
+export type QuestionLens = 'clarify' | 'chorus' | 'bridge' | 'keeper';
+export const QUESTION_LENSES: QuestionLens[] = ['clarify', 'chorus', 'bridge', 'keeper'];
+
+export interface LiveQuestion {
+  id: string;
+  text: string;
+  lens: QuestionLens;
+  visibility: 'public' | 'author_only';
+  upvotes: number;
+  createdAt: string;
+  isMine?: boolean;
 }
 
 export const pollDraftSchema = z.object({
@@ -40,6 +55,12 @@ export const createSessionSchema = z.object({
 
 export const statusSchema = z.object({ status: z.enum(['open', 'paused', 'closed']) });
 
+export const sessionPatchSchema = z.object({
+  status: z.enum(['open', 'paused', 'closed']).optional(),
+  deckUrl: z.string().trim().url().max(2048).nullable().optional(),
+  deckPage: z.number().int().min(1).optional(),
+}).refine((value) => Object.keys(value).length > 0, 'At least one field is required');
+
 export const voteSchema = z.object({
   participantId: z.string().uuid(),
   optionIndex: z.number().int().min(0).max(5),
@@ -49,6 +70,27 @@ export const pulseSchema = z.object({
   participantId: z.string().uuid(),
   value: z.number().int().min(1).max(5),
 });
+
+export const questionSubmitSchema = z.object({
+  participantId: z.string().uuid(),
+  text: z.string().trim().min(1).max(500),
+  lens: z.enum(['clarify', 'chorus', 'bridge', 'keeper']),
+});
+
+export const questionUpvoteSchema = z.object({ participantId: z.string().uuid() });
+
+export const questionModerateSchema = z.object({ visibility: z.enum(['public', 'author_only']) });
+
+export const reactionSchema = z.object({ kind: z.enum(['applause', 'insight', 'resonate', 'pause']) });
+
+type QuestionRow = { id: string; text: string; lens: string; visibility: string; upvotes: number; created_at: string; is_mine?: boolean };
+
+export function mapQuestionRow(row: QuestionRow): LiveQuestion {
+  return {
+    id: row.id, text: row.text, lens: row.lens as QuestionLens, visibility: row.visibility as LiveQuestion['visibility'],
+    upvotes: row.upvotes, createdAt: row.created_at, isMine: row.is_mine,
+  };
+}
 
 export function generateJoinCode(): string {
   return String(Math.floor(100000 + Math.random() * 900000));
@@ -66,6 +108,8 @@ type SessionByCodeRow = {
   pulse_counts: number[];
   pulse_total: number;
   pulse_average: string | number | null;
+  deck_url: string | null;
+  deck_page: number;
 };
 
 export function mapSessionByCodeRow(row: SessionByCodeRow): LiveSessionPublicState {
@@ -87,6 +131,8 @@ export function mapSessionByCodeRow(row: SessionByCodeRow): LiveSessionPublicSta
       pulseTotal: row.pulse_total ?? 0,
       pulseAverage: row.pulse_average === null || row.pulse_average === undefined ? null : Number(row.pulse_average),
     },
+    deckUrl: row.deck_url ?? null,
+    deckPage: row.deck_page ?? 1,
   };
 }
 

@@ -150,8 +150,14 @@ language plpgsql security definer set search_path = '' stable as $$
 declare
   v_session public.live_sessions%rowtype;
   v_poll public.live_polls%rowtype;
-  v_tally record;
-  v_pulse record;
+  -- Plain "record" variables (unlike %rowtype ones) raise "record is not
+  -- assigned yet" if referenced before their INTO ever runs, which happens
+  -- here whenever there's no active poll - scalars default to NULL safely.
+  v_vote_counts integer[];
+  v_vote_total integer;
+  v_pulse_counts integer[];
+  v_pulse_total integer;
+  v_pulse_average numeric;
 begin
   select * into v_session from public.live_sessions where join_code = p_code;
   if v_session.id is null then
@@ -159,13 +165,17 @@ begin
   end if;
   if v_session.active_poll_id is not null then
     select * into v_poll from public.live_polls where id = v_session.active_poll_id;
-    select * into v_tally from public.get_live_poll_tally(v_poll.id);
+    -- Aliased: get_live_poll_tally()'s own output columns share names with
+    -- this function's OUT parameters, which would make a bare reference
+    -- ambiguous between the two.
+    select t.vote_counts, t.vote_total into v_vote_counts, v_vote_total from public.get_live_poll_tally(v_poll.id) as t;
   end if;
-  select * into v_pulse from public.get_live_pulse_summary(v_session.id);
+  select p.pulse_counts, p.pulse_total, p.pulse_average into v_pulse_counts, v_pulse_total, v_pulse_average
+    from public.get_live_pulse_summary(v_session.id) as p;
   return query select v_session.id, v_session.title, v_session.status,
     v_session.active_poll_id, v_poll.question, v_poll.options,
-    coalesce(v_tally.vote_counts, array[]::integer[]), coalesce(v_tally.vote_total, 0),
-    coalesce(v_pulse.pulse_counts, array[0, 0, 0, 0, 0]), coalesce(v_pulse.pulse_total, 0), v_pulse.pulse_average;
+    coalesce(v_vote_counts, array[]::integer[]), coalesce(v_vote_total, 0),
+    coalesce(v_pulse_counts, array[0, 0, 0, 0, 0]), coalesce(v_pulse_total, 0), v_pulse_average;
 end;
 $$;
 revoke all on function public.get_live_session_by_code(text) from public;

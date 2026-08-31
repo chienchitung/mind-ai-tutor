@@ -1,20 +1,31 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
-import { Loader2, Play, Pause, Square, Plus, Copy, X } from 'lucide-react';
+import { Loader2, Play, Pause, Square, Plus, Copy, X, FileUp, ChevronLeft, ChevronRight, Trash2, EyeOff, Eye, ListChecks } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/lib/supabase';
 import { useLanguage } from '@/app/contexts/LanguageContext';
 import { useTranslation } from '@/utils/translations';
-import type { LiveSessionOwnerState, LiveSessionStatus } from '@/lib/live-session';
+import type { LiveSessionOwnerState, LiveSessionStatus, LiveQuestion, QuestionLens } from '@/lib/live-session';
+import { QUESTION_LENSES } from '@/lib/live-session';
+import { uploadLiveDeck } from '@/lib/live-deck-storage';
+import { DeckViewer } from '@/components/live/DeckViewer';
+import type { Quiz, QuizQuestion } from '@/lib/quiz';
 
 const PULSE_LABELS = ['😵', '😕', '🙂', '😄', '🤩'];
+const REACTION_KINDS = ['applause', 'insight', 'resonate', 'pause'] as const;
+const REACTION_EMOJI: Record<(typeof REACTION_KINDS)[number], string> = { applause: '👏', insight: '💡', resonate: '❤️', pause: '✋' };
+
+function sortQuestions(a: LiveQuestion, b: LiveQuestion): number {
+  return b.upvotes - a.upvotes || a.createdAt.localeCompare(b.createdAt);
+}
 
 export default function PresenterPage() {
   const params = useParams<{ id: string }>();
@@ -30,6 +41,21 @@ export default function PresenterPage() {
   const [isOpeningPoll, setIsOpeningPoll] = useState(false);
   const [pendingStatus, setPendingStatus] = useState<LiveSessionStatus | null>(null);
 
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [uploadingDeck, setUploadingDeck] = useState(false);
+  const [numDeckPages, setNumDeckPages] = useState(1);
+  const [deckLoadError, setDeckLoadError] = useState(false);
+
+  const [questions, setQuestions] = useState<LiveQuestion[]>([]);
+  const [moderatingId, setModeratingId] = useState<string | null>(null);
+
+  const [reactionCounts, setReactionCounts] = useState<Record<string, number>>({});
+
+  const [showQuizPicker, setShowQuizPicker] = useState(false);
+  const [quizzes, setQuizzes] = useState<Quiz[] | null>(null);
+  const [quizzesLoading, setQuizzesLoading] = useState(false);
+  const [quizPickerError, setQuizPickerError] = useState('');
+
   const load = useCallback(async () => {
     try {
       const response = await fetch(`/api/live-sessions/${params.id}`, { cache: 'no-store' });
@@ -43,7 +69,18 @@ export default function PresenterPage() {
     }
   }, [params.id, router]);
 
+  const loadQuestions = useCallback(async () => {
+    try {
+      const response = await fetch(`/api/live-sessions/${params.id}/questions`, { cache: 'no-store' });
+      if (!response.ok) return;
+      setQuestions(await response.json());
+    } catch {
+      // Best-effort - the panel just stays empty until the next successful load or broadcast.
+    }
+  }, [params.id]);
+
   useEffect(() => { void load(); }, [load]);
+  useEffect(() => { void loadQuestions(); }, [loadQuestions]);
 
   useEffect(() => {
     if (!params.id) return;
@@ -64,6 +101,21 @@ export default function PresenterPage() {
       })
       .on('broadcast', { event: 'session:status' }, ({ payload }) => {
         setData((previous) => (previous ? { ...previous, status: (payload as { status: LiveSessionStatus }).status } : previous));
+      })
+      .on('broadcast', { event: 'question:new' }, ({ payload }) => {
+        setQuestions((previous) => [...previous, payload as LiveQuestion].sort(sortQuestions));
+      })
+      .on('broadcast', { event: 'question:upvote' }, ({ payload }) => {
+        const { questionId, upvotes } = payload as { questionId: string; upvotes: number };
+        setQuestions((previous) => previous.map((item) => (item.id === questionId ? { ...item, upvotes } : item)).sort(sortQuestions));
+      })
+      .on('broadcast', { event: 'question:moderated' }, ({ payload }) => {
+        const { questionId, visibility } = payload as { questionId: string; visibility: LiveQuestion['visibility'] };
+        setQuestions((previous) => previous.map((item) => (item.id === questionId ? { ...item, visibility } : item)));
+      })
+      .on('broadcast', { event: 'reaction:sent' }, ({ payload }) => {
+        const { kind } = payload as { kind: string };
+        setReactionCounts((previous) => ({ ...previous, [kind]: (previous[kind] ?? 0) + 1 }));
       })
       .subscribe();
     return () => { void client.removeChannel(channel); };
@@ -118,6 +170,106 @@ export default function PresenterPage() {
     }
   };
 
+  const handleDeckFileChange = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    event.target.value = '';
+    if (!file || uploadingDeck) return;
+    setUploadingDeck(true);
+    try {
+      const client = supabase();
+      const { data: { user }, error: userError } = await client.auth.getUser();
+      if (userError || !user) throw new Error('DECK_AUTH');
+      const url = await uploadLiveDeck(client, user.id, file);
+      const response = await fetch(`/api/live-sessions/${params.id}`, {
+        method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ deckUrl: url, deckPage: 1 }),
+      });
+      if (!response.ok) throw new Error('DECK_SAVE');
+      setNumDeckPages(1);
+      setDeckLoadError(false);
+      setData((previous) => (previous ? { ...previous, deckUrl: url, deckPage: 1 } : previous));
+    } catch (error) {
+      const code = error instanceof Error ? error.message : '';
+      const key = code === 'DECK_TYPE' ? 'error_deck_type'
+        : code === 'DECK_SIZE' ? 'error_deck_size'
+        : code === 'DECK_STORAGE_NOT_READY' ? 'error_deck_storage_not_ready'
+        : 'error_deck_upload';
+      toast({ title: t('error'), description: t(key), variant: 'destructive' });
+    } finally {
+      setUploadingDeck(false);
+    }
+  };
+
+  const handleDeckRemove = async () => {
+    if (uploadingDeck) return;
+    setUploadingDeck(true);
+    try {
+      const response = await fetch(`/api/live-sessions/${params.id}`, {
+        method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ deckUrl: null, deckPage: 1 }),
+      });
+      if (!response.ok) throw new Error();
+      setData((previous) => (previous ? { ...previous, deckUrl: null, deckPage: 1 } : previous));
+    } catch {
+      toast({ title: t('error'), description: t('error_deck_upload'), variant: 'destructive' });
+    } finally {
+      setUploadingDeck(false);
+    }
+  };
+
+  const changeDeckPage = async (nextPage: number) => {
+    if (!data?.deckUrl || uploadingDeck) return;
+    const clamped = Math.min(Math.max(1, nextPage), numDeckPages);
+    if (clamped === data.deckPage) return;
+    setData((previous) => (previous ? { ...previous, deckPage: clamped } : previous));
+    try {
+      await fetch(`/api/live-sessions/${params.id}`, {
+        method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ deckPage: clamped }),
+      });
+    } catch {
+      // Best-effort - the presenter's own view already advanced; a missed
+      // persist just means a page refresh could land one page behind.
+    }
+  };
+
+  const handleModerate = async (item: LiveQuestion) => {
+    if (moderatingId) return;
+    const nextVisibility = item.visibility === 'public' ? 'author_only' : 'public';
+    setModeratingId(item.id);
+    try {
+      const response = await fetch(`/api/live-sessions/${params.id}/questions/${item.id}`, {
+        method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ visibility: nextVisibility }),
+      });
+      if (!response.ok) throw new Error();
+      setQuestions((previous) => previous.map((entry) => (entry.id === item.id ? { ...entry, visibility: nextVisibility } : entry)));
+    } catch {
+      toast({ title: t('error'), description: t('error_updating_session'), variant: 'destructive' });
+    } finally {
+      setModeratingId(null);
+    }
+  };
+
+  const openQuizPicker = async () => {
+    setShowQuizPicker(true);
+    if (quizzes !== null) return;
+    setQuizzesLoading(true);
+    setQuizPickerError('');
+    try {
+      const response = await fetch('/api/quizzes', { cache: 'no-store' });
+      if (!response.ok) throw new Error();
+      setQuizzes(await response.json());
+    } catch {
+      setQuizPickerError(t('error_loading_quizzes'));
+    } finally {
+      setQuizzesLoading(false);
+    }
+  };
+
+  const pickQuizQuestion = (picked: QuizQuestion) => {
+    setQuestion(picked.questionText);
+    setOptions(picked.options.slice(0, 6).map((option) => option.text));
+    setShowQuizPicker(false);
+    setShowComposer(true);
+  };
+
   if (status === 'loading') {
     return <div className="flex min-h-screen items-center justify-center"><Loader2 className="h-6 w-6 animate-spin text-muted-foreground" /></div>;
   }
@@ -130,6 +282,7 @@ export default function PresenterPage() {
 
   const pulseAvg = data.pulse.pulseAverage;
   const pulsePercent = pulseAvg === null ? 50 : ((pulseAvg - 1) / 4) * 100;
+  const visibleQuestions = [...questions].sort(sortQuestions);
 
   return (
     <div className="min-h-screen bg-muted/20 px-4 py-6 sm:px-8">
@@ -140,6 +293,13 @@ export default function PresenterPage() {
             <h1 className="text-xl font-semibold">{data.title}</h1>
           </div>
           <div className="flex flex-wrap items-center gap-2">
+            {REACTION_KINDS.some((kind) => reactionCounts[kind]) && (
+              <div className="flex items-center gap-2 rounded-lg border bg-card px-3 py-1.5 text-xs">
+                {REACTION_KINDS.filter((kind) => reactionCounts[kind]).map((kind) => (
+                  <span key={kind} className="font-mono">{REACTION_EMOJI[kind]} {reactionCounts[kind]}</span>
+                ))}
+              </div>
+            )}
             <span className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-semibold ${data.status === 'open' ? 'bg-red-100 text-red-600' : data.status === 'paused' ? 'bg-amber-100 text-amber-700' : 'bg-muted text-muted-foreground'}`}>
               {data.status === 'open' && <span className="h-1.5 w-1.5 rounded-full bg-red-600" />}
               {t(`live_status_${data.status}` as const)}
@@ -163,10 +323,15 @@ export default function PresenterPage() {
           <Button type="button" size="sm" variant={data.status === 'closed' ? 'default' : 'outline'} disabled={!!pendingStatus} onClick={() => void handleStatusChange('closed')}>
             <Square className="mr-1.5 h-3.5 w-3.5" />{t('live_status_closed')}
           </Button>
-          <Button type="button" size="sm" variant="outline" className="ml-auto" onClick={() => setShowComposer((previous) => !previous)}>
-            {showComposer ? <X className="mr-1.5 h-3.5 w-3.5" /> : <Plus className="mr-1.5 h-3.5 w-3.5" />}
-            {t('live_new_poll')}
-          </Button>
+          <div className="ml-auto flex flex-wrap gap-2">
+            <Button type="button" size="sm" variant="outline" onClick={() => void openQuizPicker()}>
+              <ListChecks className="mr-1.5 h-3.5 w-3.5" />{t('live_load_from_quiz')}
+            </Button>
+            <Button type="button" size="sm" variant="outline" onClick={() => setShowComposer((previous) => !previous)}>
+              {showComposer ? <X className="mr-1.5 h-3.5 w-3.5" /> : <Plus className="mr-1.5 h-3.5 w-3.5" />}
+              {t('live_new_poll')}
+            </Button>
+          </div>
         </div>
 
         {showComposer && (
@@ -204,6 +369,48 @@ export default function PresenterPage() {
             </CardContent>
           </Card>
         )}
+
+        <Card>
+          <CardContent className="p-5">
+            <div className="mb-3 flex items-center justify-between">
+              <span className="text-xs uppercase tracking-wide text-muted-foreground">{t('live_deck_title')}</span>
+              <div className="flex items-center gap-2">
+                <input ref={fileInputRef} type="file" accept="application/pdf" className="hidden" onChange={(event) => void handleDeckFileChange(event)} />
+                <Button type="button" size="sm" variant="outline" disabled={uploadingDeck} onClick={() => fileInputRef.current?.click()}>
+                  {uploadingDeck ? <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" /> : <FileUp className="mr-1.5 h-3.5 w-3.5" />}
+                  {t(data.deckUrl ? 'live_deck_replace' : 'live_deck_upload')}
+                </Button>
+                {data.deckUrl && (
+                  <Button type="button" size="sm" variant="ghost" disabled={uploadingDeck} onClick={() => void handleDeckRemove()}>
+                    <Trash2 className="h-3.5 w-3.5" />
+                  </Button>
+                )}
+              </div>
+            </div>
+            {data.deckUrl ? (
+              deckLoadError ? (
+                <p className="py-8 text-center text-sm text-muted-foreground">{t('live_deck_load_error')}</p>
+              ) : (
+                <div className="space-y-2">
+                  <div className="flex justify-center overflow-hidden rounded-lg border bg-black/5">
+                    <DeckViewer url={data.deckUrl} page={data.deckPage} className="max-h-[60vh] w-auto" onNumPages={setNumDeckPages} onError={() => setDeckLoadError(true)} />
+                  </div>
+                  <div className="flex items-center justify-center gap-3">
+                    <Button type="button" size="sm" variant="outline" disabled={data.deckPage <= 1} onClick={() => void changeDeckPage(data.deckPage - 1)}>
+                      <ChevronLeft className="h-4 w-4" />
+                    </Button>
+                    <span className="font-mono text-xs text-muted-foreground">{t('live_deck_page_of', { current: data.deckPage, total: numDeckPages })}</span>
+                    <Button type="button" size="sm" variant="outline" disabled={data.deckPage >= numDeckPages} onClick={() => void changeDeckPage(data.deckPage + 1)}>
+                      <ChevronRight className="h-4 w-4" />
+                    </Button>
+                  </div>
+                </div>
+              )
+            ) : (
+              <p className="py-8 text-center text-sm text-muted-foreground">{t('live_deck_none')}</p>
+            )}
+          </CardContent>
+        </Card>
 
         <div className="grid gap-4 md:grid-cols-[1.4fr_1fr]">
           <Card>
@@ -262,7 +469,69 @@ export default function PresenterPage() {
             </div>
           </CardContent>
         </Card>
+
+        <Card>
+          <CardContent className="p-5">
+            <div className="mb-3 flex items-center justify-between">
+              <span className="text-xs uppercase tracking-wide text-muted-foreground">{t('live_qa_title')}</span>
+              <span className="font-mono text-xs text-muted-foreground">{questions.length}</span>
+            </div>
+            {visibleQuestions.length === 0 ? (
+              <p className="py-6 text-center text-sm text-muted-foreground">{t('live_qa_panel_empty')}</p>
+            ) : (
+              <ul className="space-y-2">
+                {visibleQuestions.map((item) => (
+                  <li key={item.id} className={`flex items-start justify-between gap-3 rounded-lg border p-3 text-sm ${item.visibility === 'author_only' ? 'opacity-60' : ''}`}>
+                    <div className="min-w-0">
+                      <div className="mb-1 flex items-center gap-2">
+                        <span className="rounded bg-muted px-1.5 py-0.5 text-[10px] uppercase tracking-wide text-muted-foreground">{t(`live_qa_lens_${item.lens}` as const)}</span>
+                        <span className="font-mono text-xs text-muted-foreground">▲ {item.upvotes}</span>
+                      </div>
+                      <p className="break-words">{item.text}</p>
+                    </div>
+                    <Button type="button" size="sm" variant="ghost" className="shrink-0" disabled={moderatingId === item.id} onClick={() => void handleModerate(item)}
+                      title={t(item.visibility === 'public' ? 'live_qa_moderate_hide' : 'live_qa_moderate_show')}>
+                      {item.visibility === 'public' ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                    </Button>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </CardContent>
+        </Card>
       </div>
+
+      <Dialog open={showQuizPicker} onOpenChange={setShowQuizPicker}>
+        <DialogContent className="max-h-[80vh] max-w-lg overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>{t('live_load_from_quiz_title')}</DialogTitle>
+            <DialogDescription>{t('live_load_from_quiz_pick_question')}</DialogDescription>
+          </DialogHeader>
+          {quizzesLoading ? (
+            <div className="flex justify-center py-8"><Loader2 className="h-5 w-5 animate-spin text-muted-foreground" /></div>
+          ) : quizPickerError ? (
+            <p role="alert" className="py-6 text-center text-sm text-destructive">{quizPickerError}</p>
+          ) : !quizzes || quizzes.length === 0 ? (
+            <p className="py-6 text-center text-sm text-muted-foreground">{t('live_load_from_quiz_empty')}</p>
+          ) : (
+            <div className="space-y-4">
+              {quizzes.map((quiz) => (
+                <div key={quiz.id}>
+                  <p className="mb-1.5 text-sm font-semibold">{quiz.title}</p>
+                  <div className="space-y-1">
+                    {quiz.questions.map((quizQuestion, index) => (
+                      <button key={quizQuestion.id} type="button" onClick={() => pickQuizQuestion(quizQuestion)}
+                        className="block w-full truncate rounded-md border px-2.5 py-1.5 text-left text-xs hover:border-foreground/30">
+                        {index + 1}. {quizQuestion.questionText}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
