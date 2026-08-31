@@ -342,4 +342,20 @@ describe('Live Session experience', () => {
     );
     expect(screen.getByText(/謝謝你的參與/)).toBeTruthy();
   });
+  it('mounts the projection dialog before requesting native fullscreen', async () => {
+    fetchMock.mockImplementation(async (url: string) => response(url.includes('/questions') ? questions : { ...session, deckUrl: '/deck.pdf' }));
+    const original = HTMLElement.prototype.requestFullscreen;
+    const fullscreen = vi.fn(async function(this: HTMLElement) { expect(this.isConnected).toBe(true); expect(this.getAttribute('role')).toBe('dialog'); });
+    HTMLElement.prototype.requestFullscreen = fullscreen;
+    try {
+      mount(<PresenterPage />);
+      await screen.findByRole('heading', { name: session.title });
+      fireEvent.click(screen.getByRole('button', { name: '全螢幕投影' }));
+      await waitFor(() => expect(fullscreen).toHaveBeenCalledTimes(1));
+      expect(screen.getByRole('dialog', { name: /簡報投影模式/ })).toBeTruthy();
+    } finally {
+      HTMLElement.prototype.requestFullscreen = original;
+    }
+  });
+
 });

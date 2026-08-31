@@ -1,6 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { flushSync } from 'react-dom';
 import { useParams, useRouter } from 'next/navigation';
 import {
   Loader2,
@@ -17,7 +18,6 @@ import {
   Eye,
   ListChecks,
   Maximize,
-  Minimize,
   Users,
   BarChart3,
   MessageSquare,
@@ -47,6 +47,7 @@ import type {
 } from '@/lib/live-session';
 import { uploadLiveDeck } from '@/lib/live-deck-storage';
 import { DeckViewer } from '@/components/live/DeckViewer';
+import { PresentationStage } from '@/components/live/PresentationStage';
 import {
   REACTION_EMOJI,
   ReactionBurstOverlay,
@@ -105,28 +106,7 @@ export default function PresenterPage() {
 
   const [presenting, setPresenting] = useState(false);
   const presentRef = useRef<HTMLDivElement>(null);
-  const [controlsVisible, setControlsVisible] = useState(true);
-  const hideControlsTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-
-  // Video-player style: the status/page-nav bars fade out after a few
-  // seconds of no mouse movement over the projected deck, and reappear the
-  // moment the presenter moves the mouse again.
-  const wakeControls = useCallback(() => {
-    setControlsVisible(true);
-    if (hideControlsTimer.current) clearTimeout(hideControlsTimer.current);
-    hideControlsTimer.current = setTimeout(
-      () => setControlsVisible(false),
-      3000,
-    );
-  }, []);
-
-  useEffect(() => {
-    if (!presenting) return;
-    wakeControls();
-    return () => {
-      if (hideControlsTimer.current) clearTimeout(hideControlsTimer.current);
-    };
-  }, [presenting, wakeControls]);
+  const presentationTriggerRef = useRef<HTMLElement | null>(null);
 
   const load = useCallback(async () => {
     try {
@@ -432,9 +412,11 @@ export default function PresenterPage() {
 
   const enterPresentation = async () => {
     if (!data?.deckUrl) return;
-    setPresenting(true);
+    presentationTriggerRef.current = document.activeElement as HTMLElement | null;
+    // Mount the dialog before requesting fullscreen, while user activation is still valid.
+    flushSync(() => setPresenting(true));
     try {
-      await presentRef.current?.requestFullscreen();
+      await (presentRef.current ?? document.documentElement).requestFullscreen?.();
     } catch {
       // Fullscreen can be denied or unsupported (e.g. some mobile browsers) -
       // the fixed-position overlay below still gives the full-bleed view
@@ -446,33 +428,20 @@ export default function PresenterPage() {
     if (document.fullscreenElement)
       void document.exitFullscreen().catch(() => {});
     setPresenting(false);
+    requestAnimationFrame(() => presentationTriggerRef.current?.focus({ preventScroll: true }));
   };
 
   useEffect(() => {
     const handleFullscreenChange = () => {
-      if (!document.fullscreenElement) setPresenting(false);
+      if (!document.fullscreenElement) {
+        setPresenting(false);
+        requestAnimationFrame(() => presentationTriggerRef.current?.focus({ preventScroll: true }));
+      }
     };
     document.addEventListener('fullscreenchange', handleFullscreenChange);
     return () =>
       document.removeEventListener('fullscreenchange', handleFullscreenChange);
   }, []);
-
-  useEffect(() => {
-    if (!presenting || !data) return;
-    const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.key === 'ArrowRight' || event.key === ' ') {
-        event.preventDefault();
-        void changeDeckPage(data.deckPage + 1);
-      } else if (event.key === 'ArrowLeft') {
-        event.preventDefault();
-        void changeDeckPage(data.deckPage - 1);
-      } else if (event.key === 'Escape') {
-        exitPresentation();
-      }
-    };
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [presenting, data?.deckPage, numDeckPages]);
 
   const handleModerate = async (item: LiveQuestion) => {
     if (moderatingId) return;
@@ -1069,95 +1038,10 @@ export default function PresenterPage() {
         className="fixed inset-0 z-[60]"
       />
 
-      {presenting && data.deckUrl && (
-        <div
-          ref={presentRef}
-          className="fixed inset-0 z-50 bg-black"
-          onMouseMove={wakeControls}
-          onFocusCapture={wakeControls}
-          onTouchStart={wakeControls}
-        >
-          {/* The deck fills the entire screen - the header/footer below
-              float on top of it rather than squeezing it into a smaller
-              box, so the projected slide is genuinely edge-to-edge. */}
-          {deckLoadError ? (
-            <p className="flex h-full items-center justify-center text-sm text-white/70">
-              {t('live_deck_load_error')}
-            </p>
-          ) : (
-            <DeckViewer
-              url={data.deckUrl}
-              page={data.deckPage}
-              className="h-full w-full"
-              onNumPages={setNumDeckPages}
-              onError={() => setDeckLoadError(true)}
-            />
-          )}
-
-          <div
-            className={`absolute inset-x-0 top-0 flex flex-wrap items-center justify-between gap-3 bg-black/70 px-4 py-2 text-white transition-opacity duration-300 ${controlsVisible ? 'opacity-100' : 'pointer-events-none opacity-0'}`}
-          >
-            <div className="flex flex-wrap items-center gap-3 text-sm">
-              <span className="font-semibold">{data.title}</span>
-              <span
-                className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-xs font-semibold ${data.status === 'open' ? 'bg-emerald-700' : data.status === 'paused' ? 'bg-amber-500/90' : 'bg-white/20'}`}
-              >
-                {t(`live_status_${data.status}` as const)}
-              </span>
-              <span className="inline-flex items-center gap-1 text-xs text-white/70">
-                <Users className="h-3.5 w-3.5" />
-                {t('live_online_count', { count: onlineCount })}
-              </span>
-              <span className="font-mono text-xs text-white/70 tracking-widest">
-                {data.joinCode}
-              </span>
-            </div>
-            <Button
-              type="button"
-              size="sm"
-              variant="ghost"
-              className="text-white hover:bg-white/10 hover:text-white"
-              onClick={exitPresentation}
-            >
-              <Minimize className="mr-1.5 h-3.5 w-3.5" />
-              {t('live_exit_presentation')}
-            </Button>
-          </div>
-
-          <div
-            className={`absolute inset-x-0 bottom-0 flex items-center justify-center gap-4 bg-black/70 px-4 py-3 transition-opacity duration-300 ${controlsVisible ? 'opacity-100' : 'pointer-events-none opacity-0'}`}
-          >
-            <Button
-              type="button"
-              size="icon"
-              variant="ghost"
-              className="text-white hover:bg-white/10 hover:text-white"
-              aria-label={t('live_deck_prev')}
-              disabled={data.deckPage <= 1}
-              onClick={() => void changeDeckPage(data.deckPage - 1)}
-            >
-              <ChevronLeft className="h-5 w-5" />
-            </Button>
-            <span className="font-mono text-sm text-white/80">
-              {t('live_deck_page_of', {
-                current: data.deckPage,
-                total: numDeckPages,
-              })}
-            </span>
-            <Button
-              type="button"
-              size="icon"
-              variant="ghost"
-              className="text-white hover:bg-white/10 hover:text-white"
-              aria-label={t('live_deck_next')}
-              disabled={data.deckPage >= numDeckPages}
-              onClick={() => void changeDeckPage(data.deckPage + 1)}
-            >
-              <ChevronRight className="h-5 w-5" />
-            </Button>
-          </div>
-        </div>
-      )}
+      {data.deckUrl && <PresentationStage key={data.deckUrl} ref={presentRef} open={presenting}
+        url={data.deckUrl} page={data.deckPage} numPages={numDeckPages} title={data.title} joinCode={data.joinCode}
+        onExit={exitPresentation} onPageChange={(page) => void changeDeckPage(page)} onNumPages={setNumDeckPages}
+        reactions={<ReactionBurstOverlay reactions={reactions} className="absolute inset-0 z-[75]" />} />}
 
       <Dialog open={showQuizPicker} onOpenChange={setShowQuizPicker}>
         <DialogContent className="max-h-[80vh] max-w-lg overflow-y-auto">

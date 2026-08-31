@@ -5,6 +5,31 @@ type TranslationKey = keyof typeof translations['en'];
 
 export const translations = {
   en: {
+    // Presentation annotations
+    live_tools: "Presentation tools",
+    live_tool_cursor: "Cursor",
+    live_tool_laser: "Laser pointer",
+    live_tool_pen: "Pen",
+    live_tool_eraser: "Stroke eraser",
+    live_ink_color: "Pen color",
+    live_ink_red: "Coral",
+    live_ink_yellow: "Yellow",
+    live_ink_blue: "Blue",
+    live_ink_white: "White",
+    live_ink_width: "Line width",
+    live_ink_thin: "Fine",
+    live_ink_thick: "Bold",
+    live_ink_undo: "Undo",
+    live_ink_redo: "Redo",
+    live_ink_clear: "Clear this slide",
+    live_ink_surface: "Slide annotation surface",
+    live_ink_notice: "Marks stay on this device until you reload. The PDF is unchanged.",
+    live_projection_help: "Right-click for tools · V cursor · L laser · P pen · E eraser · ← → slides · Ctrl/⌘ Z undo",
+    live_controls_pin: "Keep controls visible",
+    live_controls_unpin: "Auto-hide controls",
+    live_projection_focus: "Presentation mode",
+    live_slide_position: "Slide {current} of {total}",
+
     // Live Session experience
     live_student_space: "Student space",
     live_loading: "Loading your session…",
@@ -977,6 +1002,31 @@ export const translations = {
     answer_multi_select: "Multiple Choice",
   },
   'zh-TW': {
+    // Presentation annotations
+    live_tools: "投影工具",
+    live_tool_cursor: "游標",
+    live_tool_laser: "雷射筆",
+    live_tool_pen: "畫筆",
+    live_tool_eraser: "橡皮擦（筆畫）",
+    live_ink_color: "畫筆顏色",
+    live_ink_red: "珊瑚紅",
+    live_ink_yellow: "亮黃",
+    live_ink_blue: "天藍",
+    live_ink_white: "白色",
+    live_ink_width: "筆畫粗細",
+    live_ink_thin: "細",
+    live_ink_thick: "粗",
+    live_ink_undo: "復原",
+    live_ink_redo: "重做",
+    live_ink_clear: "清除本頁筆跡",
+    live_ink_surface: "投影片標註區",
+    live_ink_notice: "筆跡暫存於此頁面，重新整理後清除，不修改原始 PDF。",
+    live_projection_help: "右鍵開啟工具・V 游標・L 雷射・P 畫筆・E 橡皮擦・← → 換頁・Ctrl/⌘ Z 復原",
+    live_controls_pin: "固定顯示控制列",
+    live_controls_unpin: "自動隱藏控制列",
+    live_projection_focus: "簡報投影模式",
+    live_slide_position: "投影片第 {current} 頁，共 {total} 頁",
+
     // Live Session experience
     live_student_space: "學生互動區",
     live_loading: "正在載入課堂…",
