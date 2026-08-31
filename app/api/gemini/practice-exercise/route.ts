@@ -1,6 +1,10 @@
 import { NextResponse } from 'next/server';
 import { generatePracticeExercise } from '@/lib/gemini';
 
+export const runtime = 'nodejs';
+// See app/api/gemini/quiz/route.ts - same fix for the same class of failure.
+export const maxDuration = 60;
+
 export async function POST(request: Request) {
   try {
     const { content, level } = await request.json();

@@ -1,12 +1,14 @@
 'use client';
 
 import React, { useState, useRef, useEffect, useCallback } from "react";
-import { Sparkles, Loader2, Lightbulb, Wand2, ArrowLeft, Download, Edit, ArrowRight, FileDown, Printer, Save, GripVertical, ArrowUp, ArrowDown, Plus, PlayCircle } from "lucide-react";
+import { Sparkles, Loader2, Lightbulb, Wand2, ArrowLeft, Download, Edit, ArrowRight, FileDown, Printer, Save, GripVertical, ArrowUp, ArrowDown, Plus, PlayCircle, Search, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { DeleteConfirmation } from "@/components/ui/delete-confirmation";
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
 import { PageHeader } from "@/components/layout/PageHeader";
@@ -17,7 +19,6 @@ import {
   DroppableProvided,
   DraggableProvided
 } from 'react-beautiful-dnd';
-import { Input } from "@/components/ui/input";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { useLanguage } from "@/app/contexts/LanguageContext";
 import { useTranslation } from "@/utils/translations";
@@ -1835,6 +1836,10 @@ export default function AIQuizPage() {
 
   const [isLibraryLoading, setIsLibraryLoading] = useState(true);
   const [libraryError, setLibraryError] = useState<string | null>(null);
+  const [quizSearch, setQuizSearch] = useState('');
+  const [showAllQuizzes, setShowAllQuizzes] = useState(false);
+  const [quizToDelete, setQuizToDelete] = useState<Quiz | null>(null);
+  const [isDeletingQuiz, setIsDeletingQuiz] = useState(false);
   const saveInFlight = useRef(false);
   useUnsavedChanges(!currentQuiz && quizzes.some(quiz => !quiz.persisted), isGenerating);
 
@@ -2068,6 +2073,29 @@ export default function AIQuizPage() {
     }
   };
 
+  const handleDeleteQuiz = async () => {
+    if (!quizToDelete || isDeletingQuiz) return;
+    setIsDeletingQuiz(true);
+    try {
+      if (quizToDelete.persisted) {
+        const response = await fetch(`/api/quizzes/${quizToDelete.id}`, { method: 'DELETE' });
+        // 404 just means it's already gone server-side - the local removal below still applies.
+        if (!response.ok && response.status !== 404) throw new Error('QUIZ_STORAGE_ERROR');
+      }
+      setQuizzes(previous => previous.filter(quiz => quiz.id !== quizToDelete.id));
+      toast({ title: t('success'), description: t('quiz_deleted') });
+      setQuizToDelete(null);
+    } catch {
+      toast({ title: t('error'), description: t('error_deleting_quiz'), variant: 'destructive' });
+    } finally {
+      setIsDeletingQuiz(false);
+    }
+  };
+
+  const QUIZ_PREVIEW_COUNT = 6;
+  const filteredQuizzes = quizzes.filter(quiz => quiz.title.toLowerCase().includes(quizSearch.trim().toLowerCase()));
+  const visibleQuizzes = showAllQuizzes || quizSearch.trim() ? filteredQuizzes : filteredQuizzes.slice(0, QUIZ_PREVIEW_COUNT);
+
   // If we're viewing a specific quiz
   if (currentQuiz) {
     return (
@@ -2105,6 +2133,86 @@ export default function AIQuizPage() {
             </div>
           )}
           
+          {!isLibraryLoading && (
+            <section className="mx-auto max-w-3xl space-y-4" aria-labelledby="my-quizzes-title">
+              <h2 id="my-quizzes-title" className="text-xl font-semibold">
+                {t('recent_quizzes')}{quizzes.length > 0 ? ` (${quizzes.length})` : ''}
+              </h2>
+
+              {quizzes.length === 0 ? (
+                <p className="rounded-xl border border-dashed border-border p-6 text-center text-sm text-muted-foreground">
+                  {t('no_saved_quizzes_yet')}
+                </p>
+              ) : (
+                <>
+                  {quizzes.length > QUIZ_PREVIEW_COUNT && (
+                    <div className="relative">
+                      <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                      <Input
+                        value={quizSearch}
+                        onChange={(event) => setQuizSearch(event.target.value)}
+                        placeholder={t('quiz_search_placeholder')}
+                        aria-label={t('quiz_search_placeholder')}
+                        className="pl-9"
+                      />
+                    </div>
+                  )}
+
+                  {filteredQuizzes.length === 0 ? (
+                    <p className="rounded-xl border border-dashed border-border p-6 text-center text-sm text-muted-foreground">
+                      {t('no_quizzes_match_search')}
+                    </p>
+                  ) : (
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      {visibleQuizzes.map((quiz) => (
+                        <div key={quiz.id} className="overflow-hidden rounded-xl border border-border bg-card transition-colors hover:border-foreground/30">
+                          <button
+                            type="button"
+                            className="group block w-full text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset"
+                            onClick={() => setCurrentQuiz(quiz)}
+                          >
+                            <div className="bg-gradient-to-r from-indigo-600 to-purple-600 text-white p-4">
+                              <h3 className="font-semibold text-lg">{quiz.title}</h3>
+                              <p className="text-sm text-white/80">{t('questions_count', { count: quiz.questions.length })} · {quiz.persisted ? (language === 'zh-TW' ? '已儲存' : 'Saved') : (language === 'zh-TW' ? '未儲存' : 'Unsaved')}</p>
+                            </div>
+                            <div className="p-4 flex justify-between items-center">
+                              <p className="text-gray-600">
+                                {t('created_on', { date: quiz.createdAt?.toLocaleDateString() || '-' })}
+                              </p>
+                              <span className="flex items-center font-medium text-primary transition-transform group-hover:translate-x-1">
+                                {t('view_quiz')} <ArrowRight className="ml-1 h-4 w-4" />
+                              </span>
+                            </div>
+                          </button>
+                          <div className="flex justify-end border-t border-border/70 px-2 py-1">
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="sm"
+                              className="h-7 gap-1 text-muted-foreground hover:text-destructive"
+                              onClick={() => setQuizToDelete(quiz)}
+                            >
+                              <Trash2 className="h-3.5 w-3.5" />
+                              {t('delete_quiz')}
+                            </Button>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+
+                  {!quizSearch.trim() && filteredQuizzes.length > QUIZ_PREVIEW_COUNT && (
+                    <div className="text-center">
+                      <Button type="button" variant="outline" size="sm" onClick={() => setShowAllQuizzes(previous => !previous)}>
+                        {showAllQuizzes ? t('show_fewer_quizzes') : t('show_all_quizzes', { count: filteredQuizzes.length })}
+                      </Button>
+                    </div>
+                  )}
+                </>
+              )}
+            </section>
+          )}
+
           <QuizCreator
             inputContent={inputContent}
             setInputContent={setInputContent}
@@ -2123,35 +2231,13 @@ export default function AIQuizPage() {
             selectedFiles={selectedFiles} // Pass state down
             setSelectedFiles={setSelectedFiles} // Pass setter down
           />
-          
-          {quizzes.length > 0 && !currentQuiz && (
-            <section className="mx-auto mt-8 max-w-3xl space-y-4" aria-labelledby="recent-quizzes-title">
-              <h2 id="recent-quizzes-title" className="text-xl font-semibold">{t('recent_quizzes')}</h2>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {quizzes.map((quiz) => (
-                  <button
-                    type="button"
-                    key={quiz.id} 
-                    className="group overflow-hidden rounded-xl border border-border bg-card text-left transition-colors hover:border-foreground/30 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                    onClick={() => setCurrentQuiz(quiz)}
-                  >
-                    <div className="bg-gradient-to-r from-indigo-600 to-purple-600 text-white p-4">
-                      <h3 className="font-semibold text-lg">{quiz.title}</h3>
-                      <p className="text-sm text-white/80">{t('questions_count', { count: quiz.questions.length })} · {quiz.persisted ? (language === 'zh-TW' ? '已儲存' : 'Saved') : (language === 'zh-TW' ? '未儲存' : 'Unsaved')}</p>
-                    </div>
-                    <div className="p-4 flex justify-between items-center">
-                      <p className="text-gray-600">
-                        {t('created_on', { date: quiz.createdAt?.toLocaleDateString() || '-' })}
-                      </p>
-                      <span className="flex items-center font-medium text-primary transition-transform group-hover:translate-x-1">
-                        {t('view_quiz')} <ArrowRight className="ml-1 h-4 w-4" />
-                      </span>
-                    </div>
-                  </button>
-                ))}
-              </div>
-            </section>
-          )}
+
+          <DeleteConfirmation
+            name={quizToDelete?.title ?? null}
+            busy={isDeletingQuiz}
+            onCancel={() => { if (!isDeletingQuiz) setQuizToDelete(null); }}
+            onConfirm={() => void handleDeleteQuiz()}
+          />
     </div>
   );
 }

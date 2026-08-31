@@ -1,6 +1,12 @@
 import { NextResponse } from 'next/server';
 import { generateQuiz } from '@/lib/gemini';
 
+export const runtime = 'nodejs';
+// Without this, Vercel applies its own default ceiling (10s on Hobby) well
+// below what quiz generation actually takes, killing the request with an
+// opaque 504 instead of letting our own error handling respond.
+export const maxDuration = 60;
+
 export async function POST(request: Request) {
   try {
     const {

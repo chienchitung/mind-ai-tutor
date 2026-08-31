@@ -10,7 +10,10 @@ if (!apiKey) {
   console.error('Missing Gemini API key. Please check your .env.local file.');
 }
 
-const genAI = new GoogleGenAI({ apiKey: apiKey as string });
+// Timeout must stay below the API routes' own maxDuration (60s) so a slow
+// response surfaces through our try/catch as a clean error instead of being
+// hard-killed by the platform mid-request with an opaque 504.
+const genAI = new GoogleGenAI({ apiKey: apiKey as string, httpOptions: { timeout: 55000 } });
 
 export async function generatePracticeExercise(teachingContent: string, level: string = 'Beginner') {
   try {
