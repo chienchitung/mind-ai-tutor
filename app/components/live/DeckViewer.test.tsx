@@ -32,7 +32,10 @@ describe('DeckViewer', () => {
     const onNumPages = vi.fn();
     render(<DeckViewer url="https://example.test/deck.pdf" page={1} onNumPages={onNumPages} />);
     await waitFor(() => expect(onNumPages).toHaveBeenCalledWith(5));
-    expect(getDocument).toHaveBeenCalledWith('https://example.test/deck.pdf');
+    // disableRange/disableStream: a Range-requesting fetch triggers a CORS
+    // preflight that Supabase Storage's public-object endpoint doesn't
+    // satisfy, so decks must load via one plain GET instead.
+    expect(getDocument).toHaveBeenCalledWith({ url: 'https://example.test/deck.pdf', disableRange: true, disableStream: true });
     expect(GlobalWorkerOptions.workerSrc).toBe('/pdfjs/pdf.worker.min.mjs');
     await waitFor(() => expect(getPage).toHaveBeenCalledWith(1));
   });
@@ -49,9 +52,9 @@ describe('DeckViewer', () => {
   });
   it('reloads the document when the url changes', async () => {
     const { rerender } = render(<DeckViewer url="https://example.test/deck-a.pdf" page={1} />);
-    await waitFor(() => expect(getDocument).toHaveBeenCalledWith('https://example.test/deck-a.pdf'));
+    await waitFor(() => expect(getDocument).toHaveBeenCalledWith(expect.objectContaining({ url: 'https://example.test/deck-a.pdf' })));
     rerender(<DeckViewer url="https://example.test/deck-b.pdf" page={1} />);
-    await waitFor(() => expect(getDocument).toHaveBeenCalledWith('https://example.test/deck-b.pdf'));
+    await waitFor(() => expect(getDocument).toHaveBeenCalledWith(expect.objectContaining({ url: 'https://example.test/deck-b.pdf' })));
     expect(getDocument).toHaveBeenCalledTimes(2);
   });
   it('reports an error and renders nothing when the document fails to load', async () => {

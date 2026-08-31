@@ -29,7 +29,14 @@ export function DeckViewer({ url, page, onNumPages, onError, className }: DeckVi
         if (!pdfjsLib.GlobalWorkerOptions.workerSrc) {
           pdfjsLib.GlobalWorkerOptions.workerSrc = '/pdfjs/pdf.worker.min.mjs';
         }
-        const pdf = await pdfjsLib.getDocument(url).promise;
+        // pdf.js defaults to HTTP Range requests to stream large PDFs
+        // progressively, which sends a Range header on a cross-origin fetch -
+        // that triggers a CORS preflight requiring the server to explicitly
+        // allow the Range header and expose Content-Range/Accept-Ranges,
+        // which Supabase Storage's public-object endpoint doesn't. A single
+        // plain GET (no Range) sidesteps that entirely; decks are capped at
+        // 20MB so losing progressive loading isn't a real cost here.
+        const pdf = await pdfjsLib.getDocument({ url, disableRange: true, disableStream: true }).promise;
         if (cancelled) return;
         setDoc(pdf);
         onNumPages?.(pdf.numPages);
