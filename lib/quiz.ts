@@ -33,10 +33,11 @@ export interface Quiz extends z.infer<typeof quizPayloadSchema> {
   createdAt?: Date;
   updatedAt?: Date;
   persisted?: boolean;
+  isPublic?: boolean;
 }
 
-export function parseSavedQuiz(row: { id: string; title: string; questions: unknown; created_at: string; updated_at: string }): Quiz {
-  return { ...quizPayloadSchema.parse(row), createdAt: new Date(row.created_at), updatedAt: new Date(row.updated_at), persisted: true };
+export function parseSavedQuiz(row: { id: string; title: string; questions: unknown; created_at: string; updated_at: string; is_public?: boolean }): Quiz {
+  return { ...quizPayloadSchema.parse(row), createdAt: new Date(row.created_at), updatedAt: new Date(row.updated_at), persisted: true, isPublic: row.is_public ?? false };
 }
 
 export function isCorrectQuizAnswer(answer: string | string[] | undefined, correct: string | string[]): boolean {
@@ -48,4 +49,12 @@ export function isCorrectQuizAnswer(answer: string | string[] | undefined, corre
 /** Shared by teacher exports and the on-screen answer key. */
 export function isCorrectQuizOption(optionId: string, correct: string | string[]): boolean {
   return Array.isArray(correct) ? correct.includes(optionId) : optionId === correct;
+}
+
+export interface QuizAttempt {
+  id: string;
+  student_name: string;
+  score: number;
+  total: number;
+  submitted_at: string;
 }
