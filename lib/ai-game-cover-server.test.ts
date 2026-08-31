@@ -12,7 +12,7 @@ describe('image model adapter', () => {
     generateContent.mockResolvedValue({ candidates: [{ content: { parts: [image] } }] });
     expect(await generateCoverBackground(brief)).toEqual(image.inlineData);
     expect(construct).toHaveBeenCalledWith({ apiKey: 'server-test-key', httpOptions: { timeout: 50000, retryOptions: { attempts: 1 } } });
-    expect(generateContent).toHaveBeenCalledWith(expect.objectContaining({ model: 'gemini-3.6-flash-image', config: { responseModalities: ['IMAGE'], imageConfig: { aspectRatio: '16:9', imageSize: '1K' } } }));
+    expect(generateContent).toHaveBeenCalledWith(expect.objectContaining({ model: 'gemini-3.1-flash-image', config: { responseModalities: ['IMAGE'], imageConfig: { aspectRatio: '16:9', imageSize: '1K' } } }));
   });
   it('skips thinking images and uses the final image', async () => {
     generateContent.mockResolvedValue({ candidates: [{ content: { parts: [{ ...image, thought: true, inlineData: { ...image.inlineData, data: 'thinking' } }, image] } }] });

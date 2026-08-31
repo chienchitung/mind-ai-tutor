@@ -46,6 +46,11 @@ export async function POST(request: Request) {
     const image = await generateCoverBackground(parsed.data);
     return NextResponse.json(image, { headers: { 'Cache-Control': 'private, no-store' } });
   } catch (cause) {
-    return fail(cause instanceof Error && cause.message === 'NO_IMAGE' ? 'NO_IMAGE' : 'AI_FAILED', 502);
+    const isNoImage = cause instanceof Error && cause.message === 'NO_IMAGE';
+    // Otherwise unlogged: the underlying Gemini SDK error (bad model id, auth,
+    // quota, etc.) would vanish behind the generic AI_FAILED response with no
+    // trace in Vercel's logs to diagnose it from.
+    if (!isNoImage) console.error('game-covers/generate failed:', cause);
+    return fail(isNoImage ? 'NO_IMAGE' : 'AI_FAILED', 502);
   }
 }
