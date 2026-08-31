@@ -11,6 +11,9 @@ import { useLanguage } from '@/app/contexts/LanguageContext';
 import { useTranslation } from '@/utils/translations';
 import { participantStorageKey, QUESTION_LENSES, type LiveSessionPublicState, type LiveQuestion, type QuestionLens } from '@/lib/live-session';
 import { REACTION_EMOJI, ReactionBurstOverlay, useReactionBursts } from '@/components/live/ReactionBurst';
+import { useOnlinePresenceCount } from '@/components/live/usePresenceHeartbeat';
+
+const HEARTBEAT_INTERVAL_MS = 10000;
 
 const PULSE_FACES = ['😵', '😕', '🙂', '😄', '🤩'];
 const REACTION_KINDS = ['applause', 'insight', 'resonate', 'pause'] as const;
@@ -52,7 +55,7 @@ export default function AudiencePage() {
   const [upvotedIds, setUpvotedIds] = useState<Set<string>>(new Set());
   const [reacting, setReacting] = useState<string | null>(null);
   const { reactions, push: pushReaction } = useReactionBursts();
-  const [onlineCount, setOnlineCount] = useState(0);
+  const { onlineCount, registerPing } = useOnlinePresenceCount();
 
   const load = useCallback(async () => {
     try {
@@ -84,12 +87,9 @@ export default function AudiencePage() {
   useEffect(() => { void loadQuestions(); }, [loadQuestions]);
 
   useEffect(() => {
-    // Waiting for participantId too (it resolves almost immediately after
-    // mount) means the channel is created with a stable presence key from
-    // the start, instead of tracking under a throwaway key and re-tracking.
     if (!data?.sessionId || !participantId) return;
     const client = supabase();
-    const channel = client.channel(`live-session:${data.sessionId}`, { config: { presence: { key: participantId } } });
+    const channel = client.channel(`live-session:${data.sessionId}`);
     channel
       .on('broadcast', { event: 'poll:opened' }, ({ payload }) => {
         setMyVote(null);
@@ -124,20 +124,20 @@ export default function AudiencePage() {
       .on('broadcast', { event: 'reaction:sent' }, ({ payload }) => {
         pushReaction((payload as { kind: string }).kind);
       })
-      .on('presence', { event: 'sync' }, () => {
-        setOnlineCount(Object.keys(channel.presenceState()).length);
+      .on('broadcast', { event: 'presence:ping' }, ({ payload }) => {
+        registerPing((payload as { participantId: string }).participantId);
       })
       .subscribe((subscribeStatus) => {
-        if (subscribeStatus === 'SUBSCRIBED') void channel.track({ online_at: new Date().toISOString() });
+        // Sending before the channel has actually joined would silently
+        // drop the message - wait for confirmation, then the interval
+        // below keeps it alive every HEARTBEAT_INTERVAL_MS after that.
+        if (subscribeStatus === 'SUBSCRIBED') void channel.send({ type: 'broadcast', event: 'presence:ping', payload: { participantId } });
       });
-    // Belt-and-suspenders: see the presenter page for why - a light poll of
-    // the already-local presenceState() as a fallback in case the 'sync'
-    // event itself doesn't fire.
-    const presenceInterval = setInterval(() => {
-      setOnlineCount(Object.keys(channel.presenceState()).length);
-    }, 4000);
-    return () => { clearInterval(presenceInterval); void client.removeChannel(channel); };
-  }, [data?.sessionId, participantId, loadQuestions, pushReaction]);
+    const heartbeat = setInterval(() => {
+      void channel.send({ type: 'broadcast', event: 'presence:ping', payload: { participantId } });
+    }, HEARTBEAT_INTERVAL_MS);
+    return () => { clearInterval(heartbeat); void client.removeChannel(channel); };
+  }, [data?.sessionId, participantId, loadQuestions, pushReaction, registerPing]);
 
   const castVote = async (optionIndex: number) => {
     if (!data?.poll || !participantId || data.status !== 'open' || myVote === optionIndex) return;

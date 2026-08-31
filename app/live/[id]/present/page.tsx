@@ -18,6 +18,7 @@ import { QUESTION_LENSES } from '@/lib/live-session';
 import { uploadLiveDeck } from '@/lib/live-deck-storage';
 import { DeckViewer } from '@/components/live/DeckViewer';
 import { REACTION_EMOJI, ReactionBurstOverlay, useReactionBursts } from '@/components/live/ReactionBurst';
+import { useOnlinePresenceCount } from '@/components/live/usePresenceHeartbeat';
 import type { Quiz, QuizQuestion } from '@/lib/quiz';
 
 const PULSE_LABELS = ['😵', '😕', '🙂', '😄', '🤩'];
@@ -50,7 +51,7 @@ export default function PresenterPage() {
 
   const [reactionCounts, setReactionCounts] = useState<Record<string, number>>({});
   const { reactions, push: pushReaction } = useReactionBursts();
-  const [onlineCount, setOnlineCount] = useState(0);
+  const { onlineCount, registerPing } = useOnlinePresenceCount();
 
   const [showQuizPicker, setShowQuizPicker] = useState(false);
   const [quizzes, setQuizzes] = useState<Quiz[] | null>(null);
@@ -128,23 +129,15 @@ export default function PresenterPage() {
         setReactionCounts((previous) => ({ ...previous, [kind]: (previous[kind] ?? 0) + 1 }));
         pushReaction(kind);
       })
-      // Presence: audience clients track themselves on this same channel
-      // (see the audience page), so its aggregate size here is a live count
-      // of connected students - no extra table needed.
-      .on('presence', { event: 'sync' }, () => {
-        setOnlineCount(Object.keys(channel.presenceState()).length);
+      // Online count via broadcast heartbeats, not Supabase's native
+      // Presence - see usePresenceHeartbeat.ts for why. The audience page
+      // sends 'presence:ping' every few seconds; this just tallies them.
+      .on('broadcast', { event: 'presence:ping' }, ({ payload }) => {
+        registerPing((payload as { participantId: string }).participantId);
       })
       .subscribe();
-    // Belt-and-suspenders: Supabase's realtime-js has had production
-    // incidents where presence 'sync'/'join'/'leave' callbacks silently stop
-    // firing while the underlying presenceState() itself stays current. A
-    // light poll means the count self-heals within a few seconds even if the
-    // event never lands, at basically no cost (a local read, no network call).
-    const presenceInterval = setInterval(() => {
-      setOnlineCount(Object.keys(channel.presenceState()).length);
-    }, 4000);
-    return () => { clearInterval(presenceInterval); void client.removeChannel(channel); };
-  }, [params.id, pushReaction]);
+    return () => { void client.removeChannel(channel); };
+  }, [params.id, pushReaction, registerPing]);
 
   const handleOpenPoll = async (event: React.FormEvent) => {
     event.preventDefault();
@@ -590,8 +583,17 @@ export default function PresenterPage() {
       <ReactionBurstOverlay reactions={reactions} className="fixed inset-0 z-[60]" />
 
       {presenting && data.deckUrl && (
-        <div ref={presentRef} className="fixed inset-0 z-50 flex flex-col bg-black">
-          <div className="flex flex-wrap items-center justify-between gap-3 bg-black/70 px-4 py-2 text-white">
+        <div ref={presentRef} className="fixed inset-0 z-50 bg-black">
+          {/* The deck fills the entire screen - the header/footer below
+              float on top of it rather than squeezing it into a smaller
+              box, so the projected slide is genuinely edge-to-edge. */}
+          {deckLoadError ? (
+            <p className="flex h-full items-center justify-center text-sm text-white/70">{t('live_deck_load_error')}</p>
+          ) : (
+            <DeckViewer url={data.deckUrl} page={data.deckPage} className="h-full w-full" onNumPages={setNumDeckPages} onError={() => setDeckLoadError(true)} />
+          )}
+
+          <div className="absolute inset-x-0 top-0 flex flex-wrap items-center justify-between gap-3 bg-black/70 px-4 py-2 text-white">
             <div className="flex flex-wrap items-center gap-3 text-sm">
               <span className="font-semibold">{data.title}</span>
               <span className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-xs font-semibold ${data.status === 'open' ? 'bg-red-500/90' : data.status === 'paused' ? 'bg-amber-500/90' : 'bg-white/20'}`}>
@@ -606,14 +608,8 @@ export default function PresenterPage() {
               <Minimize className="mr-1.5 h-3.5 w-3.5" />{t('live_exit_presentation')}
             </Button>
           </div>
-          <div className="relative flex-1 overflow-hidden p-4">
-            {deckLoadError ? (
-              <p className="flex h-full items-center justify-center text-sm text-white/70">{t('live_deck_load_error')}</p>
-            ) : (
-              <DeckViewer url={data.deckUrl} page={data.deckPage} className="h-full w-full" onNumPages={setNumDeckPages} onError={() => setDeckLoadError(true)} />
-            )}
-          </div>
-          <div className="flex items-center justify-center gap-4 bg-black/70 px-4 py-3">
+
+          <div className="absolute inset-x-0 bottom-0 flex items-center justify-center gap-4 bg-black/70 px-4 py-3">
             <Button type="button" size="icon" variant="ghost" className="text-white hover:bg-white/10 hover:text-white" disabled={data.deckPage <= 1} onClick={() => void changeDeckPage(data.deckPage - 1)}>
               <ChevronLeft className="h-5 w-5" />
             </Button>
