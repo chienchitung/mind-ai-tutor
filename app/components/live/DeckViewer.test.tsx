@@ -29,7 +29,7 @@ function makeDoc(numPages: number) {
 function makePage() {
   return {
     getViewport: vi.fn().mockReturnValue({ width: 100, height: 80 }),
-    render: vi.fn().mockReturnValue({ promise: Promise.resolve() }),
+    render: vi.fn().mockReturnValue({ promise: Promise.resolve(), cancel: vi.fn() }),
   };
 }
 
@@ -87,5 +87,25 @@ describe('DeckViewer', () => {
     // Unscaled measurement (scale: 1) plus the final contain-fit render call.
     expect(page.getViewport).toHaveBeenCalledWith({ scale: 1 });
     expect(page.getViewport.mock.calls.some(([arg]) => arg.scale !== 1)).toBe(true);
+  });
+  it('cancels a superseded render instead of letting it surface as an error', async () => {
+    const cancel = vi.fn();
+    let rejectFirst!: (reason?: unknown) => void;
+    const firstRenderPromise = new Promise<void>((_resolve, reject) => { rejectFirst = reject; });
+    const page1 = { getViewport: vi.fn().mockReturnValue({ width: 100, height: 80 }), render: vi.fn().mockReturnValue({ promise: firstRenderPromise, cancel }) };
+    const page2 = makePage();
+    getPage.mockImplementation((pageNumber: number) => Promise.resolve(pageNumber === 1 ? page1 : page2));
+    const onError = vi.fn();
+    const { rerender } = render(<DeckViewer url="https://example.test/deck.pdf" page={1} onError={onError} />);
+    await waitFor(() => expect(page1.render).toHaveBeenCalled());
+
+    rerender(<DeckViewer url="https://example.test/deck.pdf" page={2} onError={onError} />);
+    expect(cancel).toHaveBeenCalled();
+
+    // pdf.js rejects a render task's promise once it's actually cancelled -
+    // that rejection must not be mistaken for a real load failure.
+    rejectFirst(new Error('RenderingCancelledException'));
+    await waitFor(() => expect(page2.render).toHaveBeenCalled());
+    expect(onError).not.toHaveBeenCalled();
   });
 });

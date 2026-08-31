@@ -60,6 +60,25 @@ export default function PresenterPage() {
 
   const [presenting, setPresenting] = useState(false);
   const presentRef = useRef<HTMLDivElement>(null);
+  const [controlsVisible, setControlsVisible] = useState(true);
+  const hideControlsTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Video-player style: the status/page-nav bars fade out after a few
+  // seconds of no mouse movement over the projected deck, and reappear the
+  // moment the presenter moves the mouse again.
+  const wakeControls = useCallback(() => {
+    setControlsVisible(true);
+    if (hideControlsTimer.current) clearTimeout(hideControlsTimer.current);
+    hideControlsTimer.current = setTimeout(() => setControlsVisible(false), 3000);
+  }, []);
+
+  useEffect(() => {
+    if (!presenting) return;
+    wakeControls();
+    return () => {
+      if (hideControlsTimer.current) clearTimeout(hideControlsTimer.current);
+    };
+  }, [presenting, wakeControls]);
 
   const load = useCallback(async () => {
     try {
@@ -583,7 +602,7 @@ export default function PresenterPage() {
       <ReactionBurstOverlay reactions={reactions} className="fixed inset-0 z-[60]" />
 
       {presenting && data.deckUrl && (
-        <div ref={presentRef} className="fixed inset-0 z-50 bg-black">
+        <div ref={presentRef} className="fixed inset-0 z-50 bg-black" onMouseMove={wakeControls}>
           {/* The deck fills the entire screen - the header/footer below
               float on top of it rather than squeezing it into a smaller
               box, so the projected slide is genuinely edge-to-edge. */}
@@ -593,7 +612,7 @@ export default function PresenterPage() {
             <DeckViewer url={data.deckUrl} page={data.deckPage} className="h-full w-full" onNumPages={setNumDeckPages} onError={() => setDeckLoadError(true)} />
           )}
 
-          <div className="absolute inset-x-0 top-0 flex flex-wrap items-center justify-between gap-3 bg-black/70 px-4 py-2 text-white">
+          <div className={`absolute inset-x-0 top-0 flex flex-wrap items-center justify-between gap-3 bg-black/70 px-4 py-2 text-white transition-opacity duration-300 ${controlsVisible ? 'opacity-100' : 'pointer-events-none opacity-0'}`}>
             <div className="flex flex-wrap items-center gap-3 text-sm">
               <span className="font-semibold">{data.title}</span>
               <span className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-xs font-semibold ${data.status === 'open' ? 'bg-red-500/90' : data.status === 'paused' ? 'bg-amber-500/90' : 'bg-white/20'}`}>
@@ -609,7 +628,7 @@ export default function PresenterPage() {
             </Button>
           </div>
 
-          <div className="absolute inset-x-0 bottom-0 flex items-center justify-center gap-4 bg-black/70 px-4 py-3">
+          <div className={`absolute inset-x-0 bottom-0 flex items-center justify-center gap-4 bg-black/70 px-4 py-3 transition-opacity duration-300 ${controlsVisible ? 'opacity-100' : 'pointer-events-none opacity-0'}`}>
             <Button type="button" size="icon" variant="ghost" className="text-white hover:bg-white/10 hover:text-white" disabled={data.deckPage <= 1} onClick={() => void changeDeckPage(data.deckPage - 1)}>
               <ChevronLeft className="h-5 w-5" />
             </Button>
