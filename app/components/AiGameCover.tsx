@@ -26,6 +26,7 @@ export function AiGameCover({ context, chinese, disabled, onApply, onCancel }: P
   const [cutout, setCutout] = useState<ImageBitmap | null>(null);
   const [logo, setLogo] = useState<HTMLImageElement | null>(null);
   const [busy, setBusy] = useState(false);
+  const [pending, setPending] = useState<'generate' | 'photo' | 'cutout' | 'apply' | null>(null);
   const [activity, setActivity] = useState('');
   const [error, setError] = useState('');
   const [renderError, setRenderError] = useState('');
@@ -52,13 +53,13 @@ export function AiGameCover({ context, chinese, disabled, onApply, onCancel }: P
     } catch { setRenderError(chinese ? '文字太長或預覽無法繪製，請縮短標題與副標題後再試。' : 'Cannot render the preview. Shorten the title and subtitle.'); }
   }, [background, logo, poster, includeTeacher, cutout, original, chinese]);
 
-  function begin(label: string) {
+  function begin(action: 'generate' | 'photo' | 'cutout' | 'apply', label: string) {
     if (lock.current || disabled) return false;
-    lock.current = true; setBusy(true); setActivity(label); setError(''); return true;
+    lock.current = true; setBusy(true); setPending(action); setActivity(label); setError(''); return true;
   }
-  function finish() { lock.current = false; if (active.current) { setBusy(false); setActivity(''); } }
+  function finish() { lock.current = false; if (active.current) { setBusy(false); setPending(null); setActivity(''); } }
   async function generate() {
-    if (!logo || !poster.title.trim() || !consent || !begin(say('正在生成背景…', 'Generating background…'))) return;
+    if (!logo || !poster.title.trim() || !consent || !begin('generate', say('正在生成背景…', 'Generating background…'))) return;
     const abort = new AbortController(); controller.current = abort;
     const timer = setTimeout(() => abort.abort(), 100000);
     try {
@@ -80,7 +81,7 @@ export function AiGameCover({ context, chinese, disabled, onApply, onCancel }: P
     } finally { clearTimeout(timer); finish(); }
   }
   async function selectPortrait(file?: File) {
-    if (!file || !photoConsent || !begin(say('讀取照片…', 'Loading photo…'))) return;
+    if (!file || !photoConsent || !begin('photo', say('讀取照片…', 'Loading photo…'))) return;
     try {
       validateCoverFile(file);
       const image = await createImageBitmap(file, { imageOrientation: 'from-image' });
@@ -91,7 +92,7 @@ export function AiGameCover({ context, chinese, disabled, onApply, onCancel }: P
     finally { finish(); }
   }
   async function removeBackground() {
-    if (!original || !begin(say('正在本機去背，首次需下載模型工具…', 'Removing background locally; first use downloads runtime…'))) return;
+    if (!original || !begin('cutout', say('正在本機去背，首次需下載模型工具…', 'Removing background locally; first use downloads runtime…'))) return;
     try {
       const { removePortraitBackground } = await import('@/lib/portrait-cutout');
       const image = await removePortraitBackground(original);
@@ -101,7 +102,7 @@ export function AiGameCover({ context, chinese, disabled, onApply, onCancel }: P
     finally { finish(); }
   }
   async function apply() {
-    if (!background || !logo || !canvas.current || !poster.title.trim() || renderError || (includeTeacher && !photoConsent) || !begin(say('正在製作封面…', 'Preparing cover…'))) return;
+    if (!background || !logo || !canvas.current || !poster.title.trim() || renderError || (includeTeacher && !photoConsent) || !begin('apply', say('正在製作封面…', 'Preparing cover…'))) return;
     try {
       await document.fonts.ready;
       if (!active.current || !canvas.current) return;
@@ -123,7 +124,10 @@ export function AiGameCover({ context, chinese, disabled, onApply, onCancel }: P
       <Button type="button" size="sm" variant="outline" onClick={() => { setBrief(context.description.slice(0, 2400)); setTopics(context.topics.slice(0, 20).map(value => value.slice(0, 160))); setPoster({ ...poster, title: Array.from(context.title).slice(0, 48).join('') }); }}>{say('重新帶入目前課程資料', 'Refresh from current course')}</Button>
       <label className="block space-y-1 text-sm" htmlFor={`${id}-style`}><span>{say('視覺風格', 'Visual style')}</span><select id={`${id}-style`} className="block h-10 w-full rounded-md border bg-background px-3" value={style} onChange={e => setStyle(e.target.value as CoverBrief['style'])}><option value="illustration">{say('活潑插畫', 'Playful illustration')}</option><option value="technology">{say('科技感', 'Technology')}</option><option value="minimal">{say('簡約幾何', 'Minimal geometry')}</option></select></label>
       <label className="flex items-start gap-2 text-xs leading-5"><input type="checkbox" className="mt-1" checked={consent} onChange={e => setConsent(e.target.checked)} /><span>{say('我同意將上方標題、摘要及關卡主題傳送至 Google Gemini 生成圖片，並確認不包含學生個資或機密內容。每日最多 5 次、間隔 60 秒；失敗與取消可能仍計次或產生服務費用。', 'I consent to sending the title, brief and topics to Google Gemini, with no student or confidential data. Maximum 5 attempts/day, 60 seconds apart. Failed or cancelled attempts may still count and incur provider costs.')}</span></label>
-      <Button type="button" disabled={blocked || !logo || !consent || !poster.title.trim()} onClick={() => void generate()}><Sparkles className="mr-2 h-4 w-4" />{background ? say('重新生成背景', 'Regenerate background') : say('生成封面背景', 'Generate background')}</Button>
+      <Button type="button" disabled={blocked || !logo || !consent || !poster.title.trim()} onClick={() => void generate()}>
+        {pending === 'generate' ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Sparkles className="mr-2 h-4 w-4" />}
+        {pending === 'generate' ? say('生成中…', 'Generating…') : (background ? say('重新生成背景', 'Regenerate background') : say('生成封面背景', 'Generate background'))}
+      </Button>
     </fieldset>
     <fieldset disabled={blocked} className="space-y-3 rounded-lg border bg-background p-3">
       <legend className="px-1 text-sm">{say('講師照片（選填）', 'Teacher photo (optional)')}</legend>
@@ -141,6 +145,6 @@ export function AiGameCover({ context, chinese, disabled, onApply, onCancel }: P
     <div className="space-y-2">{!logo && <p role="status" className="text-xs text-muted-foreground">{say('正在載入品牌字型與圖示，首次約需下載 12 MB…', 'Loading brand font and logo; first use downloads about 12 MB…')}</p>}<canvas ref={canvas} width={1280} height={720} className="aspect-video w-full rounded-lg border bg-white" role="img" aria-label={say('AI 封面合成預覽', 'AI cover composition preview')} /><p className="text-xs text-muted-foreground">{background ? say('可直接修改文字與人物，不需重新生成。確認後輸出 1280 × 720 JPG，儲存遊戲時才上傳。', 'Edit text and portrait without regenerating. Exports a 1280 × 720 JPG; uploaded only when saving the game.') : say('目前僅為排版預覽，請先生成背景。', 'Layout preview only. Generate a background first.')}</p></div>
     {activity && <p role="status" className="flex items-center gap-2 text-sm"><Loader2 className="h-4 w-4 animate-spin" />{activity}</p>}
     {(error || renderError) && <p role="alert" className="text-sm text-destructive">{error || renderError}</p>}
-    <div className="flex flex-wrap gap-2"><Button type="button" onClick={() => void apply()} disabled={blocked || !background || !logo || !poster.title.trim() || Boolean(renderError) || (includeTeacher && (!original || !photoConsent))}>{say('使用此封面', 'Use this cover')}</Button><Button type="button" variant="outline" disabled={disabled} onClick={onCancel}>{say('取消，保留原封面', 'Cancel, keep existing cover')}</Button></div>
+    <div className="flex flex-wrap gap-2"><Button type="button" onClick={() => void apply()} disabled={blocked || !background || !logo || !poster.title.trim() || Boolean(renderError) || (includeTeacher && (!original || !photoConsent))}>{pending === 'apply' && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}{say('使用此封面', 'Use this cover')}</Button><Button type="button" variant="outline" disabled={disabled} onClick={onCancel}>{say('取消，保留原封面', 'Cancel, keep existing cover')}</Button></div>
   </section>;
 }
