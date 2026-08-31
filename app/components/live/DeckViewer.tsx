@@ -72,10 +72,18 @@ export function DeckViewer({ url, page, onNumPages, onError, className }: DeckVi
   useEffect(() => {
     if (!doc || containerSize.width < 1 || containerSize.height < 1) return;
     let cancelled = false;
+    // pdf.js refuses to run two render() calls against the same canvas at
+    // once - flipping pages quickly used to start a new render before the
+    // previous one finished, which threw and surfaced as "could not load
+    // this deck". Tracking the task lets cleanup actually cancel it instead
+    // of just ignoring its result.
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    let renderTask: any = null;
     async function render() {
       try {
         const clampedPage = Math.min(Math.max(1, page), doc.numPages);
         const pdfPage = await doc.getPage(clampedPage);
+        if (cancelled) return;
         // Contain-fit: scale so the page is as large as possible without
         // overflowing the box in either dimension, then render at exactly
         // that resolution (crisp, no CSS upscaling blur).
@@ -88,13 +96,16 @@ export function DeckViewer({ url, page, onNumPages, onError, className }: DeckVi
         canvas.height = viewport.height;
         const context = canvas.getContext('2d');
         if (!context) return;
-        await pdfPage.render({ canvasContext: context, viewport }).promise;
+        renderTask = pdfPage.render({ canvasContext: context, viewport });
+        await renderTask.promise;
       } catch (cause) {
+        // A render we cancelled ourselves rejects too (RenderingCancelledException) -
+        // that's expected when the page changed again mid-render, not a real failure.
         if (!cancelled) { console.error('DeckViewer: failed to render PDF page', page, cause); setError(true); onError?.(); }
       }
     }
     void render();
-    return () => { cancelled = true; };
+    return () => { cancelled = true; renderTask?.cancel(); };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [doc, page, containerSize.width, containerSize.height]);
 
