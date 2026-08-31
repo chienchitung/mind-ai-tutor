@@ -51,9 +51,16 @@ describe('POST /api/live/[code]/react', () => {
     rpc.mockResolvedValue({ data: null, error: { message: 'boom' } });
     expect((await POST(request(), { params: params() })).status).toBe(500);
   });
-  it('still succeeds if the broadcast fails', async () => {
+  it('reports a failed broadcast so the UI can show a retry message', async () => {
     rpc.mockResolvedValue({ data: [{ session_id: 's1', status: 'open' }], error: null });
     broadcastLiveUpdate.mockRejectedValue(new Error('offline'));
-    expect((await POST(request(), { params: params() })).status).toBe(204);
+    expect((await POST(request(), { params: params() })).status).toBe(500);
   });
+});
+
+it('echoes the client event ID for deduplication', async () => {
+  rpc.mockResolvedValue({data:[{session_id:'s1',status:'open'}],error:null});
+  const reactionId = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
+  expect((await POST(request({...body,reactionId}),{params:params()})).status).toBe(204);
+  expect(broadcastLiveUpdate).toHaveBeenCalledWith('s1','reaction:sent',{...body,reactionId});
 });

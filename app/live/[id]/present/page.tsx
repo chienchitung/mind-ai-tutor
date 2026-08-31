@@ -226,6 +226,7 @@ export default function PresenterPage() {
           ),
         );
       })
+      .on('broadcast', { event: 'session:deleted' }, () => { void load(); })
       .on('broadcast', { event: 'reaction:sent' }, ({ payload }) => {
         const { kind } = payload as { kind: string };
         setReactionCounts((previous) => ({
@@ -244,7 +245,7 @@ export default function PresenterPage() {
     return () => {
       void client.removeChannel(channel);
     };
-  }, [params.id, pushReaction, registerPing]);
+  }, [params.id, pushReaction, registerPing, load]);
 
   const handleOpenPoll = async (event: React.FormEvent) => {
     event.preventDefault();

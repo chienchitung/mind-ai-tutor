@@ -10,11 +10,13 @@ import {
   Search,
   Radio,
   CalendarDays,
+  Trash2,
 } from 'lucide-react';
 import { AppLayout } from '@/components/layout/AppLayout';
 import { PageHeader } from '@/components/layout/PageHeader';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
+import { DeleteConfirmation } from '@/components/ui/delete-confirmation';
 import { Input } from '@/components/ui/input';
 import {
   EndSessionButton,
@@ -43,6 +45,8 @@ function LiveSessionsList() {
   const [sessions, setSessions] = useState<LiveSessionSummary[]>([]);
   const [query, setQuery] = useState('');
   const [filter, setFilter] = useState<'all' | 'active' | 'closed'>('all');
+  const [deleteTarget, setDeleteTarget] = useState<LiveSessionSummary | null>(null);
+  const [deleting, setDeleting] = useState(false);
   const [closingId, setClosingId] = useState<string | null>(null);
 
   const load = useCallback(async () => {
@@ -62,7 +66,7 @@ function LiveSessionsList() {
   }, [load]);
 
   const closeSession = async (id: string) => {
-    if (closingId) return;
+    if (closingId || deleting) return;
     setClosingId(id);
     const previous = sessions;
     setSessions((current) =>
@@ -89,6 +93,21 @@ function LiveSessionsList() {
     }
   };
 
+  const deleteSession = async () => {
+    if (!deleteTarget || deleting || closingId) return;
+    setDeleting(true);
+    try {
+      const response = await fetch(`/api/live-sessions/${deleteTarget.id}`, { method: 'DELETE' });
+      if (response.status === 409) throw new Error('SESSION_CHANGED');
+      if (!response.ok && response.status !== 404) throw new Error('DELETE_FAILED');
+      setSessions(current => current.filter(session => session.id !== deleteTarget.id));
+      setDeleteTarget(null);
+      toast({ title: t('live_session_deleted') });
+    } catch (error) {
+      toast({ title: t('error'), description: error instanceof Error && error.message === 'SESSION_CHANGED' ? t('live_delete_changed') : t('live_delete_failed'), variant: 'destructive' });
+    } finally { setDeleting(false); }
+  };
+
   const stillOpenCount = sessions.filter(
     (session) => session.status !== 'closed',
   ).length;
@@ -106,6 +125,7 @@ function LiveSessionsList() {
 
   return (
     <div className="space-y-6">
+      <DeleteConfirmation name={deleteTarget?.title ?? null} busy={deleting} description={t('live_delete_scope')} onCancel={() => setDeleteTarget(null)} onConfirm={() => void deleteSession()} />
       <PageHeader
         heading={t('live_sessions_title')}
         text={t('live_sessions_desc')}
@@ -250,10 +270,13 @@ function LiveSessionsList() {
                   <div className="flex flex-wrap items-center justify-end gap-2 border-t pt-3 lg:shrink-0 lg:border-0 lg:pt-0">
                     {session.status !== 'closed' && (
                       <EndSessionButton
-                        disabled={closingId !== null}
+                        disabled={closingId !== null || deleting}
                         onConfirm={() => void closeSession(session.id)}
                       />
                     )}
+                    {session.status === 'closed' && <Button variant="ghost" className="min-h-11 text-destructive hover:text-destructive" disabled={closingId !== null || deleting} onClick={() => setDeleteTarget(session)}>
+                      <Trash2 className="mr-2 h-4 w-4" />{t('delete')}
+                    </Button>}
                     <Button asChild variant="outline" className="min-h-11">
                       <Link href={`/live/${session.id}/present`}>
                         {t('live_open_workspace')}

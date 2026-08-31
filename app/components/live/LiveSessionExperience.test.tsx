@@ -359,3 +359,45 @@ describe('Live Session experience', () => {
   });
 
 });
+
+describe('session deletion and immediate reactions', () => {
+  it('shows a local emoji before the HTTP response and ignores its broadcast echo', async () => {
+    let finish!: (value: unknown) => void;
+    fetchMock.mockImplementation((url: string) => {
+      if (url.endsWith('/react')) return new Promise(resolve => { finish = resolve; });
+      if (url.includes('/questions')) return Promise.resolve(response([]));
+      return Promise.resolve(response(session));
+    });
+    const { container } = mount(<AudiencePage />);
+    await screen.findByRole('heading', {name:session.title});
+    fireEvent.click(screen.getByRole('button', {name:'掌聲'}));
+    expect(container.querySelectorAll('.live-reaction-float')).toHaveLength(1);
+    const call = fetchMock.mock.calls.find(([url]) => String(url).endsWith('/react'))!;
+    const payload = JSON.parse(call[1].body);
+    expect(payload.reactionId).toBeTruthy();
+    act(() => mocks.events.get('reaction:sent')!({payload}));
+    expect(container.querySelectorAll('.live-reaction-float')).toHaveLength(1);
+    await waitFor(() => expect((screen.getByRole('button',{name:'掌聲'}) as HTMLButtonElement).disabled).toBe(false));
+    await act(async () => { finish(response({},false)); });
+    expect(await screen.findByRole('alert')).toHaveProperty('textContent',expect.stringContaining('未能傳送'));
+  });
+  it('only offers deletion for closed sessions, keeps rows on failure, removes after success', async () => {
+    const rows = [{id:'open-1',title:'進行中的課堂',status:'open',joinCode:'111111',createdAt:'2026-08-31'}, {id:'closed-1',title:'已結束的課堂',status:'closed',joinCode:'222222',createdAt:'2026-08-31'}];
+    let success = false;
+    fetchMock.mockImplementation((_url: string, options?: {method?:string}) => Promise.resolve(options?.method === 'DELETE' ? response({},success) : response(rows)));
+    mount(<SessionsPage />);
+    await screen.findByRole('heading',{name:'已結束的課堂'});
+    expect(screen.getAllByRole('button',{name:'刪除'})).toHaveLength(1);
+    fireEvent.click(screen.getByRole('button',{name:'刪除'}));
+    const dialog = screen.getByRole('alertdialog');
+    expect(dialog.textContent).toContain('Supabase');
+    capture('session-delete');
+    fireEvent.click(within(dialog).getByRole('button',{name:'刪除'}));
+    await waitFor(() => expect(mocks.toast).toHaveBeenCalledWith(expect.objectContaining({variant:'destructive'})));
+    expect(screen.getByRole('heading',{name:'已結束的課堂', hidden:true})).toBeTruthy();
+    success = true;
+    fireEvent.click(within(dialog).getByRole('button',{name:'刪除'}));
+    await waitFor(() => expect(screen.queryByRole('heading',{name:'已結束的課堂'})).toBeNull());
+    expect(screen.getByRole('heading',{name:'進行中的課堂'})).toBeTruthy();
+  });
+});
