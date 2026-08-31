@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const { getServerClient } = vi.hoisted(() => ({ getServerClient: vi.fn() }));
 vi.mock('@/app/lib/supabase', () => ({ getServerClient }));
-import { POST } from './route';
+import { GET, POST } from './route';
 
 const draft = { title: 'Excel 樞紐分析入門', question: 'SUMIF?', options: ['A', 'B', 'C', 'D'] };
 const request = (body: unknown = draft, origin = 'https://test.local') =>
@@ -74,5 +74,48 @@ describe('POST /api/live-sessions', () => {
     const response = await POST(request());
     expect(response.status).toBe(503);
     expect(await response.json()).toEqual({ error: 'LIVE_STORAGE_NOT_READY' });
+  });
+});
+
+describe('GET /api/live-sessions', () => {
+  let listChain: Record<string, ReturnType<typeof vi.fn>>;
+
+  beforeEach(() => {
+    listChain = Object.fromEntries(['select', 'eq', 'order', 'limit'].map((name) => [name, vi.fn()]));
+    for (const name of ['select', 'eq', 'order']) listChain[name].mockReturnValue(listChain);
+    listChain.limit.mockResolvedValue({ data: [], error: null });
+    from.mockReturnValue(listChain);
+  });
+
+  it('rejects unauthenticated requests', async () => {
+    auth.mockResolvedValue({ data: { user: null }, error: null });
+    expect((await GET()).status).toBe(401);
+    expect(from).not.toHaveBeenCalled();
+  });
+  it('returns the owner\'s own sessions, most recent first, mapped to camelCase', async () => {
+    listChain.limit.mockResolvedValue({
+      data: [
+        { id: 's1', title: 'Excel 樞紐分析入門', status: 'open', join_code: '482910', created_at: '2026-01-02T00:00:00Z' },
+        { id: 's2', title: '舊場次', status: 'closed', join_code: '111222', created_at: '2026-01-01T00:00:00Z' },
+      ],
+      error: null,
+    });
+    const response = await GET();
+    expect(response.status).toBe(200);
+    expect(await response.json()).toEqual([
+      { id: 's1', title: 'Excel 樞紐分析入門', status: 'open', joinCode: '482910', createdAt: '2026-01-02T00:00:00Z' },
+      { id: 's2', title: '舊場次', status: 'closed', joinCode: '111222', createdAt: '2026-01-01T00:00:00Z' },
+    ]);
+    expect(listChain.eq).toHaveBeenCalledWith('user_id', 'owner');
+    expect(listChain.order).toHaveBeenCalledWith('created_at', { ascending: false });
+  });
+  it('returns an empty list when the teacher has no sessions', async () => {
+    const response = await GET();
+    expect(response.status).toBe(200);
+    expect(await response.json()).toEqual([]);
+  });
+  it('does not leak database errors as a 200', async () => {
+    listChain.limit.mockResolvedValue({ data: null, error: { code: '42501' } });
+    expect((await GET()).status).toBe(500);
   });
 });

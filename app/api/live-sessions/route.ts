@@ -7,6 +7,29 @@ function databaseError(code?: string) {
   return NextResponse.json({ error: missingMigration ? 'LIVE_STORAGE_NOT_READY' : 'LIVE_STORAGE_ERROR' }, { status: missingMigration ? 503 : 500 });
 }
 
+// The teacher's own list of sessions they've started - lets them see (and
+// close) anything left open from a previous visit instead of it silently
+// sitting there with no way to find it again.
+export async function GET() {
+  try {
+    const client = await getServerClient();
+    const { data: { user }, error: authError } = await client.auth.getUser();
+    if (authError || !user) return NextResponse.json({ error: 'UNAUTHORIZED' }, { status: 401 });
+    const { data, error } = await client.from('live_sessions')
+      .select('id, title, status, join_code, created_at')
+      .eq('user_id', user.id)
+      .order('created_at', { ascending: false })
+      .limit(50);
+    if (error) return databaseError(error.code);
+    return NextResponse.json(
+      (data ?? []).map((row) => ({ id: row.id, title: row.title, status: row.status, joinCode: row.join_code, createdAt: row.created_at })),
+      { headers: { 'Cache-Control': 'private, no-store' } },
+    );
+  } catch {
+    return NextResponse.json({ error: 'LIVE_STORAGE_ERROR' }, { status: 500 });
+  }
+}
+
 export async function POST(request: Request) {
   try {
     const origin = request.headers.get('origin');
