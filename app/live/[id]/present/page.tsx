@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
-import { Loader2, Play, Pause, Square, Plus, Copy, X, FileUp, ChevronLeft, ChevronRight, Trash2, EyeOff, Eye, ListChecks } from 'lucide-react';
+import { Loader2, Play, Pause, Square, Plus, Copy, X, FileUp, ChevronLeft, ChevronRight, Trash2, EyeOff, Eye, ListChecks, Maximize, Minimize, Users } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -17,11 +17,11 @@ import type { LiveSessionOwnerState, LiveSessionStatus, LiveQuestion, QuestionLe
 import { QUESTION_LENSES } from '@/lib/live-session';
 import { uploadLiveDeck } from '@/lib/live-deck-storage';
 import { DeckViewer } from '@/components/live/DeckViewer';
+import { REACTION_EMOJI, ReactionBurstOverlay, useReactionBursts } from '@/components/live/ReactionBurst';
 import type { Quiz, QuizQuestion } from '@/lib/quiz';
 
 const PULSE_LABELS = ['😵', '😕', '🙂', '😄', '🤩'];
 const REACTION_KINDS = ['applause', 'insight', 'resonate', 'pause'] as const;
-const REACTION_EMOJI: Record<(typeof REACTION_KINDS)[number], string> = { applause: '👏', insight: '💡', resonate: '❤️', pause: '✋' };
 
 function sortQuestions(a: LiveQuestion, b: LiveQuestion): number {
   return b.upvotes - a.upvotes || a.createdAt.localeCompare(b.createdAt);
@@ -49,11 +49,16 @@ export default function PresenterPage() {
   const [moderatingId, setModeratingId] = useState<string | null>(null);
 
   const [reactionCounts, setReactionCounts] = useState<Record<string, number>>({});
+  const { reactions, push: pushReaction } = useReactionBursts();
+  const [onlineCount, setOnlineCount] = useState(0);
 
   const [showQuizPicker, setShowQuizPicker] = useState(false);
   const [quizzes, setQuizzes] = useState<Quiz[] | null>(null);
   const [quizzesLoading, setQuizzesLoading] = useState(false);
   const [quizPickerError, setQuizPickerError] = useState('');
+
+  const [presenting, setPresenting] = useState(false);
+  const presentRef = useRef<HTMLDivElement>(null);
 
   const load = useCallback(async () => {
     try {
@@ -121,10 +126,17 @@ export default function PresenterPage() {
       .on('broadcast', { event: 'reaction:sent' }, ({ payload }) => {
         const { kind } = payload as { kind: string };
         setReactionCounts((previous) => ({ ...previous, [kind]: (previous[kind] ?? 0) + 1 }));
+        pushReaction(kind);
+      })
+      // Presence: audience clients track themselves on this same channel
+      // (see the audience page), so its aggregate size here is a live count
+      // of connected students - no extra table or polling needed.
+      .on('presence', { event: 'sync' }, () => {
+        setOnlineCount(Object.keys(channel.presenceState()).length);
       })
       .subscribe();
     return () => { void client.removeChannel(channel); };
-  }, [params.id]);
+  }, [params.id, pushReaction]);
 
   const handleOpenPoll = async (event: React.FormEvent) => {
     event.preventDefault();
@@ -236,6 +248,42 @@ export default function PresenterPage() {
     }
   };
 
+  const enterPresentation = async () => {
+    if (!data?.deckUrl) return;
+    setPresenting(true);
+    try {
+      await presentRef.current?.requestFullscreen();
+    } catch {
+      // Fullscreen can be denied or unsupported (e.g. some mobile browsers) -
+      // the fixed-position overlay below still gives the full-bleed view
+      // either way, it just won't hide the browser chrome too.
+    }
+  };
+
+  const exitPresentation = () => {
+    if (document.fullscreenElement) void document.exitFullscreen().catch(() => {});
+    setPresenting(false);
+  };
+
+  useEffect(() => {
+    const handleFullscreenChange = () => {
+      if (!document.fullscreenElement) setPresenting(false);
+    };
+    document.addEventListener('fullscreenchange', handleFullscreenChange);
+    return () => document.removeEventListener('fullscreenchange', handleFullscreenChange);
+  }, []);
+
+  useEffect(() => {
+    if (!presenting || !data) return;
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'ArrowRight' || event.key === ' ') { event.preventDefault(); void changeDeckPage(data.deckPage + 1); }
+      else if (event.key === 'ArrowLeft') { event.preventDefault(); void changeDeckPage(data.deckPage - 1); }
+      else if (event.key === 'Escape') { exitPresentation(); }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [presenting, data?.deckPage, numDeckPages]);
+
   const handleModerate = async (item: LiveQuestion) => {
     if (moderatingId) return;
     const nextVisibility = item.visibility === 'public' ? 'author_only' : 'public';
@@ -309,6 +357,9 @@ export default function PresenterPage() {
             <span className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-semibold ${data.status === 'open' ? 'bg-red-100 text-red-600' : data.status === 'paused' ? 'bg-amber-100 text-amber-700' : 'bg-muted text-muted-foreground'}`}>
               {data.status === 'open' && <span className="h-1.5 w-1.5 rounded-full bg-red-600" />}
               {t(`live_status_${data.status}` as const)}
+            </span>
+            <span className="inline-flex items-center gap-1.5 rounded-lg border bg-card px-3 py-1.5 text-xs text-muted-foreground">
+              <Users className="h-3.5 w-3.5" />{t('live_online_count', { count: onlineCount })}
             </span>
           </div>
         </div>
@@ -399,6 +450,11 @@ export default function PresenterPage() {
                   {uploadingDeck ? <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" /> : <FileUp className="mr-1.5 h-3.5 w-3.5" />}
                   {t(data.deckUrl ? 'live_deck_replace' : 'live_deck_upload')}
                 </Button>
+                {data.deckUrl && !deckLoadError && (
+                  <Button type="button" size="sm" onClick={() => void enterPresentation()}>
+                    <Maximize className="mr-1.5 h-3.5 w-3.5" />{t('live_present_fullscreen')}
+                  </Button>
+                )}
                 {data.deckUrl && (
                   <Button type="button" size="sm" variant="ghost" disabled={uploadingDeck} onClick={() => void handleDeckRemove()}>
                     <Trash2 className="h-3.5 w-3.5" />
@@ -522,6 +578,44 @@ export default function PresenterPage() {
           </CardContent>
         </Card>
       </div>
+
+      <ReactionBurstOverlay reactions={reactions} className="fixed inset-0 z-[60]" />
+
+      {presenting && data.deckUrl && (
+        <div ref={presentRef} className="fixed inset-0 z-50 flex flex-col bg-black">
+          <div className="flex flex-wrap items-center justify-between gap-3 bg-black/70 px-4 py-2 text-white">
+            <div className="flex flex-wrap items-center gap-3 text-sm">
+              <span className="font-semibold">{data.title}</span>
+              <span className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-xs font-semibold ${data.status === 'open' ? 'bg-red-500/90' : data.status === 'paused' ? 'bg-amber-500/90' : 'bg-white/20'}`}>
+                {t(`live_status_${data.status}` as const)}
+              </span>
+              <span className="inline-flex items-center gap-1 text-xs text-white/70">
+                <Users className="h-3.5 w-3.5" />{t('live_online_count', { count: onlineCount })}
+              </span>
+              <span className="font-mono text-xs text-white/70 tracking-widest">{data.joinCode}</span>
+            </div>
+            <Button type="button" size="sm" variant="ghost" className="text-white hover:bg-white/10 hover:text-white" onClick={exitPresentation}>
+              <Minimize className="mr-1.5 h-3.5 w-3.5" />{t('live_exit_presentation')}
+            </Button>
+          </div>
+          <div className="relative flex flex-1 items-center justify-center overflow-hidden p-4">
+            {deckLoadError ? (
+              <p className="text-sm text-white/70">{t('live_deck_load_error')}</p>
+            ) : (
+              <DeckViewer url={data.deckUrl} page={data.deckPage} className="max-h-full max-w-full" onNumPages={setNumDeckPages} onError={() => setDeckLoadError(true)} />
+            )}
+          </div>
+          <div className="flex items-center justify-center gap-4 bg-black/70 px-4 py-3">
+            <Button type="button" size="icon" variant="ghost" className="text-white hover:bg-white/10 hover:text-white" disabled={data.deckPage <= 1} onClick={() => void changeDeckPage(data.deckPage - 1)}>
+              <ChevronLeft className="h-5 w-5" />
+            </Button>
+            <span className="font-mono text-sm text-white/80">{t('live_deck_page_of', { current: data.deckPage, total: numDeckPages })}</span>
+            <Button type="button" size="icon" variant="ghost" className="text-white hover:bg-white/10 hover:text-white" disabled={data.deckPage >= numDeckPages} onClick={() => void changeDeckPage(data.deckPage + 1)}>
+              <ChevronRight className="h-5 w-5" />
+            </Button>
+          </div>
+        </div>
+      )}
 
       <Dialog open={showQuizPicker} onOpenChange={setShowQuizPicker}>
         <DialogContent className="max-h-[80vh] max-w-lg overflow-y-auto">

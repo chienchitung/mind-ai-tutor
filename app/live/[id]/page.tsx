@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import { useParams } from 'next/navigation';
-import { Loader2, ThumbsUp } from 'lucide-react';
+import { Loader2, ThumbsUp, Users } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Textarea } from '@/components/ui/textarea';
@@ -10,10 +10,10 @@ import { supabase } from '@/lib/supabase';
 import { useLanguage } from '@/app/contexts/LanguageContext';
 import { useTranslation } from '@/utils/translations';
 import { participantStorageKey, QUESTION_LENSES, type LiveSessionPublicState, type LiveQuestion, type QuestionLens } from '@/lib/live-session';
+import { REACTION_EMOJI, ReactionBurstOverlay, useReactionBursts } from '@/components/live/ReactionBurst';
 
 const PULSE_FACES = ['😵', '😕', '🙂', '😄', '🤩'];
 const REACTION_KINDS = ['applause', 'insight', 'resonate', 'pause'] as const;
-const REACTION_EMOJI: Record<(typeof REACTION_KINDS)[number], string> = { applause: '👏', insight: '💡', resonate: '❤️', pause: '✋' };
 
 function sortQuestions(a: LiveQuestion, b: LiveQuestion): number {
   return b.upvotes - a.upvotes || a.createdAt.localeCompare(b.createdAt);
@@ -51,6 +51,8 @@ export default function AudiencePage() {
   const [qaError, setQaError] = useState('');
   const [upvotedIds, setUpvotedIds] = useState<Set<string>>(new Set());
   const [reacting, setReacting] = useState<string | null>(null);
+  const { reactions, push: pushReaction } = useReactionBursts();
+  const [onlineCount, setOnlineCount] = useState(0);
 
   const load = useCallback(async () => {
     try {
@@ -82,9 +84,12 @@ export default function AudiencePage() {
   useEffect(() => { void loadQuestions(); }, [loadQuestions]);
 
   useEffect(() => {
-    if (!data?.sessionId) return;
+    // Waiting for participantId too (it resolves almost immediately after
+    // mount) means the channel is created with a stable presence key from
+    // the start, instead of tracking under a throwaway key and re-tracking.
+    if (!data?.sessionId || !participantId) return;
     const client = supabase();
-    const channel = client.channel(`live-session:${data.sessionId}`);
+    const channel = client.channel(`live-session:${data.sessionId}`, { config: { presence: { key: participantId } } });
     channel
       .on('broadcast', { event: 'poll:opened' }, ({ payload }) => {
         setMyVote(null);
@@ -116,9 +121,17 @@ export default function AudiencePage() {
         // may not be allowed to see - the broadcast alone doesn't carry enough.
         void loadQuestions();
       })
-      .subscribe();
+      .on('broadcast', { event: 'reaction:sent' }, ({ payload }) => {
+        pushReaction((payload as { kind: string }).kind);
+      })
+      .on('presence', { event: 'sync' }, () => {
+        setOnlineCount(Object.keys(channel.presenceState()).length);
+      })
+      .subscribe((subscribeStatus) => {
+        if (subscribeStatus === 'SUBSCRIBED') void channel.track({ online_at: new Date().toISOString() });
+      });
     return () => { void client.removeChannel(channel); };
-  }, [data?.sessionId, loadQuestions]);
+  }, [data?.sessionId, participantId, loadQuestions, pushReaction]);
 
   const castVote = async (optionIndex: number) => {
     if (!data?.poll || !participantId || data.status !== 'open' || myVote === optionIndex) return;
@@ -221,12 +234,20 @@ export default function AudiencePage() {
 
   return (
     <div className="flex min-h-screen items-center justify-center bg-muted/20 p-4">
+      <ReactionBurstOverlay reactions={reactions} className="fixed inset-0 z-[60]" />
       <Card className="w-full max-w-md border-0 shadow-lg">
         <CardContent className="space-y-5 p-6">
-          <div>
-            <p className="text-xs uppercase tracking-wide text-muted-foreground">{data.title}</p>
-            {data.status !== 'open' && (
-              <p className="mt-1 text-sm font-medium text-muted-foreground">{t(data.status === 'paused' ? 'live_status_paused' : 'live_status_closed')}</p>
+          <div className="flex items-start justify-between gap-2">
+            <div>
+              <p className="text-xs uppercase tracking-wide text-muted-foreground">{data.title}</p>
+              {data.status !== 'open' && (
+                <p className="mt-1 text-sm font-medium text-muted-foreground">{t(data.status === 'paused' ? 'live_status_paused' : 'live_status_closed')}</p>
+              )}
+            </div>
+            {onlineCount > 0 && (
+              <span className="inline-flex shrink-0 items-center gap-1 rounded-full border px-2 py-0.5 text-[11px] text-muted-foreground">
+                <Users className="h-3 w-3" />{t('live_online_count', { count: onlineCount })}
+              </span>
             )}
           </div>
 
