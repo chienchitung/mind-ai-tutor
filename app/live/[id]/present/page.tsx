@@ -402,7 +402,10 @@ export default function PresenterPage() {
             </div>
             {data.deckUrl ? (
               deckLoadError ? (
-                <p className="py-8 text-center text-sm text-muted-foreground">{t('live_deck_load_error')}</p>
+                <div className="space-y-1 py-8 text-center">
+                  <p className="text-sm text-muted-foreground">{t('live_deck_load_error')}</p>
+                  <p className="break-all font-mono text-[11px] text-muted-foreground/70">{data.deckUrl}</p>
+                </div>
               ) : (
                 <div className="space-y-2">
                   <div className="flex justify-center overflow-hidden rounded-lg border bg-black/5">

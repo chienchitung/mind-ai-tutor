@@ -33,8 +33,8 @@ export function DeckViewer({ url, page, onNumPages, onError, className }: DeckVi
         if (cancelled) return;
         setDoc(pdf);
         onNumPages?.(pdf.numPages);
-      } catch {
-        if (!cancelled) { setError(true); onError?.(); }
+      } catch (cause) {
+        if (!cancelled) { console.error('DeckViewer: failed to load PDF document', url, cause); setError(true); onError?.(); }
       }
     }
     void load();
@@ -58,8 +58,8 @@ export function DeckViewer({ url, page, onNumPages, onError, className }: DeckVi
         const context = canvas.getContext('2d');
         if (!context) return;
         await pdfPage.render({ canvasContext: context, viewport }).promise;
-      } catch {
-        if (!cancelled) { setError(true); onError?.(); }
+      } catch (cause) {
+        if (!cancelled) { console.error('DeckViewer: failed to render PDF page', page, cause); setError(true); onError?.(); }
       }
     }
     void render();
