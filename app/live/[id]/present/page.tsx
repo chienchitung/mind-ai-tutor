@@ -130,12 +130,20 @@ export default function PresenterPage() {
       })
       // Presence: audience clients track themselves on this same channel
       // (see the audience page), so its aggregate size here is a live count
-      // of connected students - no extra table or polling needed.
+      // of connected students - no extra table needed.
       .on('presence', { event: 'sync' }, () => {
         setOnlineCount(Object.keys(channel.presenceState()).length);
       })
       .subscribe();
-    return () => { void client.removeChannel(channel); };
+    // Belt-and-suspenders: Supabase's realtime-js has had production
+    // incidents where presence 'sync'/'join'/'leave' callbacks silently stop
+    // firing while the underlying presenceState() itself stays current. A
+    // light poll means the count self-heals within a few seconds even if the
+    // event never lands, at basically no cost (a local read, no network call).
+    const presenceInterval = setInterval(() => {
+      setOnlineCount(Object.keys(channel.presenceState()).length);
+    }, 4000);
+    return () => { clearInterval(presenceInterval); void client.removeChannel(channel); };
   }, [params.id, pushReaction]);
 
   const handleOpenPoll = async (event: React.FormEvent) => {
@@ -470,8 +478,8 @@ export default function PresenterPage() {
                 </div>
               ) : (
                 <div className="space-y-2">
-                  <div className="flex justify-center overflow-hidden rounded-lg border bg-black/5">
-                    <DeckViewer url={data.deckUrl} page={data.deckPage} className="max-h-[60vh] w-auto" onNumPages={setNumDeckPages} onError={() => setDeckLoadError(true)} />
+                  <div className="overflow-hidden rounded-lg border bg-black/5">
+                    <DeckViewer url={data.deckUrl} page={data.deckPage} className="h-[60vh] w-full" onNumPages={setNumDeckPages} onError={() => setDeckLoadError(true)} />
                   </div>
                   <div className="flex items-center justify-center gap-3">
                     <Button type="button" size="sm" variant="outline" disabled={data.deckPage <= 1} onClick={() => void changeDeckPage(data.deckPage - 1)}>
@@ -598,11 +606,11 @@ export default function PresenterPage() {
               <Minimize className="mr-1.5 h-3.5 w-3.5" />{t('live_exit_presentation')}
             </Button>
           </div>
-          <div className="relative flex flex-1 items-center justify-center overflow-hidden p-4">
+          <div className="relative flex-1 overflow-hidden p-4">
             {deckLoadError ? (
-              <p className="text-sm text-white/70">{t('live_deck_load_error')}</p>
+              <p className="flex h-full items-center justify-center text-sm text-white/70">{t('live_deck_load_error')}</p>
             ) : (
-              <DeckViewer url={data.deckUrl} page={data.deckPage} className="max-h-full max-w-full" onNumPages={setNumDeckPages} onError={() => setDeckLoadError(true)} />
+              <DeckViewer url={data.deckUrl} page={data.deckPage} className="h-full w-full" onNumPages={setNumDeckPages} onError={() => setDeckLoadError(true)} />
             )}
           </div>
           <div className="flex items-center justify-center gap-4 bg-black/70 px-4 py-3">

@@ -93,6 +93,10 @@ export default function DigitalGamesPage() {
   const [gameSearch, setGameSearch] = useState("");
   const [lessonSearch, setLessonSearch] = useState("");
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
+  // A thumbnail_url can point at a deleted/missing storage object - falls
+  // back to the game icon placeholder instead of the browser's broken-image icon.
+  const [brokenThumbnailIds, setBrokenThumbnailIds] = useState<Set<string>>(new Set());
+  const markThumbnailBroken = (id: string) => setBrokenThumbnailIds((previous) => (previous.has(id) ? previous : new Set(previous).add(id)));
   const [selectedLessons, setSelectedLessons] = useState<string[]>([]);
   const [lessonOverrides, setLessonOverrides] = useState<Record<string, LessonOverride>>({});
   const [coverFile, setCoverFile] = useState<File | null>(null);
@@ -796,12 +800,13 @@ export default function DigitalGamesPage() {
                 <div className={viewMode === 'grid' ? "grid gap-4 md:grid-cols-2 xl:grid-cols-3" : "space-y-3"}>
                   {visibleGames.map((game) => (
                     viewMode === 'grid' ? <Card key={game.id} className="flex h-full flex-col overflow-hidden shadow-none transition-colors hover:border-foreground/25">
-                      {game.thumbnail_url ? (
+                      {game.thumbnail_url && !brokenThumbnailIds.has(game.id) ? (
                         <div className="relative w-full pt-[56.25%]">
                           <img
                             src={game.thumbnail_url}
                             alt={game.title}
                             className="absolute inset-0 h-full w-full object-cover"
+                            onError={() => markThumbnailBroken(game.id)}
                           />
                         </div>
                       ) : (
@@ -899,8 +904,8 @@ export default function DigitalGamesPage() {
                       <Card key={game.id} className="shadow-none transition-colors hover:border-foreground/25">
                         <div className="flex flex-col gap-4 p-4 sm:flex-row sm:items-center sm:p-5">
                           <div className="flex h-14 w-14 shrink-0 items-center justify-center overflow-hidden rounded-xl bg-foreground">
-                            {game.thumbnail_url ? (
-                              <img src={game.thumbnail_url} alt="" className="h-full w-full object-cover" />
+                            {game.thumbnail_url && !brokenThumbnailIds.has(game.id) ? (
+                              <img src={game.thumbnail_url} alt="" className="h-full w-full object-cover" onError={() => markThumbnailBroken(game.id)} />
                             ) : (
                               <Gamepad2 className="h-6 w-6 text-background/80" />
                             )}

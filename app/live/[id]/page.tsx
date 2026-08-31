@@ -130,7 +130,13 @@ export default function AudiencePage() {
       .subscribe((subscribeStatus) => {
         if (subscribeStatus === 'SUBSCRIBED') void channel.track({ online_at: new Date().toISOString() });
       });
-    return () => { void client.removeChannel(channel); };
+    // Belt-and-suspenders: see the presenter page for why - a light poll of
+    // the already-local presenceState() as a fallback in case the 'sync'
+    // event itself doesn't fire.
+    const presenceInterval = setInterval(() => {
+      setOnlineCount(Object.keys(channel.presenceState()).length);
+    }, 4000);
+    return () => { clearInterval(presenceInterval); void client.removeChannel(channel); };
   }, [data?.sessionId, participantId, loadQuestions, pushReaction]);
 
   const castVote = async (optionIndex: number) => {
