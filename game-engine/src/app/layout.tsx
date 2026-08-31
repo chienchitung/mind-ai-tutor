@@ -14,8 +14,8 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: 'Excel 學習平台',
-  description: '學習 Excel 函數和數據分析技巧',
+  title: 'MindAiTutor 遊戲學習平台',
+  description: '透過互動遊戲學習知識與技能',
 }
 
 export default function RootLayout({
