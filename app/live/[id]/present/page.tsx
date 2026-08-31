@@ -39,7 +39,6 @@ export default function PresenterPage() {
   const [question, setQuestion] = useState('');
   const [options, setOptions] = useState(['', '']);
   const [isOpeningPoll, setIsOpeningPoll] = useState(false);
-  const [pendingStatus, setPendingStatus] = useState<LiveSessionStatus | null>(null);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [uploadingDeck, setUploadingDeck] = useState(false);
@@ -145,18 +144,19 @@ export default function PresenterPage() {
   };
 
   const handleStatusChange = async (next: LiveSessionStatus) => {
-    if (pendingStatus) return;
-    setPendingStatus(next);
+    if (!data || data.status === next) return;
+    // Optimistic: flip the button state on click, like Slido does, instead
+    // of waiting on the round trip - roll back only if the write fails.
+    const previousStatus = data.status;
+    setData((previous) => (previous ? { ...previous, status: next } : previous));
     try {
       const response = await fetch(`/api/live-sessions/${params.id}`, {
         method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ status: next }),
       });
       if (!response.ok) throw new Error();
-      setData((previous) => (previous ? { ...previous, status: next } : previous));
     } catch {
+      setData((previous) => (previous ? { ...previous, status: previousStatus } : previous));
       toast({ title: t('error'), description: t('error_updating_session'), variant: 'destructive' });
-    } finally {
-      setPendingStatus(null);
     }
   };
 
@@ -314,13 +314,13 @@ export default function PresenterPage() {
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
-          <Button type="button" size="sm" variant={data.status === 'open' ? 'default' : 'outline'} disabled={!!pendingStatus} onClick={() => void handleStatusChange('open')}>
+          <Button type="button" size="sm" variant={data.status === 'open' ? 'default' : 'outline'} onClick={() => void handleStatusChange('open')}>
             <Play className="mr-1.5 h-3.5 w-3.5" />{t('live_status_open')}
           </Button>
-          <Button type="button" size="sm" variant={data.status === 'paused' ? 'default' : 'outline'} disabled={!!pendingStatus} onClick={() => void handleStatusChange('paused')}>
+          <Button type="button" size="sm" variant={data.status === 'paused' ? 'default' : 'outline'} onClick={() => void handleStatusChange('paused')}>
             <Pause className="mr-1.5 h-3.5 w-3.5" />{t('live_status_paused')}
           </Button>
-          <Button type="button" size="sm" variant={data.status === 'closed' ? 'default' : 'outline'} disabled={!!pendingStatus} onClick={() => void handleStatusChange('closed')}>
+          <Button type="button" size="sm" variant={data.status === 'closed' ? 'default' : 'outline'} onClick={() => void handleStatusChange('closed')}>
             <Square className="mr-1.5 h-3.5 w-3.5" />{t('live_status_closed')}
           </Button>
           <div className="ml-auto flex flex-wrap gap-2">
