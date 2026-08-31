@@ -304,33 +304,46 @@ export default function PresenterPage() {
               {data.status === 'open' && <span className="h-1.5 w-1.5 rounded-full bg-red-600" />}
               {t(`live_status_${data.status}` as const)}
             </span>
-            <div className="flex items-center gap-2 rounded-lg border bg-card px-3 py-1.5">
-              <span className="font-mono text-sm tracking-widest">{data.joinCode}</span>
-              <Button type="button" size="sm" variant="ghost" className="h-6 px-2" onClick={() => void copyJoinLink()}>
-                <Copy className="h-3.5 w-3.5" />
-              </Button>
-            </div>
           </div>
         </div>
 
-        <div className="flex flex-wrap items-center gap-2">
-          <Button type="button" size="sm" variant={data.status === 'open' ? 'default' : 'outline'} onClick={() => void handleStatusChange('open')}>
-            <Play className="mr-1.5 h-3.5 w-3.5" />{t('live_status_open')}
-          </Button>
-          <Button type="button" size="sm" variant={data.status === 'paused' ? 'default' : 'outline'} onClick={() => void handleStatusChange('paused')}>
-            <Pause className="mr-1.5 h-3.5 w-3.5" />{t('live_status_paused')}
-          </Button>
-          <Button type="button" size="sm" variant={data.status === 'closed' ? 'default' : 'outline'} onClick={() => void handleStatusChange('closed')}>
-            <Square className="mr-1.5 h-3.5 w-3.5" />{t('live_status_closed')}
-          </Button>
-          <div className="ml-auto flex flex-wrap gap-2">
-            <Button type="button" size="sm" variant="outline" onClick={() => void openQuizPicker()}>
-              <ListChecks className="mr-1.5 h-3.5 w-3.5" />{t('live_load_from_quiz')}
+        {/* The single most important thing on this page for a first-time
+            presenter: what to give students. Made loud and unmissable on
+            purpose, separate from the voting-status controls below, since
+            those two were easy to mistake for each other. */}
+        <Card className="border-primary/40 bg-primary/5">
+          <CardContent className="flex flex-wrap items-center justify-between gap-4 p-4">
+            <div>
+              <p className="text-xs uppercase tracking-wide text-muted-foreground">{t('live_share_title')}</p>
+              <p className="font-mono text-3xl font-bold tracking-[0.2em]">{data.joinCode}</p>
+            </div>
+            <Button type="button" onClick={() => void copyJoinLink()}>
+              <Copy className="mr-1.5 h-4 w-4" />{t('live_copy_link')}
             </Button>
-            <Button type="button" size="sm" variant="outline" onClick={() => setShowComposer((previous) => !previous)}>
-              {showComposer ? <X className="mr-1.5 h-3.5 w-3.5" /> : <Plus className="mr-1.5 h-3.5 w-3.5" />}
-              {t('live_new_poll')}
+          </CardContent>
+        </Card>
+
+        <div>
+          <p className="mb-1.5 text-xs uppercase tracking-wide text-muted-foreground">{t('live_poll_status_label')}</p>
+          <div className="flex flex-wrap items-center gap-2">
+            <Button type="button" size="sm" variant={data.status === 'open' ? 'default' : 'outline'} onClick={() => void handleStatusChange('open')}>
+              <Play className="mr-1.5 h-3.5 w-3.5" />{t('live_action_open')}
             </Button>
+            <Button type="button" size="sm" variant={data.status === 'paused' ? 'default' : 'outline'} onClick={() => void handleStatusChange('paused')}>
+              <Pause className="mr-1.5 h-3.5 w-3.5" />{t('live_action_paused')}
+            </Button>
+            <Button type="button" size="sm" variant={data.status === 'closed' ? 'default' : 'outline'} onClick={() => void handleStatusChange('closed')}>
+              <Square className="mr-1.5 h-3.5 w-3.5" />{t('live_action_closed')}
+            </Button>
+            <div className="ml-auto flex flex-wrap gap-2">
+              <Button type="button" size="sm" variant="outline" onClick={() => void openQuizPicker()}>
+                <ListChecks className="mr-1.5 h-3.5 w-3.5" />{t('live_load_from_quiz')}
+              </Button>
+              <Button type="button" size="sm" variant="outline" onClick={() => setShowComposer((previous) => !previous)}>
+                {showComposer ? <X className="mr-1.5 h-3.5 w-3.5" /> : <Plus className="mr-1.5 h-3.5 w-3.5" />}
+                {t('live_new_poll')}
+              </Button>
+            </div>
           </div>
         </div>
 
