@@ -66,8 +66,10 @@ export default function HomePage({ gameId }: { gameId?: string }) {
   // Add state for mapped lessons
   const [mappedLessons, setMappedLessons] = useState<Lesson[]>(gameId ? [] : legacyLessons);
   const storageKey = (key: string) => gameStorageKey(gameId, key);
+  // No leading /games here - basePath already adds it to every next/link href
+  // and router.push() call.
   const lessonHref = (lessonId: string) =>
-    gameId ? `/games/${gameId}/lessons/${lessonId}` : `/lessons/${lessonId}`;
+    gameId ? `/${gameId}/lessons/${lessonId}` : `/lessons/${lessonId}`;
   
   useEffect(() => {
     const fetchProgressAndMappings = async () => {

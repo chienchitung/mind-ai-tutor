@@ -17,6 +17,21 @@ const nextConfig: NextConfig = {
   turbopack: {
     root: path.join(__dirname),
   },
+
+  // Lets mindaitutor.com/games/* reverse-proxy to this deployment (see the
+  // matching rewrite in the main app's next.config.ts) without its own
+  // /_next/* asset paths colliding with the main app's. Every route in this
+  // app is now served under /games as a result - app/page.tsx (legacy,
+  // gameId-less) becomes /games, app/lessons/[id] becomes /games/lessons/[id].
+  basePath: '/games',
+
+  async redirects() {
+    return [
+      // Preserve bookmarks to this deployment's own pre-basePath URLs.
+      { source: '/', destination: '/games', basePath: false, permanent: false },
+      { source: '/lessons/:path*', destination: '/games/lessons/:path*', basePath: false, permanent: false },
+    ];
+  },
 };
 
 export default nextConfig;

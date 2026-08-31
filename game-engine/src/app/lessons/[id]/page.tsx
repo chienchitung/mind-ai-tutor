@@ -336,8 +336,10 @@ export default function ExcelLearningPlatform({
   const [gameLoadError, setGameLoadError] = useState<string | null>(null);
   const lessons = gameLessons;
   const storageKey = (key: string) => gameStorageKey(gameId, key);
+  // No leading /games here - basePath already adds it to every next/link href
+  // and router.push() call.
   const lessonHref = (lessonId: string) =>
-    gameId ? `/games/${gameId}/lessons/${lessonId}` : `/lessons/${lessonId}`;
+    gameId ? `/${gameId}/lessons/${lessonId}` : `/lessons/${lessonId}`;
 
   useEffect(() => {
     if (!gameId) return;
@@ -1476,7 +1478,7 @@ export default function ExcelLearningPlatform({
       <a className="quest-skip" href="#lesson-workspace">跳至任務工作臺</a>
       <header className="quest-header" inert={lessonState.showChat && (compactChat || isExpanded)}>
         <div className="quest-header-inner">
-          <Link href={gameId ? `/games/${gameId}` : "/"} aria-label="返回任務基地"><GameBrand game={gameDefinition} legacy={!gameId} /></Link>
+          <Link href={gameId ? `/${gameId}` : "/"} aria-label="返回任務基地"><GameBrand game={gameDefinition} legacy={!gameId} /></Link>
           <span className="quest-header-label">任務工作臺</span>
           <div className="quest-player-stats"><span>Lv. {lessonState.level}</span><span>{lessonState.exp} XP</span><span><Star size={16} aria-hidden="true" />{lessonState.stars}</span></div>
         </div>
@@ -1487,7 +1489,7 @@ export default function ExcelLearningPlatform({
           <div className="lesson-heading">
             <div className="lesson-breadcrumb">
               <Link 
-                href={gameId ? `/games/${gameId}` : "/"}
+                href={gameId ? `/${gameId}` : "/"}
                 className="flex items-center gap-2 text-gray-600 hover:text-blue-600 transition-colors"
               >
                 <ChevronLeft className="h-4 w-4 md:h-5 md:w-5" />
@@ -2052,7 +2054,7 @@ export default function ExcelLearningPlatform({
               </div>
             </DialogDescription>
           </DialogHeader>
-          <Link href={gameId ? `/games/${gameId}` : '/'} className="quest-button">返回任務基地</Link>
+          <Link href={gameId ? `/${gameId}` : '/'} className="quest-button">返回任務基地</Link>
           <div className="p-6">
             <div className="space-y-6">
               <div className="flex items-center justify-between p-4 bg-[#FFF5E5] rounded-xl">
