@@ -35,8 +35,12 @@ describe('AI cover workflow', () => {
   });
   it('generates once and does not mutate the cover until explicitly adopted', async () => {
     respond(); const p = props(); render(<AiGameCover {...p} />); consent();
-    await generate();
-    fireEvent.click(screen.getByText('生成封面背景'));
+    await waitFor(() => expect((screen.getByText('生成封面背景') as HTMLButtonElement).disabled).toBe(false));
+    // Hold the element reference rather than re-querying by label: the label
+    // itself now flips to a "generating…" state on the very first click.
+    const generateButton = screen.getByText('生成封面背景');
+    fireEvent.click(generateButton);
+    fireEvent.click(generateButton);
     await screen.findByText('重新生成背景');
     expect(fetchMock).toHaveBeenCalledTimes(1); expect(p.onApply).not.toHaveBeenCalled();
     const payload = JSON.parse(fetchMock.mock.calls[0][1].body);
