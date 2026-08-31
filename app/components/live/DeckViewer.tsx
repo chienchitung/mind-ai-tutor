@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
 
 interface DeckViewerProps {
   url: string;
@@ -9,17 +9,24 @@ interface DeckViewerProps {
   onError?: () => void;
   /** Sizes the viewer itself - give it an explicit height (e.g. "h-full" inside a flex-1 parent, or "h-[60vh]") so there's a real box to fill. */
   className?: string;
+  /** Annotation surface, aligned to the rendered PDF rather than its outer box. */
+  overlay?: ReactNode;
 }
 
 // Renders one page of a PDF deck onto a canvas via pdfjs-dist, reusing the
 // same worker setup app/ai-quiz/page.tsx already uses for text extraction -
 // this is the first spot in the app doing actual visual page rendering.
-export function DeckViewer({ url, page, onNumPages, onError, className }: DeckViewerProps) {
+export function DeckViewer({ url, page, onNumPages, onError, className, overlay }: DeckViewerProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const [doc, setDoc] = useState<any>(null);
   const [error, setError] = useState(false);
+  const [rendered, setRendered] = useState<{
+    url: string;
+    page: number;
+    width: number;
+    height: number;
+  } | null>(null);
   const [containerSize, setContainerSize] = useState({ width: 0, height: 0 });
 
   // The deck should fill whatever box it's given (a small card, or a
@@ -32,7 +39,9 @@ export function DeckViewer({ url, page, onNumPages, onError, className }: DeckVi
       const entry = entries[0];
       if (!entry) return;
       const { width, height } = entry.contentRect;
-      setContainerSize((previous) => (previous.width === width && previous.height === height ? previous : { width, height }));
+      setContainerSize((previous) =>
+        previous.width === width && previous.height === height ? previous : { width, height },
+      );
     });
     observer.observe(container);
     return () => observer.disconnect();
@@ -60,11 +69,17 @@ export function DeckViewer({ url, page, onNumPages, onError, className }: DeckVi
         setDoc(pdf);
         onNumPages?.(pdf.numPages);
       } catch (cause) {
-        if (!cancelled) { console.error('DeckViewer: failed to load PDF document', url, cause); setError(true); onError?.(); }
+        if (!cancelled) {
+          console.error('DeckViewer: failed to load PDF document', url, cause);
+          setError(true);
+          onError?.();
+        }
       }
     }
     void load();
-    return () => { cancelled = true; };
+    return () => {
+      cancelled = true;
+    };
     // onNumPages/onError are expected to be stable callbacks from the caller.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [url]);
@@ -77,7 +92,6 @@ export function DeckViewer({ url, page, onNumPages, onError, className }: DeckVi
     // previous one finished, which threw and surfaced as "could not load
     // this deck". Tracking the task lets cleanup actually cancel it instead
     // of just ignoring its result.
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     let renderTask: any = null;
     async function render() {
       try {
@@ -92,27 +106,42 @@ export function DeckViewer({ url, page, onNumPages, onError, className }: DeckVi
         const viewport = pdfPage.getViewport({ scale: Math.max(scale, 0.1) });
         const canvas = canvasRef.current;
         if (!canvas || cancelled) return;
+        setRendered(null);
         canvas.width = viewport.width;
         canvas.height = viewport.height;
         const context = canvas.getContext('2d');
         if (!context) return;
         renderTask = pdfPage.render({ canvasContext: context, viewport });
         await renderTask.promise;
+        if (!cancelled) setRendered({ url, page, width: viewport.width, height: viewport.height });
       } catch (cause) {
         // A render we cancelled ourselves rejects too (RenderingCancelledException) -
         // that's expected when the page changed again mid-render, not a real failure.
-        if (!cancelled) { console.error('DeckViewer: failed to render PDF page', page, cause); setError(true); onError?.(); }
+        if (!cancelled) {
+          console.error('DeckViewer: failed to render PDF page', page, cause);
+          setError(true);
+          onError?.();
+        }
       }
     }
     void render();
-    return () => { cancelled = true; renderTask?.cancel(); };
+    return () => {
+      cancelled = true;
+      renderTask?.cancel();
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [doc, page, containerSize.width, containerSize.height]);
 
   if (error) return null;
   return (
     <div ref={containerRef} className={`flex items-center justify-center ${className ?? ''}`}>
-      <canvas ref={canvasRef} className="max-h-full max-w-full" />
+      <div
+        className="relative max-h-full max-w-full"
+        style={rendered ? { width: rendered.width, height: rendered.height } : undefined}
+      >
+        <canvas ref={canvasRef} className="block max-h-full max-w-full" />
+        {rendered?.url === url && rendered.page === page ? overlay : null}
+      </div>
     </div>
   );
 }
