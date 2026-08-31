@@ -1,4 +1,4 @@
-import { NextResponse } from 'next/server';
+import { NextResponse, after } from 'next/server';
 import { getServerClient } from '@/app/lib/supabase';
 import { pulseSchema } from '@/lib/live-session';
 import { broadcastLiveUpdate } from '@/lib/live-broadcast';
@@ -34,11 +34,10 @@ export async function POST(request: Request, { params }: { params: Promise<{ cod
     }
     const result = Array.isArray(data) ? data[0] : data;
 
-    try {
-      await broadcastLiveUpdate(row.session_id, 'pulse:update', {
-        pulseCounts: result.pulse_counts, pulseTotal: result.pulse_total, pulseAverage: result.pulse_average,
-      });
-    } catch (cause) { console.error('live pulse broadcast failed:', cause); }
+    // See app/api/live-sessions/[id]/route.ts - broadcast never gates the response.
+    after(() => broadcastLiveUpdate(row.session_id, 'pulse:update', {
+      pulseCounts: result.pulse_counts, pulseTotal: result.pulse_total, pulseAverage: result.pulse_average,
+    }).catch((cause) => console.error('live pulse broadcast failed:', cause)));
 
     return NextResponse.json(
       { pulseCounts: result.pulse_counts, pulseTotal: result.pulse_total, pulseAverage: result.pulse_average },

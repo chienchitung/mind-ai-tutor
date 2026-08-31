@@ -3,6 +3,14 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 const { getServerClient, broadcastLiveUpdate } = vi.hoisted(() => ({ getServerClient: vi.fn(), broadcastLiveUpdate: vi.fn() }));
 vi.mock('@/app/lib/supabase', () => ({ getServerClient }));
 vi.mock('@/lib/live-broadcast', () => ({ broadcastLiveUpdate }));
+// next/server's real after() throws outside an actual request context, which
+// this direct handler-call test style never has. Run the callback inline -
+// the route always wraps it in its own .catch(), so this stays safe even
+// when broadcastLiveUpdate rejects.
+vi.mock('next/server', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('next/server')>()),
+  after: (callback: () => unknown) => { void callback(); },
+}));
 import { POST } from './route';
 
 const participantId = '11111111-1111-4111-8111-111111111111';

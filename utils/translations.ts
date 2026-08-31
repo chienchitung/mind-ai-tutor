@@ -313,6 +313,7 @@ export const translations = {
     error_save_game: "Failed to save digital game",
     error_fetch_data: "Failed to load data. Please try again later.",
     error_delete_game: "Failed to delete digital game",
+    error_delete_game_has_records: "This game already has student play records, so it can't be deleted right now.",
     
     // Lesson form translations
     describe_lesson: "Describe the lesson content",
@@ -1175,6 +1176,7 @@ export const translations = {
     error_save_game: "無法保存數位遊戲",
     error_fetch_data: "無法載入數據。請稍後再試。",
     error_delete_game: "無法刪除數位遊戲",
+    error_delete_game_has_records: "此遊戲已有學生的遊玩紀錄，暫時無法刪除。",
     
     // Lesson form translations
     describe_lesson: "描述課程內容",

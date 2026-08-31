@@ -1,4 +1,4 @@
-import { NextResponse } from 'next/server';
+import { NextResponse, after } from 'next/server';
 import { getServerClient } from '@/app/lib/supabase';
 import { statusSchema } from '@/lib/live-session';
 import { broadcastLiveUpdate } from '@/lib/live-broadcast';
@@ -77,8 +77,12 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
     if (error) return NextResponse.json({ error: 'LIVE_STORAGE_ERROR' }, { status: 500 });
     if (!data) return NextResponse.json({ error: 'NOT_FOUND' }, { status: 404 });
 
-    try { await broadcastLiveUpdate(id, 'session:status', { status: data.status }); }
-    catch (cause) { console.error('live-sessions status broadcast failed:', cause); }
+    // Scheduled after the response is sent: a slow or hung Realtime connect
+    // must never delay the click that triggered it - the write already
+    // committed, so the client's own optimistic update is the source of
+    // truth for its own action either way.
+    after(() => broadcastLiveUpdate(id, 'session:status', { status: data.status })
+      .catch((cause) => console.error('live-sessions status broadcast failed:', cause)));
 
     return NextResponse.json(data, { headers: { 'Cache-Control': 'private, no-store' } });
   } catch {

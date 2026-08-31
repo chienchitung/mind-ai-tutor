@@ -378,7 +378,14 @@ export default function DigitalGamesPage() {
         .eq("id", gameId)
         .eq("user_id", user.id);
 
-      if (error) throw error;
+      if (error) {
+        // 23503 = foreign_key_violation: learning_records/chat_messages/
+        // question_counts/leaderboard all reference digital_games(id) with
+        // no ON DELETE cascade, so a played game is intentionally blocked
+        // from deletion rather than silently orphaning or wiping student data.
+        if (error.code === "23503") throw new Error(t("error_delete_game_has_records"));
+        throw error;
+      }
 
       // 2. 同步刪除對應的 lesson_order_mapping 記錄
       const { error: mappingError } = await supabaseWithTypes
