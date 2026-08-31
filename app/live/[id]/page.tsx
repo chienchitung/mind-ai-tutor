@@ -1,21 +1,45 @@
 'use client';
 
+import Link from 'next/link';
 import { useCallback, useEffect, useState } from 'react';
 import { useParams } from 'next/navigation';
-import { Loader2, ThumbsUp, Users } from 'lucide-react';
+import {
+  Loader2,
+  ThumbsUp,
+  Users,
+  CheckCircle2,
+  MessageSquare,
+  BarChart3,
+} from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
+import {
+  LiveHeader,
+  LivePageState,
+  SessionStatus,
+} from '@/components/live/LiveSessionUI';
 import { Textarea } from '@/components/ui/textarea';
 import { supabase } from '@/lib/supabase';
 import { useLanguage } from '@/app/contexts/LanguageContext';
 import { useTranslation } from '@/utils/translations';
-import { participantStorageKey, QUESTION_LENSES, type LiveSessionPublicState, type LiveQuestion, type QuestionLens } from '@/lib/live-session';
-import { REACTION_EMOJI, ReactionBurstOverlay, useReactionBursts } from '@/components/live/ReactionBurst';
+import {
+  participantStorageKey,
+  QUESTION_LENSES,
+  type LiveSessionPublicState,
+  type LiveQuestion,
+  type QuestionLens,
+} from '@/lib/live-session';
+import {
+  REACTION_EMOJI,
+  ReactionBurstOverlay,
+  useReactionBursts,
+} from '@/components/live/ReactionBurst';
 import { useOnlinePresenceCount } from '@/components/live/usePresenceHeartbeat';
 
 const HEARTBEAT_INTERVAL_MS = 10000;
 
-const PULSE_FACES = ['😵', '😕', '🙂', '😄', '🤩'];
+// Stored values run from 1 (too easy) to 5 (too hard).
+const PULSE_FACES = ['😌', '🙂', '👌', '😕', '😵'];
 const REACTION_KINDS = ['applause', 'insight', 'resonate', 'pause'] as const;
 
 function sortQuestions(a: LiveQuestion, b: LiveQuestion): number {
@@ -40,7 +64,9 @@ export default function AudiencePage() {
   const code = params.id;
   const { language } = useLanguage();
   const { t } = useTranslation(language);
-  const [status, setStatus] = useState<'loading' | 'ready' | 'not-found' | 'error'>('loading');
+  const [status, setStatus] = useState<
+    'loading' | 'ready' | 'not-found' | 'error'
+  >('loading');
   const [data, setData] = useState<LiveSessionPublicState | null>(null);
   const [participantId, setParticipantId] = useState<string | null>(null);
   const [myVote, setMyVote] = useState<number | null>(null);
@@ -60,8 +86,14 @@ export default function AudiencePage() {
   const load = useCallback(async () => {
     try {
       const response = await fetch(`/api/live/${code}`, { cache: 'no-store' });
-      if (response.status === 404) { setStatus('not-found'); return; }
-      if (!response.ok) { setStatus('error'); return; }
+      if (response.status === 404) {
+        setStatus('not-found');
+        return;
+      }
+      if (!response.ok) {
+        setStatus('error');
+        return;
+      }
       const json = await response.json();
       setData(json);
       setStatus('ready');
@@ -70,13 +102,20 @@ export default function AudiencePage() {
     }
   }, [code]);
 
-  useEffect(() => { void load(); }, [load]);
-  useEffect(() => { setParticipantId(getParticipantId(code)); }, [code]);
+  useEffect(() => {
+    void load();
+  }, [load]);
+  useEffect(() => {
+    setParticipantId(getParticipantId(code));
+  }, [code]);
 
   const loadQuestions = useCallback(async () => {
     if (!participantId) return;
     try {
-      const response = await fetch(`/api/live/${code}/questions?participantId=${participantId}`, { cache: 'no-store' });
+      const response = await fetch(
+        `/api/live/${code}/questions?participantId=${participantId}`,
+        { cache: 'no-store' },
+      );
       if (!response.ok) return;
       setQuestions(await response.json());
     } catch {
@@ -84,7 +123,9 @@ export default function AudiencePage() {
     }
   }, [code, participantId]);
 
-  useEffect(() => { void loadQuestions(); }, [loadQuestions]);
+  useEffect(() => {
+    void loadQuestions();
+  }, [loadQuestions]);
 
   useEffect(() => {
     if (!data?.sessionId || !participantId) return;
@@ -93,27 +134,68 @@ export default function AudiencePage() {
     channel
       .on('broadcast', { event: 'poll:opened' }, ({ payload }) => {
         setMyVote(null);
-        setData((previous) => (previous ? { ...previous, poll: payload as LiveSessionPublicState['poll'] } : previous));
+        setData((previous) =>
+          previous
+            ? { ...previous, poll: payload as LiveSessionPublicState['poll'] }
+            : previous,
+        );
       })
       .on('broadcast', { event: 'poll:tally' }, ({ payload }) => {
         setData((previous) => {
-          if (!previous?.poll || previous.poll.pollId !== (payload as { pollId: string }).pollId) return previous;
-          return { ...previous, poll: { ...previous.poll, voteCounts: (payload as any).voteCounts, voteTotal: (payload as any).voteTotal } };
+          if (
+            !previous?.poll ||
+            previous.poll.pollId !== (payload as { pollId: string }).pollId
+          )
+            return previous;
+          return {
+            ...previous,
+            poll: {
+              ...previous.poll,
+              voteCounts: (payload as any).voteCounts,
+              voteTotal: (payload as any).voteTotal,
+            },
+          };
         });
       })
       .on('broadcast', { event: 'pulse:update' }, ({ payload }) => {
-        setData((previous) => (previous ? { ...previous, pulse: payload as LiveSessionPublicState['pulse'] } : previous));
+        setData((previous) =>
+          previous
+            ? { ...previous, pulse: payload as LiveSessionPublicState['pulse'] }
+            : previous,
+        );
       })
       .on('broadcast', { event: 'session:status' }, ({ payload }) => {
-        setData((previous) => (previous ? { ...previous, status: (payload as { status: LiveSessionPublicState['status'] }).status } : previous));
+        setData((previous) =>
+          previous
+            ? {
+                ...previous,
+                status: (
+                  payload as { status: LiveSessionPublicState['status'] }
+                ).status,
+              }
+            : previous,
+        );
       })
       .on('broadcast', { event: 'question:new' }, ({ payload }) => {
         const incoming = payload as LiveQuestion;
-        setQuestions((previous) => (previous.some((item) => item.id === incoming.id) ? previous : [...previous, incoming].sort(sortQuestions)));
+        setQuestions((previous) =>
+          previous.some((item) => item.id === incoming.id)
+            ? previous
+            : [...previous, incoming].sort(sortQuestions),
+        );
       })
       .on('broadcast', { event: 'question:upvote' }, ({ payload }) => {
-        const { questionId, upvotes } = payload as { questionId: string; upvotes: number };
-        setQuestions((previous) => previous.map((item) => (item.id === questionId ? { ...item, upvotes } : item)).sort(sortQuestions));
+        const { questionId, upvotes } = payload as {
+          questionId: string;
+          upvotes: number;
+        };
+        setQuestions((previous) =>
+          previous
+            .map((item) =>
+              item.id === questionId ? { ...item, upvotes } : item,
+            )
+            .sort(sortQuestions),
+        );
       })
       .on('broadcast', { event: 'question:moderated' }, () => {
         // Whether a question was just hidden or re-shown, refetching is the
@@ -131,16 +213,40 @@ export default function AudiencePage() {
         // Sending before the channel has actually joined would silently
         // drop the message - wait for confirmation, then the interval
         // below keeps it alive every HEARTBEAT_INTERVAL_MS after that.
-        if (subscribeStatus === 'SUBSCRIBED') void channel.send({ type: 'broadcast', event: 'presence:ping', payload: { participantId } });
+        if (subscribeStatus === 'SUBSCRIBED')
+          void channel.send({
+            type: 'broadcast',
+            event: 'presence:ping',
+            payload: { participantId },
+          });
       });
     const heartbeat = setInterval(() => {
-      void channel.send({ type: 'broadcast', event: 'presence:ping', payload: { participantId } });
+      void channel.send({
+        type: 'broadcast',
+        event: 'presence:ping',
+        payload: { participantId },
+      });
     }, HEARTBEAT_INTERVAL_MS);
-    return () => { clearInterval(heartbeat); void client.removeChannel(channel); };
-  }, [data?.sessionId, participantId, loadQuestions, pushReaction, registerPing]);
+    return () => {
+      clearInterval(heartbeat);
+      void client.removeChannel(channel);
+    };
+  }, [
+    data?.sessionId,
+    participantId,
+    loadQuestions,
+    pushReaction,
+    registerPing,
+  ]);
 
   const castVote = async (optionIndex: number) => {
-    if (!data?.poll || !participantId || data.status !== 'open' || myVote === optionIndex) return;
+    if (
+      !data?.poll ||
+      !participantId ||
+      data.status !== 'open' ||
+      myVote === optionIndex
+    )
+      return;
     // Optimistic, like Slido/Mentimeter voting: the tap itself is the
     // feedback, the server tally reconciles a moment later in the background.
     const previousVote = myVote;
@@ -148,12 +254,17 @@ export default function AudiencePage() {
     setVoteError('');
     try {
       const response = await fetch(`/api/live/${code}/vote`, {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ participantId, optionIndex }),
       });
       if (!response.ok) throw new Error();
       const result = await response.json();
-      setData((previous) => (previous?.poll ? { ...previous, poll: { ...previous.poll, ...result } } : previous));
+      setData((previous) =>
+        previous?.poll
+          ? { ...previous, poll: { ...previous.poll, ...result } }
+          : previous,
+      );
     } catch {
       setMyVote(previousVote);
       setVoteError(t('live_vote_error'));
@@ -166,12 +277,15 @@ export default function AudiencePage() {
     setMyPulse(value);
     try {
       const response = await fetch(`/api/live/${code}/pulse`, {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ participantId, value }),
       });
       if (!response.ok) throw new Error();
       const result = await response.json();
-      setData((previous) => (previous ? { ...previous, pulse: result } : previous));
+      setData((previous) =>
+        previous ? { ...previous, pulse: result } : previous,
+      );
     } catch {
       setMyPulse(previousPulse);
     }
@@ -179,17 +293,33 @@ export default function AudiencePage() {
 
   const submitQuestion = async (event: React.FormEvent) => {
     event.preventDefault();
-    if (!participantId || !qaText.trim() || qaSending || data?.status !== 'open') return;
+    if (
+      !participantId ||
+      !qaText.trim() ||
+      qaSending ||
+      data?.status !== 'open'
+    )
+      return;
     setQaSending(true);
     setQaError('');
     try {
       const response = await fetch(`/api/live/${code}/questions`, {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ participantId, text: qaText.trim(), lens: qaLens }),
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          participantId,
+          text: qaText.trim(),
+          lens: qaLens,
+        }),
       });
       if (!response.ok) throw new Error();
       const created = (await response.json()) as LiveQuestion;
-      setQuestions((previous) => (previous.some((item) => item.id === created.id) ? previous : [...previous, { ...created, isMine: true }]).sort(sortQuestions));
+      setQuestions((previous) =>
+        (previous.some((item) => item.id === created.id)
+          ? previous
+          : [...previous, { ...created, isMine: true }]
+        ).sort(sortQuestions),
+      );
       setQaText('');
     } catch {
       setQaError(t('live_qa_send_error'));
@@ -201,18 +331,43 @@ export default function AudiencePage() {
   const upvoteQuestion = async (id: string) => {
     if (!participantId || upvotedIds.has(id) || data?.status !== 'open') return;
     setUpvotedIds((previous) => new Set(previous).add(id));
-    setQuestions((previous) => previous.map((item) => (item.id === id ? { ...item, upvotes: item.upvotes + 1 } : item)).sort(sortQuestions));
+    setQuestions((previous) =>
+      previous
+        .map((item) =>
+          item.id === id ? { ...item, upvotes: item.upvotes + 1 } : item,
+        )
+        .sort(sortQuestions),
+    );
     try {
       const response = await fetch(`/api/live/${code}/questions/${id}/upvote`, {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ participantId }),
       });
       if (!response.ok) throw new Error();
       const result = await response.json();
-      setQuestions((previous) => previous.map((item) => (item.id === id ? { ...item, upvotes: result.upvotes } : item)).sort(sortQuestions));
+      setQuestions((previous) =>
+        previous
+          .map((item) =>
+            item.id === id ? { ...item, upvotes: result.upvotes } : item,
+          )
+          .sort(sortQuestions),
+      );
     } catch {
-      setUpvotedIds((previous) => { const next = new Set(previous); next.delete(id); return next; });
-      setQuestions((previous) => previous.map((item) => (item.id === id ? { ...item, upvotes: Math.max(0, item.upvotes - 1) } : item)).sort(sortQuestions));
+      setUpvotedIds((previous) => {
+        const next = new Set(previous);
+        next.delete(id);
+        return next;
+      });
+      setQuestions((previous) =>
+        previous
+          .map((item) =>
+            item.id === id
+              ? { ...item, upvotes: Math.max(0, item.upvotes - 1) }
+              : item,
+          )
+          .sort(sortQuestions),
+      );
     }
   };
 
@@ -220,7 +375,11 @@ export default function AudiencePage() {
     if (data?.status !== 'open' || reacting) return;
     setReacting(kind);
     try {
-      await fetch(`/api/live/${code}/react`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ kind }) });
+      await fetch(`/api/live/${code}/react`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ kind }),
+      });
     } catch {
       // Best-effort - a dropped reaction just doesn't show up on the projector.
     } finally {
@@ -229,131 +388,286 @@ export default function AudiencePage() {
   };
 
   if (status === 'loading') {
-    return <div className="flex min-h-screen items-center justify-center"><Loader2 className="h-6 w-6 animate-spin text-muted-foreground" /></div>;
+    return <LivePageState loading message={t('live_loading')} />;
   }
   if (status === 'not-found' || status === 'error') {
-    return <div className="flex min-h-screen items-center justify-center p-4">
-      <p role="alert" className="max-w-sm text-center text-muted-foreground">{t(status === 'not-found' ? 'live_code_not_found' : 'live_session_error')}</p>
-    </div>;
+    return (
+      <LivePageState
+        message={t(
+          status === 'not-found' ? 'live_code_not_found' : 'live_session_error',
+        )}
+      >
+        {status === 'error' && (
+          <Button variant="outline" onClick={() => void load()}>
+            {t('try_again')}
+          </Button>
+        )}
+        <Button asChild variant="outline">
+          <Link href="/live">{t('live_join_title')}</Link>
+        </Button>
+      </LivePageState>
+    );
   }
   if (!data) return null;
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-muted/20 p-4">
-      <ReactionBurstOverlay reactions={reactions} className="fixed inset-0 z-[60]" />
-      <Card className="w-full max-w-md border-0 shadow-lg">
-        <CardContent className="space-y-5 p-6">
-          <div className="flex items-start justify-between gap-2">
-            <div>
-              <p className="text-xs uppercase tracking-wide text-muted-foreground">{data.title}</p>
-              {data.status !== 'open' && (
-                <p className="mt-1 text-sm font-medium text-muted-foreground">{t(data.status === 'paused' ? 'live_status_paused' : 'live_status_closed')}</p>
-              )}
-            </div>
+    <div className="min-h-screen bg-background">
+      <LiveHeader />
+      <ReactionBurstOverlay
+        reactions={reactions}
+        className="fixed inset-0 z-[60]"
+      />
+      <main className="mx-auto max-w-5xl space-y-5 px-4 py-6 sm:px-6 sm:py-8">
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div className="min-w-0">
+            <p className="app-kicker mb-2">Live Session</p>
+            <h1 className="break-words text-xl font-semibold tracking-tight sm:text-2xl">
+              {data.title}
+            </h1>
+          </div>
+          <div className="flex items-center gap-3">
+            <SessionStatus status={data.status} />
             {onlineCount > 0 && (
-              <span className="inline-flex shrink-0 items-center gap-1 rounded-full border px-2 py-0.5 text-[11px] text-muted-foreground">
-                <Users className="h-3 w-3" />{t('live_online_count', { count: onlineCount })}
+              <span className="inline-flex items-center gap-1 text-xs text-muted-foreground">
+                <Users className="h-3.5 w-3.5" />
+                {t('live_online_count', { count: onlineCount })}
               </span>
             )}
           </div>
-
-          {data.poll ? (
-            <div className="space-y-3">
-              <p className="font-semibold leading-relaxed">{data.poll.question}</p>
-              <div className="space-y-2">
-                {data.poll.options.map((option, index) => (
-                  <button key={index} type="button" disabled={data.status !== 'open'}
-                    onClick={() => void castVote(index)}
-                    className={`flex w-full items-center gap-3 rounded-xl border p-3 text-left text-sm transition-colors disabled:opacity-60 ${myVote === index ? 'border-primary bg-primary/10' : 'hover:border-foreground/30'}`}>
-                    <span className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-md border font-mono text-xs ${myVote === index ? 'border-primary bg-primary text-primary-foreground' : ''}`}>
-                      {String.fromCharCode(65 + index)}
-                    </span>
-                    {option}
-                  </button>
-                ))}
-              </div>
-              {myVote !== null && <p className="text-xs font-medium text-primary">✓ {t('live_vote_sent')}</p>}
-              {voteError && <p role="alert" className="text-xs text-destructive">{voteError}</p>}
-            </div>
-          ) : (
-            <p className="text-sm text-muted-foreground">{t('live_no_active_poll')}</p>
-          )}
-
-          <div className="border-t pt-4">
-            <p className="mb-2 text-xs uppercase tracking-wide text-muted-foreground">{t('live_pulse_prompt')}</p>
-            <div className="flex justify-between gap-2">
-              {PULSE_FACES.map((face, index) => {
-                const value = index + 1;
-                return (
-                  <button key={value} type="button" disabled={data.status !== 'open'} onClick={() => void sendPulse(value)}
-                    aria-label={`${t('live_pulse_prompt')} ${value}/5`}
-                    className={`flex h-11 flex-1 items-center justify-center rounded-full border text-lg transition-colors disabled:opacity-50 ${myPulse === value ? 'border-primary bg-primary/10' : 'hover:border-foreground/30'}`}>
-                    {face}
-                  </button>
-                );
-              })}
-            </div>
-          </div>
-
-          <div className="border-t pt-4">
-            <p className="mb-2 text-xs uppercase tracking-wide text-muted-foreground">{t('live_reactions_title')}</p>
-            <div className="flex justify-between gap-2">
-              {REACTION_KINDS.map((kind) => (
-                <button key={kind} type="button" disabled={data.status !== 'open'} onClick={() => void sendReaction(kind)}
-                  aria-label={t(`live_reaction_${kind}` as const)}
-                  className={`flex h-11 flex-1 items-center justify-center rounded-full border text-lg transition-transform disabled:opacity-50 ${reacting === kind ? 'scale-110 border-primary bg-primary/10' : 'hover:border-foreground/30'}`}>
-                  {REACTION_EMOJI[kind]}
-                </button>
-              ))}
-            </div>
-          </div>
-
-          <div className="border-t pt-4">
-            <p className="mb-2 text-xs uppercase tracking-wide text-muted-foreground">{t('live_qa_title')}</p>
-            <form onSubmit={submitQuestion} className="space-y-2">
-              <div className="flex flex-wrap gap-1.5">
-                {QUESTION_LENSES.map((lens) => (
-                  <button key={lens} type="button" onClick={() => setQaLens(lens)}
-                    className={`rounded-full border px-2.5 py-1 text-[11px] font-medium transition-colors ${qaLens === lens ? 'border-primary bg-primary text-primary-foreground' : 'text-muted-foreground hover:border-foreground/30'}`}>
-                    {t(`live_qa_lens_${lens}` as const)}
-                  </button>
-                ))}
-              </div>
-              <div className="flex gap-2">
-                <Textarea value={qaText} onChange={(event) => setQaText(event.target.value)} rows={1} maxLength={500}
-                  placeholder={t('live_qa_ask_placeholder')} disabled={qaSending || data.status !== 'open'} className="min-h-0 resize-none py-2" />
-                <Button type="submit" size="sm" disabled={qaSending || !qaText.trim() || data.status !== 'open'}>
-                  {qaSending ? <Loader2 className="h-4 w-4 animate-spin" /> : t('live_qa_submit')}
-                </Button>
-              </div>
-              {qaError && <p role="alert" className="text-xs text-destructive">{qaError}</p>}
-            </form>
-
-            {questions.length === 0 ? (
-              <p className="mt-3 text-center text-xs text-muted-foreground">{t('live_qa_empty')}</p>
-            ) : (
-              <ul className="mt-3 space-y-2">
-                {questions.map((item) => (
-                  <li key={item.id} className="flex items-start justify-between gap-2 rounded-lg border p-2.5 text-xs">
-                    <div className="min-w-0">
-                      <span className="mb-1 inline-block rounded bg-muted px-1.5 py-0.5 text-[10px] uppercase tracking-wide text-muted-foreground">{t(`live_qa_lens_${item.lens}` as const)}</span>
-                      <p className="break-words">{item.text}</p>
-                      {item.isMine && item.visibility === 'author_only' && (
-                        <p className="mt-1 text-[10px] text-muted-foreground">{t('live_qa_mine_hidden')}</p>
-                      )}
-                    </div>
-                    <button type="button" disabled={upvotedIds.has(item.id) || data.status !== 'open'} onClick={() => void upvoteQuestion(item.id)}
-                      aria-label={t('live_qa_upvote')}
-                      className={`flex shrink-0 items-center gap-1 rounded-full border px-2 py-1 font-mono disabled:opacity-70 ${upvotedIds.has(item.id) ? 'border-primary bg-primary/10 text-primary' : 'hover:border-foreground/30'}`}>
-                      <ThumbsUp className="h-3 w-3" />{item.upvotes}
-                    </button>
-                  </li>
-                ))}
-              </ul>
+        </div>
+        {data.status !== 'open' && (
+          <p
+            role="status"
+            className="rounded-xl border bg-muted/60 px-4 py-3 text-sm leading-6 text-muted-foreground"
+          >
+            {t(
+              data.status === 'paused'
+                ? 'live_audience_paused'
+                : 'live_audience_closed',
             )}
+          </p>
+        )}
+        <div className="grid items-start gap-5 md:grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)]">
+          <div className="min-w-0 space-y-5">
+            <Card>
+              <CardContent className="p-5 sm:p-6 md:pt-6">
+                <h2 className="mb-5 flex items-center gap-2 text-sm font-semibold">
+                  <BarChart3 className="h-4 w-4 text-muted-foreground" />
+                  {t('live_current_poll')}
+                </h2>
+                {data.poll ? (
+                  <div className="space-y-4">
+                    <p className="break-words text-xl font-semibold leading-relaxed tracking-tight">
+                      {data.poll.question}
+                    </p>
+                    <p className="text-xs leading-5 text-muted-foreground">
+                      {t('live_vote_hint')}
+                    </p>
+                    <div className="space-y-3">
+                      {data.poll.options.map((option, index) => (
+                        <button
+                          key={index}
+                          type="button"
+                          disabled={data.status !== 'open'}
+                          aria-pressed={myVote === index}
+                          onClick={() => void castVote(index)}
+                          className={`flex min-h-14 w-full items-center gap-3 rounded-xl border p-4 text-left text-sm transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-60 ${myVote === index ? 'border-primary bg-primary/5' : 'bg-card hover:border-foreground/40 hover:bg-muted/40'}`}
+                        >
+                          <span
+                            aria-hidden="true"
+                            className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-lg border font-mono text-xs ${myVote === index ? 'border-primary bg-primary text-primary-foreground' : 'bg-muted/40'}`}
+                          >
+                            {String.fromCharCode(65 + index)}
+                          </span>
+                          <span className="min-w-0 flex-1 break-words">
+                            {option}
+                          </span>
+                          {myVote === index && (
+                            <CheckCircle2
+                              aria-hidden="true"
+                              className="h-4 w-4 shrink-0 text-primary"
+                            />
+                          )}
+                        </button>
+                      ))}
+                    </div>
+                    {myVote !== null && (
+                      <p
+                        role="status"
+                        className="flex items-center gap-2 text-xs font-medium text-primary"
+                      >
+                        <CheckCircle2 className="h-4 w-4" />
+                        {t('live_vote_sent')}
+                      </p>
+                    )}
+                    {voteError && (
+                      <p role="alert" className="text-xs text-destructive">
+                        {voteError}
+                      </p>
+                    )}
+                  </div>
+                ) : (
+                  <p className="py-8 text-sm text-muted-foreground">
+                    {t('live_no_active_poll')}
+                  </p>
+                )}
+              </CardContent>
+            </Card>
+            <Card>
+              <CardContent className="p-5 sm:p-6 md:pt-6">
+                <h2 className="mb-4 flex items-center gap-2 text-sm font-semibold">
+                  <MessageSquare className="h-4 w-4 text-muted-foreground" />
+                  {t('live_qa_title')}
+                </h2>
+                <form onSubmit={submitQuestion} className="space-y-2">
+                  <div className="flex flex-wrap gap-1.5">
+                    {QUESTION_LENSES.map((lens) => (
+                      <button
+                        key={lens}
+                        type="button"
+                        aria-pressed={qaLens === lens}
+                        onClick={() => setQaLens(lens)}
+                        className={`min-h-11 rounded-lg border px-3 py-2 text-xs font-medium transition-colors ${qaLens === lens ? 'border-primary bg-primary text-primary-foreground' : 'text-muted-foreground hover:border-foreground/30'}`}
+                      >
+                        {t(`live_qa_lens_${lens}` as const)}
+                      </button>
+                    ))}
+                  </div>
+                  <div className="flex flex-col gap-2 sm:flex-row">
+                    <Textarea
+                      aria-label={t('live_qa_ask_placeholder')}
+                      value={qaText}
+                      onChange={(event) => setQaText(event.target.value)}
+                      rows={1}
+                      maxLength={500}
+                      placeholder={t('live_qa_ask_placeholder')}
+                      disabled={qaSending || data.status !== 'open'}
+                      className="min-h-20 resize-y py-3"
+                    />
+                    <Button
+                      type="submit"
+                      className="min-h-11"
+                      disabled={
+                        qaSending || !qaText.trim() || data.status !== 'open'
+                      }
+                    >
+                      {qaSending ? (
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                      ) : (
+                        t('live_qa_submit')
+                      )}
+                    </Button>
+                  </div>
+                  {qaError && (
+                    <p role="alert" className="text-xs text-destructive">
+                      {qaError}
+                    </p>
+                  )}
+                </form>
+
+                {questions.length === 0 ? (
+                  <p className="mt-3 text-center text-xs text-muted-foreground">
+                    {t('live_qa_empty')}
+                  </p>
+                ) : (
+                  <ul className="mt-4 max-h-96 space-y-3 overflow-y-auto">
+                    {questions.map((item) => (
+                      <li
+                        key={item.id}
+                        className="flex items-start justify-between gap-2 rounded-lg border p-2.5 text-xs"
+                      >
+                        <div className="min-w-0">
+                          <span className="mb-1 inline-block rounded bg-muted px-1.5 py-0.5 text-[10px] uppercase tracking-wide text-muted-foreground">
+                            {t(`live_qa_lens_${item.lens}` as const)}
+                          </span>
+                          <p className="break-words">{item.text}</p>
+                          {item.isMine && item.visibility === 'author_only' && (
+                            <p className="mt-1 text-[10px] text-muted-foreground">
+                              {t('live_qa_mine_hidden')}
+                            </p>
+                          )}
+                        </div>
+                        <button
+                          type="button"
+                          disabled={
+                            upvotedIds.has(item.id) || data.status !== 'open'
+                          }
+                          onClick={() => void upvoteQuestion(item.id)}
+                          aria-label={t('live_qa_upvote')}
+                          aria-pressed={upvotedIds.has(item.id)}
+                          className={`flex min-h-11 min-w-11 shrink-0 items-center justify-center gap-1 rounded-lg border px-2 py-1 font-mono disabled:opacity-70 ${upvotedIds.has(item.id) ? 'border-primary bg-primary/10 text-primary' : 'hover:border-foreground/30'}`}
+                        >
+                          <ThumbsUp className="h-3 w-3" />
+                          {item.upvotes}
+                        </button>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </CardContent>
+            </Card>
           </div>
-        </CardContent>
-      </Card>
+          <aside
+            className="min-w-0 space-y-5"
+            aria-label={t('live_participation')}
+          >
+            <Card>
+              <CardContent className="p-5 sm:p-6 md:pt-6">
+                <h2 className="mb-4 text-sm font-semibold">
+                  {t('live_pulse_prompt')}
+                </h2>
+                <div className="flex gap-1.5">
+                  {PULSE_FACES.map((face, index) => {
+                    const value = (index + 1) as 1 | 2 | 3 | 4 | 5;
+                    return (
+                      <button
+                        key={value}
+                        type="button"
+                        disabled={data.status !== 'open'}
+                        onClick={() => void sendPulse(value)}
+                        aria-label={t(`live_pulse_level_${value}`)}
+                        title={t(`live_pulse_level_${value}`)}
+                        aria-pressed={myPulse === value}
+                        className={`flex h-12 min-w-0 flex-1 items-center justify-center rounded-xl border text-xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50 ${myPulse === value ? 'border-primary bg-primary/10' : 'hover:bg-muted'}`}
+                      >
+                        {face}
+                      </button>
+                    );
+                  })}
+                </div>
+                <div className="mt-3 flex justify-between text-[11px] text-muted-foreground">
+                  <span>{t('live_pulse_easy')}</span>
+                  <span>{t('live_pulse_ok')}</span>
+                  <span>{t('live_pulse_hard')}</span>
+                </div>
+              </CardContent>
+            </Card>
+            <Card>
+              <CardContent className="p-5 sm:p-6 md:pt-6">
+                <h2 className="mb-4 text-sm font-semibold">
+                  {t('live_reactions_title')}
+                </h2>
+                <div className="grid grid-cols-2 gap-2">
+                  {REACTION_KINDS.map((kind) => (
+                    <button
+                      key={kind}
+                      type="button"
+                      disabled={data.status !== 'open' || reacting !== null}
+                      onClick={() => void sendReaction(kind)}
+                      className={`flex min-h-14 items-center justify-center gap-2 rounded-xl border px-2 py-3 text-xs focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50 ${reacting === kind ? 'border-primary bg-primary/10' : 'hover:bg-muted'}`}
+                    >
+                      <span aria-hidden="true" className="text-xl">
+                        {REACTION_EMOJI[kind]}
+                      </span>
+                      {t(`live_reaction_${kind}`)}
+                    </button>
+                  ))}
+                </div>
+              </CardContent>
+            </Card>
+          </aside>
+        </div>
+      </main>
     </div>
   );
 }
