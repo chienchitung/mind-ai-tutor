@@ -98,9 +98,15 @@ export default function PresenterPage() {
       .on('broadcast', { event: 'pulse:update' }, ({ payload }) => {
         setData((previous) => (previous ? { ...previous, pulse: payload as LiveSessionOwnerState['pulse'] } : previous));
       })
-      .on('broadcast', { event: 'session:status' }, ({ payload }) => {
-        setData((previous) => (previous ? { ...previous, status: (payload as { status: LiveSessionStatus }).status } : previous));
-      })
+      // Deliberately NOT listening for 'session:status' here - the presenter
+      // is the only one who ever changes it (via handleStatusChange's own
+      // optimistic update), and each PATCH's broadcast is sent from an
+      // independent ephemeral connection that can land back on this same
+      // client at an arbitrary, out-of-order time. Re-applying it here would
+      // let a stale broadcast from an earlier click stomp a newer one -
+      // exactly the "flickers back to the previous button" bug this avoids.
+      // The audience page still listens, since students have no other way
+      // to learn the status changed.
       .on('broadcast', { event: 'question:new' }, ({ payload }) => {
         setQuestions((previous) => [...previous, payload as LiveQuestion].sort(sortQuestions));
       })
