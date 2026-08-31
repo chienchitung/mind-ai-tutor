@@ -29,6 +29,11 @@ export async function broadcastLiveUpdate(sessionId: string, event: string, payl
       });
     });
     await channel.send({ type: 'broadcast', event, payload });
+    // send() resolving only means the message was handed to the socket, not
+    // that it reached the server - closing the channel immediately after
+    // risks tearing down the connection before that flush completes. A
+    // short buffer avoids racing the teardown against actual delivery.
+    await new Promise((resolve) => setTimeout(resolve, 250));
   } finally {
     await client.removeChannel(channel);
   }
