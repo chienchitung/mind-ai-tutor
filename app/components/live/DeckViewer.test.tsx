@@ -9,6 +9,20 @@ const GlobalWorkerOptions: { workerSrc: string } = { workerSrc: '' };
 
 vi.mock('pdfjs-dist/build/pdf', () => ({ getDocument, GlobalWorkerOptions }));
 
+// jsdom has no ResizeObserver - stub one that reports a fixed non-zero box
+// immediately on observe(), matching what a real browser would report for
+// an already-laid-out container.
+class StubResizeObserver {
+  private callback: ResizeObserverCallback;
+  constructor(callback: ResizeObserverCallback) { this.callback = callback; }
+  observe() {
+    const entry = { contentRect: { width: 400, height: 300 } } as ResizeObserverEntry;
+    this.callback([entry], this as unknown as ResizeObserver);
+  }
+  unobserve() {}
+  disconnect() {}
+}
+
 function makeDoc(numPages: number) {
   return { numPages, getPage };
 }
@@ -20,12 +34,13 @@ function makePage() {
 }
 
 beforeEach(() => {
+  vi.stubGlobal('ResizeObserver', StubResizeObserver);
   GlobalWorkerOptions.workerSrc = '';
   getPage.mockReset().mockResolvedValue(makePage());
   getDocument.mockReset().mockReturnValue({ promise: Promise.resolve(makeDoc(5)) });
   HTMLCanvasElement.prototype.getContext = vi.fn().mockReturnValue({}) as unknown as typeof HTMLCanvasElement.prototype.getContext;
 });
-afterEach(() => { cleanup(); vi.restoreAllMocks(); });
+afterEach(() => { cleanup(); vi.restoreAllMocks(); vi.unstubAllGlobals(); });
 
 describe('DeckViewer', () => {
   it('loads the document, sets the worker once, and reports the page count', async () => {
@@ -63,5 +78,14 @@ describe('DeckViewer', () => {
     const { container } = render(<DeckViewer url="https://example.test/broken.pdf" page={1} onError={onError} />);
     await waitFor(() => expect(onError).toHaveBeenCalled());
     expect(container.querySelector('canvas')).toBeNull();
+  });
+  it('scales the page to fit its container, not a fixed factor', async () => {
+    const page = makePage();
+    getPage.mockResolvedValue(page);
+    render(<DeckViewer url="https://example.test/deck.pdf" page={1} />);
+    await waitFor(() => expect(page.render).toHaveBeenCalled());
+    // Unscaled measurement (scale: 1) plus the final contain-fit render call.
+    expect(page.getViewport).toHaveBeenCalledWith({ scale: 1 });
+    expect(page.getViewport.mock.calls.some(([arg]) => arg.scale !== 1)).toBe(true);
   });
 });
