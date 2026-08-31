@@ -158,8 +158,12 @@ export function GameCoverInput({ value, file, onChange, onFileChange, onEditingC
           </DialogHeader>
 
           <div className="grid grid-cols-2 gap-2" role="group" aria-label={say('封面來源', 'Cover source')}>
-            <Button type="button" variant={mode === 'upload' ? 'default' : 'outline'} aria-pressed={mode === 'upload'} disabled={busy || Boolean(source) || mode === 'ai'} onClick={() => setMode('upload')}>{say('自行上傳', 'Upload image')}</Button>
-            <Button type="button" variant={mode === 'ai' ? 'default' : 'outline'} aria-pressed={mode === 'ai'} disabled={busy || Boolean(source) || mode === 'ai'} onClick={() => setMode('ai')}>{say('AI 生成', 'Generate with AI')}</Button>
+            {/* Only block switching while there's uncommitted crop work to lose
+                (source) or an upload/export in flight (busy) - not merely
+                because a mode is already selected, which would lock the
+                other button forever with no way back. */}
+            <Button type="button" variant={mode === 'upload' ? 'default' : 'outline'} aria-pressed={mode === 'upload'} disabled={busy || Boolean(source)} onClick={() => setMode('upload')}>{say('自行上傳', 'Upload image')}</Button>
+            <Button type="button" variant={mode === 'ai' ? 'default' : 'outline'} aria-pressed={mode === 'ai'} disabled={busy || Boolean(source)} onClick={() => setMode('ai')}>{say('AI 生成', 'Generate with AI')}</Button>
           </div>
 
           {mode === 'ai' && <AiGameCover context={context} chinese={chinese} disabled={disabled}
