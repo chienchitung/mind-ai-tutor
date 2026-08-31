@@ -42,8 +42,6 @@ export default function AudiencePage() {
   const [participantId, setParticipantId] = useState<string | null>(null);
   const [myVote, setMyVote] = useState<number | null>(null);
   const [myPulse, setMyPulse] = useState<number | null>(null);
-  const [voting, setVoting] = useState(false);
-  const [pulsing, setPulsing] = useState(false);
   const [voteError, setVoteError] = useState('');
 
   const [questions, setQuestions] = useState<LiveQuestion[]>([]);
@@ -123,8 +121,11 @@ export default function AudiencePage() {
   }, [data?.sessionId, loadQuestions]);
 
   const castVote = async (optionIndex: number) => {
-    if (!data?.poll || voting || !participantId || data.status !== 'open') return;
-    setVoting(true);
+    if (!data?.poll || !participantId || data.status !== 'open' || myVote === optionIndex) return;
+    // Optimistic, like Slido/Mentimeter voting: the tap itself is the
+    // feedback, the server tally reconciles a moment later in the background.
+    const previousVote = myVote;
+    setMyVote(optionIndex);
     setVoteError('');
     try {
       const response = await fetch(`/api/live/${code}/vote`, {
@@ -133,18 +134,17 @@ export default function AudiencePage() {
       });
       if (!response.ok) throw new Error();
       const result = await response.json();
-      setMyVote(optionIndex);
       setData((previous) => (previous?.poll ? { ...previous, poll: { ...previous.poll, ...result } } : previous));
     } catch {
+      setMyVote(previousVote);
       setVoteError(t('live_vote_error'));
-    } finally {
-      setVoting(false);
     }
   };
 
   const sendPulse = async (value: number) => {
-    if (pulsing || !participantId || data?.status !== 'open') return;
-    setPulsing(true);
+    if (!participantId || data?.status !== 'open' || myPulse === value) return;
+    const previousPulse = myPulse;
+    setMyPulse(value);
     try {
       const response = await fetch(`/api/live/${code}/pulse`, {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
@@ -152,12 +152,9 @@ export default function AudiencePage() {
       });
       if (!response.ok) throw new Error();
       const result = await response.json();
-      setMyPulse(value);
       setData((previous) => (previous ? { ...previous, pulse: result } : previous));
     } catch {
-      // Best-effort; the pulse is a lightweight signal, not worth a blocking error state.
-    } finally {
-      setPulsing(false);
+      setMyPulse(previousPulse);
     }
   };
 
@@ -185,6 +182,7 @@ export default function AudiencePage() {
   const upvoteQuestion = async (id: string) => {
     if (!participantId || upvotedIds.has(id) || data?.status !== 'open') return;
     setUpvotedIds((previous) => new Set(previous).add(id));
+    setQuestions((previous) => previous.map((item) => (item.id === id ? { ...item, upvotes: item.upvotes + 1 } : item)).sort(sortQuestions));
     try {
       const response = await fetch(`/api/live/${code}/questions/${id}/upvote`, {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
@@ -195,6 +193,7 @@ export default function AudiencePage() {
       setQuestions((previous) => previous.map((item) => (item.id === id ? { ...item, upvotes: result.upvotes } : item)).sort(sortQuestions));
     } catch {
       setUpvotedIds((previous) => { const next = new Set(previous); next.delete(id); return next; });
+      setQuestions((previous) => previous.map((item) => (item.id === id ? { ...item, upvotes: Math.max(0, item.upvotes - 1) } : item)).sort(sortQuestions));
     }
   };
 
@@ -236,7 +235,7 @@ export default function AudiencePage() {
               <p className="font-semibold leading-relaxed">{data.poll.question}</p>
               <div className="space-y-2">
                 {data.poll.options.map((option, index) => (
-                  <button key={index} type="button" disabled={voting || data.status !== 'open'}
+                  <button key={index} type="button" disabled={data.status !== 'open'}
                     onClick={() => void castVote(index)}
                     className={`flex w-full items-center gap-3 rounded-xl border p-3 text-left text-sm transition-colors disabled:opacity-60 ${myVote === index ? 'border-primary bg-primary/10' : 'hover:border-foreground/30'}`}>
                     <span className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-md border font-mono text-xs ${myVote === index ? 'border-primary bg-primary text-primary-foreground' : ''}`}>
@@ -259,7 +258,7 @@ export default function AudiencePage() {
               {PULSE_FACES.map((face, index) => {
                 const value = index + 1;
                 return (
-                  <button key={value} type="button" disabled={pulsing || data.status !== 'open'} onClick={() => void sendPulse(value)}
+                  <button key={value} type="button" disabled={data.status !== 'open'} onClick={() => void sendPulse(value)}
                     aria-label={`${t('live_pulse_prompt')} ${value}/5`}
                     className={`flex h-11 flex-1 items-center justify-center rounded-full border text-lg transition-colors disabled:opacity-50 ${myPulse === value ? 'border-primary bg-primary/10' : 'hover:border-foreground/30'}`}>
                     {face}

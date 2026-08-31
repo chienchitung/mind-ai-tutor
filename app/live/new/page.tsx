@@ -1,8 +1,8 @@
 'use client';
 
 import { useState } from 'react';
-import { useRouter } from 'next/navigation';
-import { Plus, X, Loader2 } from 'lucide-react';
+import Link from 'next/link';
+import { Plus, X, Loader2, ExternalLink, Copy, CheckCircle2 } from 'lucide-react';
 import { AppLayout } from '@/components/layout/AppLayout';
 import { PageHeader } from '@/components/layout/PageHeader';
 import { Button } from '@/components/ui/button';
@@ -14,8 +14,11 @@ import { useToast } from '@/hooks/use-toast';
 import { useLanguage } from '@/app/contexts/LanguageContext';
 import { useTranslation } from '@/utils/translations';
 
+function presenterUrl(sessionId: string): string {
+  return `/live/${sessionId}/present`;
+}
+
 function NewLiveSessionForm() {
-  const router = useRouter();
   const { toast } = useToast();
   const { language } = useLanguage();
   const { t } = useTranslation(language);
@@ -23,6 +26,7 @@ function NewLiveSessionForm() {
   const [question, setQuestion] = useState('');
   const [options, setOptions] = useState(['', '']);
   const [isCreating, setIsCreating] = useState(false);
+  const [created, setCreated] = useState<{ sessionId: string; joinCode: string } | null>(null);
 
   const handleSubmit = async (event: React.FormEvent) => {
     event.preventDefault();
@@ -36,12 +40,59 @@ function NewLiveSessionForm() {
       });
       if (!response.ok) throw new Error();
       const data = await response.json();
-      router.push(`/live/${data.sessionId}/present`);
+      // Open in a new tab, keeping this tab (and the dashboard behind it) intact -
+      // the presenter view has no app chrome of its own to navigate back with.
+      window.open(presenterUrl(data.sessionId), '_blank', 'noopener,noreferrer');
+      setCreated({ sessionId: data.sessionId, joinCode: data.joinCode });
     } catch {
       toast({ title: t('error'), description: t('live_create_error'), variant: 'destructive' });
+    } finally {
       setIsCreating(false);
     }
   };
+
+  const copyJoinLink = async () => {
+    if (!created) return;
+    try {
+      await navigator.clipboard.writeText(`${window.location.origin}/live/${created.joinCode}`);
+      toast({ title: t('link_copied') });
+    } catch {
+      // Clipboard access can fail silently (permissions, insecure context) - not worth a blocking error.
+    }
+  };
+
+  if (created) {
+    return (
+      <div className="space-y-6">
+        <PageHeader heading={t('live_created_title')} text={t('live_created_desc')} />
+        <Card className="mx-auto max-w-xl">
+          <CardContent className="space-y-5 p-6 text-center">
+            <CheckCircle2 className="mx-auto h-10 w-10 text-primary" />
+            <div>
+              <p className="text-xs uppercase tracking-wide text-muted-foreground">{t('live_join_code_label')}</p>
+              <div className="mt-1 flex items-center justify-center gap-2">
+                <span className="font-mono text-3xl tracking-widest">{created.joinCode}</span>
+                <Button type="button" size="sm" variant="ghost" onClick={() => void copyJoinLink()}>
+                  <Copy className="h-4 w-4" />
+                </Button>
+              </div>
+            </div>
+            <div className="flex flex-col gap-2 sm:flex-row sm:justify-center">
+              <Button type="button" onClick={() => window.open(presenterUrl(created.sessionId), '_blank', 'noopener,noreferrer')}>
+                <ExternalLink className="mr-1.5 h-4 w-4" />{t('live_reopen_presenter')}
+              </Button>
+              <Button type="button" variant="outline" onClick={() => { setCreated(null); setTitle(''); setQuestion(''); setOptions(['', '']); }}>
+                <Plus className="mr-1.5 h-4 w-4" />{t('live_create_another')}
+              </Button>
+            </div>
+            <Link href="/dashboard" className="inline-block text-sm text-muted-foreground underline-offset-4 hover:underline">
+              {t('live_back_to_dashboard')}
+            </Link>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
