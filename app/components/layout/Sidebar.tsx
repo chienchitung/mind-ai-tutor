@@ -19,6 +19,7 @@ import {
   LogOut,
   MessageSquare,
   PanelLeft,
+  Radio,
   Settings,
   ShieldCheck,
   Users,
@@ -121,6 +122,7 @@ export function Sidebar({
           { name: t('lessons'), href: '/lessons', icon: BookOpen },
           { name: t('digital_games'), href: '/digital-games', icon: Gamepad2 },
           { name: t('ai_quiz'), href: '/ai-quiz', icon: Wand2 },
+          { name: t('live_session'), href: '/live/new', icon: Radio },
         ],
       },
       {
