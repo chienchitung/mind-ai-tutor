@@ -85,9 +85,11 @@ function NewLiveSessionForm() {
                 <Plus className="mr-1.5 h-4 w-4" />{t('live_create_another')}
               </Button>
             </div>
-            <Link href="/dashboard" className="inline-block text-sm text-muted-foreground underline-offset-4 hover:underline">
-              {t('live_back_to_dashboard')}
-            </Link>
+            <p className="text-sm text-muted-foreground">
+              <Link href="/live/sessions" className="underline-offset-4 hover:underline">{t('live_view_all_sessions')}</Link>
+              {' · '}
+              <Link href="/dashboard" className="underline-offset-4 hover:underline">{t('live_back_to_dashboard')}</Link>
+            </p>
           </CardContent>
         </Card>
       </div>
