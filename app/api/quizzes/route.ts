@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 import { getServerClient } from '@/app/lib/supabase';
 import { quizPayloadSchema } from '@/lib/quiz';
 
-const columns = 'id,title,questions,created_at,updated_at';
+const columns = 'id,title,questions,created_at,updated_at,is_public';
 
 function databaseError(code?: string) {
   const missingMigration = code === '42P01' || code === 'PGRST205';

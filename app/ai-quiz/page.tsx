@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useRef, useEffect, useCallback } from "react";
-import { Sparkles, Loader2, Lightbulb, Wand2, ArrowLeft, Download, Edit, ArrowRight, FileDown, Printer, Save, GripVertical, ArrowUp, ArrowDown, Plus, PlayCircle, Search, Trash2 } from "lucide-react";
+import { Sparkles, Loader2, Lightbulb, Wand2, ArrowLeft, Download, Edit, ArrowRight, FileDown, Printer, Save, GripVertical, ArrowUp, ArrowDown, Plus, PlayCircle, Search, Trash2, Share2, Link as LinkIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
@@ -9,6 +9,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { DeleteConfirmation } from "@/components/ui/delete-confirmation";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
 import { PageHeader } from "@/components/layout/PageHeader";
@@ -24,7 +25,7 @@ import { useLanguage } from "@/app/contexts/LanguageContext";
 import { useTranslation } from "@/utils/translations";
 
 // Import text extraction libraries
-import { quizPayloadSchema, parseSavedQuiz, isCorrectQuizAnswer, isCorrectQuizOption, type Quiz, type QuizQuestion } from '@/lib/quiz';
+import { quizPayloadSchema, parseSavedQuiz, isCorrectQuizAnswer, isCorrectQuizOption, type Quiz, type QuizQuestion, type QuizAttempt } from '@/lib/quiz';
 import { useUnsavedChanges } from '@/hooks/useUnsavedChanges';
 
 // QuizCreator component
@@ -1840,6 +1841,11 @@ export default function AIQuizPage() {
   const [showAllQuizzes, setShowAllQuizzes] = useState(false);
   const [quizToDelete, setQuizToDelete] = useState<Quiz | null>(null);
   const [isDeletingQuiz, setIsDeletingQuiz] = useState(false);
+  const [sharePending, setSharePending] = useState<string | null>(null);
+  const [attemptsQuizId, setAttemptsQuizId] = useState<string | null>(null);
+  const [attempts, setAttempts] = useState<QuizAttempt[] | null>(null);
+  const [isAttemptsLoading, setIsAttemptsLoading] = useState(false);
+  const [attemptsError, setAttemptsError] = useState('');
   const saveInFlight = useRef(false);
   useUnsavedChanges(!currentQuiz && quizzes.some(quiz => !quiz.persisted), isGenerating);
 
@@ -2092,6 +2098,55 @@ export default function AIQuizPage() {
     }
   };
 
+  const handleToggleShare = async (quiz: Quiz) => {
+    if (!quiz.persisted || sharePending) return;
+    setSharePending(quiz.id);
+    try {
+      const nextValue = !quiz.isPublic;
+      const response = await fetch(`/api/quizzes/${quiz.id}`, {
+        method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ isPublic: nextValue }),
+      });
+      const data = await response.json();
+      if (!response.ok) throw new Error('QUIZ_STORAGE_ERROR');
+      setQuizzes(previous => previous.map(item => item.id === quiz.id ? { ...item, isPublic: data.is_public } : item));
+      toast({ title: t('success'), description: t(data.is_public ? 'quiz_share_enabled' : 'quiz_share_disabled') });
+    } catch {
+      toast({ title: t('error'), description: t('error_sharing_quiz'), variant: 'destructive' });
+    } finally {
+      setSharePending(null);
+    }
+  };
+
+  const publicQuizUrl = (quizId: string) => typeof window === 'undefined' ? '' : `${window.location.origin}/quiz/${quizId}`;
+
+  const handleCopyLink = async (quizId: string) => {
+    try {
+      await navigator.clipboard.writeText(publicQuizUrl(quizId));
+      toast({ title: t('link_copied') });
+    } catch {
+      toast({ title: t('error'), description: t('error_sharing_quiz'), variant: 'destructive' });
+    }
+  };
+
+  const handleOpenAttempts = async (quizId: string) => {
+    setAttemptsQuizId(quizId);
+    setAttempts(null);
+    setAttemptsError('');
+    setIsAttemptsLoading(true);
+    try {
+      const response = await fetch(`/api/quizzes/${quizId}/attempts`, { cache: 'no-store' });
+      const data = await response.json();
+      if (!response.ok) throw new Error('QUIZ_STORAGE_ERROR');
+      setAttempts(data);
+    } catch {
+      setAttemptsError(t('error_loading_attempts'));
+    } finally {
+      setIsAttemptsLoading(false);
+    }
+  };
+
+  const attemptsQuiz = quizzes.find(quiz => quiz.id === attemptsQuizId) ?? null;
+
   const QUIZ_PREVIEW_COUNT = 6;
   const filteredQuizzes = quizzes.filter(quiz => quiz.title.toLowerCase().includes(quizSearch.trim().toLowerCase()));
   const visibleQuizzes = showAllQuizzes || quizSearch.trim() ? filteredQuizzes : filteredQuizzes.slice(0, QUIZ_PREVIEW_COUNT);
@@ -2184,7 +2239,19 @@ export default function AIQuizPage() {
                               </span>
                             </div>
                           </button>
-                          <div className="flex justify-end border-t border-border/70 px-2 py-1">
+                          <div className="flex flex-wrap items-center justify-between gap-1 border-t border-border/70 px-2 py-1">
+                            {quiz.persisted ? (
+                              <Button
+                                type="button"
+                                variant="ghost"
+                                size="sm"
+                                className="h-7 gap-1 text-muted-foreground"
+                                onClick={() => void handleOpenAttempts(quiz.id)}
+                              >
+                                <Share2 className="h-3.5 w-3.5" />
+                                {t('manage_sharing')}
+                              </Button>
+                            ) : <span />}
                             <Button
                               type="button"
                               variant="ghost"
@@ -2238,6 +2305,60 @@ export default function AIQuizPage() {
             onCancel={() => { if (!isDeletingQuiz) setQuizToDelete(null); }}
             onConfirm={() => void handleDeleteQuiz()}
           />
+
+          <Dialog open={attemptsQuizId !== null} onOpenChange={open => { if (!open) setAttemptsQuizId(null); }}>
+            <DialogContent className="max-w-lg">
+              <DialogHeader>
+                <DialogTitle>{t('manage_sharing')}</DialogTitle>
+                <DialogDescription>{attemptsQuiz?.title}</DialogDescription>
+              </DialogHeader>
+
+              {attemptsQuiz && (
+                <div className="space-y-4">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <Button type="button" variant={attemptsQuiz.isPublic ? 'outline' : 'default'} size="sm" disabled={sharePending === attemptsQuiz.id} onClick={() => void handleToggleShare(attemptsQuiz)}>
+                      {sharePending === attemptsQuiz.id ? <Loader2 className="mr-2 h-3.5 w-3.5 animate-spin" /> : <Share2 className="mr-2 h-3.5 w-3.5" />}
+                      {attemptsQuiz.isPublic ? t('unshare_quiz') : t('share_quiz')}
+                    </Button>
+                  </div>
+
+                  {attemptsQuiz.isPublic && (
+                    <div className="space-y-1">
+                      <Label className="text-xs text-muted-foreground">{t('public_link_label')}</Label>
+                      <div className="flex gap-2">
+                        <Input readOnly value={publicQuizUrl(attemptsQuiz.id)} onFocus={event => event.target.select()} className="text-xs" />
+                        <Button type="button" variant="outline" size="sm" onClick={() => void handleCopyLink(attemptsQuiz.id)}>
+                          <LinkIcon className="mr-2 h-3.5 w-3.5" />{t('copy_link')}
+                        </Button>
+                      </div>
+                    </div>
+                  )}
+
+                  <div className="space-y-2">
+                    <h3 className="text-sm font-semibold">{t('quiz_attempts_title')}</h3>
+                    {isAttemptsLoading && <p role="status" className="text-sm text-muted-foreground">{t('public_quiz_loading')}</p>}
+                    {attemptsError && <p role="alert" className="text-sm text-destructive">{attemptsError}</p>}
+                    {!isAttemptsLoading && !attemptsError && attempts?.length === 0 && (
+                      <p className="text-sm text-muted-foreground">{t('no_attempts_yet')}</p>
+                    )}
+                    {!isAttemptsLoading && attempts && attempts.length > 0 && (
+                      <div className="max-h-64 space-y-1 overflow-y-auto">
+                        {attempts.map(attempt => (
+                          <div key={attempt.id} className="flex items-center justify-between rounded-lg border px-3 py-2 text-sm">
+                            <div>
+                              <p className="font-medium">{attempt.student_name}</p>
+                              <p className="text-xs text-muted-foreground">{t('submitted_on', { date: new Date(attempt.submitted_at).toLocaleString() })}</p>
+                            </div>
+                            <span className="font-semibold text-primary">{t('attempt_score', { score: attempt.score, total: attempt.total })}</span>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+            </DialogContent>
+          </Dialog>
     </div>
   );
 }
