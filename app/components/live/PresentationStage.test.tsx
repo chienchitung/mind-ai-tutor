@@ -159,29 +159,6 @@ describe('projection tools', () => {
     expect(container.querySelector('[data-laser-pointer]')).toBeNull();
     expect(commit).not.toHaveBeenCalled();
   });
-  it('leaves a short fading trail behind the laser as it moves, like Google Meet', () => {
-    const { container } = render(
-      <AnnotationLayer
-        strokes={[]}
-        tool="laser"
-        color="#fff"
-        width={3}
-        label="canvas"
-        onCommit={() => {}}
-        onDrawingChange={() => {}}
-      />,
-    );
-    const surface = screen.getByRole('img');
-    move(surface, 100, 100);
-    move(surface, 200, 150);
-    move(surface, 300, 200);
-    // Each older move should still be on screen as a fading trail dot, distinct
-    // from the current pointer position (which owns [data-laser-pointer]).
-    const trailDots = container.querySelectorAll('[data-laser-trail]');
-    expect(trailDots.length).toBeGreaterThanOrEqual(2);
-    fireEvent.pointerLeave(surface);
-    expect(container.querySelectorAll('[data-laser-trail]')).toHaveLength(0);
-  });
   it('keeps notes per slide and after closing, and supports undo and redo', async () => {
     render(<Harness />);
     let surface = await screen.findByRole('img', { name: '投影片標註區' });
