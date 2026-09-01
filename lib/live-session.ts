@@ -53,9 +53,20 @@ export const pollDraftSchema = z.object({
   options: z.array(z.string().trim().min(1).max(120)).min(2).max(6),
 });
 
+// A session can start blank (no poll yet - the teacher just wants to
+// project a deck or warm up the room) or with its first question already
+// queued up. question/options are deliberately independent of
+// pollDraftSchema (used only by "open a new poll" on an already-running
+// session, where a question is always required) and must arrive together
+// or not at all.
 export const createSessionSchema = z.object({
   title: z.string().trim().min(1).max(200),
-}).merge(pollDraftSchema);
+  question: z.string().trim().min(1).max(500).optional(),
+  options: z.array(z.string().trim().min(1).max(120)).min(2).max(6).optional(),
+}).refine(
+  (value) => (value.question === undefined) === (value.options === undefined),
+  { message: 'question and options must be provided together', path: ['options'] },
+);
 
 export const statusSchema = z.object({ status: z.enum(['open', 'paused', 'closed']) });
 

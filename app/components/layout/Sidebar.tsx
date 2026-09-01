@@ -241,7 +241,13 @@ export function Sidebar({
                 )}
                 <div className="space-y-1">
                   {group.items.map((item) => {
-                    const active = pathname === item.href || pathname.startsWith(`${item.href}/`);
+                    // The live-session item links to /live/sessions, but the
+                    // whole /live/* flow (creating one, the presenter
+                    // workspace) belongs to it too - a plain prefix match on
+                    // its own href would miss /live/new and /live/[id]/present.
+                    const active = item.href === '/live/sessions'
+                      ? pathname.startsWith('/live')
+                      : pathname === item.href || pathname.startsWith(`${item.href}/`);
                     return (
                       <Link
                         key={item.href}

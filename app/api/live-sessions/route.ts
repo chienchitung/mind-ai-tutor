@@ -55,15 +55,19 @@ export async function POST(request: Request) {
     }
     if (!session) return databaseError(lastErrorCode);
 
-    const { data: poll, error: pollError } = await client.from('live_polls')
-      .insert({ session_id: session.id, question: parsed.data.question, options: parsed.data.options })
-      .select('id').single();
-    if (pollError || !poll) {
-      await client.from('live_sessions').delete().eq('id', session.id);
-      return databaseError(pollError?.code);
+    // A blank session (no question) starts with no active poll at all -
+    // the teacher opens one later from the presenter workspace.
+    if (parsed.data.question !== undefined && parsed.data.options !== undefined) {
+      const { data: poll, error: pollError } = await client.from('live_polls')
+        .insert({ session_id: session.id, question: parsed.data.question, options: parsed.data.options })
+        .select('id').single();
+      if (pollError || !poll) {
+        await client.from('live_sessions').delete().eq('id', session.id);
+        return databaseError(pollError?.code);
+      }
+      const { error: updateError } = await client.from('live_sessions').update({ active_poll_id: poll.id }).eq('id', session.id);
+      if (updateError) return databaseError(updateError.code);
     }
-    const { error: updateError } = await client.from('live_sessions').update({ active_poll_id: poll.id }).eq('id', session.id);
-    if (updateError) return databaseError(updateError.code);
 
     return NextResponse.json(
       { sessionId: session.id, joinCode: session.join_code },

@@ -135,6 +135,16 @@ describe("lesson editor experience", () => {
     expect(screen.getByDisplayValue("問題一")).toBeTruthy();
     expect(screen.getByDisplayValue("問題二")).toBeTruthy();
   });
+  it("shows a clickable error summary that focuses the first invalid field", async () => {
+    await edit();
+    fireEvent.change(screen.getByLabelText("標題"), {
+      target: { value: "" },
+    });
+    fireEvent.click(screen.getAllByRole("button", { name: "儲存變更" })[0]);
+    const summaryLink = await screen.findByRole("link", { name: "基本資料" });
+    fireEvent.click(summaryLink);
+    expect(document.activeElement).toBe(screen.getByLabelText("標題"));
+  });
   it("saves manually-written exercises even when the AI prompt field is left blank", async () => {
     await edit();
     fireEvent.change(screen.getByLabelText("創建練習"), { target: { value: "" } });

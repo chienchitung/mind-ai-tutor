@@ -257,6 +257,29 @@ describe('Live Session experience', () => {
     ).toBeTruthy();
   });
 
+  it('creates a blank session with no poll when that mode is chosen', async () => {
+    fetchMock.mockResolvedValue(
+      response({ sessionId: 'blank-session', joinCode: '111222' }),
+    );
+    mount(<NewPage />);
+    fireEvent.click(screen.getByRole('button', { name: '空白場次' }));
+    const submit = screen.getByRole('button', {
+      name: '開始場次',
+    }) as HTMLButtonElement;
+    expect(submit.disabled).toBe(true);
+    expect(screen.queryByLabelText('題目')).toBeNull();
+    fireEvent.change(screen.getByLabelText('場次名稱'), {
+      target: { value: ' 暖場 ' },
+    });
+    expect(submit.disabled).toBe(false);
+    fireEvent.click(submit);
+    await screen.findByText('場次已建立！');
+    expect(fetchMock).toHaveBeenCalledWith(
+      '/api/live-sessions',
+      expect.objectContaining({ body: JSON.stringify({ title: '暖場' }) }),
+    );
+  });
+
   it('keeps the presenter controls locked during an update and rolls back on failure', async () => {
     let finish!: (value: unknown) => void;
     fetchMock.mockImplementation(async (url: string, init?: RequestInit) =>

@@ -31,6 +31,7 @@ function NewLiveSessionForm() {
   const { toast } = useToast();
   const { language } = useLanguage();
   const { t } = useTranslation(language);
+  const [mode, setMode] = useState<'blank' | 'poll'>('poll');
   const [title, setTitle] = useState('');
   const [question, setQuestion] = useState('');
   const [options, setOptions] = useState(['', '']);
@@ -43,10 +44,10 @@ function NewLiveSessionForm() {
   const handleSubmit = async (event: React.FormEvent) => {
     event.preventDefault();
     const cleanOptions = options.map((option) => option.trim()).filter(Boolean);
+    const needsPoll = mode === 'poll';
     if (
       !title.trim() ||
-      !question.trim() ||
-      cleanOptions.length < 2 ||
+      (needsPoll && (!question.trim() || cleanOptions.length < 2)) ||
       isCreating
     )
       return;
@@ -57,8 +58,7 @@ function NewLiveSessionForm() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           title: title.trim(),
-          question: question.trim(),
-          options: cleanOptions,
+          ...(needsPoll ? { question: question.trim(), options: cleanOptions } : {}),
         }),
       });
       if (!response.ok) throw new Error();
@@ -211,94 +211,123 @@ function NewLiveSessionForm() {
                 <h2 className="app-kicker mb-3 border-t pt-6">
                   02 / {t('live_setup_poll')}
                 </h2>
-                <p className="mb-4 text-sm leading-6 text-muted-foreground">
-                  {t('live_setup_hint')}
-                </p>
-                <Label htmlFor="live-question">
-                  {t('live_poll_question_label')}
-                </Label>
-                <Textarea
-                  className="mt-2 min-h-24"
-                  placeholder={t('live_setup_question_placeholder')}
-                  id="live-question"
-                  value={question}
-                  onChange={(event) => setQuestion(event.target.value)}
-                  rows={2}
-                  maxLength={500}
-                  required
-                />
-              </div>
-              <div className="space-y-2">
-                <p className="text-sm font-medium">
-                  {t('live_poll_options_label')}
-                </p>
-                <p id="options-hint" className="text-xs text-muted-foreground">
-                  {t('live_options_hint')}
-                </p>
-                {options.map((option, index) => (
-                  <div key={index} className="flex items-center gap-2">
-                    <span
-                      aria-hidden="true"
-                      className="flex h-10 w-8 shrink-0 items-center justify-center rounded-lg bg-muted font-mono text-sm text-muted-foreground"
-                    >
-                      {String.fromCharCode(65 + index)}
-                    </span>
-                    <Input
-                      className="h-11"
-                      aria-label={`${t('live_poll_option_placeholder')} ${String.fromCharCode(65 + index)}`}
-                      aria-describedby="options-hint"
-                      value={option}
-                      maxLength={120}
-                      onChange={(event) =>
-                        setOptions((previous) =>
-                          previous.map((item, itemIndex) =>
-                            itemIndex === index ? event.target.value : item,
-                          ),
-                        )
-                      }
-                      placeholder={`${t('live_poll_option_placeholder')} ${String.fromCharCode(65 + index)}`}
+                <div className="mb-4 flex gap-2" role="group" aria-label={t('live_setup_poll')}>
+                  <button
+                    type="button"
+                    aria-pressed={mode === 'poll'}
+                    onClick={() => setMode('poll')}
+                    className={`min-h-11 rounded-lg border px-3 py-2 text-sm font-medium transition-colors ${mode === 'poll' ? 'border-primary bg-primary text-primary-foreground' : 'text-muted-foreground hover:border-foreground/30'}`}
+                  >
+                    {t('live_mode_poll')}
+                  </button>
+                  <button
+                    type="button"
+                    aria-pressed={mode === 'blank'}
+                    onClick={() => setMode('blank')}
+                    className={`min-h-11 rounded-lg border px-3 py-2 text-sm font-medium transition-colors ${mode === 'blank' ? 'border-primary bg-primary text-primary-foreground' : 'text-muted-foreground hover:border-foreground/30'}`}
+                  >
+                    {t('live_mode_blank')}
+                  </button>
+                </div>
+                {mode === 'poll' ? (
+                  <>
+                    <p className="mb-4 text-sm leading-6 text-muted-foreground">
+                      {t('live_setup_hint')}
+                    </p>
+                    <Label htmlFor="live-question">
+                      {t('live_poll_question_label')}
+                    </Label>
+                    <Textarea
+                      className="mt-2 min-h-24"
+                      placeholder={t('live_setup_question_placeholder')}
+                      id="live-question"
+                      value={question}
+                      onChange={(event) => setQuestion(event.target.value)}
+                      rows={2}
+                      maxLength={500}
+                      required
                     />
-                    {options.length > 2 && (
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="icon"
-                        aria-label={t('live_remove_option', {
-                          option: String.fromCharCode(65 + index),
-                        })}
-                        onClick={() =>
+                  </>
+                ) : (
+                  <p className="text-sm leading-6 text-muted-foreground">
+                    {t('live_mode_blank_hint')}
+                  </p>
+                )}
+              </div>
+              {mode === 'poll' && (
+                <div className="space-y-2">
+                  <p className="text-sm font-medium">
+                    {t('live_poll_options_label')}
+                  </p>
+                  <p id="options-hint" className="text-xs text-muted-foreground">
+                    {t('live_options_hint')}
+                  </p>
+                  {options.map((option, index) => (
+                    <div key={index} className="flex items-center gap-2">
+                      <span
+                        aria-hidden="true"
+                        className="flex h-10 w-8 shrink-0 items-center justify-center rounded-lg bg-muted font-mono text-sm text-muted-foreground"
+                      >
+                        {String.fromCharCode(65 + index)}
+                      </span>
+                      <Input
+                        className="h-11"
+                        aria-label={`${t('live_poll_option_placeholder')} ${String.fromCharCode(65 + index)}`}
+                        aria-describedby="options-hint"
+                        value={option}
+                        maxLength={120}
+                        onChange={(event) =>
                           setOptions((previous) =>
-                            previous.filter(
-                              (_, itemIndex) => itemIndex !== index,
+                            previous.map((item, itemIndex) =>
+                              itemIndex === index ? event.target.value : item,
                             ),
                           )
                         }
-                      >
-                        <X className="h-4 w-4" />
-                      </Button>
-                    )}
-                  </div>
-                ))}
-                {options.length < 6 && (
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    onClick={() => setOptions((previous) => [...previous, ''])}
-                  >
-                    <Plus className="mr-1.5 h-3.5 w-3.5" />
-                    {t('live_add_option')}
-                  </Button>
-                )}
-              </div>
+                        placeholder={`${t('live_poll_option_placeholder')} ${String.fromCharCode(65 + index)}`}
+                      />
+                      {options.length > 2 && (
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="icon"
+                          aria-label={t('live_remove_option', {
+                            option: String.fromCharCode(65 + index),
+                          })}
+                          onClick={() =>
+                            setOptions((previous) =>
+                              previous.filter(
+                                (_, itemIndex) => itemIndex !== index,
+                              ),
+                            )
+                          }
+                        >
+                          <X className="h-4 w-4" />
+                        </Button>
+                      )}
+                    </div>
+                  ))}
+                  {options.length < 6 && (
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setOptions((previous) => [...previous, ''])}
+                    >
+                      <Plus className="mr-1.5 h-3.5 w-3.5" />
+                      {t('live_add_option')}
+                    </Button>
+                  )}
+                </div>
+              )}
               <Button
                 type="submit"
                 className="h-12 w-full rounded-xl"
                 disabled={
                   isCreating ||
                   !title.trim() ||
-                  !question.trim() ||
-                  options.filter((option) => option.trim()).length < 2
+                  (mode === 'poll' &&
+                    (!question.trim() ||
+                      options.filter((option) => option.trim()).length < 2))
                 }
               >
                 {isCreating && (

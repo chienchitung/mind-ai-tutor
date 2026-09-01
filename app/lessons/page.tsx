@@ -27,6 +27,18 @@ import { EditorWorkspace } from '@/components/layout/EditorWorkspace';
 import { useUnsavedChanges } from '@/hooks/useUnsavedChanges';
 import { DeleteConfirmation } from '@/components/ui/delete-confirmation';
 
+// A .min(1, message) alone only covers the "too short" Zod issue, which
+// requires the value to already BE a string. A genuinely missing/wrong-typed
+// value hits "invalid_type" first and falls back to Zod's own built-in
+// (English, untranslated) "Required" message instead - passing required_error
+// covers that path too, so the translated message is used either way.
+function requiredString(message: string) {
+  return z.string({ required_error: message }).min(1, message);
+}
+function requiredNumber(message: string) {
+  return z.number({ required_error: message, invalid_type_error: message }).min(1, message);
+}
+
 interface PracticeExercise {
   question: string;
   answer: string;
@@ -90,14 +102,34 @@ export default function LessonsPage() {
     return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(id);
   }
 
+  // Which field the error-summary links should jump to and focus - the
+  // first invalid field in that section, not just "somewhere in there".
+  function firstBasicsErrorField(errors: typeof form.formState.errors) {
+    return (['title', 'cardDescription', 'duration', 'level', 'topics', 'geniallyLink'] as const)
+      .find((key) => errors[key]) ?? null;
+  }
+  function firstPracticeErrorField(errors: typeof form.formState.errors): string | null {
+    if (errors.teachingContent) return 'teachingContent';
+    const practiceErrors = errors.practiceExercises;
+    if (Array.isArray(practiceErrors)) {
+      for (let index = 0; index < practiceErrors.length; index++) {
+        const exerciseError = practiceErrors[index] as Record<string, unknown> | null | undefined;
+        if (!exerciseError) continue;
+        const field = (['question', 'answer', 'explanation'] as const).find((key) => exerciseError[key]);
+        if (field) return `practiceExercises.${index}.${field}`;
+      }
+    }
+    return practiceErrors ? 'practiceExercises' : null;
+  }
+
   // Form schema with translated validation messages
   const lessonFormSchema = z.object({
-    title: z.string().min(1, t('required_title')),
-    cardDescription: z.string().min(1, t('required_lesson_card_summary')).max(160, t('lesson_card_summary_too_long')),
-    markdownContent: z.string().min(1, t('required_content')),
-    duration: z.number().min(1, t('duration') + " " + t('exercise_required')),
-    level: z.string().min(1, t('level') + " " + t('exercise_required')),
-    topics: z.string().min(1, t('required_topics')),
+    title: requiredString(t('required_title')),
+    cardDescription: requiredString(t('required_lesson_card_summary')).max(160, t('lesson_card_summary_too_long')),
+    markdownContent: requiredString(t('required_content')),
+    duration: requiredNumber(t('duration') + t('field_required')),
+    level: requiredString(t('level') + t('field_required')),
+    topics: requiredString(t('required_topics')),
     geniallyLink: z.union([z.string().url(t('enter_genially_url')), z.literal('')]).optional(),
     // No .min(1) here on purpose: only the "生成練習題" button actually
     // needs this field, and it has its own guard (below) before calling
@@ -106,10 +138,13 @@ export default function LessonsPage() {
     // string, not .optional(), since the field is always a controlled
     // string ("" by default) and LessonEditorValues expects it as such.
     teachingContent: z.string(),
+    // Each field gets its own message (not the array-level "at least one
+    // exercise" text reused as a suffix, which read as a non-sequitur -
+    // e.g. "Question at least one practice exercise is required").
     practiceExercises: z.array(z.object({
-      question: z.string().min(1, t('question') + " " + t('exercise_required')),
-      answer: z.string().min(1, t('answer') + " " + t('exercise_required')),
-      explanation: z.string().min(1, t('explanation') + " " + t('exercise_required'))
+      question: requiredString(t('question') + t('field_required')),
+      answer: requiredString(t('answer') + t('field_required')),
+      explanation: requiredString(t('explanation') + t('field_required')),
     })).min(1, t('exercise_required'))
   });
 
@@ -610,14 +645,35 @@ export default function LessonsPage() {
                 <CardContent className="pt-5 md:pt-6">
               <Form {...form}>
                 <form id="lesson-editor-form" onSubmit={form.handleSubmit(onSubmit)} aria-busy={form.formState.isSubmitting}>
-                  {Object.keys(form.formState.errors).length > 0 && <div role="alert" className="mb-4 rounded-xl border border-destructive/30 bg-destructive/5 p-4 text-sm">
-                    <p className="font-medium">{language === 'zh-TW' ? '尚有欄位需要修正，請檢查以下區塊：' : 'Please check these sections before saving:'}</p>
-                    <div className="mt-2 flex flex-wrap gap-3">
-                      {(['title', 'cardDescription', 'duration', 'level', 'topics', 'geniallyLink'] as const).some(key => form.formState.errors[key]) && <a href="#lesson-basics" className="underline">{language === 'zh-TW' ? '基本資料' : 'Basics'}</a>}
-                      {form.formState.errors.markdownContent && <a href="#lesson-content" className="underline">{language === 'zh-TW' ? '教材內容' : 'Content'}</a>}
-                      {(form.formState.errors.teachingContent || form.formState.errors.practiceExercises) && <a href="#lesson-practice" className="underline">{language === 'zh-TW' ? '練習題' : 'Practice'}</a>}
-                    </div>
-                  </div>}
+                  {Object.keys(form.formState.errors).length > 0 && (() => {
+                    const basicsField = firstBasicsErrorField(form.formState.errors);
+                    const practiceField = firstPracticeErrorField(form.formState.errors);
+                    // Clicking jumps to AND focuses the first invalid field in that
+                    // section (form.setFocus scrolls the input into view itself),
+                    // instead of just landing somewhere near the top of the section.
+                    return (
+                      <div role="alert" className="mb-4 rounded-xl border border-destructive/30 bg-destructive/5 p-4 text-sm">
+                        <p className="font-medium">{language === 'zh-TW' ? '尚有欄位需要修正，請檢查以下區塊：' : 'Please check these sections before saving:'}</p>
+                        <div className="mt-2 flex flex-wrap gap-3">
+                          {basicsField && (
+                            <a href="#lesson-basics" className="underline" onClick={(event) => { event.preventDefault(); form.setFocus(basicsField); }}>
+                              {language === 'zh-TW' ? '基本資料' : 'Basics'}
+                            </a>
+                          )}
+                          {form.formState.errors.markdownContent && (
+                            <a href="#lesson-content" className="underline" onClick={(event) => { event.preventDefault(); form.setFocus('markdownContent'); }}>
+                              {language === 'zh-TW' ? '教材內容' : 'Content'}
+                            </a>
+                          )}
+                          {practiceField && (
+                            <a href="#lesson-practice" className="underline" onClick={(event) => { event.preventDefault(); form.setFocus(practiceField as any); }}>
+                              {language === 'zh-TW' ? '練習題' : 'Practice'}
+                            </a>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })()}
                   <fieldset disabled={form.formState.isSubmitting} className="space-y-4 min-w-0">
                   <section id="lesson-basics" className="scroll-mt-24 lg:scroll-mt-64 space-y-4 rounded-xl border border-border/70 p-4 sm:p-5">
                     <div>

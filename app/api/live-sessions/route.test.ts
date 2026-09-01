@@ -42,6 +42,19 @@ describe('POST /api/live-sessions', () => {
     expect((await POST(request({ ...draft, options: ['only one'] }))).status).toBe(400);
     expect(from).not.toHaveBeenCalled();
   });
+  it('rejects a question with no options, and options with no question', async () => {
+    expect((await POST(request({ title: draft.title, question: draft.question }))).status).toBe(400);
+    expect((await POST(request({ title: draft.title, options: draft.options }))).status).toBe(400);
+    expect(from).not.toHaveBeenCalled();
+  });
+  it('creates a blank session with no active poll when neither is given', async () => {
+    const response = await POST(request({ title: draft.title }));
+    expect(response.status).toBe(201);
+    expect(await response.json()).toEqual({ sessionId: 'session-1', joinCode: '482910' });
+    expect(sessionsChain.insert).toHaveBeenCalledWith(expect.objectContaining({ user_id: 'owner', title: draft.title }));
+    expect(pollsChain.insert).not.toHaveBeenCalled();
+    expect(sessionsChain.update).not.toHaveBeenCalled();
+  });
   it('creates a session with an active poll and returns the join code', async () => {
     const response = await POST(request());
     expect(response.status).toBe(201);
