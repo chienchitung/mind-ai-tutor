@@ -203,4 +203,20 @@ describe('projection tools', () => {
     fireEvent.keyDown(screen.getByRole('button', { name: '投影工具' }), { key: ' ' });
     expect(screen.getByRole('status').textContent).toContain('1 / 3');
   });
+  it('leaves an already-hidden toolbar hidden when paging via keyboard/clicker - only pointer movement wakes it', async () => {
+    render(<Harness />);
+    const surface = await screen.findByRole('img');
+    const topBar = document.querySelector('[data-presentation-ui]') as HTMLElement;
+    expect(topBar.className).toContain('opacity-100');
+
+    await new Promise((resolve) => setTimeout(resolve, 1300));
+    await waitFor(() => expect(topBar.className).toContain('opacity-0'));
+
+    fireEvent.keyDown(surface, { key: 'ArrowRight' });
+    expect(screen.getByRole('status').textContent).toContain('2 / 3');
+    expect(topBar.className).toContain('opacity-0');
+
+    fireEvent.pointerMove(screen.getByRole('dialog'), { clientX: 10, clientY: 10, pointerId: 1 });
+    expect(topBar.className).toContain('opacity-100');
+  }, 10000);
 });

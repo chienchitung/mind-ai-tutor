@@ -36,6 +36,10 @@ import { annotationReducer, EMPTY_INK, type PresentationTool } from '@/lib/prese
 import { AnnotationLayer } from './AnnotationLayer';
 import { DeckViewer } from './DeckViewer';
 
+// Kept short on purpose: the presenter asked for the toolbar to get out of
+// the way quickly, since keyboard/clicker slide changes below no longer keep
+// it awake themselves - only actual pointer movement should.
+const CONTROLS_HIDE_DELAY_MS = 1200;
 const TOOLS = [
   { value: 'cursor', icon: MousePointer2, key: 'V' },
   { value: 'laser', icon: ScanLine, key: 'L' },
@@ -211,7 +215,7 @@ export const PresentationStage = forwardRef<HTMLDivElement, Props>(function Pres
     if (hideTimer.current) clearTimeout(hideTimer.current);
     hideTimer.current = setTimeout(() => {
       if (!stageRef.current?.querySelector('[data-presentation-ui]:focus-within')) setVisible(false);
-    }, 3000);
+    }, CONTROLS_HIDE_DELAY_MS);
   }, []);
   useEffect(() => {
     if (open) {
@@ -278,15 +282,17 @@ export const PresentationStage = forwardRef<HTMLDivElement, Props>(function Pres
       wake();
       return;
     }
+    // Deliberately no wake() here: paging via keyboard or a clicker
+    // shouldn't itself reveal or refresh the toolbar - only actual pointer
+    // movement should, per the presenter's own request. Whatever visibility
+    // state (and hide timer) was already running is left exactly as is.
     if (event.key === 'ArrowRight' || event.key === 'PageDown' || event.key === ' ') {
       event.preventDefault();
       onPageChange(Math.min(page + 1, numPages));
-      wake();
     }
     if (event.key === 'ArrowLeft' || event.key === 'PageUp') {
       event.preventDefault();
       onPageChange(Math.max(page - 1, 1));
-      wake();
     }
   }
   const closedMenuFocus = (event: Event) => {
