@@ -153,23 +153,34 @@ export function AnnotationLayer({ strokes, tool, color, width, label, onCommit, 
           "none") to match the deck's own aspect ratio - under that anisotropic
           transform, some browsers render the stroke practically invisible.
           Percentage positioning plus a fixed-pixel border/glow has no such
-          ambiguity. */}
+          ambiguity. Laser styling mirrors Google Meet/Slides' pointer: a
+          solid glowing dot rather than a hollow ring. */}
       {pointer && (tool === 'laser' || tool === 'eraser') && (
         <div
           data-laser-pointer={tool === 'laser' ? '' : undefined}
           aria-hidden="true"
           className="pointer-events-none absolute -translate-x-1/2 -translate-y-1/2 rounded-full"
-          style={{
-            left: `${pointer.x * 100}%`,
-            top: `${pointer.y * 100}%`,
-            width: tool === 'laser' ? 22 : 30,
-            height: tool === 'laser' ? 22 : 30,
-            border: `${tool === 'laser' ? 3 : 2}px solid ${tool === 'laser' ? '#ff244c' : '#111827'}`,
-            boxShadow:
-              tool === 'laser'
-                ? '0 0 0 8px rgba(251,113,133,0.3), 0 0 14px 3px rgba(255,36,76,0.65)'
-                : '0 0 0 6px rgba(255,255,255,0.35)',
-          }}
+          style={
+            tool === 'laser'
+              ? {
+                  left: `${pointer.x * 100}%`,
+                  top: `${pointer.y * 100}%`,
+                  width: 16,
+                  height: 16,
+                  background:
+                    'radial-gradient(circle at 35% 35%, #ffffff 0%, #ff8a80 20%, #ff1744 55%, #d50000 100%)',
+                  boxShadow:
+                    '0 0 6px 2px rgba(255,23,68,0.9), 0 0 18px 8px rgba(255,23,68,0.5), 0 0 32px 14px rgba(255,23,68,0.25)',
+                }
+              : {
+                  left: `${pointer.x * 100}%`,
+                  top: `${pointer.y * 100}%`,
+                  width: 30,
+                  height: 30,
+                  border: '2px solid #111827',
+                  boxShadow: '0 0 0 6px rgba(255,255,255,0.35)',
+                }
+          }
         />
       )}
     </div>
