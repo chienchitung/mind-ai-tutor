@@ -69,7 +69,9 @@ export default function AudiencePage() {
   >('loading');
   const [data, setData] = useState<LiveSessionPublicState | null>(null);
   const [participantId, setParticipantId] = useState<string | null>(null);
+  const [selectedOption, setSelectedOption] = useState<number | null>(null);
   const [myVote, setMyVote] = useState<number | null>(null);
+  const [voteSubmitting, setVoteSubmitting] = useState(false);
   const [myPulse, setMyPulse] = useState<number | null>(null);
   const [voteError, setVoteError] = useState('');
 
@@ -79,10 +81,16 @@ export default function AudiencePage() {
   const [qaSending, setQaSending] = useState(false);
   const [qaError, setQaError] = useState('');
   const [upvotedIds, setUpvotedIds] = useState<Set<string>>(new Set());
-  const [reacting, setReacting] = useState<string | null>(null);
+  const [reactingKinds, setReactingKinds] = useState<Set<string>>(new Set());
   const [reactionError, setReactionError] = useState('');
-  const reactionCooldown = useRef<ReturnType<typeof setTimeout> | null>(null);
-  useEffect(() => () => { if (reactionCooldown.current) clearTimeout(reactionCooldown.current); }, []);
+  const reactionCooldowns = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map());
+  useEffect(
+    () => () => {
+      reactionCooldowns.current.forEach(clearTimeout);
+      reactionCooldowns.current.clear();
+    },
+    [],
+  );
   const { reactions, push: pushReaction } = useReactionBursts();
   const { onlineCount, registerPing } = useOnlinePresenceCount();
 
@@ -137,6 +145,7 @@ export default function AudiencePage() {
     channel
       .on('broadcast', { event: 'poll:opened' }, ({ payload }) => {
         setMyVote(null);
+        setSelectedOption(null);
         setData((previous) =>
           previous
             ? { ...previous, poll: payload as LiveSessionPublicState['poll'] }
@@ -244,35 +253,42 @@ export default function AudiencePage() {
     registerPing,
   ]);
 
-  const castVote = async (optionIndex: number) => {
+  const selectOption = (optionIndex: number) => {
+    if (!data?.poll || data.status !== 'open') return;
+    setSelectedOption(optionIndex);
+    setVoteError('');
+  };
+
+  const submitVote = async () => {
     if (
+      selectedOption === null ||
       !data?.poll ||
       !participantId ||
       data.status !== 'open' ||
-      myVote === optionIndex
+      voteSubmitting ||
+      selectedOption === myVote
     )
       return;
-    // Optimistic, like Slido/Mentimeter voting: the tap itself is the
-    // feedback, the server tally reconciles a moment later in the background.
-    const previousVote = myVote;
-    setMyVote(optionIndex);
+    setVoteSubmitting(true);
     setVoteError('');
     try {
       const response = await fetch(`/api/live/${code}/vote`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ participantId, optionIndex }),
+        body: JSON.stringify({ participantId, optionIndex: selectedOption }),
       });
       if (!response.ok) throw new Error();
       const result = await response.json();
+      setMyVote(selectedOption);
       setData((previous) =>
         previous?.poll
           ? { ...previous, poll: { ...previous.poll, ...result } }
           : previous,
       );
     } catch {
-      setMyVote(previousVote);
       setVoteError(t('live_vote_error'));
+    } finally {
+      setVoteSubmitting(false);
     }
   };
 
@@ -377,15 +393,22 @@ export default function AudiencePage() {
   };
 
   const sendReaction = async (kind: string) => {
-    if (data?.status !== 'open' || reactionCooldown.current) return;
+    // Only the tapped emoji cools down - the rest of the panel stays live so
+    // mashing several different reactions back to back never feels blocked.
+    if (data?.status !== 'open' || reactionCooldowns.current.has(kind)) return;
     const reactionId = crypto.randomUUID();
     pushReaction(kind, reactionId);
-    setReacting(kind);
+    setReactingKinds((previous) => new Set(previous).add(kind));
     setReactionError('');
-    reactionCooldown.current = setTimeout(() => {
-      reactionCooldown.current = null;
-      setReacting(null);
-    }, 400);
+    const cooldown = setTimeout(() => {
+      reactionCooldowns.current.delete(kind);
+      setReactingKinds((previous) => {
+        const next = new Set(previous);
+        next.delete(kind);
+        return next;
+      });
+    }, 200);
+    reactionCooldowns.current.set(kind, cooldown);
     try {
       const response = await fetch(`/api/live/${code}/react`, {
         method: 'POST',
@@ -481,20 +504,20 @@ export default function AudiencePage() {
                           key={index}
                           type="button"
                           disabled={data.status !== 'open'}
-                          aria-pressed={myVote === index}
-                          onClick={() => void castVote(index)}
-                          className={`flex min-h-14 w-full items-center gap-3 rounded-xl border p-4 text-left text-sm transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-60 ${myVote === index ? 'border-primary bg-primary/5' : 'bg-card hover:border-foreground/40 hover:bg-muted/40'}`}
+                          aria-pressed={selectedOption === index}
+                          onClick={() => selectOption(index)}
+                          className={`flex min-h-14 w-full items-center gap-3 rounded-xl border p-4 text-left text-sm transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-60 ${selectedOption === index ? 'border-primary bg-primary/5' : 'bg-card hover:border-foreground/40 hover:bg-muted/40'}`}
                         >
                           <span
                             aria-hidden="true"
-                            className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-lg border font-mono text-xs ${myVote === index ? 'border-primary bg-primary text-primary-foreground' : 'bg-muted/40'}`}
+                            className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-lg border font-mono text-xs ${selectedOption === index ? 'border-primary bg-primary text-primary-foreground' : 'bg-muted/40'}`}
                           >
                             {String.fromCharCode(65 + index)}
                           </span>
                           <span className="min-w-0 flex-1 break-words">
                             {option}
                           </span>
-                          {myVote === index && (
+                          {selectedOption === index && (
                             <CheckCircle2
                               aria-hidden="true"
                               className="h-4 w-4 shrink-0 text-primary"
@@ -503,7 +526,24 @@ export default function AudiencePage() {
                         </button>
                       ))}
                     </div>
-                    {myVote !== null && (
+                    <Button
+                      type="button"
+                      className="min-h-11"
+                      onClick={() => void submitVote()}
+                      disabled={
+                        selectedOption === null ||
+                        selectedOption === myVote ||
+                        voteSubmitting ||
+                        data.status !== 'open'
+                      }
+                    >
+                      {voteSubmitting ? (
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                      ) : (
+                        t('live_vote_submit')
+                      )}
+                    </Button>
+                    {myVote !== null && myVote === selectedOption && (
                       <p
                         role="status"
                         className="flex items-center gap-2 text-xs font-medium text-primary"
@@ -664,9 +704,9 @@ export default function AudiencePage() {
                     <button
                       key={kind}
                       type="button"
-                      disabled={data.status !== 'open' || reacting !== null}
+                      disabled={data.status !== 'open' || reactingKinds.has(kind)}
                       onClick={() => void sendReaction(kind)}
-                      className={`flex min-h-14 items-center justify-center gap-2 rounded-xl border px-2 py-3 text-xs focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50 ${reacting === kind ? 'border-primary bg-primary/10' : 'hover:bg-muted'}`}
+                      className={`flex min-h-14 items-center justify-center gap-2 rounded-xl border px-2 py-3 text-xs transition-transform focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50 active:scale-95 ${reactingKinds.has(kind) ? 'border-primary bg-primary/10' : 'hover:bg-muted'}`}
                     >
                       <span aria-hidden="true" className="text-xl">
                         {REACTION_EMOJI[kind]}
