@@ -245,7 +245,16 @@ describe('Live Session experience', () => {
         }),
       }),
     );
-    expect(screen.getByRole('button', { name: '開啟工作區' })).toBeTruthy();
+    // Primary action navigates same-tab (a plain window.open can be blocked
+    // by browsers/school device policies) - "in a new tab" is now a
+    // secondary, explicit choice instead of the only option.
+    const workspaceLink = screen.getByRole('link', {
+      name: '開啟工作區',
+    }) as HTMLAnchorElement;
+    expect(workspaceLink.getAttribute('href')).toBe('/live/new-session/present');
+    expect(
+      screen.getByRole('button', { name: '在新分頁開啟' }),
+    ).toBeTruthy();
   });
 
   it('keeps the presenter controls locked during an update and rolls back on failure', async () => {

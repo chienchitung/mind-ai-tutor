@@ -135,6 +135,15 @@ describe("lesson editor experience", () => {
     expect(screen.getByDisplayValue("問題一")).toBeTruthy();
     expect(screen.getByDisplayValue("問題二")).toBeTruthy();
   });
+  it("saves manually-written exercises even when the AI prompt field is left blank", async () => {
+    await edit();
+    fireEvent.change(screen.getByLabelText("創建練習"), { target: { value: "" } });
+    fireEvent.click(screen.getAllByRole("button", { name: "儲存變更" })[0]);
+    await waitFor(() => expect(mocks.update).toHaveBeenCalled());
+    expect(mocks.toast).not.toHaveBeenCalledWith(
+      expect.objectContaining({ variant: "destructive" }),
+    );
+  });
   it("keeps the editor and draft on a rejected save without a partial retry", async () => {
     await edit();
     mocks.eq.mockResolvedValue({ error: { message: "column does not exist" } });

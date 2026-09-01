@@ -99,7 +99,13 @@ export default function LessonsPage() {
     level: z.string().min(1, t('level') + " " + t('exercise_required')),
     topics: z.string().min(1, t('required_topics')),
     geniallyLink: z.union([z.string().url(t('enter_genially_url')), z.literal('')]).optional(),
-    teachingContent: z.string().min(1, t('create_exercise') + " " + t('exercise_required')),
+    // No .min(1) here on purpose: only the "生成練習題" button actually
+    // needs this field, and it has its own guard (below) before calling
+    // Gemini. A teacher who writes every question by hand should be able
+    // to save without ever touching it. Left as a plain (non-optional)
+    // string, not .optional(), since the field is always a controlled
+    // string ("" by default) and LessonEditorValues expects it as such.
+    teachingContent: z.string(),
     practiceExercises: z.array(z.object({
       question: z.string().min(1, t('question') + " " + t('exercise_required')),
       answer: z.string().min(1, t('answer') + " " + t('exercise_required')),

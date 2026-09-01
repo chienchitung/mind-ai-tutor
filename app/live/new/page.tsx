@@ -121,8 +121,18 @@ function NewLiveSessionForm() {
               </div>
             </div>
             <div className="flex flex-col gap-2 sm:flex-row sm:justify-center">
+              <Button asChild>
+                <Link href={presenterUrl(created.sessionId)}>
+                  <ExternalLink className="mr-1.5 h-4 w-4" />
+                  {t('live_open_workspace')}
+                </Link>
+              </Button>
               <Button
                 type="button"
+                size="icon"
+                variant="outline"
+                aria-label={t('live_open_new_tab')}
+                title={t('live_open_new_tab')}
                 onClick={() =>
                   window.open(
                     presenterUrl(created.sessionId),
@@ -131,8 +141,7 @@ function NewLiveSessionForm() {
                   )
                 }
               >
-                <ExternalLink className="mr-1.5 h-4 w-4" />
-                {t('live_open_workspace')}
+                <ExternalLink className="h-4 w-4" />
               </Button>
               <Button
                 type="button"

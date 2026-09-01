@@ -53,13 +53,13 @@ export default function NewStudentPage() {
       const { supabase } = await import('@/lib/supabase');
       const supabaseClient = supabase();
 
-      const { error } = await supabaseClient.from('students').insert({
+      const { data, error } = await supabaseClient.from('students').insert({
         name: formData.name,
         email: formData.email,
         grade: parseInt(formData.grade),
         subjects: formData.subjects,
         status: 'active',
-      });
+      }).select('id').single();
 
       if (error) {
         throw error;
@@ -70,7 +70,9 @@ export default function NewStudentPage() {
         description: t('student_added'),
       });
 
-      router.push('/dashboard');
+      // Straight to the new student's own page, not the dashboard - generating
+      // their game login code is the very next thing a teacher does here.
+      router.push(`/students/${data.id}`);
     } catch (error: any) {
       toast({
         title: t('error'),
