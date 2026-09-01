@@ -2,6 +2,7 @@ import { NextResponse, after } from 'next/server';
 import { getServerClient } from '@/app/lib/supabase';
 import { sessionPatchSchema } from '@/lib/live-session';
 import { broadcastLiveUpdate } from '@/lib/live-broadcast';
+import { deleteLiveDeck } from '@/lib/live-deck-storage';
 
 const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -78,12 +79,26 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
     if (parsed.data.deckUrl !== undefined) update.deck_url = parsed.data.deckUrl;
     if (parsed.data.deckPage !== undefined) update.deck_page = parsed.data.deckPage;
 
+    // Replacing or clearing the deck orphans whatever file was there before -
+    // look it up so it can be cleaned out of Storage once the swap commits.
+    let previousDeckUrl: string | null = null;
+    if (parsed.data.deckUrl !== undefined) {
+      const { data: before } = await client.from('live_sessions')
+        .select('deck_url').eq('id', id).eq('user_id', user.id).maybeSingle();
+      previousDeckUrl = before?.deck_url ?? null;
+    }
+
     const { data, error } = await client.from('live_sessions')
       .update(update)
       .eq('id', id).eq('user_id', user.id)
       .select('id, status, deck_url, deck_page').maybeSingle();
     if (error) return NextResponse.json({ error: 'LIVE_STORAGE_ERROR' }, { status: 500 });
     if (!data) return NextResponse.json({ error: 'NOT_FOUND' }, { status: 404 });
+
+    if (previousDeckUrl && previousDeckUrl !== data.deck_url) {
+      const deckToDelete = previousDeckUrl;
+      after(() => deleteLiveDeck(client, deckToDelete).catch((cause) => console.error('live deck cleanup failed:', cause)));
+    }
 
     // Scheduled after the response is sent: a slow or hung Realtime connect
     // must never delay the click that triggered it - the write already
@@ -117,7 +132,7 @@ export async function DELETE(request: Request, { params }: { params: Promise<{ i
     const { data: { user }, error: authError } = await client.auth.getUser();
     if (authError || !user) return NextResponse.json({ error: 'UNAUTHORIZED' }, { status: 401 });
     const { data: session, error: lookupError } = await client.from('live_sessions')
-      .select('id, status').eq('id', id).eq('user_id', user.id).maybeSingle();
+      .select('id, status, deck_url').eq('id', id).eq('user_id', user.id).maybeSingle();
     if (lookupError) return NextResponse.json({ error: 'LIVE_STORAGE_ERROR' }, { status: 500 });
     if (!session) return NextResponse.json({ error: 'NOT_FOUND' }, { status: 404 });
     if (session.status !== 'closed') return NextResponse.json({ error: 'SESSION_NOT_CLOSED' }, { status: 409 });
@@ -128,6 +143,10 @@ export async function DELETE(request: Request, { params }: { params: Promise<{ i
     if (!deleted) return NextResponse.json({ error: 'SESSION_CHANGED' }, { status: 409 });
     after(() => broadcastLiveUpdate(id, 'session:deleted', {})
       .catch(cause => console.error('live session deletion broadcast failed:', cause)));
+    if (session.deck_url) {
+      const deckToDelete = session.deck_url;
+      after(() => deleteLiveDeck(client, deckToDelete).catch((cause) => console.error('live deck cleanup failed:', cause)));
+    }
     return new NextResponse(null, { status: 204 });
   } catch {
     return NextResponse.json({ error: 'LIVE_STORAGE_ERROR' }, { status: 500 });

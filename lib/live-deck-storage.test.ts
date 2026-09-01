@@ -1,10 +1,11 @@
 import { describe, expect, it, vi } from 'vitest';
 import type { SupabaseClient } from '@supabase/supabase-js';
-import { uploadLiveDeck, validateDeckFile } from './live-deck-storage';
+import { deckPathFromUrl, deleteLiveDeck, uploadLiveDeck, validateDeckFile } from './live-deck-storage';
 
 function setup() {
   const bucket = {
     upload: vi.fn().mockResolvedValue({ error: null }),
+    remove: vi.fn().mockResolvedValue({ error: null }),
     getPublicUrl: vi.fn((path: string) => ({ data: { publicUrl: `https://storage.example/live-decks/${path}` } })),
   };
   const from = vi.fn().mockReturnValue(bucket);
@@ -46,5 +47,33 @@ describe('uploadLiveDeck', () => {
     const { client, bucket, file } = setup();
     bucket.upload.mockResolvedValue({ error: { message } });
     await expect(uploadLiveDeck(client, 'owner', file)).rejects.toThrow(code);
+  });
+});
+
+describe('deckPathFromUrl', () => {
+  it('recovers the storage path from a public URL this module generated', () => {
+    expect(deckPathFromUrl('https://storage.example/live-decks/owner/abc-123.pdf')).toBe('owner/abc-123.pdf');
+  });
+  it('returns null for a URL that never touched this bucket', () => {
+    expect(deckPathFromUrl('https://storage.example/some-other-bucket/owner/abc-123.pdf')).toBeNull();
+  });
+});
+
+describe('deleteLiveDeck', () => {
+  it('removes the object this URL points to', async () => {
+    const { client, bucket, from } = setup();
+    await deleteLiveDeck(client, 'https://storage.example/live-decks/owner/abc-123.pdf');
+    expect(from).toHaveBeenCalledWith('live-decks');
+    expect(bucket.remove).toHaveBeenCalledWith(['owner/abc-123.pdf']);
+  });
+  it('is a no-op for a URL it cannot map back to a path', async () => {
+    const { client, bucket } = setup();
+    await deleteLiveDeck(client, 'https://storage.example/some-other-bucket/owner/abc-123.pdf');
+    expect(bucket.remove).not.toHaveBeenCalled();
+  });
+  it('throws when Storage refuses the delete', async () => {
+    const { client, bucket } = setup();
+    bucket.remove.mockResolvedValue({ error: { message: 'denied' } });
+    await expect(deleteLiveDeck(client, 'https://storage.example/live-decks/owner/abc-123.pdf')).rejects.toThrow('DECK_DELETE');
   });
 });
