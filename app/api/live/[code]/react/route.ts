@@ -1,4 +1,4 @@
-import { NextResponse, after } from 'next/server';
+import { NextResponse } from 'next/server';
 import { getServerClient } from '@/app/lib/supabase';
 import { reactionSchema } from '@/lib/live-session';
 import { broadcastLiveUpdate } from '@/lib/live-broadcast';
@@ -26,8 +26,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ cod
     if (!row) return NextResponse.json({ error: 'NOT_FOUND' }, { status: 404 });
     if (row.status !== 'open') return NextResponse.json({ error: 'SESSION_NOT_OPEN' }, { status: 409 });
 
-    after(() => broadcastLiveUpdate(row.session_id, 'reaction:sent', { kind: parsed.data.kind })
-      .catch((cause) => console.error('live reaction broadcast failed:', cause)));
+    await broadcastLiveUpdate(row.session_id, 'reaction:sent', parsed.data);
 
     return new NextResponse(null, { status: 204 });
   } catch {

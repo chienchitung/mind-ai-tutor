@@ -11,7 +11,7 @@ vi.mock('next/server', async (importOriginal) => ({
   ...(await importOriginal<typeof import('next/server')>()),
   after: (callback: () => unknown) => { void callback(); },
 }));
-import { GET, PATCH } from './route';
+import { GET, PATCH, DELETE } from './route';
 
 const id = 'd325432e-0e37-4a6d-a9c8-3fa333b4f077';
 const request = (body: unknown = { status: 'paused' }, origin = 'https://test.local') =>
@@ -125,5 +125,45 @@ describe('GET /api/live-sessions/[id]', () => {
     rpc.mockReset().mockResolvedValueOnce({ data: [{ pulse_counts: [0, 0, 0, 0, 0], pulse_total: 0, pulse_average: null }], error: null });
     const response = await GET(getRequest(), { params: params() });
     expect((await response.json()).poll).toBeNull();
+  });
+});
+
+describe('DELETE /api/live-sessions/[id]', () => {
+  const req = (origin = 'https://test.local') => new Request(`https://test.local/api/live-sessions/${id}`, {method:'DELETE',headers:{origin}});
+  beforeEach(() => {
+    chain.delete = vi.fn().mockReturnValue(chain);
+    chain.maybeSingle.mockResolvedValue({data:{id,status:'closed'},error:null});
+  });
+  it('rejects cross-origin and malformed IDs before touching storage', async () => {
+    expect((await DELETE(req('https://other.local'), {params:params()})).status).toBe(403);
+    expect((await DELETE(req(), {params:params('bad')})).status).toBe(400);
+    expect(from).not.toHaveBeenCalled();
+  });
+  it('requires a verified user', async () => {
+    auth.mockResolvedValue({data:{user:null},error:null});
+    expect((await DELETE(req(),{params:params()})).status).toBe(401);
+    expect(chain.delete).not.toHaveBeenCalled();
+  });
+  it('hides unowned/missing sessions and refuses an active session', async () => {
+    chain.maybeSingle.mockResolvedValueOnce({data:null,error:null});
+    expect((await DELETE(req(),{params:params()})).status).toBe(404);
+    chain.maybeSingle.mockResolvedValueOnce({data:{id,status:'open'},error:null});
+    expect((await DELETE(req(),{params:params()})).status).toBe(409);
+    expect(chain.delete).not.toHaveBeenCalled();
+  });
+  it('constrains the actual delete to owner, ID and closed status', async () => {
+    expect((await DELETE(req(),{params:params()})).status).toBe(204);
+    expect(chain.delete).toHaveBeenCalledOnce();
+    expect(chain.eq).toHaveBeenCalledWith('user_id','owner');
+    expect(chain.eq).toHaveBeenCalledWith('id',id);
+    expect(chain.eq).toHaveBeenCalledWith('status','closed');
+    expect(broadcastLiveUpdate).toHaveBeenCalledWith(id,'session:deleted',{});
+  });
+  it('does not claim success when storage fails or the session changed', async () => {
+    chain.maybeSingle.mockResolvedValueOnce({data:{id,status:'closed'},error:null}).mockResolvedValueOnce({data:null,error:{message:'denied'}});
+    expect((await DELETE(req(),{params:params()})).status).toBe(500);
+    chain.maybeSingle.mockResolvedValueOnce({data:{id,status:'closed'},error:null}).mockResolvedValueOnce({data:null,error:null});
+    expect((await DELETE(req(),{params:params()})).status).toBe(409);
+    expect(broadcastLiveUpdate).not.toHaveBeenCalled();
   });
 });

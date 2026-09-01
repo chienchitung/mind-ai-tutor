@@ -81,7 +81,7 @@ export const questionUpvoteSchema = z.object({ participantId: z.string().uuid() 
 
 export const questionModerateSchema = z.object({ visibility: z.enum(['public', 'author_only']) });
 
-export const reactionSchema = z.object({ kind: z.enum(['applause', 'insight', 'resonate', 'pause']) });
+export const reactionSchema = z.object({ kind: z.enum(['applause', 'insight', 'resonate', 'pause']), reactionId: z.string().uuid().optional() });
 
 type QuestionRow = { id: string; text: string; lens: string; visibility: string; upvotes: number; created_at: string; is_mine?: boolean };
 

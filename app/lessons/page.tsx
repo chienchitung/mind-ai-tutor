@@ -16,6 +16,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useForm } from 'react-hook-form';
+import { LessonDraftPreview } from '@/components/lessons/LessonDraftPreview';
 import * as z from 'zod';
 import { useLanguage } from '@/app/contexts/LanguageContext';
 import { useTranslation } from '@/utils/translations';
@@ -189,10 +190,7 @@ export default function LessonsPage() {
         // 使用空數組而不是示例數據
         setLessons([]);
       } finally {
-        // 使用setTimeout略微延遲清除加載狀態，以便避免內容閃爍
-        setTimeout(() => {
-          setIsLoading(false);
-        }, 100);
+        setIsLoading(false);
       }
     };
 
@@ -211,11 +209,11 @@ export default function LessonsPage() {
         topics: editingLesson.topics.join(', '),
         geniallyLink: editingLesson.genially_link,
         teachingContent: editingLesson.teaching_content,
-        practiceExercises: editingLesson.practice_exercises || []
+        practiceExercises: editingLesson.practice_exercises?.length ? editingLesson.practice_exercises.map(item => ({ ...item })) : [{ question: "", answer: "", explanation: "" }]
       });
       // Ensure we have at least one practice exercise when editing
       if (editingLesson.practice_exercises && editingLesson.practice_exercises.length > 0) {
-        setPracticeExercises([editingLesson.practice_exercises[0]]);
+        setPracticeExercises(editingLesson.practice_exercises.map(item => ({ ...item })));
       } else {
         setPracticeExercises([{ question: "", answer: "", explanation: "" }]);
       }
@@ -224,16 +222,19 @@ export default function LessonsPage() {
 
   // Add a practice exercise
   const addPracticeExercise = () => {
-    setPracticeExercises([...practiceExercises, { question: "", answer: "", explanation: "" }]);
+    const updated = [...practiceExercises, { question: "", answer: "", explanation: "" }];
+    setPracticeExercises(updated);
+    form.setValue('practiceExercises', updated, { shouldDirty: true });
   };
 
   // Remove a practice exercise
   const removePracticeExercise = (index: number) => {
     // Make sure practiceExercises exists and has more than one item
     if (practiceExercises && practiceExercises.length > 1) {
-      const updatedExercises = [...practiceExercises];
+      const updatedExercises = practiceExercises.map(item => ({ ...item }));
       updatedExercises.splice(index, 1);
       setPracticeExercises(updatedExercises);
+      form.setValue('practiceExercises', updatedExercises, { shouldDirty: true, shouldValidate: true });
     }
   };
 
@@ -244,7 +245,7 @@ export default function LessonsPage() {
       return;
     }
     
-    const updatedExercises = [...practiceExercises];
+    const updatedExercises = practiceExercises.map(item => ({ ...item }));
     if (!updatedExercises[index]) {
       updatedExercises[index] = { question: "", answer: "", explanation: "" };
     }
@@ -263,7 +264,7 @@ export default function LessonsPage() {
       const supabaseWithTypes = supabaseClient as any;
       
       // Convert topics string to array
-      const topicsArray = values.topics.split(',').map(topic => topic.trim());
+      const topicsArray = values.topics.split(/[,，]/).map(topic => topic.trim());
       
       // Basic lesson data that should work with any schema
       const basicLessonData = {
@@ -306,24 +307,8 @@ export default function LessonsPage() {
           .update(lessonData)
           .eq('id', editingLesson.id);
 
-        // If there's an error that might be due to missing columns
-        if (response.error && response.error.message.includes('column') && response.error.message.includes('does not exist')) {
-          console.warn('Encountered schema mismatch, trying with basic fields only:', response.error);
-          
-          // Try again with just the basic fields
-          response = await supabaseWithTypes
-            .from('lessons')
-            .update(basicLessonData)
-            .eq('id', editingLesson.id);
-            
-          if (response.error) {
-            console.error('Failed even with basic fields:', response.error);
-            throw response.error;
-          }
-        } else if (response.error) {
-          throw response.error;
-        }
-        
+        if (response.error) throw response.error;
+
         // For client-side state, use the full data model
         const updatedLesson = {
           ...editingLesson,
@@ -603,55 +588,30 @@ export default function LessonsPage() {
                   { id: 'lesson-content', label: language === 'zh-TW' ? '教材內容' : 'Content' },
                   { id: 'lesson-practice', label: language === 'zh-TW' ? '練習題' : 'Practice' },
                 ]}
-                actions={<Button
-                  variant="outline" 
-                  size="sm" 
-                  disabled={form.formState.isSubmitting}
-                  onClick={closeEditor}
-                >
-                  {t('cancel')}
-                </Button>}
+                actions={<>
+                  <span role="status" className="text-xs text-muted-foreground">{form.formState.isDirty ? (language === 'zh-TW' ? '有未儲存的變更' : 'Unsaved changes') : (language === 'zh-TW' ? '尚無變更' : 'No changes')}</span>
+                  <Button variant="outline" size="sm" disabled={form.formState.isSubmitting || isGenerating} onClick={closeEditor}>{t('cancel')}</Button>
+                  <Button type="submit" form="lesson-editor-form" disabled={form.formState.isSubmitting || isGenerating}>
+                    {form.formState.isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                    {form.formState.isSubmitting ? (language === 'zh-TW' ? '儲存中…' : 'Saving…') : editingLesson ? t('save_changes') : t('create_lesson')}
+                  </Button>
+                </>}
               />
               
-              {editingLesson && (
-                <div className="mb-6">
-                  <Card className="overflow-hidden">
-              <CardHeader className="pb-3">
-                      <CardTitle>{editingLesson.title}</CardTitle>
-                      <CardDescription className="line-clamp-2">{editingLesson.description}</CardDescription>
-              </CardHeader>
-              <CardContent>
-                <div className="flex items-center gap-2 text-sm text-muted-foreground mb-3">
-                  <Clock className="h-4 w-4" />
-                        <span>{editingLesson.duration}{t('minutes')}</span>
-                      </div>
-                      <div className="flex flex-wrap gap-2 mb-4">
-                        {Array.isArray(editingLesson.topics) ? editingLesson.topics.map((topic) => (
-                          <Badge key={topic} variant="outline" className="bg-muted/50">
-                            {topic}
-                          </Badge>
-                        )) : null}
-                      </div>
-                      <Badge variant="outline" className={getLevelColor(editingLesson.level)}>
-                        {translateLevel(editingLesson.level)}
-                      </Badge>
-                      {editingLesson.genially_link && (
-                        <div className="mt-3 text-sm text-blue-600">
-                          <a href={editingLesson.genially_link} target="_blank" rel="noopener noreferrer" className="flex items-center hover:underline">
-                            <ExternalLink className="h-3 w-3 mr-1" />
-                            {t('view_presentation')}
-                          </a>
-                        </div>
-                      )}
-                    </CardContent>
-                  </Card>
-                </div>
-              )}
-              
+              <LessonDraftPreview control={form.control} />
+
               <Card className="shadow-none">
                 <CardContent className="pt-5 md:pt-6">
               <Form {...form}>
-                <form onSubmit={form.handleSubmit(onSubmit)} aria-busy={form.formState.isSubmitting}>
+                <form id="lesson-editor-form" onSubmit={form.handleSubmit(onSubmit)} aria-busy={form.formState.isSubmitting}>
+                  {Object.keys(form.formState.errors).length > 0 && <div role="alert" className="mb-4 rounded-xl border border-destructive/30 bg-destructive/5 p-4 text-sm">
+                    <p className="font-medium">{language === 'zh-TW' ? '尚有欄位需要修正，請檢查以下區塊：' : 'Please check these sections before saving:'}</p>
+                    <div className="mt-2 flex flex-wrap gap-3">
+                      {(['title', 'cardDescription', 'duration', 'level', 'topics', 'geniallyLink'] as const).some(key => form.formState.errors[key]) && <a href="#lesson-basics" className="underline">{language === 'zh-TW' ? '基本資料' : 'Basics'}</a>}
+                      {form.formState.errors.markdownContent && <a href="#lesson-content" className="underline">{language === 'zh-TW' ? '教材內容' : 'Content'}</a>}
+                      {(form.formState.errors.teachingContent || form.formState.errors.practiceExercises) && <a href="#lesson-practice" className="underline">{language === 'zh-TW' ? '練習題' : 'Practice'}</a>}
+                    </div>
+                  </div>}
                   <fieldset disabled={form.formState.isSubmitting} className="space-y-4 min-w-0">
                   <section id="lesson-basics" className="scroll-mt-24 lg:scroll-mt-64 space-y-4 rounded-xl border border-border/70 p-4 sm:p-5">
                     <div>
@@ -702,7 +662,7 @@ export default function LessonsPage() {
                             <FormLabel>{t('level')}</FormLabel>
                             <Select
                               onValueChange={field.onChange}
-                              defaultValue={field.value}
+                              value={field.value}
                             >
                               <FormControl>
                                 <SelectTrigger>
@@ -737,7 +697,7 @@ export default function LessonsPage() {
                           />
                         </FormControl>
                         <p className="text-xs text-muted-foreground">
-                          {t('lesson_card_summary_help')}
+                          {t('lesson_card_summary_help')} · {field.value?.length ?? 0}/160
                         </p>
                         <FormMessage />
                       </FormItem>
@@ -901,8 +861,10 @@ export default function LessonsPage() {
                             throw new Error('Failed to generate practice exercise');
                           }
                           const exercise = await response.json();
-                          setPracticeExercises([exercise]);
-                          form.setValue("practiceExercises", [exercise], { shouldDirty: true, shouldValidate: true });
+                          const current = form.getValues('practiceExercises');
+                          const updated = current.length === 1 && !Object.values(current[0]).some(Boolean) ? [exercise] : [...current, exercise];
+                          setPracticeExercises(updated);
+                          form.setValue("practiceExercises", updated, { shouldDirty: true, shouldValidate: true });
                         } catch (error) {
                           toast({
                             title: t('generation_failed'),
@@ -925,58 +887,30 @@ export default function LessonsPage() {
                     </Button>
                   </div>
 
-                  <FormField
-                    control={form.control}
-                    name="practiceExercises"
-                    render={({ field }) => (
-                      <FormItem>
+                  <div className="space-y-4">
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <h4 className="font-medium">{t('practice_exercises')} · {practiceExercises.length}</h4>
+                      <Button type="button" variant="outline" onClick={addPracticeExercise}><PlusCircle className="mr-2 h-4 w-4" />{language === 'zh-TW' ? '新增題目' : 'Add exercise'}</Button>
+                    </div>
+                    {practiceExercises.map((exercise, index) => (
+                      <div key={index} className="space-y-4 rounded-xl border bg-muted/20 p-4">
                         <div className="flex items-center justify-between">
-                          <FormLabel>{t('practice_exercises')}</FormLabel>
-                          {form.formState.errors.practiceExercises && (
-                            <p className="text-sm font-medium text-destructive">
-                              {t('exercise_required')}
-                            </p>
-                          )}
+                          <h5 className="text-sm font-semibold">{language === 'zh-TW' ? `練習 ${index + 1}` : `Exercise ${index + 1}`}</h5>
+                          <Button type="button" variant="ghost" size="sm" disabled={practiceExercises.length === 1 || isGenerating} onClick={() => removePracticeExercise(index)} aria-label={language === 'zh-TW' ? `刪除練習 ${index + 1}` : `Remove exercise ${index + 1}`}><Trash2 className="h-4 w-4" /></Button>
                         </div>
-                        <FormControl>
-                          <div className="p-4 border rounded-md bg-muted/20">
-                            <div className="space-y-4">
-                              <div>
-                                <FormLabel className="text-sm">{t('question')}</FormLabel>
-                                <Textarea 
-                                  placeholder={t('enter_question')}
-                                  value={practiceExercises[0]?.question || ""}
-                                  onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) => updatePracticeExercise(0, 'question', e.target.value)}
-                                  className="resize-none"
-                                />
-                              </div>
-                              <div>
-                                <FormLabel className="text-sm">{t('answer')}</FormLabel>
-                                <Textarea 
-                                  placeholder={t('enter_answer')}
-                                  value={practiceExercises[0]?.answer || ""}
-                                  onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) => updatePracticeExercise(0, 'answer', e.target.value)}
-                                  className="resize-none"
-                                />
-                              </div>
-                              <div>
-                                <FormLabel className="text-sm">{t('explanation')}</FormLabel>
-                                <Textarea 
-                                  placeholder={t('enter_explanation')}
-                                  value={practiceExercises[0]?.explanation || ""}
-                                  onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) => updatePracticeExercise(0, 'explanation', e.target.value)}
-                                  className="resize-none"
-                                />
-                              </div>
-                            </div>
+                        {(['question', 'answer', 'explanation'] as const).map(key => (
+                          <div key={key} className="space-y-2">
+                            <label htmlFor={`exercise-${index}-${key}`} className="text-sm font-medium">{t(key)}</label>
+                            <Textarea id={`exercise-${index}-${key}`} value={exercise[key]} onChange={event => updatePracticeExercise(index, key, event.target.value)} aria-invalid={!!form.formState.errors.practiceExercises?.[index]?.[key]} aria-describedby={form.formState.errors.practiceExercises?.[index]?.[key] ? `exercise-${index}-${key}-error` : undefined} />
+                            {form.formState.errors.practiceExercises?.[index]?.[key] && <p id={`exercise-${index}-${key}-error`} className="text-sm text-destructive">{form.formState.errors.practiceExercises[index]?.[key]?.message}</p>}
                           </div>
-                        </FormControl>
-                      </FormItem>
-                    )}
-                  />
+                        ))}
+                      </div>
+                    ))}
+                  </div>
                   </section>
                   
-                  <div className="flex justify-end gap-2 pt-4">
+                  <div className="sticky bottom-0 z-10 flex flex-wrap items-center justify-end gap-2 border-t bg-card/95 py-4 backdrop-blur">
                     <Button 
                       type="button" 
                       variant="outline" 

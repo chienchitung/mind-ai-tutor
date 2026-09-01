@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { useParams } from 'next/navigation';
 import {
   Loader2,
@@ -80,6 +80,9 @@ export default function AudiencePage() {
   const [qaError, setQaError] = useState('');
   const [upvotedIds, setUpvotedIds] = useState<Set<string>>(new Set());
   const [reacting, setReacting] = useState<string | null>(null);
+  const [reactionError, setReactionError] = useState('');
+  const reactionCooldown = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(() => () => { if (reactionCooldown.current) clearTimeout(reactionCooldown.current); }, []);
   const { reactions, push: pushReaction } = useReactionBursts();
   const { onlineCount, registerPing } = useOnlinePresenceCount();
 
@@ -203,8 +206,10 @@ export default function AudiencePage() {
         // may not be allowed to see - the broadcast alone doesn't carry enough.
         void loadQuestions();
       })
+      .on('broadcast', { event: 'session:deleted' }, () => { void load(); })
       .on('broadcast', { event: 'reaction:sent' }, ({ payload }) => {
-        pushReaction((payload as { kind: string }).kind);
+        const reaction = payload as { kind: string; reactionId?: string };
+        pushReaction(reaction.kind, reaction.reactionId);
       })
       .on('broadcast', { event: 'presence:ping' }, ({ payload }) => {
         registerPing((payload as { participantId: string }).participantId);
@@ -372,18 +377,25 @@ export default function AudiencePage() {
   };
 
   const sendReaction = async (kind: string) => {
-    if (data?.status !== 'open' || reacting) return;
+    if (data?.status !== 'open' || reactionCooldown.current) return;
+    const reactionId = crypto.randomUUID();
+    pushReaction(kind, reactionId);
     setReacting(kind);
+    setReactionError('');
+    reactionCooldown.current = setTimeout(() => {
+      reactionCooldown.current = null;
+      setReacting(null);
+    }, 400);
     try {
-      await fetch(`/api/live/${code}/react`, {
+      const response = await fetch(`/api/live/${code}/react`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ kind }),
+        body: JSON.stringify({ kind, reactionId }),
+        signal: AbortSignal.timeout(8000),
       });
+      if (!response.ok) throw new Error('REACTION_SEND_FAILED');
     } catch {
-      // Best-effort - a dropped reaction just doesn't show up on the projector.
-    } finally {
-      setTimeout(() => setReacting(null), 400);
+      setReactionError(t('live_reaction_send_failed'));
     }
   };
 
@@ -663,6 +675,7 @@ export default function AudiencePage() {
                     </button>
                   ))}
                 </div>
+                {reactionError && <p role="alert" className="mt-3 text-xs text-destructive">{reactionError}</p>}
               </CardContent>
             </Card>
           </aside>

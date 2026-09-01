@@ -104,3 +104,32 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
     return NextResponse.json({ error: 'LIVE_STORAGE_ERROR' }, { status: 500 });
   }
 }
+
+// Delete only a closed session owned by the authenticated teacher. PostgreSQL
+// cascades its polls, votes, pulse, questions and question votes atomically.
+export async function DELETE(request: Request, { params }: { params: Promise<{ id: string }> }) {
+  try {
+    const origin = request.headers.get('origin');
+    if (origin && origin !== new URL(request.url).origin) return NextResponse.json({ error: 'FORBIDDEN' }, { status: 403 });
+    const { id } = await params;
+    if (!uuid.test(id)) return NextResponse.json({ error: 'INVALID_SESSION' }, { status: 400 });
+    const client = await getServerClient();
+    const { data: { user }, error: authError } = await client.auth.getUser();
+    if (authError || !user) return NextResponse.json({ error: 'UNAUTHORIZED' }, { status: 401 });
+    const { data: session, error: lookupError } = await client.from('live_sessions')
+      .select('id, status').eq('id', id).eq('user_id', user.id).maybeSingle();
+    if (lookupError) return NextResponse.json({ error: 'LIVE_STORAGE_ERROR' }, { status: 500 });
+    if (!session) return NextResponse.json({ error: 'NOT_FOUND' }, { status: 404 });
+    if (session.status !== 'closed') return NextResponse.json({ error: 'SESSION_NOT_CLOSED' }, { status: 409 });
+    const { data: deleted, error } = await client.from('live_sessions')
+      .delete().eq('id', id).eq('user_id', user.id).eq('status', 'closed').select('id').maybeSingle();
+    if (error) return NextResponse.json({ error: 'LIVE_STORAGE_ERROR' }, { status: 500 });
+    // Re-check status in the DELETE itself so a concurrent reopen wins safely.
+    if (!deleted) return NextResponse.json({ error: 'SESSION_CHANGED' }, { status: 409 });
+    after(() => broadcastLiveUpdate(id, 'session:deleted', {})
+      .catch(cause => console.error('live session deletion broadcast failed:', cause)));
+    return new NextResponse(null, { status: 204 });
+  } catch {
+    return NextResponse.json({ error: 'LIVE_STORAGE_ERROR' }, { status: 500 });
+  }
+}

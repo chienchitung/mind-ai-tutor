@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState, useEffect } from "react";
+import { ActivityItem, type Activity } from "@/components/activities/ActivityItem";
 import { useRouter } from "next/navigation";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -11,12 +12,10 @@ import { ErrorState, PageLoader } from '@/components/ui/page-state';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Badge } from "@/components/ui/badge";
 import { ModernDateRangePicker } from "@/components/ui/modern-date-range-picker";
 import { DateRange } from "react-day-picker";
 import { useToast } from "@/components/ui/use-toast";
 import {
-  GraduationCap,
   BookOpen,
   MessageSquare,
   Bell,
@@ -27,92 +26,6 @@ import {
   CheckCircle,
   X
 } from "lucide-react";
-import { formatDistanceToNow } from 'date-fns';
-import { zhTW, enUS } from 'date-fns/locale';
-
-// Define activity data types
-interface Activity {
-  id: string;
-  title: string;
-  description: string;
-  type: 'student_progress' | 'course_update' | 'feedback' | 'reminder' | 'achievement';
-  timestamp: string;
-  source: 'lessons' | 'events' | 'feedback';
-  read: boolean;
-  target?: {
-    id: string;
-    name: string;
-  };
-}
-
-function ActivityIcon({ type }: { type: string }) {
-  switch (type) {
-    case 'student_progress':
-      return (
-        <div className="flex items-center justify-center w-10 h-10 rounded-full bg-gray-100">
-          <GraduationCap className="h-5 w-5 text-black" />
-        </div>
-      );
-    case 'course_update':
-      return (
-        <div className="flex items-center justify-center w-10 h-10 rounded-full bg-green-100">
-          <BookOpen className="h-5 w-5 text-green-500" />
-        </div>
-      );
-    case 'feedback':
-      return (
-        <div className="flex items-center justify-center w-10 h-10 rounded-full bg-purple-100">
-          <MessageSquare className="h-5 w-5 text-purple-500" />
-        </div>
-      );
-    case 'reminder':
-      return (
-        <div className="flex items-center justify-center w-10 h-10 rounded-full bg-orange-100">
-          <Bell className="h-5 w-5 text-orange-500" />
-        </div>
-      );
-    case 'achievement':
-      return (
-        <div className="flex items-center justify-center w-10 h-10 rounded-full bg-yellow-100">
-          <Award className="h-5 w-5 text-yellow-500" />
-        </div>
-      );
-    default:
-      return (
-        <div className="flex items-center justify-center w-10 h-10 rounded-full bg-gray-100">
-          <Bell className="h-5 w-5 text-gray-500" />
-        </div>
-      );
-  }
-}
-
-function ActivityTypeBadge({ type, source }: { type: string; source: string }) {
-  const { language } = useLanguage();
-  const { t } = useTranslation(language);
-
-  switch (type) {
-    case 'student_progress':
-      return <Badge variant="outline" className="bg-gray-50 text-black border-gray-200 text-xs py-1 px-2 rounded-md">{t('progress')}</Badge>;
-    case 'course_update':
-      return <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200 text-xs py-1 px-2 rounded-md">{t('update')}</Badge>;
-    case 'feedback':
-      return <Badge variant="outline" className="bg-purple-50 text-purple-700 border-purple-200 text-xs py-1 px-2 rounded-md">{t('feedback')}</Badge>;
-    case 'reminder':
-      return <Badge variant="outline" className="bg-orange-50 text-orange-700 border-orange-200 text-xs py-1 px-2 rounded-md">{t('reminder')}</Badge>;
-    case 'achievement':
-      return <Badge variant="outline" className="bg-yellow-50 text-yellow-700 border-yellow-200 text-xs py-1 px-2 rounded-md">{t('achievement')}</Badge>;
-    default:
-      return <Badge variant="outline" className="text-xs py-1 px-2 rounded-md">{type}</Badge>;
-  }
-}
-
-const formatTimeAgo = (date: Date, language: string) => {
-  const locale = language === 'zh-TW' ? zhTW : enUS;
-  return formatDistanceToNow(date, {
-    addSuffix: true,
-    locale: locale
-  });
-};
 
 function ActivitiesPageContent() {
   const { language } = useLanguage();
@@ -463,36 +376,7 @@ function ActivitiesPageContent() {
             ) : (
               <div className="space-y-4">
                 {filteredActivities.map((activity) => (
-                  <Card
-                    key={activity.id}
-                    className={`hover:bg-muted/10 transition-colors cursor-pointer ${
-                      !activity.read ? 'border-l-4 border-l-primary' : ''
-                    }`}
-                    onClick={() => handleActivityClick(activity)}
-                  >
-                    <CardContent className="p-4">
-                      <div className="flex items-start gap-4">
-                        <ActivityIcon type={activity.type} />
-                        <div className="flex-1">
-                          <div className="flex items-center justify-between">
-                            <h3 className="font-medium">{activity.title}</h3>
-                            <div className="flex items-center gap-2">
-                              <ActivityTypeBadge type={activity.type} source={activity.source} />
-                            </div>
-                          </div>
-                          <p className="text-sm text-muted-foreground mt-1">{activity.description}</p>
-                          <div className="flex justify-between mt-2">
-                            <span className="text-xs text-muted-foreground">
-                              {formatTimeAgo(new Date(activity.timestamp), language)}
-                            </span>
-                            {!activity.read && (
-                              <Badge variant="default" className="text-xs">{t('new')}</Badge>
-                            )}
-                          </div>
-                        </div>
-                      </div>
-                    </CardContent>
-                  </Card>
+                  <ActivityItem key={activity.id} activity={activity} onClick={() => handleActivityClick(activity)} />
                 ))}
               </div>
             )}
@@ -507,36 +391,7 @@ function ActivitiesPageContent() {
             ) : (
               <div className="space-y-4">
                 {filteredActivities.filter(a => a.type === 'course_update').map((activity) => (
-                  <Card
-                    key={activity.id}
-                    className={`hover:bg-muted/10 transition-colors cursor-pointer ${
-                      !activity.read ? 'border-l-4 border-l-primary' : ''
-                    }`}
-                    onClick={() => handleActivityClick(activity)}
-                  >
-                    <CardContent className="p-4">
-                      <div className="flex items-start gap-4">
-                        <ActivityIcon type={activity.type} />
-                        <div className="flex-1">
-                          <div className="flex items-center justify-between">
-                            <h3 className="font-medium">{activity.title}</h3>
-                            <div className="flex items-center gap-2">
-                              <ActivityTypeBadge type={activity.type} source={activity.source} />
-                            </div>
-                          </div>
-                          <p className="text-sm text-muted-foreground mt-1">{activity.description}</p>
-                          <div className="flex justify-between mt-2">
-                            <span className="text-xs text-muted-foreground">
-                              {formatTimeAgo(new Date(activity.timestamp), language)}
-                            </span>
-                            {!activity.read && (
-                              <Badge variant="default" className="text-xs">{t('new')}</Badge>
-                            )}
-                          </div>
-                        </div>
-                      </div>
-                    </CardContent>
-                  </Card>
+                  <ActivityItem key={activity.id} activity={activity} onClick={() => handleActivityClick(activity)} />
                 ))}
               </div>
             )}
@@ -551,36 +406,7 @@ function ActivitiesPageContent() {
             ) : (
               <div className="space-y-4">
                 {filteredActivities.filter(a => a.type === 'reminder').map((activity) => (
-                  <Card
-                    key={activity.id}
-                    className={`hover:bg-muted/10 transition-colors cursor-pointer ${
-                      !activity.read ? 'border-l-4 border-l-primary' : ''
-                    }`}
-                    onClick={() => handleActivityClick(activity)}
-                  >
-                    <CardContent className="p-4">
-                      <div className="flex items-start gap-4">
-                        <ActivityIcon type={activity.type} />
-                        <div className="flex-1">
-                          <div className="flex items-center justify-between">
-                            <h3 className="font-medium">{activity.title}</h3>
-                            <div className="flex items-center gap-2">
-                              <ActivityTypeBadge type={activity.type} source={activity.source} />
-                            </div>
-                          </div>
-                          <p className="text-sm text-muted-foreground mt-1">{activity.description}</p>
-                          <div className="flex justify-between mt-2">
-                            <span className="text-xs text-muted-foreground">
-                              {formatTimeAgo(new Date(activity.timestamp), language)}
-                            </span>
-                            {!activity.read && (
-                              <Badge variant="default" className="text-xs">{t('new')}</Badge>
-                            )}
-                          </div>
-                        </div>
-                      </div>
-                    </CardContent>
-                  </Card>
+                  <ActivityItem key={activity.id} activity={activity} onClick={() => handleActivityClick(activity)} />
                 ))}
               </div>
             )}
@@ -595,36 +421,7 @@ function ActivitiesPageContent() {
             ) : (
               <div className="space-y-4">
                 {filteredActivities.filter(a => a.type === 'feedback').map((activity) => (
-                  <Card
-                    key={activity.id}
-                    className={`hover:bg-muted/10 transition-colors cursor-pointer ${
-                      !activity.read ? 'border-l-4 border-l-primary' : ''
-                    }`}
-                    onClick={() => handleActivityClick(activity)}
-                  >
-                    <CardContent className="p-4">
-                      <div className="flex items-start gap-4">
-                        <ActivityIcon type={activity.type} />
-                        <div className="flex-1">
-                          <div className="flex items-center justify-between">
-                            <h3 className="font-medium">{activity.title}</h3>
-                            <div className="flex items-center gap-2">
-                              <ActivityTypeBadge type={activity.type} source={activity.source} />
-                            </div>
-                          </div>
-                          <p className="text-sm text-muted-foreground mt-1">{activity.description}</p>
-                          <div className="flex justify-between mt-2">
-                            <span className="text-xs text-muted-foreground">
-                              {formatTimeAgo(new Date(activity.timestamp), language)}
-                            </span>
-                            {!activity.read && (
-                              <Badge variant="default" className="text-xs">{t('new')}</Badge>
-                            )}
-                          </div>
-                        </div>
-                      </div>
-                    </CardContent>
-                  </Card>
+                  <ActivityItem key={activity.id} activity={activity} onClick={() => handleActivityClick(activity)} />
                 ))}
               </div>
             )}
@@ -639,36 +436,7 @@ function ActivitiesPageContent() {
             ) : (
               <div className="space-y-4">
                 {filteredActivities.filter(a => a.type === 'achievement').map((activity) => (
-                  <Card
-                    key={activity.id}
-                    className={`hover:bg-muted/10 transition-colors cursor-pointer ${
-                      !activity.read ? 'border-l-4 border-l-primary' : ''
-                    }`}
-                    onClick={() => handleActivityClick(activity)}
-                  >
-                    <CardContent className="p-4">
-                      <div className="flex items-start gap-4">
-                        <ActivityIcon type={activity.type} />
-                        <div className="flex-1">
-                          <div className="flex items-center justify-between">
-                            <h3 className="font-medium">{activity.title}</h3>
-                            <div className="flex items-center gap-2">
-                              <ActivityTypeBadge type={activity.type} source={activity.source} />
-                            </div>
-                          </div>
-                          <p className="text-sm text-muted-foreground mt-1">{activity.description}</p>
-                          <div className="flex justify-between mt-2">
-                            <span className="text-xs text-muted-foreground">
-                              {formatTimeAgo(new Date(activity.timestamp), language)}
-                            </span>
-                            {!activity.read && (
-                              <Badge variant="default" className="text-xs">{t('new')}</Badge>
-                            )}
-                          </div>
-                        </div>
-                      </div>
-                    </CardContent>
-                  </Card>
+                  <ActivityItem key={activity.id} activity={activity} onClick={() => handleActivityClick(activity)} />
                 ))}
               </div>
             )}

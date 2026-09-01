@@ -64,7 +64,7 @@ describe('lesson UI rendering', () => {
   it('uses the redesigned robot avatar in every mentor instance', () => {
     const html = renderToStaticMarkup(<div><MentorAvatar /><MentorAvatar /></div>)
     expect(html.match(/<img /g)).toHaveLength(2)
-    expect(html.match(/src="\/avatars\/ellis-robot-v2.svg"/g)).toHaveLength(2)
+    expect(html.match(/src="\/games\/avatars\/ellis-robot-v2.svg"/g)).toHaveLength(2)
     expect(html).not.toContain('ellis-human-v1')
     expect(html).toContain('alt=""')
     expect(html).toContain('width="96"')
