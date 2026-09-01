@@ -49,12 +49,19 @@ LANGUAGE plpgsql
 SECURITY DEFINER
 SET search_path = public
 AS $$
+DECLARE
+  v_row public.students%rowtype;
 BEGIN
-  RETURN QUERY
+  -- Captured into a row variable rather than RETURN QUERY UPDATE ... RETURNING
+  -- directly: this function's own "grade" OUT column has the same name as
+  -- students.grade, so a bare RETURNING grade is ambiguous between the two
+  -- and Postgres rejects the whole function ("column reference is ambiguous").
   UPDATE public.students
   SET last_login = now()
   WHERE login_code = upper(trim(p_code))
-  RETURNING id, name, grade;
+  RETURNING * INTO v_row;
+
+  RETURN QUERY SELECT v_row.id, v_row.name, v_row.grade;
 END;
 $$;
 

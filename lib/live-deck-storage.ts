@@ -25,3 +25,23 @@ export async function uploadLiveDeck(client: Pick<SupabaseClient, 'storage'>, us
   const { data } = bucket.getPublicUrl(path);
   return data.publicUrl;
 }
+
+/** Recovers the storage path this module generated a public URL for. */
+export function deckPathFromUrl(url: string): string | null {
+  const marker = `/${LIVE_DECK_BUCKET}/`;
+  const index = url.indexOf(marker);
+  if (index === -1) return null;
+  return decodeURIComponent(url.slice(index + marker.length));
+}
+
+// Best-effort cleanup: callers replace or clear a session's deck (or delete
+// the session outright) without keeping the file around as an orphan. A
+// deletion failure should never block the caller's own request, so this
+// throws rather than swallowing errors - the caller decides whether that's
+// worth surfacing (e.g. logging) or ignoring.
+export async function deleteLiveDeck(client: Pick<SupabaseClient, 'storage'>, deckUrl: string): Promise<void> {
+  const path = deckPathFromUrl(deckUrl);
+  if (!path) return;
+  const { error } = await client.storage.from(LIVE_DECK_BUCKET).remove([path]);
+  if (error) throw new Error('DECK_DELETE');
+}

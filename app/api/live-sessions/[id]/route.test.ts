@@ -1,8 +1,9 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-const { getServerClient, broadcastLiveUpdate } = vi.hoisted(() => ({ getServerClient: vi.fn(), broadcastLiveUpdate: vi.fn() }));
+const { getServerClient, broadcastLiveUpdate, deleteLiveDeck } = vi.hoisted(() => ({ getServerClient: vi.fn(), broadcastLiveUpdate: vi.fn(), deleteLiveDeck: vi.fn() }));
 vi.mock('@/app/lib/supabase', () => ({ getServerClient }));
 vi.mock('@/lib/live-broadcast', () => ({ broadcastLiveUpdate }));
+vi.mock('@/lib/live-deck-storage', () => ({ deleteLiveDeck }));
 // next/server's real after() throws outside an actual request context, which
 // this direct handler-call test style never has. Run the callback inline -
 // the route always wraps it in its own .catch(), so this stays safe even
@@ -23,6 +24,7 @@ let from: ReturnType<typeof vi.fn>;
 
 beforeEach(() => {
   broadcastLiveUpdate.mockReset().mockResolvedValue(undefined);
+  deleteLiveDeck.mockReset().mockResolvedValue(undefined);
   chain = Object.fromEntries(['update', 'eq', 'select', 'maybeSingle'].map((name) => [name, vi.fn()]));
   for (const name of ['update', 'eq', 'select']) chain[name].mockReturnValue(chain);
   chain.maybeSingle.mockResolvedValue({ data: { id, status: 'paused', deck_url: null, deck_page: 1 }, error: null });
@@ -70,6 +72,21 @@ describe('PATCH /api/live-sessions/[id]', () => {
   it('still succeeds if the broadcast fails', async () => {
     broadcastLiveUpdate.mockRejectedValue(new Error('offline'));
     expect((await PATCH(request(), { params: params() })).status).toBe(200);
+  });
+  it('deletes the previous deck from storage once it is replaced or cleared', async () => {
+    chain.maybeSingle
+      .mockResolvedValueOnce({ data: { deck_url: 'https://storage.example/live-decks/owner/old.pdf' }, error: null })
+      .mockResolvedValueOnce({ data: { id, status: 'open', deck_url: null, deck_page: 1 }, error: null });
+    const response = await PATCH(request({ deckUrl: null, deckPage: 1 }), { params: params() });
+    expect(response.status).toBe(200);
+    expect(deleteLiveDeck).toHaveBeenCalledWith(expect.anything(), 'https://storage.example/live-decks/owner/old.pdf');
+  });
+  it('does not attempt cleanup when the deck url is unchanged, or when nothing was ever uploaded', async () => {
+    chain.maybeSingle.mockResolvedValue({ data: { id, status: 'open', deck_url: 'https://storage.example/live-decks/owner/same.pdf', deck_page: 1 }, error: null });
+    await PATCH(request({ deckUrl: 'https://storage.example/live-decks/owner/same.pdf', deckPage: 1 }), { params: params() });
+    expect(deleteLiveDeck).not.toHaveBeenCalled();
+    await PATCH(request({ status: 'paused' }), { params: params() });
+    expect(deleteLiveDeck).not.toHaveBeenCalled();
   });
 });
 
@@ -165,5 +182,16 @@ describe('DELETE /api/live-sessions/[id]', () => {
     chain.maybeSingle.mockResolvedValueOnce({data:{id,status:'closed'},error:null}).mockResolvedValueOnce({data:null,error:null});
     expect((await DELETE(req(),{params:params()})).status).toBe(409);
     expect(broadcastLiveUpdate).not.toHaveBeenCalled();
+  });
+  it('cleans up a deck left in storage once its session is deleted', async () => {
+    chain.maybeSingle
+      .mockResolvedValueOnce({data:{id,status:'closed',deck_url:'https://storage.example/live-decks/owner/deck.pdf'},error:null})
+      .mockResolvedValueOnce({data:{id},error:null});
+    expect((await DELETE(req(),{params:params()})).status).toBe(204);
+    expect(deleteLiveDeck).toHaveBeenCalledWith(expect.anything(), 'https://storage.example/live-decks/owner/deck.pdf');
+  });
+  it('skips deck cleanup for a session that never had one', async () => {
+    expect((await DELETE(req(),{params:params()})).status).toBe(204);
+    expect(deleteLiveDeck).not.toHaveBeenCalled();
   });
 });
