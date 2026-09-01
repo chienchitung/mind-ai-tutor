@@ -23,6 +23,7 @@ const mocks = vi.hoisted(() => ({
   push: vi.fn(),
   toast: vi.fn(),
   events: new Map<string, (arg: { payload: unknown }) => void>(),
+  subscribeCallback: null as ((status: string) => void) | null,
 }));
 vi.mock('next/navigation', () => {
   const router = { push: mocks.push };
@@ -53,7 +54,11 @@ vi.mock('@/lib/supabase', () => ({
         mocks.events.set(event, handler);
         return channel;
       },
-      subscribe: () => channel,
+      subscribe: (callback?: (status: string) => void) => {
+        mocks.subscribeCallback = callback ?? null;
+        callback?.('SUBSCRIBED');
+        return channel;
+      },
       send: vi.fn(),
     };
     return { channel: () => channel, removeChannel: vi.fn() };
@@ -411,7 +416,39 @@ describe('Live Session experience', () => {
       HTMLElement.prototype.requestFullscreen = original;
     }
   });
-
+  it('tells a student when their connection drops and confirms once it recovers', async () => {
+    fetchMock.mockImplementation(async (url: string) => response(url.includes('/questions') ? questions : session));
+    mount(<AudiencePage />);
+    await screen.findByText(session.title);
+    // The mock's subscribe() resolves SUBSCRIBED synchronously, so the
+    // initial "connecting" badge should already be gone on a normal connect.
+    expect(screen.queryByText('連線中…')).toBeNull();
+    act(() => {
+      mocks.subscribeCallback?.('CHANNEL_ERROR');
+    });
+    expect(await screen.findByText('離線中，回應將自動重試')).toBeTruthy();
+    act(() => {
+      mocks.subscribeCallback?.('SUBSCRIBED');
+    });
+    expect(await screen.findByText('已重新連線')).toBeTruthy();
+  });
+  it('shows a simplified ended screen with a participation summary and a way to leave', async () => {
+    const closedSession = { ...session, status: 'closed', deckUrl: '/deck.pdf' };
+    fetchMock.mockImplementation(async (url: string) =>
+      response(url.includes('/questions') ? [{ ...questions[0], isMine: true }] : closedSession),
+    );
+    mount(<AudiencePage />);
+    await screen.findByText(/謝謝你的參與/);
+    // A regex, not an exact string: the "• " bullet is its own text node,
+    // separate from the {t(...)} count text, within the same <li>. The
+    // questions fetch also resolves independently of the session fetch above.
+    expect(await screen.findByText(/你發問了 1 次/)).toBeTruthy();
+    expect(screen.getByRole('link', { name: '查看課堂投影片' })).toBeTruthy();
+    expect(screen.getByRole('link', { name: '離開課堂' })).toBeTruthy();
+    // The interactive area is gone entirely for a closed session, not just
+    // disabled - that's the point of the simplified screen.
+    expect(screen.queryByRole('button', { name: '掌聲' })).toBeNull();
+  });
 });
 
 describe('session deletion and immediate reactions', () => {

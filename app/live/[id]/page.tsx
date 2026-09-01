@@ -10,6 +10,8 @@ import {
   CheckCircle2,
   MessageSquare,
   BarChart3,
+  WifiOff,
+  Wifi,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
@@ -93,6 +95,27 @@ export default function AudiencePage() {
   );
   const { reactions, push: pushReaction } = useReactionBursts();
   const { onlineCount, registerPing } = useOnlinePresenceCount();
+  // null = steady-state connected, nothing worth telling the student. Only
+  // the three states a network hiccup should actually surface get a badge:
+  // still connecting for the first time, currently offline (so a stalled
+  // button click reads as "no network", not "broken"), or just recovered.
+  const [connectionStatus, setConnectionStatus] = useState<
+    'connecting' | 'offline' | 'reconnected' | null
+  >('connecting');
+  const wasOfflineRef = useRef(false);
+  const reconnectedTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(() => {
+    const handleOffline = () => {
+      wasOfflineRef.current = true;
+      if (reconnectedTimer.current) clearTimeout(reconnectedTimer.current);
+      setConnectionStatus('offline');
+    };
+    window.addEventListener('offline', handleOffline);
+    return () => {
+      window.removeEventListener('offline', handleOffline);
+      if (reconnectedTimer.current) clearTimeout(reconnectedTimer.current);
+    };
+  }, []);
 
   const load = useCallback(async () => {
     try {
@@ -227,12 +250,32 @@ export default function AudiencePage() {
         // Sending before the channel has actually joined would silently
         // drop the message - wait for confirmation, then the interval
         // below keeps it alive every HEARTBEAT_INTERVAL_MS after that.
-        if (subscribeStatus === 'SUBSCRIBED')
+        if (subscribeStatus === 'SUBSCRIBED') {
+          if (wasOfflineRef.current) {
+            // Briefly confirm recovery rather than just silently going back
+            // to normal - a student who saw "offline" deserves to see it
+            // resolved, not wonder whether it's still broken.
+            wasOfflineRef.current = false;
+            setConnectionStatus('reconnected');
+            if (reconnectedTimer.current) clearTimeout(reconnectedTimer.current);
+            reconnectedTimer.current = setTimeout(() => setConnectionStatus(null), 3000);
+          } else {
+            setConnectionStatus(null);
+          }
           void channel.send({
             type: 'broadcast',
             event: 'presence:ping',
             payload: { participantId },
           });
+        } else if (
+          subscribeStatus === 'CLOSED' ||
+          subscribeStatus === 'CHANNEL_ERROR' ||
+          subscribeStatus === 'TIMED_OUT'
+        ) {
+          wasOfflineRef.current = true;
+          if (reconnectedTimer.current) clearTimeout(reconnectedTimer.current);
+          setConnectionStatus('offline');
+        }
       });
     const heartbeat = setInterval(() => {
       void channel.send({
@@ -445,6 +488,50 @@ export default function AudiencePage() {
   }
   if (!data) return null;
 
+  if (data.status === 'closed') {
+    const askedCount = questions.filter((item) => item.isMine).length;
+    return (
+      <div className="min-h-screen bg-background">
+        <LiveHeader />
+        <main className="mx-auto flex min-h-[70vh] max-w-md flex-col items-center justify-center gap-6 px-4 py-10 text-center">
+          <CheckCircle2 className="h-12 w-12 text-primary" aria-hidden="true" />
+          <div className="space-y-2">
+            <h1 className="text-xl font-semibold tracking-tight">{data.title}</h1>
+            <p role="status" className="text-sm text-muted-foreground">
+              {t('live_audience_closed')}
+            </p>
+          </div>
+          <div className="w-full space-y-2 rounded-xl border bg-muted/40 p-4 text-left text-sm">
+            <p className="font-medium">{t('live_ended_summary_title')}</p>
+            <ul className="space-y-1 text-muted-foreground">
+              {myVote !== null && <li>• {t('live_ended_summary_voted')}</li>}
+              {myPulse !== null && <li>• {t('live_ended_summary_pulse')}</li>}
+              {askedCount > 0 && (
+                <li>• {t('live_ended_summary_questions', { count: askedCount })}</li>
+              )}
+              {myVote === null && myPulse === null && askedCount === 0 && (
+                <li>• {t('live_ended_summary_none')}</li>
+              )}
+            </ul>
+          </div>
+          {data.deckUrl && (
+            <a
+              href={data.deckUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-sm font-medium text-primary underline underline-offset-4"
+            >
+              {t('live_ended_deck_link')}
+            </a>
+          )}
+          <Button asChild>
+            <Link href="/live">{t('live_leave_session')}</Link>
+          </Button>
+        </main>
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen bg-background">
       <LiveHeader />
@@ -470,16 +557,41 @@ export default function AudiencePage() {
             )}
           </div>
         </div>
-        {data.status !== 'open' && (
+        {connectionStatus && (
+          <p
+            role="status"
+            className={`flex items-center gap-2 rounded-lg px-3 py-2 text-xs font-medium ${
+              connectionStatus === 'offline'
+                ? 'bg-destructive/10 text-destructive'
+                : connectionStatus === 'reconnected'
+                  ? 'bg-emerald-50 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-200'
+                  : 'bg-muted text-muted-foreground'
+            }`}
+          >
+            {connectionStatus === 'offline' ? (
+              <WifiOff className="h-3.5 w-3.5" />
+            ) : connectionStatus === 'reconnected' ? (
+              <Wifi className="h-3.5 w-3.5" />
+            ) : (
+              <Loader2 className="h-3.5 w-3.5 animate-spin" />
+            )}
+            {t(
+              connectionStatus === 'offline'
+                ? 'live_connection_offline'
+                : connectionStatus === 'reconnected'
+                  ? 'live_connection_reconnected'
+                  : 'live_connection_connecting',
+            )}
+          </p>
+        )}
+        {/* 'closed' returns its own simplified screen above - only 'paused'
+            reaches here, with the interactive area still visible but disabled. */}
+        {data.status === 'paused' && (
           <p
             role="status"
             className="rounded-xl border bg-muted/60 px-4 py-3 text-sm leading-6 text-muted-foreground"
           >
-            {t(
-              data.status === 'paused'
-                ? 'live_audience_paused'
-                : 'live_audience_closed',
-            )}
+            {t('live_audience_paused')}
           </p>
         )}
         <div className="grid items-start gap-5 md:grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)]">
