@@ -27,7 +27,7 @@ import {
   QUESTION_LENSES,
   type LiveSessionPublicState,
   type LiveQuestion,
-  type QuestionLens,
+  type SelectableQuestionLens,
 } from '@/lib/live-session';
 import {
   REACTION_EMOJI,
@@ -77,7 +77,7 @@ export default function AudiencePage() {
 
   const [questions, setQuestions] = useState<LiveQuestion[]>([]);
   const [qaText, setQaText] = useState('');
-  const [qaLens, setQaLens] = useState<QuestionLens>('clarify');
+  const [qaLens, setQaLens] = useState<SelectableQuestionLens>('clarify');
   const [qaSending, setQaSending] = useState(false);
   const [qaError, setQaError] = useState('');
   const [upvotedIds, setUpvotedIds] = useState<Set<string>>(new Set());

@@ -31,8 +31,12 @@ export interface LiveSessionOwnerState extends LiveSessionPublicState {
   joinCode: string;
 }
 
+// 'chorus' and 'keeper' were retired (overlapped with upvoting and weren't
+// really question types) but stay in the type/translations so any question
+// asked before the change still renders its old tag correctly.
 export type QuestionLens = 'clarify' | 'chorus' | 'bridge' | 'keeper';
-export const QUESTION_LENSES: QuestionLens[] = ['clarify', 'chorus', 'bridge', 'keeper'];
+export type SelectableQuestionLens = 'clarify' | 'bridge';
+export const QUESTION_LENSES: SelectableQuestionLens[] = ['clarify', 'bridge'];
 
 export interface LiveQuestion {
   id: string;
@@ -74,7 +78,7 @@ export const pulseSchema = z.object({
 export const questionSubmitSchema = z.object({
   participantId: z.string().uuid(),
   text: z.string().trim().min(1).max(500),
-  lens: z.enum(['clarify', 'chorus', 'bridge', 'keeper']),
+  lens: z.enum(['clarify', 'bridge']),
 });
 
 export const questionUpvoteSchema = z.object({ participantId: z.string().uuid() });
