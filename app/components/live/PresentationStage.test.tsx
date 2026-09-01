@@ -146,7 +146,15 @@ describe('projection tools', () => {
     );
     const surface = screen.getByRole('img');
     move(surface, 300, 200);
-    expect(container.querySelector('[data-laser-pointer]')).toBeTruthy();
+    const dot = container.querySelector('[data-laser-pointer]');
+    expect(dot).toBeTruthy();
+    // A plain positioned div (percentage left/top), not an SVG circle relying
+    // on vector-effect="non-scaling-stroke" under the surface's non-uniform
+    // (preserveAspectRatio="none") scale - that combination renders invisibly
+    // in some browsers, which is why the laser tool wasn't showing up.
+    expect(dot?.tagName).toBe('DIV');
+    expect((dot as HTMLElement).style.left).toBe('37.5%');
+    expect((dot as HTMLElement).style.top).toBe('50%');
     fireEvent.pointerLeave(surface);
     expect(container.querySelector('[data-laser-pointer]')).toBeNull();
     expect(commit).not.toHaveBeenCalled();

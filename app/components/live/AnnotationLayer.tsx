@@ -108,67 +108,70 @@ export function AnnotationLayer({ strokes, tool, color, width, label, onCommit, 
   if (draft.length) visible.push({ id: 'draft', points: draft, color, width });
 
   return (
-    <svg
-      ref={surfaceRef}
-      data-annotation-surface=""
-      role="img"
-      aria-label={label}
-      tabIndex={0}
-      viewBox="0 0 1000 1000"
-      preserveAspectRatio="none"
-      className="absolute inset-0 h-full w-full outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-white/60"
-      style={{
-        touchAction: tool === 'cursor' ? 'auto' : 'none',
-        cursor:
-          tool === 'laser' ? 'none' : tool === 'pen' ? 'crosshair' : tool === 'eraser' ? 'cell' : 'default',
-      }}
-      onPointerDown={start}
-      onPointerMove={move}
-      onPointerUp={(event) => finish(event)}
-      onPointerCancel={(event) => finish(event, true)}
-      onLostPointerCapture={(event) => finish(event, true)}
-      onPointerLeave={() => {
-        if (!gesture.current) setPointer(null);
-      }}
-    >
-      {visible.map((stroke) => (
-        <polyline
-          key={stroke.id}
-          data-ink-stroke={stroke.id}
-          points={stroke.points.map((p) => `${p.x * 1000},${p.y * 1000}`).join(' ')}
-          fill="none"
-          stroke={stroke.color}
-          strokeWidth={stroke.width}
-          strokeLinecap="round"
-          strokeLinejoin="round"
-          vectorEffect="non-scaling-stroke"
-          pointerEvents="none"
-        />
-      ))}
+    <div className="absolute inset-0 h-full w-full">
+      <svg
+        ref={surfaceRef}
+        data-annotation-surface=""
+        role="img"
+        aria-label={label}
+        tabIndex={0}
+        viewBox="0 0 1000 1000"
+        preserveAspectRatio="none"
+        className="absolute inset-0 h-full w-full outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-white/60"
+        style={{
+          touchAction: tool === 'cursor' ? 'auto' : 'none',
+          cursor:
+            tool === 'laser' ? 'none' : tool === 'pen' ? 'crosshair' : tool === 'eraser' ? 'cell' : 'default',
+        }}
+        onPointerDown={start}
+        onPointerMove={move}
+        onPointerUp={(event) => finish(event)}
+        onPointerCancel={(event) => finish(event, true)}
+        onLostPointerCapture={(event) => finish(event, true)}
+        onPointerLeave={() => {
+          if (!gesture.current) setPointer(null);
+        }}
+      >
+        {visible.map((stroke) => (
+          <polyline
+            key={stroke.id}
+            data-ink-stroke={stroke.id}
+            points={stroke.points.map((p) => `${p.x * 1000},${p.y * 1000}`).join(' ')}
+            fill="none"
+            stroke={stroke.color}
+            strokeWidth={stroke.width}
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            vectorEffect="non-scaling-stroke"
+            pointerEvents="none"
+          />
+        ))}
+      </svg>
+      {/* A plain positioned div, not an SVG circle: vector-effect="non-scaling-
+          stroke" is only reliably circular under a UNIFORM scale, and this
+          surface's viewBox is stretched non-uniformly (preserveAspectRatio=
+          "none") to match the deck's own aspect ratio - under that anisotropic
+          transform, some browsers render the stroke practically invisible.
+          Percentage positioning plus a fixed-pixel border/glow has no such
+          ambiguity. */}
       {pointer && (tool === 'laser' || tool === 'eraser') && (
-        <g pointerEvents="none">
-          <circle
-            cx={pointer.x * 1000}
-            cy={pointer.y * 1000}
-            r="0.01"
-            fill="none"
-            stroke={tool === 'laser' ? '#fb7185' : '#fff'}
-            strokeWidth={tool === 'laser' ? 16 : 24}
-            vectorEffect="non-scaling-stroke"
-            opacity={tool === 'laser' ? 0.3 : 0.4}
-          />
-          <circle
-            data-laser-pointer={tool === 'laser' ? '' : undefined}
-            cx={pointer.x * 1000}
-            cy={pointer.y * 1000}
-            r="0.01"
-            fill="none"
-            stroke={tool === 'laser' ? '#ff244c' : '#111827'}
-            strokeWidth={tool === 'laser' ? 7 : 2}
-            vectorEffect="non-scaling-stroke"
-          />
-        </g>
+        <div
+          data-laser-pointer={tool === 'laser' ? '' : undefined}
+          aria-hidden="true"
+          className="pointer-events-none absolute -translate-x-1/2 -translate-y-1/2 rounded-full"
+          style={{
+            left: `${pointer.x * 100}%`,
+            top: `${pointer.y * 100}%`,
+            width: tool === 'laser' ? 22 : 30,
+            height: tool === 'laser' ? 22 : 30,
+            border: `${tool === 'laser' ? 3 : 2}px solid ${tool === 'laser' ? '#ff244c' : '#111827'}`,
+            boxShadow:
+              tool === 'laser'
+                ? '0 0 0 8px rgba(251,113,133,0.3), 0 0 14px 3px rgba(255,36,76,0.65)'
+                : '0 0 0 6px rgba(255,255,255,0.35)',
+          }}
+        />
       )}
-    </svg>
+    </div>
   );
 }
