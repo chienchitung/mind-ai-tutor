@@ -13,6 +13,8 @@ interface AppLayoutProps {
   children: ReactNode;
 }
 
+const SIDEBAR_COLLAPSED_KEY = 'sidebar-collapsed';
+
 export function AppLayout({ children }: AppLayoutProps) {
   const router = useRouter();
   const { language } = useLanguage();
@@ -76,16 +78,38 @@ export function AppLayout({ children }: AppLayoutProps) {
         setIsSidebarCollapsed(true);
       }
     };
-    
+
     // 初始檢查
     checkMobile();
-    
+
     window.addEventListener('resize', checkMobile);
     return () => window.removeEventListener('resize', checkMobile);
   }, []);
 
+  // AppLayout isn't a persistent Next.js layout - every top-level sidebar
+  // section (dashboard, students, lessons, ...) has its own route-segment
+  // layout.tsx that wraps this component separately, so clicking between
+  // them unmounts and remounts AppLayout from scratch each time. Without
+  // this, isSidebarCollapsed's useState(false) default would win on every
+  // click, making a collapsed sidebar pop back open. Restoring the stored
+  // preference in an effect (rather than the useState initializer) avoids
+  // an SSR/client hydration mismatch; the loading spinner above already
+  // covers the brief window before this runs.
+  useEffect(() => {
+    try {
+      if (window.localStorage.getItem(SIDEBAR_COLLAPSED_KEY) === '1') setIsSidebarCollapsed(true);
+    } catch {
+      // Best-effort - localStorage can be unavailable (private browsing, disabled).
+    }
+  }, []);
+
   const handleSidebarCollapse = (collapsed: boolean) => {
     setIsSidebarCollapsed(collapsed);
+    try {
+      window.localStorage.setItem(SIDEBAR_COLLAPSED_KEY, collapsed ? '1' : '0');
+    } catch {
+      // Best-effort - the toggle itself still works even if persisting it fails.
+    }
   };
 
   if (isLoading) {
