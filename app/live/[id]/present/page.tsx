@@ -107,6 +107,12 @@ export default function PresenterPage() {
   const [presenting, setPresenting] = useState(false);
   const presentRef = useRef<HTMLDivElement>(null);
   const presentationTriggerRef = useRef<HTMLElement | null>(null);
+  // Tracks whether THIS presentation actually reached native fullscreen, so
+  // the fullscreenchange handler below can tell "the user just exited
+  // fullscreen" apart from "fullscreen was denied/unsupported and never
+  // engaged" - both leave document.fullscreenElement falsy, but only the
+  // former should close the overlay (see handleFullscreenChange).
+  const wasFullscreenRef = useRef(false);
 
   const load = useCallback(async () => {
     try {
@@ -414,30 +420,43 @@ export default function PresenterPage() {
   const enterPresentation = async () => {
     if (!data?.deckUrl) return;
     presentationTriggerRef.current = document.activeElement as HTMLElement | null;
+    wasFullscreenRef.current = false;
     // Mount the dialog before requesting fullscreen, while user activation is still valid.
     flushSync(() => setPresenting(true));
     try {
       await (presentRef.current ?? document.documentElement).requestFullscreen?.();
+      wasFullscreenRef.current = !!document.fullscreenElement;
     } catch {
       // Fullscreen can be denied or unsupported (e.g. some mobile browsers) -
       // the fixed-position overlay below still gives the full-bleed view
-      // either way, it just won't hide the browser chrome too.
+      // either way, it just won't hide the browser chrome too. Left
+      // wasFullscreenRef false so handleFullscreenChange doesn't mistake
+      // this for an exit and close the overlay out from under it.
     }
   };
 
   const exitPresentation = () => {
     if (document.fullscreenElement)
       void document.exitFullscreen().catch(() => {});
+    wasFullscreenRef.current = false;
     setPresenting(false);
     requestAnimationFrame(() => presentationTriggerRef.current?.focus({ preventScroll: true }));
   };
 
   useEffect(() => {
     const handleFullscreenChange = () => {
-      if (!document.fullscreenElement) {
-        setPresenting(false);
-        requestAnimationFrame(() => presentationTriggerRef.current?.focus({ preventScroll: true }));
+      if (document.fullscreenElement) {
+        wasFullscreenRef.current = true;
+        return;
       }
+      // document.fullscreenElement is also falsy when a request was simply
+      // denied/unsupported and fullscreen was never engaged - only treat
+      // this as an exit (and close the overlay) if we know we were
+      // actually in fullscreen a moment ago.
+      if (!wasFullscreenRef.current) return;
+      wasFullscreenRef.current = false;
+      setPresenting(false);
+      requestAnimationFrame(() => presentationTriggerRef.current?.focus({ preventScroll: true }));
     };
     document.addEventListener('fullscreenchange', handleFullscreenChange);
     return () =>
@@ -524,6 +543,13 @@ export default function PresenterPage() {
   const pulseAvg = data.pulse.pulseAverage;
   const pulsePercent = pulseAvg === null ? 50 : ((pulseAvg - 1) / 4) * 100;
   const visibleQuestions = [...questions].sort(sortQuestions);
+  // Most recent first (not by upvotes) and never a question the teacher
+  // hid from the class - this feeds the small on-projector signal panel.
+  const latestPublicQuestions = [...questions]
+    .filter((item) => item.visibility === 'public')
+    .sort((a, b) => b.createdAt.localeCompare(a.createdAt))
+    .slice(0, 2)
+    .map((item) => ({ id: item.id, text: item.text }));
 
   return (
     <div className="min-h-screen bg-background">
@@ -1042,7 +1068,8 @@ export default function PresenterPage() {
       {data.deckUrl && <PresentationStage key={data.deckUrl} ref={presentRef} open={presenting}
         url={data.deckUrl} page={data.deckPage} numPages={numDeckPages} title={data.title} joinCode={data.joinCode}
         onExit={exitPresentation} onPageChange={(page) => void changeDeckPage(page)} onNumPages={setNumDeckPages}
-        reactions={<ReactionBurstOverlay reactions={reactions} className="absolute inset-0 z-[75]" />} />}
+        reactions={<ReactionBurstOverlay reactions={reactions} className="absolute inset-0 z-[75]" />}
+        onlineCount={onlineCount} pulseAverage={pulseAvg} latestQuestions={latestPublicQuestions} />}
 
       <Dialog open={showQuizPicker} onOpenChange={setShowQuizPicker}>
         <DialogContent className="max-h-[80vh] max-w-lg overflow-y-auto">

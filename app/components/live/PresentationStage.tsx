@@ -28,6 +28,9 @@ import {
   Minimize,
   Pin,
   PinOff,
+  Users,
+  MessageSquare,
+  Gauge,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useLanguage } from '@/app/contexts/LanguageContext';
@@ -40,6 +43,8 @@ import { DeckViewer } from './DeckViewer';
 // the way quickly, since keyboard/clicker slide changes below no longer keep
 // it awake themselves - only actual pointer movement should.
 const CONTROLS_HIDE_DELAY_MS = 1200;
+const ONBOARDING_SEEN_KEY = 'live-presentation-onboarding-seen';
+const ONBOARDING_DURATION_MS = 10000;
 const TOOLS = [
   { value: 'cursor', icon: MousePointer2, key: 'V' },
   { value: 'laser', icon: ScanLine, key: 'L' },
@@ -174,11 +179,19 @@ interface Props {
   onPageChange: (page: number) => void;
   onNumPages: (pages: number) => void;
   reactions?: ReactNode;
+  /** Small class signals kept on screen so the presenter never has to exit
+   * projection just to check them. */
+  onlineCount?: number;
+  pulseAverage?: number | null;
+  latestQuestions?: { id: string; text: string }[];
 }
 
 /** Kept mounted by the owner: closing presentation does not throw away page notes. */
 export const PresentationStage = forwardRef<HTMLDivElement, Props>(function PresentationStage(
-  { open, url, page, numPages, title, joinCode, onExit, onPageChange, onNumPages, reactions },
+  {
+    open, url, page, numPages, title, joinCode, onExit, onPageChange, onNumPages, reactions,
+    onlineCount, pulseAverage, latestQuestions,
+  },
   forwardedRef,
 ) {
   const { language } = useLanguage();
@@ -195,7 +208,9 @@ export const PresentationStage = forwardRef<HTMLDivElement, Props>(function Pres
   const [pinned, setPinned] = useState(false);
   const [visible, setVisible] = useState(true);
   const [error, setError] = useState(false);
+  const [showOnboarding, setShowOnboarding] = useState(false);
   const hideTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const onboardingTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const history = ink[page] ?? EMPTY_INK;
   const setStageRef = useCallback(
     (node: HTMLDivElement | null) => {
@@ -229,6 +244,33 @@ export const PresentationStage = forwardRef<HTMLDivElement, Props>(function Pres
       if (hideTimer.current) clearTimeout(hideTimer.current);
     };
   }, [open, wake]);
+  // Shown once per browser, first time a presenter opens the projection
+  // view - not on the same 1.2s auto-hide as the toolbar, since a new
+  // presenter needs a moment to actually read it.
+  const dismissOnboarding = useCallback(() => {
+    setShowOnboarding(false);
+    if (onboardingTimer.current) clearTimeout(onboardingTimer.current);
+    try {
+      localStorage.setItem(ONBOARDING_SEEN_KEY, '1');
+    } catch {
+      // Private browsing or storage disabled - worst case it shows again next time.
+    }
+  }, []);
+  useEffect(() => {
+    if (!open) return;
+    let alreadySeen = false;
+    try {
+      alreadySeen = !!localStorage.getItem(ONBOARDING_SEEN_KEY);
+    } catch {
+      alreadySeen = false;
+    }
+    if (alreadySeen) return;
+    setShowOnboarding(true);
+    onboardingTimer.current = setTimeout(dismissOnboarding, ONBOARDING_DURATION_MS);
+    return () => {
+      if (onboardingTimer.current) clearTimeout(onboardingTimer.current);
+    };
+  }, [open, dismissOnboarding]);
   const selectTool = (value: PresentationTool) => {
     setTool(value);
   };
@@ -377,6 +419,52 @@ export const PresentationStage = forwardRef<HTMLDivElement, Props>(function Pres
             </ContextMenu.Portal>
           </ContextMenu.Root>
           {reactions}
+          {/* Always on, independent of the toolbar's own 1.2s auto-hide -
+              the point is the presenter can glance at these without first
+              having to move the mouse, let alone exit projection. */}
+          {((onlineCount ?? 0) > 0 || pulseAverage != null || !!latestQuestions?.length) && (
+            <div className="pointer-events-none absolute bottom-3 left-3 z-[65] flex max-w-[240px] flex-col gap-1.5 rounded-xl border border-white/10 bg-black/60 px-3 py-2 text-[11px] leading-5 text-white/80 backdrop-blur-sm">
+              <div className="flex items-center gap-3">
+                {(onlineCount ?? 0) > 0 && (
+                  <span className="flex items-center gap-1">
+                    <Users className="h-3 w-3" aria-hidden="true" />
+                    {onlineCount}
+                  </span>
+                )}
+                {pulseAverage != null && (
+                  <span className="flex items-center gap-1">
+                    <Gauge className="h-3 w-3" aria-hidden="true" />
+                    {pulseAverage.toFixed(1)}
+                  </span>
+                )}
+              </div>
+              {!!latestQuestions?.length && (
+                <ul className="space-y-0.5">
+                  {latestQuestions.map((item) => (
+                    <li key={item.id} className="flex items-start gap-1">
+                      <MessageSquare className="mt-0.5 h-3 w-3 shrink-0" aria-hidden="true" />
+                      <span className="line-clamp-1">{item.text}</span>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
+          )}
+          {showOnboarding && (
+            <div className="absolute inset-x-0 top-24 z-[75] flex justify-center px-4">
+              <div className="flex max-w-full flex-wrap items-center gap-3 rounded-2xl border border-white/15 bg-zinc-950/95 px-4 py-3 text-xs text-white shadow-xl backdrop-blur-md">
+                <span>{t('live_projection_help')}</span>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="h-7 shrink-0 px-2 text-white hover:bg-white/15 hover:text-white"
+                  onClick={dismissOnboarding}
+                >
+                  {t('live_onboarding_dismiss')}
+                </Button>
+              </div>
+            </div>
+          )}
           <div
             data-presentation-ui=""
             className={`absolute inset-x-0 top-0 flex items-center justify-between gap-3 bg-gradient-to-b from-black/85 to-transparent p-4 transition-opacity motion-reduce:transition-none ${shown ? 'opacity-100' : 'pointer-events-none opacity-0 focus-within:opacity-100'}`}

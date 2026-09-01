@@ -227,4 +227,50 @@ describe('projection tools', () => {
     fireEvent.pointerMove(screen.getByRole('dialog'), { clientX: 10, clientY: 10, pointerId: 1 });
     expect(topBar.className).toContain('opacity-100');
   }, 10000);
+  it('shows a one-time onboarding tip on first open and remembers it was dismissed', async () => {
+    let seen: string | null = null;
+    vi.stubGlobal('localStorage', {
+      getItem: (key: string) => (key === 'live-presentation-onboarding-seen' ? seen : null),
+      setItem: (key: string, value: string) => {
+        if (key === 'live-presentation-onboarding-seen') seen = value;
+      },
+    });
+    render(<Harness />);
+    await screen.findByRole('img');
+    expect(screen.getByRole('button', { name: '知道了，不再顯示' })).toBeTruthy();
+    fireEvent.click(screen.getByRole('button', { name: '知道了，不再顯示' }));
+    expect(screen.queryByRole('button', { name: '知道了，不再顯示' })).toBeNull();
+    expect(seen).toBe('1');
+  });
+  it('does not show the onboarding tip once it has already been seen', async () => {
+    vi.stubGlobal('localStorage', { getItem: () => '1', setItem: vi.fn() });
+    render(<Harness />);
+    await screen.findByRole('img');
+    expect(screen.queryByRole('button', { name: '知道了，不再顯示' })).toBeNull();
+  });
+  it('shows small class signals (online count, pulse, latest questions) regardless of toolbar visibility', async () => {
+    vi.stubGlobal('localStorage', { getItem: () => '1', setItem: vi.fn() });
+    render(
+      <LanguageProvider>
+        <PresentationStage
+          open
+          url="/fixture.pdf"
+          page={1}
+          numPages={3}
+          title="Test deck"
+          joinCode="482910"
+          onExit={() => {}}
+          onPageChange={() => {}}
+          onNumPages={() => {}}
+          onlineCount={12}
+          pulseAverage={3.4}
+          latestQuestions={[{ id: 'q1', text: '這題怎麼算？' }]}
+        />
+      </LanguageProvider>,
+    );
+    await screen.findByRole('img');
+    expect(screen.getByText('12')).toBeTruthy();
+    expect(screen.getByText('3.4')).toBeTruthy();
+    expect(screen.getByText('這題怎麼算？')).toBeTruthy();
+  });
 });

@@ -389,6 +389,28 @@ describe('Live Session experience', () => {
       HTMLElement.prototype.requestFullscreen = original;
     }
   });
+  it('keeps the projection overlay open when fullscreen is denied, even if fullscreenchange still fires', async () => {
+    fetchMock.mockImplementation(async (url: string) => response(url.includes('/questions') ? questions : { ...session, deckUrl: '/deck.pdf' }));
+    const original = HTMLElement.prototype.requestFullscreen;
+    HTMLElement.prototype.requestFullscreen = vi.fn(async () => {
+      throw new DOMException('Permission denied', 'NotAllowedError');
+    });
+    try {
+      mount(<PresenterPage />);
+      await screen.findByRole('heading', { name: session.title });
+      fireEvent.click(screen.getByRole('button', { name: '全螢幕投影' }));
+      await screen.findByRole('dialog', { name: /簡報投影模式/ });
+      // Some browsers still fire fullscreenchange once even on a denied
+      // request - document.fullscreenElement stays null either way, which
+      // should NOT be mistaken for the user exiting an active fullscreen.
+      await act(async () => {
+        document.dispatchEvent(new Event('fullscreenchange'));
+      });
+      expect(screen.getByRole('dialog', { name: /簡報投影模式/ })).toBeTruthy();
+    } finally {
+      HTMLElement.prototype.requestFullscreen = original;
+    }
+  });
 
 });
 
