@@ -49,9 +49,9 @@ export function LiveHeader({ presenter = false }: { presenter?: boolean }) {
     <header className="border-b bg-card">
       <div className="mx-auto flex max-w-[1440px] flex-wrap items-center justify-between gap-3 px-4 py-4 sm:px-8">
         <div className="flex items-center gap-4">
-          <div className="w-36 sm:w-40">
+          <Link href="/dashboard" className="w-36 sm:w-40" aria-label="MindAiTutor">
             <BrandLogo />
-          </div>
+          </Link>
           <span className="hidden border-l pl-4 text-xs font-medium text-muted-foreground sm:block">
             Live Session
           </span>
