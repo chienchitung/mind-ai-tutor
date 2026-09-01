@@ -14,6 +14,7 @@ interface QuestHomeProps {
   level: number
   exp: number
   signedIn: boolean
+  isGuest?: boolean
   completionTime: string | null
   rank: number | null
   onStart: () => void
@@ -35,6 +36,11 @@ export function QuestHome(props: QuestHomeProps) {
       <span className="quest-header-label">學習冒險基地</span>
       <div className="quest-player-stats"><span>Lv. {props.level}</span><span title="經驗值">{props.exp} XP</span><span><Star size={16} aria-hidden="true" />{props.stars}</span></div>
     </div></header>
+    {signedIn && props.isGuest && (
+      <p className="quest-guest-notice" role="status">
+        訪客模式・進度僅保存在這台裝置，清除瀏覽器資料會遺失紀錄
+      </p>
+    )}
 
     <main className="quest-container">
       <section className="quest-hero" aria-labelledby="quest-title">

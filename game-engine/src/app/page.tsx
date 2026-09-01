@@ -9,6 +9,7 @@ import { getPublicGameManifest } from '@/lib/game-manifest'
 import { gameStorageKey } from '@/lib/game-storage'
 import { Button } from "@/components/ui/button"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog"
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { useRouter } from "next/navigation"
 import { getLeaderboardStats, getPlayerRank, getLessonOrderMappings, verifyStudentLoginCode } from '@/lib/supabase'
 import { Lesson } from '@/types/lesson'
@@ -40,7 +41,10 @@ export default function HomePage({ gameId }: { gameId?: string }) {
   const [studentId, setStudentId] = useState("");
   const [studentName, setStudentName] = useState("");
   const [hasStudentId, setHasStudentId] = useState(false);
-  const [showLoginCodeInput, setShowLoginCodeInput] = useState(false);
+  // A signed-in student with no student_ref_id never verified a teacher's
+  // login code - their progress only ever gets written to this device's
+  // localStorage, never linked to a real student row.
+  const [isGuest, setIsGuest] = useState(false);
   const [loginCode, setLoginCode] = useState("");
   const [verifyingCode, setVerifyingCode] = useState(false);
   const [loginCodeError, setLoginCodeError] = useState<string | null>(null);
@@ -142,6 +146,7 @@ export default function HomePage({ gameId }: { gameId?: string }) {
           ...savedProgress,
         }));
         setHasStudentId(!!savedStudentId);
+        setIsGuest(!!savedStudentId && !localStorage.getItem(storageKey('student_ref_id')));
         setCompletionTime(savedCompletionTime);
 
         // 如果有學號且完成時間，獲取排名
@@ -219,6 +224,7 @@ export default function HomePage({ gameId }: { gameId?: string }) {
     
     // 重置學號狀態
     setHasStudentId(false);
+    setIsGuest(false);
     setStudentId("");
     setStudentName("");
     
@@ -262,6 +268,7 @@ export default function HomePage({ gameId }: { gameId?: string }) {
     }
     console.log('Setting global start_time on student ID submission:', startTime);
     setHasStudentId(true);
+    setIsGuest(!studentRefId);
 
     // 直接導航到前導課程（0），若不存在則到第一關
     const firstLesson = mappedLessons.find(lesson => lesson.role === 'intro') || mappedLessons[0];
@@ -328,7 +335,7 @@ export default function HomePage({ gameId }: { gameId?: string }) {
     <div>
       <QuestHome game={gameDefinition} gameId={gameId} lessons={mappedLessons}
         completedLessons={progress.completedLessons} stars={progress.stars} level={progress.level} exp={progress.exp}
-        signedIn={hasStudentId} completionTime={completionTime} rank={playerRank}
+        signedIn={hasStudentId} isGuest={isGuest} completionTime={completionTime} rank={playerRank}
         onStart={handleStartLearning} onReset={handleReset} onLeaderboard={() => setShowLeaderboardDialog(true)} />
 
       {/* 學號輸入對話框 */}
@@ -337,87 +344,85 @@ export default function HomePage({ gameId }: { gameId?: string }) {
           <DialogHeader>
             <DialogTitle className="text-xl font-bold">開始學習</DialogTitle>
             <DialogDescription className="text-base">
-              請輸入您的學號和姓名以開始學習
+              選擇你要用哪種方式開始
             </DialogDescription>
           </DialogHeader>
-          <div className="space-y-4 py-4">
-            <div className="space-y-2">
-              <label htmlFor="studentId" className="text-sm font-medium text-gray-700">
-                學號
-              </label>
-              <input
-                id="studentId"
-                type="text"
-                value={studentId}
-                onChange={(e) => setStudentId(e.target.value)}
-                className="w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                placeholder="請輸入學號"
-              />
-            </div>
-            <div className="space-y-2">
-              <label htmlFor="studentName" className="text-sm font-medium text-gray-700">
-                姓名
-              </label>
-              <input
-                id="studentName"
-                type="text"
-                value={studentName}
-                onChange={(e) => setStudentName(e.target.value)}
-                className="w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                placeholder="請輸入姓名"
-              />
-            </div>
-          </div>
-          <div className="flex justify-end">
-            <Button
-              onClick={handleStudentIdSubmit}
-              disabled={!studentId.trim() || !studentName.trim()}
-              className="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-lg"
-            >
-              開始學習
-            </Button>
-          </div>
-
-          <div className="pt-2 border-t mt-2">
-            {!showLoginCodeInput ? (
-              <button
-                type="button"
-                onClick={() => setShowLoginCodeInput(true)}
-                className="text-sm text-blue-600 hover:underline"
-              >
-                已經有登入代碼？
-              </button>
-            ) : (
-              <div className="space-y-2 pt-2">
+          <Tabs defaultValue="code">
+            <TabsList className="grid w-full grid-cols-2">
+              <TabsTrigger value="code">老師提供的代碼</TabsTrigger>
+              <TabsTrigger value="guest">訪客體驗</TabsTrigger>
+            </TabsList>
+            <TabsContent value="code" className="space-y-4 py-4">
+              <div className="space-y-2">
                 <label htmlFor="loginCode" className="text-sm font-medium text-gray-700">
                   登入代碼
                 </label>
-                <div className="flex gap-2">
-                  <input
-                    id="loginCode"
-                    type="text"
-                    value={loginCode}
-                    onChange={(e) => {
-                      setLoginCode(e.target.value);
-                      setLoginCodeError(null);
-                    }}
-                    className="flex-1 px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                    placeholder="請輸入老師提供的登入代碼"
-                  />
-                  <Button
-                    onClick={handleLoginCodeSubmit}
-                    disabled={!loginCode.trim() || verifyingCode}
-                    variant="outline"
-                  >
-                    {verifyingCode ? "驗證中..." : "驗證"}
-                  </Button>
-                </div>
+                <input
+                  id="loginCode"
+                  type="text"
+                  value={loginCode}
+                  onChange={(e) => {
+                    setLoginCode(e.target.value);
+                    setLoginCodeError(null);
+                  }}
+                  className="w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  placeholder="請輸入老師提供的登入代碼"
+                />
                 {loginCodeError && (
                   <p className="text-sm text-red-600">{loginCodeError}</p>
                 )}
               </div>
-            )}
-          </div>
+              <div className="flex justify-end">
+                <Button
+                  onClick={handleLoginCodeSubmit}
+                  disabled={!loginCode.trim() || verifyingCode}
+                  className="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-lg"
+                >
+                  {verifyingCode ? "驗證中..." : "開始學習"}
+                </Button>
+              </div>
+            </TabsContent>
+            <TabsContent value="guest" className="space-y-4 py-4">
+              <p className="text-xs text-gray-500">
+                訪客進度只會保存在這台裝置，換裝置或清除瀏覽器資料會遺失紀錄。
+              </p>
+              <div className="space-y-2">
+                <label htmlFor="studentId" className="text-sm font-medium text-gray-700">
+                  學號
+                </label>
+                <input
+                  id="studentId"
+                  type="text"
+                  value={studentId}
+                  onChange={(e) => setStudentId(e.target.value)}
+                  className="w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  placeholder="請輸入學號"
+                />
+              </div>
+              <div className="space-y-2">
+                <label htmlFor="studentName" className="text-sm font-medium text-gray-700">
+                  姓名
+                </label>
+                <input
+                  id="studentName"
+                  type="text"
+                  value={studentName}
+                  onChange={(e) => setStudentName(e.target.value)}
+                  className="w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  placeholder="請輸入姓名"
+                />
+              </div>
+              <div className="flex justify-end">
+                <Button
+                  onClick={handleStudentIdSubmit}
+                  disabled={!studentId.trim() || !studentName.trim()}
+                  className="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-lg"
+                >
+                  開始學習
+                </Button>
+              </div>
+            </TabsContent>
+          </Tabs>
         </DialogContent>
       </Dialog>
 

@@ -145,6 +145,16 @@ describe("lesson editor experience", () => {
     fireEvent.click(summaryLink);
     expect(document.activeElement).toBe(screen.getByLabelText("標題"));
   });
+  it("flags when a question and its explanation reference different model numbers", async () => {
+    await edit();
+    fireEvent.change(screen.getAllByLabelText("問題")[0], {
+      target: { value: "請問 iPhone 16 的螢幕尺寸是多少？" },
+    });
+    fireEvent.change(screen.getAllByLabelText("解釋")[0], {
+      target: { value: "iPhone 14 的螢幕尺寸是 6.1 吋。" },
+    });
+    await screen.findByText("「iPhone 14」跟題目對不上，請確認內容前後一致。");
+  });
   it("saves manually-written exercises even when the AI prompt field is left blank", async () => {
     await edit();
     fireEvent.change(screen.getByLabelText("創建練習"), { target: { value: "" } });

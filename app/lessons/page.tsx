@@ -39,6 +39,26 @@ function requiredNumber(message: string) {
   return z.number({ required_error: message, invalid_type_error: message }).min(1, message);
 }
 
+// Heuristic-only: catches a "<name> <number>" token (e.g. "iPhone 16",
+// "Excel 2021") repeated with a mismatched number between a question and
+// its own answer/explanation - the exact shape of drift a tester hit
+// (question said iPhone 16, explanation said iPhone 14). Not exhaustive,
+// and never blocks saving - just a nudge to double-check, since a plain
+// regex over free text will occasionally misfire on real content.
+function modelTokens(text: string): Map<string, string> {
+  const tokens = new Map<string, string>();
+  for (const match of Array.from(text.matchAll(/([A-Za-z一-龥]+)\s*(\d+)/g))) tokens.set(match[1], match[2]);
+  return tokens;
+}
+function findContentDrift(question: string, other: string): string | null {
+  const questionTokens = modelTokens(question);
+  for (const [name, number] of Array.from(modelTokens(other))) {
+    const questionNumber = questionTokens.get(name);
+    if (questionNumber && questionNumber !== number) return `${name} ${number}`;
+  }
+  return null;
+}
+
 interface PracticeExercise {
   question: string;
   answer: string;
@@ -967,6 +987,14 @@ export default function LessonsPage() {
                             {form.formState.errors.practiceExercises?.[index]?.[key] && <p id={`exercise-${index}-${key}-error`} className="text-sm text-destructive">{form.formState.errors.practiceExercises[index]?.[key]?.message}</p>}
                           </div>
                         ))}
+                        {(() => {
+                          const drift = findContentDrift(exercise.question, exercise.explanation) ?? findContentDrift(exercise.question, exercise.answer);
+                          return drift ? (
+                            <p role="status" className="rounded-lg bg-amber-50 px-3 py-2 text-xs text-amber-800 dark:bg-amber-950 dark:text-amber-200">
+                              {t('exercise_content_drift', { term: drift })}
+                            </p>
+                          ) : null;
+                        })()}
                       </div>
                     ))}
                   </div>

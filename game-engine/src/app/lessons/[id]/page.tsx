@@ -323,6 +323,10 @@ const formatExplanation = (explanation: string) => {
   return formatted;
 };
 
+// A miss before this many attempts shows only retry feedback, not the
+// worked answer - see handleAnswerSubmit.
+const REVEAL_EXPLANATION_AFTER_ATTEMPTS = 3;
+
 export default function ExcelLearningPlatform({
   params,
   gameId,
@@ -759,21 +763,28 @@ export default function ExcelLearningPlatform({
     console.log('User answer:', userAnswer);
     console.log('Correct answer:', correctAnswer);
     
+    const isCorrect = userAnswer === correctAnswer;
+
     // 增加答案提交次數，僅在當前會話中計算
     const newAttemptCount = answerAttempts + 1;
     setAnswerAttempts(newAttemptCount);
-    
-    // Set explanation if available and not in level 5
-    if (!isFinalLesson(lessonState.currentLesson)) {
-      const explanation = exercisesData[0].explanation || '';
-      setCurrentExplanation(explanation);
+
+    // The full worked answer only shows once the student gets it right, or
+    // after REVEAL_EXPLANATION_AFTER_ATTEMPTS misses - showing it on the
+    // very first wrong attempt let a student just copy it. Earlier misses
+    // fall back to the plain retry feedback in LessonAnswer, which nudges
+    // toward "請 AI 提醒方向" instead of handing over the solution. A
+    // student can also reveal it early via revealExplanation() (the "顯示
+    // 解答" button, shown once they've missed at least once).
+    if (!isFinalLesson(lessonState.currentLesson) && (isCorrect || newAttemptCount >= REVEAL_EXPLANATION_AFTER_ATTEMPTS)) {
+      setCurrentExplanation(exercisesData[0].explanation || '');
     }
-    
+
     // Update lesson state
     setLessonState({
       ...lessonState,
       hasSubmitted: true,
-      isCorrect: userAnswer === correctAnswer,
+      isCorrect,
     });
     
     // Record completion time and update progress (only if correct)
@@ -1016,14 +1027,23 @@ export default function ExcelLearningPlatform({
         }
       }
       
-      // Update lesson progress to add stars
-      updateLessonProgress(
+      // Update lesson progress to add stars. The header reads
+      // lessonState.stars/exp/level, not localStorage directly, so without
+      // merging the result back in it stayed stuck at its pre-answer value
+      // until the next full fetch (e.g. navigating back to the map).
+      const updatedProgress = updateLessonProgress(
         lessonState.currentLesson,
         gameDefinition?.settings.rewards?.starsPerLesson ?? 10,
         gameDefinition?.settings.rewards?.xpPerLesson ?? 20,
         gameId,
         lessons[0]?.lesson_id,
       );
+      setLessonState(prev => ({
+        ...prev,
+        stars: updatedProgress.stars,
+        exp: updatedProgress.exp,
+        level: updatedProgress.level,
+      }));
     }
   };
 
@@ -1437,11 +1457,16 @@ export default function ExcelLearningPlatform({
     }
   };
 
+  const revealExplanation = () => {
+    if (exercisesData.length > 0) setCurrentExplanation(exercisesData[0].explanation || '');
+  };
+
   const renderAnswer = (final = false) => exercisesData.length > 0 ? (
     <LessonAnswer answer={lessonState.answer} submitted={lessonState.hasSubmitted} correct={lessonState.isCorrect}
       stage={stage} final={final} explanation={!final && currentExplanation ? formatExplanation(currentExplanation) : null}
       completionMessage={currentLesson?.mission?.completionMessage}
       onChange={handleAnswerChange} onSubmit={handleAnswerSubmit} onContinue={handleContinue}
+      onRevealAnswer={final ? undefined : revealExplanation}
       onHint={() => { setLessonState(previous => ({ ...previous, showChat: true })); handleInsertPreset(mentorPrompts[1].prompt); }} />
   ) : null;
 
@@ -1733,11 +1758,8 @@ export default function ExcelLearningPlatform({
               </TabsContent>
             )}
 
-            <TabsContent 
-              value="game" 
-              forceMount
-              className={isFinalLesson(lessonState.currentLesson) ? 'block' : 'hidden'}
-            >
+            {showTabs.includes('game') && (
+            <TabsContent value="game">
               <Card className="lesson-challenge-card">
                 <ChallengeHeading final stage={stage} stars={starsPerLesson} xp={xpPerLesson} />
                 <div className="lesson-challenge-body">
@@ -1775,6 +1797,7 @@ export default function ExcelLearningPlatform({
                 </div>
               </Card>
             </TabsContent>
+            )}
           </Tabs>
 
           <div className="lesson-navigation">

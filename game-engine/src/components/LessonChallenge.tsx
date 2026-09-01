@@ -22,12 +22,17 @@ interface AnswerProps {
   onSubmit: () => void
   onContinue: () => void
   onHint: () => void
+  onRevealAnswer?: () => void
 }
 
-export function LessonAnswer({ answer, submitted, correct, stage, final = false, explanation, completionMessage, onChange, onSubmit, onContinue, onHint }: AnswerProps) {
+export function LessonAnswer({ answer, submitted, correct, stage, final = false, explanation, completionMessage, onChange, onSubmit, onContinue, onHint, onRevealAnswer }: AnswerProps) {
   const ready = submitted && correct
   const inputId = final ? 'final-lesson-answer' : 'lesson-answer'
   const feedbackId = final ? 'final-answer-feedback' : 'answer-feedback'
+  // A miss doesn't hand over the worked answer immediately - it only
+  // appears once the caller decides to reveal it (after a few misses, or
+  // the student asking via the button below).
+  const canRevealAnswer = submitted && !correct && !explanation && onRevealAnswer
   return <section className="lesson-answer" aria-label="你的解法">
     <div className="lesson-answer-heading"><label htmlFor={inputId}>{ready ? '你的作答' : '你的解法'}</label><span>{stage === 'review' ? '已完成 · 複習中' : '想好後，再檢查答案'}</span></div>
     <input id={inputId} className="lesson-answer-input" value={answer} onChange={onChange} disabled={ready} placeholder={stage === 'review' && !answer ? '這一關已完成，未保留前次輸入' : final ? '輸入最終答案…' : '輸入你的答案…'} aria-describedby={submitted ? feedbackId : undefined} autoComplete="off" />
@@ -35,7 +40,7 @@ export function LessonAnswer({ answer, submitted, correct, stage, final = false,
       {correct ? <CheckCircle2 size={20} /> : <RotateCcw size={20} />}
       <div><strong>{stage === 'review' ? '這一關已完成，現在可以回顧解法。' : correct ? '答案正確！' : '再試一次，答案還不符合題目條件。'}</strong>
         {correct && stage !== 'review' && <p>{completionMessage || '回顧你的方法，想想為什麼這樣能解決問題。'}</p>}
-        {!correct && <p>你的答案已保留。可以檢查條件，或請 AI 提醒方向。</p>}
+        {!correct && <p>你的答案已保留。可以檢查條件，或請 AI 提醒方向。{canRevealAnswer && <> <button type="button" className="lesson-reveal-answer" onClick={onRevealAnswer}>直接看解答</button></>}</p>}
       </div>
     </div>}
     {submitted && explanation && <section className="lesson-explanation" aria-label="答案解析"><h3>答案解析</h3><LessonMarkdown>{explanation}</LessonMarkdown></section>}

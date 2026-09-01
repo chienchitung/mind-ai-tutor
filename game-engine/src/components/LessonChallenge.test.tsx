@@ -16,6 +16,16 @@ describe('lesson UI rendering', () => {
     expect(html).toContain('檢查答案')
     expect(html).not.toContain('前往下一關')
   })
+  it('only offers to reveal the answer while it is wrong and not yet shown', () => {
+    const withoutExplanation = renderToStaticMarkup(<LessonAnswer {...actions} answer="wrong" submitted correct={false} stage="retry" onRevealAnswer={() => {}} />)
+    expect(withoutExplanation).toContain('直接看解答')
+    const withExplanation = renderToStaticMarkup(<LessonAnswer {...actions} answer="wrong" submitted correct={false} stage="retry" explanation="=SUM(B2:B6)" onRevealAnswer={() => {}} />)
+    expect(withExplanation).not.toContain('直接看解答')
+    const withoutHandler = renderToStaticMarkup(<LessonAnswer {...actions} answer="wrong" submitted correct={false} stage="retry" />)
+    expect(withoutHandler).not.toContain('直接看解答')
+    const whenCorrect = renderToStaticMarkup(<LessonAnswer {...actions} answer="right" submitted correct stage="complete" onRevealAnswer={() => {}} />)
+    expect(whenCorrect).not.toContain('直接看解答')
+  })
   it('disables an empty check and preserves the label association', () => {
     const html = renderToStaticMarkup(<LessonAnswer {...actions} answer="" submitted={false} correct={false} stage="working" />)
     expect(html).toContain('disabled=""')

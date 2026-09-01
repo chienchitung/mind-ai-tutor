@@ -55,6 +55,7 @@
 .lesson-feedback p { margin:5px 0 0; font-size:13px; }
 .lesson-feedback.is-correct { background:#eaf6ef; color:#27664e; }
 .lesson-feedback.is-retry { background:#fff4e3; color:#80551f; }
+.lesson-reveal-answer { display:inline; background:none; border:none; padding:0; font:inherit; font-weight:600; color:inherit; text-decoration:underline; text-underline-offset:2px; cursor:pointer; }
 .lesson-explanation { margin-top:18px; padding:16px; border:1px solid #dbe6ef; border-radius:10px; }
 .lesson-explanation > h3 { font-size:14px; font-weight:700; margin-bottom:12px; }
 .lesson-explanation .lesson-markdown { font-size:14px; }
