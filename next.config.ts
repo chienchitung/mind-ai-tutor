@@ -20,7 +20,13 @@ const nextConfig: NextConfig = {
   // game-engine should be proxied instead of production.
   async rewrites() {
     const gameEngineOrigin = process.env.GAME_ENGINE_ORIGIN || 'https://mindaitutor-game.vercel.app';
-    return [{ source: '/games/:path*', destination: `${gameEngineOrigin}/games/:path*` }];
+    return [
+      // Keep the base route slashless. Expanding an empty `:path*` adds a
+      // trailing slash upstream, which game-engine redirects back to /games;
+      // that redirect becomes a self-redirect on the public domain.
+      { source: '/games', destination: `${gameEngineOrigin}/games` },
+      { source: '/games/:path*', destination: `${gameEngineOrigin}/games/:path*` },
+    ];
   },
 };
 
