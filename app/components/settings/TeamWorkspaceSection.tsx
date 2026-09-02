@@ -26,6 +26,8 @@ function describeError(message: string, zh: boolean): string {
     FORBIDDEN: ['只有工作區擁有者能做這個操作。', 'Only the workspace owner can do that.'],
     OWNER_CANNOT_LEAVE: ['擁有者無法離開自己建立的工作區。', "The owner can't leave their own workspace."],
     NO_TEAM: ['你目前不屬於任何工作區。', "You don't belong to a workspace yet."],
+    SERVICE_ROLE_NOT_CONFIGURED: ['伺服器尚未設定寄送邀請信所需的金鑰，請聯繫系統管理員。', 'The server is missing the key needed to send invite emails - contact your administrator.'],
+    INVITE_EMAIL_FAILED: ['邀請信寄送失敗，請確認 email 格式正確或稍後再試。', 'Failed to send the invite email - check the address or try again later.'],
   };
   for (const [code, [zhMsg, enMsg]] of Object.entries(known)) {
     if (message.includes(code)) return zh ? zhMsg : enMsg;
@@ -92,11 +94,26 @@ export function TeamWorkspaceSection() {
     if (!inviteEmail.trim()) return;
     setBusy(true);
     try {
-      const { supabase } = await import('@/lib/supabase');
-      const { error } = await supabase().rpc('invite_team_member', { p_email: inviteEmail.trim() });
-      if (error) throw error;
+      // Goes through a server route (not the RPC directly) because inviting
+      // an email with no existing account needs the Admin API's
+      // inviteUserByEmail(), which requires the service role key - that can
+      // never be used from the browser.
+      const response = await fetch('/api/team/invite', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: inviteEmail.trim() }),
+      });
+      const result = await response.json();
+      if (!response.ok) throw new Error(result?.error || '');
       setInviteEmail('');
-      toast({ title: zh ? '已加入工作區' : 'Added to the workspace' });
+      toast({
+        title: result.status === 'invited'
+          ? (zh ? '邀請信已寄出' : 'Invite email sent')
+          : (zh ? '已加入工作區' : 'Added to the workspace'),
+        description: result.status === 'invited'
+          ? (zh ? '對方收到信、完成註冊後就會自動加入。' : "They'll join automatically once they follow the email and finish signing up.")
+          : undefined,
+      });
       await load();
     } catch (error) {
       toast({ title: zh ? '邀請失敗' : 'Failed to invite', description: describeError(error instanceof Error ? error.message : '', zh), variant: 'destructive' });

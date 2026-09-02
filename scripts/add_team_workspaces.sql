@@ -131,6 +131,45 @@ $$;
 revoke all on function public.invite_team_member(text) from public;
 grant execute on function public.invite_team_member(text) to authenticated;
 
+-- Same ownership/role checks as invite_team_member, but takes a user_id
+-- directly instead of looking one up by email. Used by
+-- app/api/team/invite/route.ts right after it creates a brand-new
+-- auth.users row via the Admin API's inviteUserByEmail() for an email
+-- with no existing account - that call already returns the new user's
+-- id, so there's no email to look up here. Not meant to be called for
+-- an existing account; invite_team_member covers that case.
+create or replace function public.add_team_member_by_id(p_user_id uuid)
+returns table (user_id uuid, role text)
+language plpgsql security definer set search_path = public as $$
+declare
+  v_my_team_id uuid;
+  v_my_role text;
+begin
+  select tm.team_id, tm.role into v_my_team_id, v_my_role
+  from public.team_members tm where tm.user_id = auth.uid();
+
+  if v_my_team_id is null then
+    raise exception 'NO_TEAM';
+  end if;
+  if v_my_role <> 'owner' then
+    raise exception 'FORBIDDEN';
+  end if;
+  if p_user_id = auth.uid() then
+    raise exception 'CANNOT_INVITE_SELF';
+  end if;
+  if exists (select 1 from public.team_members tm where tm.user_id = p_user_id) then
+    raise exception 'ALREADY_IN_A_TEAM';
+  end if;
+
+  insert into public.team_members (team_id, user_id, role, invited_by)
+  values (v_my_team_id, p_user_id, 'member', auth.uid());
+
+  return query select p_user_id, 'member'::text;
+end;
+$$;
+revoke all on function public.add_team_member_by_id(uuid) from public;
+grant execute on function public.add_team_member_by_id(uuid) to authenticated;
+
 -- Owner removes a member, or a member removes themself (leave). The
 -- owner can't remove themself this way - V1 has no "delete team" or
 -- "transfer ownership" flow, so an owner leaving would orphan the team.

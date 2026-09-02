@@ -7,6 +7,7 @@ const mocks = vi.hoisted(() => ({
   getUser: vi.fn(),
   rpc: vi.fn(),
   toast: vi.fn(),
+  fetch: vi.fn(),
 }));
 
 vi.mock('@/lib/supabase', () => ({
@@ -25,13 +26,19 @@ function membersRow(overrides: Partial<{ member_user_id: string; email: string; 
   return overrides;
 }
 
+function jsonResponse(body: unknown, ok = true) {
+  return { ok, json: async () => body } as Response;
+}
+
 beforeEach(() => {
   vi.clearAllMocks();
   window.confirm = vi.fn(() => true);
+  vi.stubGlobal('fetch', mocks.fetch);
 });
 
 afterEach(() => {
   cleanup();
+  vi.unstubAllGlobals();
 });
 
 describe('TeamWorkspaceSection', () => {
@@ -97,11 +104,10 @@ describe('TeamWorkspaceSection', () => {
     expect(await screen.findByText('owner@example.com')).toBeTruthy();
   });
 
-  it('invites a member by email', async () => {
+  it('invites an existing account by email', async () => {
     mocks.getUser.mockResolvedValue({ data: { user: { id: OWNER_ID } } });
     mocks.rpc
       .mockResolvedValueOnce({ data: membersRow([{ member_user_id: OWNER_ID, email: 'owner@example.com', role: 'owner' }]), error: null })
-      .mockResolvedValueOnce({ data: null, error: null })
       .mockResolvedValueOnce({
         data: membersRow([
           { member_user_id: OWNER_ID, email: 'owner@example.com', role: 'owner' },
@@ -109,21 +115,41 @@ describe('TeamWorkspaceSection', () => {
         ]),
         error: null,
       });
+    mocks.fetch.mockResolvedValue(jsonResponse({ status: 'added' }));
 
     render(<TeamWorkspaceSection />);
     const emailInput = await screen.findByLabelText('邀請成員（email）');
     fireEvent.change(emailInput, { target: { value: 'new@example.com' } });
     fireEvent.click(screen.getByRole('button', { name: '邀請' }));
 
-    await waitFor(() => expect(mocks.rpc).toHaveBeenCalledWith('invite_team_member', { p_email: 'new@example.com' }));
+    await waitFor(() => expect(mocks.fetch).toHaveBeenCalledWith('/api/team/invite', expect.objectContaining({
+      method: 'POST',
+      body: JSON.stringify({ email: 'new@example.com' }),
+    })));
     expect(await screen.findByText('new@example.com')).toBeTruthy();
+    expect(mocks.toast).toHaveBeenCalledWith(expect.objectContaining({ title: '已加入工作區' }));
   });
 
-  it('surfaces a known RPC error as a friendly message', async () => {
+  it('sends an invite email for an unregistered address and reports it distinctly', async () => {
     mocks.getUser.mockResolvedValue({ data: { user: { id: OWNER_ID } } });
-    mocks.rpc
-      .mockResolvedValueOnce({ data: membersRow([{ member_user_id: OWNER_ID, email: 'owner@example.com', role: 'owner' }]), error: null })
-      .mockResolvedValueOnce({ data: null, error: new Error('ALREADY_IN_A_TEAM') });
+    mocks.rpc.mockResolvedValue({ data: membersRow([{ member_user_id: OWNER_ID, email: 'owner@example.com', role: 'owner' }]), error: null });
+    mocks.fetch.mockResolvedValue(jsonResponse({ status: 'invited' }));
+
+    render(<TeamWorkspaceSection />);
+    const emailInput = await screen.findByLabelText('邀請成員（email）');
+    fireEvent.change(emailInput, { target: { value: 'newcomer@example.com' } });
+    fireEvent.click(screen.getByRole('button', { name: '邀請' }));
+
+    await waitFor(() => expect(mocks.toast).toHaveBeenCalledWith(expect.objectContaining({
+      title: '邀請信已寄出',
+      description: '對方收到信、完成註冊後就會自動加入。',
+    })));
+  });
+
+  it('surfaces a known error as a friendly message', async () => {
+    mocks.getUser.mockResolvedValue({ data: { user: { id: OWNER_ID } } });
+    mocks.rpc.mockResolvedValue({ data: membersRow([{ member_user_id: OWNER_ID, email: 'owner@example.com', role: 'owner' }]), error: null });
+    mocks.fetch.mockResolvedValue(jsonResponse({ error: 'ALREADY_IN_A_TEAM' }, false));
 
     render(<TeamWorkspaceSection />);
     const emailInput = await screen.findByLabelText('邀請成員（email）');
@@ -135,11 +161,10 @@ describe('TeamWorkspaceSection', () => {
     })));
   });
 
-  it('surfaces an unrecognized RPC error message instead of hiding it behind a generic one', async () => {
+  it('surfaces an unrecognized error message instead of hiding it behind a generic one', async () => {
     mocks.getUser.mockResolvedValue({ data: { user: { id: OWNER_ID } } });
-    mocks.rpc
-      .mockResolvedValueOnce({ data: membersRow([{ member_user_id: OWNER_ID, email: 'owner@example.com', role: 'owner' }]), error: null })
-      .mockResolvedValueOnce({ data: null, error: new Error('column reference "user_id" is ambiguous') });
+    mocks.rpc.mockResolvedValue({ data: membersRow([{ member_user_id: OWNER_ID, email: 'owner@example.com', role: 'owner' }]), error: null });
+    mocks.fetch.mockResolvedValue(jsonResponse({ error: 'column reference "user_id" is ambiguous' }, false));
 
     render(<TeamWorkspaceSection />);
     const emailInput = await screen.findByLabelText('邀請成員（email）');
