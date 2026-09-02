@@ -1586,8 +1586,8 @@ export default function ExcelLearningPlatform({
                       </div>
                     ) : (
                       <div className="prose max-w-none">
-                        {lessonMarkdown ? (
-                          <ReactMarkdown 
+                        {lessonMarkdown || (isClient && currentLesson?.content) ? (
+                          <ReactMarkdown
                             remarkPlugins={[remarkGfm]}
                             // eslint-disable-next-line @typescript-eslint/no-explicit-any
                             components={{
@@ -1702,10 +1702,13 @@ export default function ExcelLearningPlatform({
                             }
                             }}
                           >
-                            {lessonMarkdown}
+                            {/* Older lessons only have teaching_content (a plain teacher-authored
+                                textarea, not HTML) and no markdown_content yet - fall back to
+                                rendering it through the same markdown pipeline rather than
+                                dangerouslySetInnerHTML, since that field is publicly readable by
+                                anon and was never sanitized as HTML input. */}
+                            {lessonMarkdown || currentLesson?.content || ''}
                           </ReactMarkdown>
-                        ) : isClient && currentLesson?.content ? (
-                          <div dangerouslySetInnerHTML={{ __html: currentLesson.content }} />
                         ) : (
                           <p>課程內容加載失敗，請刷新頁面重試。</p>
                         )}
