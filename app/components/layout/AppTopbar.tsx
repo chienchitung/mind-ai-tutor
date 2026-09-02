@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { Bell, Menu, Search } from 'lucide-react';
+import { Bell, Menu, Search, Settings } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useLanguage } from '@/app/contexts/LanguageContext';
 import { useTranslation } from '@/utils/translations';
@@ -87,6 +87,16 @@ export function AppTopbar({ onOpenMenu }: AppTopbarProps) {
         <Button variant="ghost" size="icon" asChild>
           <Link href="/activities" aria-label={t('activities')}>
             <Bell className="h-5 w-5" />
+          </Link>
+        </Button>
+        {/* Desktop reaches Settings through the sidebar's account menu.
+            Mobile needs its own direct route to it here in the topbar,
+            independent of the sidebar drawer - Settings living only at
+            the bottom of that drawer is what made it disappear off the
+            visible viewport in the first place. */}
+        <Button variant="ghost" size="icon" asChild className="md:hidden">
+          <Link href="/settings" aria-label={t('settings')}>
+            <Settings className="h-5 w-5" />
           </Link>
         </Button>
       </div>
