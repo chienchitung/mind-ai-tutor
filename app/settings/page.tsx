@@ -10,11 +10,12 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
-import { User, Mail, CreditCard } from 'lucide-react';
+import { User, Mail, CreditCard, Users } from 'lucide-react';
 import { useLanguage } from '@/app/contexts/LanguageContext';
 import { useTranslation } from '@/utils/translations';
 import { PageLoader } from '@/components/ui/page-state';
 import { ChangePasswordForm } from '@/components/settings/ChangePasswordForm';
+import { TeamWorkspaceSection } from '@/components/settings/TeamWorkspaceSection';
 import type { User as AuthUser } from '@supabase/supabase-js';
 
 export default function SettingsPage() {
@@ -177,7 +178,7 @@ export default function SettingsPage() {
 
       <Tabs defaultValue="profile" className="w-full">
         <div className="mb-8 overflow-x-auto pb-1">
-        <TabsList className="grid min-w-[30rem] grid-cols-3 sm:min-w-0 sm:w-full">
+        <TabsList className="grid min-w-[38rem] grid-cols-4 sm:min-w-0 sm:w-full">
           <TabsTrigger value="profile" className="flex items-center gap-2">
             <User className="h-4 w-4" />
             <span>{t('profile')}</span>
@@ -185,6 +186,10 @@ export default function SettingsPage() {
           <TabsTrigger value="account" className="flex items-center gap-2">
             <Mail className="h-4 w-4" />
             <span>{t('account')}</span>
+          </TabsTrigger>
+          <TabsTrigger value="team" className="flex items-center gap-2">
+            <Users className="h-4 w-4" />
+            <span>{t('team_workspace')}</span>
           </TabsTrigger>
           <TabsTrigger value="billing" className="flex items-center gap-2">
             <CreditCard className="h-4 w-4" />
@@ -258,6 +263,17 @@ export default function SettingsPage() {
             </div>
 
               <ChangePasswordForm />
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="team" className="space-y-6">
+          <Card className="shadow-none">
+            <CardHeader>
+              <CardTitle>{t('team_workspace')}</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-6">
+              <TeamWorkspaceSection />
             </CardContent>
           </Card>
         </TabsContent>

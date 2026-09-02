@@ -47,14 +47,21 @@ alter table public.lessons add column if not exists team_id uuid references publ
 -- events / feedback / digital_games / live_sessions 依此類推
 ```
 
-`user_id` 保留不動，繼續代表「這筆資料是誰建立的」（稽核用途）；`team_id` 才是實際決定「誰看得到、改得到」的欄位。
+`user_id` 保留不動，繼續代表「這筆資料是誰建立的」（稽核用途）；`team_id` 是另外加的欄位，決定「除了建立者以外，還有誰看得到、改得到」。
 
-**Migration 步驟**：
-1. 幫每個既有帳號建立一個「個人工作區」：`insert into teams (owner_id, name) select id, coalesce(raw_user_meta_data->>'full_name', email) from auth.users`，然後把每個人的所有既有資料的 `team_id` backfill 成他自己那個個人工作區的 id。
-2. `team_id` 補 `not null`。
-3. 把每張表的 owner-only RLS policy 換成 team-based（見下方）。
+**實作時修正的一個設計**（草案原本寫「幫每個帳號自動建立個人工作區」，實作 `events` 試點時發現這樣行不通，改成下面這版）：`team_id` 保持**可為 null，且不強制遷移既有資料**。原因是「一人只能屬於一個工作區」這條規則（見待決策問題 1）如果搭配「每個帳號都自動有個人工作區」，會變成每個既有帳號一開始就「已經在一個 team 裡」——那之後想邀請任何一個既有用戶加入別人的工作區，都會直接被 `ALREADY_IN_A_TEAM` 擋掉，等於邀請功能對所有既有帳號都失效。改成**完全 opt-in**：
+- `team_id` 預設值是「目前使用者現在所屬工作區的 id」（用一個會查 `team_members` 的 subquery default，跟 `user_id default auth.uid()` 是同一種機制），沒有工作區的人就是 `null`。
+- 沒有人會被自動塞進工作區。使用者必須明確按下「建立工作區」（`create_team()`）才會第一次出現在 `team_members` 裡；在那之前，他所有資料的 `team_id` 都是 `null`，RLS 退回原本的 owner-only 判斷，行為跟現在完全一樣。
+- 這樣不需要對任何既有資料跑 backfill，上線當下零風險、零行為改變，只有使用者自己主動建立/加入工作區之後才會開始有共用行為。
 
-這跟目前 `scripts/add_owner_scoping_*.sql` 那批遷移是同一種模式（backfill → not null → 換 policy），照抄不需要重新發明。
+RLS policy 因此要同時涵蓋兩種情況（見下方範例）：`team_id` 有值時看 `is_team_member(team_id)`，`team_id` 是 `null` 時退回 `auth.uid() = user_id`。
+
+```sql
+using (
+  (team_id is not null and public.is_team_member(team_id))
+  or (team_id is null and auth.uid() = user_id)
+)
+```
 
 ## RLS 策略
 
@@ -87,7 +94,7 @@ using (public.is_team_member(team_id))
 
 ## 邀請流程
 
-**建議 V1：只能邀請「已經有帳號」的 email**，不做寄邀請信給未註冊使用者的流程。理由：
+**建議 V1：只能邀請「已經有帳號」的 email**，不做寄邀請信給未註冊使用者的流程，也沒有「建立工作區」以外的預設狀態——使用者要先透過 `create_team()` 自己建立一個工作區（自己就是 owner），才能開始邀請別人；理由：
 - 系統目前的 email 只用在 Supabase Auth 內建的密碼重設/驗證信，沒有自建的 transactional email 機制，要做「寄邀請連結給還沒註冊的人」等於要多接一套 email 服務（或濫用 Supabase 的邀請 API），複雜度不成比例。
 - 大部分情境（找同校同事共編）對方本來就會有帳號，先滿足這個情境，之後真的常有「對方還沒註冊」的需求再擴充。
 
@@ -124,8 +131,7 @@ using (public.is_team_member(team_id))
 
 ## 建議實作順序
 
-1. 先確認上面 4 個待決策問題。
-2. `teams`/`team_members` 表 + `is_team_member()` 函式 + migration 腳本（背景遷移，不影響任何現有功能，可以先上線觀察）。
-3. 選一張表（建議先選 `events`，資料量小、UI 簡單）把 RLS 換成 team-based，驗證整條路徑（邀請 → 加入 → 共同讀寫）真的通了。
-4. 確認沒問題後，把 `lessons`/`feedback`/`digital_games`/`live_sessions` 依序比照辦理。
-5. 設定頁的成員管理 UI 一次做完（不用跟著每張表拆分）。
+1. ~~先確認上面 4 個待決策問題~~ — 已確認，照本文件的建議值進行。
+2. ~~`teams`/`team_members` 表 + `is_team_member()` 函式 + migration 腳本~~ — 已寫成 `scripts/add_team_workspaces.sql`（純新增，不動任何既有表，上線零風險），還多加了 `create_team`/`invite_team_member`/`remove_team_member`/`list_team_members` 四支 RPC，成員管理全部走這幾支函式，不開放直接寫 `teams`/`team_members`。**這個腳本需要你手動到 Supabase SQL editor 執行一次**，我在這個環境沒有資料庫存取權限。
+3. **進行中**：選 `events` 當試點，`scripts/add_team_scoping_events.sql` 已寫好（加 `team_id` 欄位 + 換 RLS policy），等你跑完第 2 步的腳本後再跑這個。設定頁的成員管理 UI 也在同一批做（列出成員、邀請、移除、離開）。
+4. 確認 `events` 這條路徑（建立工作區 → 邀請 → 對方也能看到/編輯同一批活動）真的沒問題後，把 `lessons`/`feedback`/`digital_games`/`live_sessions` 依序比照辦理——每張表都是同樣的三步驟（加 `team_id` 欄位 + subquery default + 換 RLS policy），可以個別驗證、個別上線，不用一次全部做完。
