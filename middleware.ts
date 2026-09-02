@@ -49,8 +49,31 @@ export async function middleware(request: NextRequest) {
     return response;
   }
 
-  // 處理需要身份驗證的路徑
-  if (!user && request.nextUrl.pathname.startsWith('/dashboard')) {
+  // 需要登入才能進入的頁面。這份清單以外的路徑（/live、/live/[id] 加入頁、
+  // /quiz/[id] 公開測驗頁、/login 等驗證頁）刻意不受身份驗證保護，本來就是
+  // 匿名使用者要能進去的頁面。以後新增需要登入的頁面，只要加進這份清單，
+  // 同時把對應路徑加進下方 config.matcher，否則 middleware 根本不會被叫到。
+  const PROTECTED_PATHS = [
+    '/dashboard',
+    '/students',
+    '/lessons',
+    '/digital-games',
+    '/ai-quiz',
+    '/events',
+    '/feedback',
+    '/activities',
+    '/reports',
+    '/settings',
+    '/profile',
+    '/subscription',
+    '/live/new',
+    '/live/sessions',
+  ];
+  const isProtectedPath = PROTECTED_PATHS.some((path) =>
+    request.nextUrl.pathname.startsWith(path)
+  ) || /^\/live\/[^/]+\/present(\/|$)/.test(request.nextUrl.pathname);
+
+  if (!user && isProtectedPath) {
     // 用戶未登入，重定向到登入頁面
     const redirectUrl = request.nextUrl.clone();
     redirectUrl.pathname = '/login';
@@ -101,6 +124,20 @@ export const config = {
   matcher: [
     '/dashboard/:path*',
     '/admin/:path*',
+    '/students/:path*',
+    '/lessons/:path*',
+    '/digital-games/:path*',
+    '/ai-quiz/:path*',
+    '/events/:path*',
+    '/feedback/:path*',
+    '/activities/:path*',
+    '/reports/:path*',
+    '/settings/:path*',
+    '/profile/:path*',
+    '/subscription/:path*',
+    '/live/new/:path*',
+    '/live/sessions/:path*',
+    '/live/:id/present/:path*',
     '/login',
     '/auth/callback',
   ],

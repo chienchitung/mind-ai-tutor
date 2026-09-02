@@ -46,3 +46,43 @@ describe('system administration access stays restricted', () => {
     expect(response.headers.get('location')).toBe('https://test.local/dashboard');
   });
 });
+
+describe('authenticated-only pages redirect anonymous visitors to login', () => {
+  const getUser = vi.fn();
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    getUser.mockResolvedValue({ data: { user: null }, error: null });
+    createServerClient.mockReturnValue({ auth: { getUser } });
+  });
+
+  it.each([
+    '/students',
+    '/lessons',
+    '/digital-games',
+    '/ai-quiz',
+    '/events',
+    '/feedback',
+    '/activities',
+    '/reports',
+    '/settings',
+    '/profile',
+    '/subscription',
+    '/live/new',
+    '/live/sessions',
+    '/live/abc123/present',
+  ])('redirects anonymous visitors from %s', async (path) => {
+    const response = await middleware(new NextRequest(`https://test.local${path}`));
+    expect(response.status).toBe(307);
+    expect(response.headers.get('location')).toBe(`https://test.local/login?redirect=${encodeURIComponent(path)}`);
+  });
+
+  it.each([
+    '/live',
+    '/live/abc123',
+    '/quiz/xyz',
+  ])('leaves the public page %s alone for anonymous visitors', async (path) => {
+    const response = await middleware(new NextRequest(`https://test.local${path}`));
+    expect(response.headers.get('location')).toBeNull();
+  });
+});
