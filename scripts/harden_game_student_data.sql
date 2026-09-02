@@ -85,6 +85,9 @@ with check (
 );
 
 drop policy if exists question_counts_insert_public on public.question_counts;
+revoke select on table public.learning_records, public.chat_messages,
+  public.question_counts, public.leaderboard from anon;
+revoke insert, update, delete on table public.question_counts from anon;
 
 create or replace function public.get_public_game_leaderboard(p_game_id uuid default null)
 returns table (
@@ -219,7 +222,8 @@ grant execute on function public.increment_game_question_count(uuid, uuid, integ
 revoke execute on function public._live_poll_tally(uuid, integer) from anon, authenticated;
 revoke execute on function public.get_live_questions_for_owner(uuid) from anon;
 revoke execute on function public.moderate_live_question(uuid, text) from anon;
-revoke execute on function public.is_admin() from anon;
+revoke all on function public.is_admin() from public, anon;
+grant execute on function public.is_admin() to authenticated;
 
 alter function public.resolve_game_id_for_lesson(text) set search_path = '';
 alter function public.set_game_id_from_lesson() set search_path = '';
