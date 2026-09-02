@@ -115,7 +115,10 @@ begin
   if v_invitee_id = auth.uid() then
     raise exception 'CANNOT_INVITE_SELF';
   end if;
-  if exists (select 1 from public.team_members where user_id = v_invitee_id) then
+  -- Aliased: this function's own OUT parameter is also named "user_id"
+  -- (returns table (user_id uuid, role text) above), which would otherwise
+  -- make a bare "user_id" ambiguous between that and team_members.user_id.
+  if exists (select 1 from public.team_members tm where tm.user_id = v_invitee_id) then
     raise exception 'ALREADY_IN_A_TEAM';
   end if;
 

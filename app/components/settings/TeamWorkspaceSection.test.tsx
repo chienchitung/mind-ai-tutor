@@ -134,4 +134,20 @@ describe('TeamWorkspaceSection', () => {
       description: '這個帳號已經在其他工作區了，一個帳號只能屬於一個工作區。',
     })));
   });
+
+  it('surfaces an unrecognized RPC error message instead of hiding it behind a generic one', async () => {
+    mocks.getUser.mockResolvedValue({ data: { user: { id: OWNER_ID } } });
+    mocks.rpc
+      .mockResolvedValueOnce({ data: membersRow([{ member_user_id: OWNER_ID, email: 'owner@example.com', role: 'owner' }]), error: null })
+      .mockResolvedValueOnce({ data: null, error: new Error('column reference "user_id" is ambiguous') });
+
+    render(<TeamWorkspaceSection />);
+    const emailInput = await screen.findByLabelText('邀請成員（email）');
+    fireEvent.change(emailInput, { target: { value: 'someone@example.com' } });
+    fireEvent.click(screen.getByRole('button', { name: '邀請' }));
+
+    await waitFor(() => expect(mocks.toast).toHaveBeenCalledWith(expect.objectContaining({
+      description: '發生未預期的錯誤: column reference "user_id" is ambiguous',
+    })));
+  });
 });

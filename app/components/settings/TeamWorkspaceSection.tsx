@@ -30,7 +30,11 @@ function describeError(message: string, zh: boolean): string {
   for (const [code, [zhMsg, enMsg]] of Object.entries(known)) {
     if (message.includes(code)) return zh ? zhMsg : enMsg;
   }
-  return zh ? '發生錯誤，請稍後再試。' : 'Something went wrong. Please try again.';
+  // An error outside the RPCs' own known codes (e.g. a genuine SQL bug) is
+  // exactly the case that needs the real message visible, not hidden behind
+  // a generic "something went wrong" with nothing to go on.
+  const fallback = zh ? '發生未預期的錯誤' : 'Unexpected error';
+  return message ? `${fallback}: ${message}` : `${fallback}.`;
 }
 
 export function TeamWorkspaceSection() {
