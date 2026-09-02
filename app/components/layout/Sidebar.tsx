@@ -68,14 +68,22 @@ interface NavGroup {
   items: NavItem[];
 }
 
+// Every top-level route segment (app/students/layout.tsx, app/lessons/layout.tsx, ...)
+// wraps its own <Sidebar>, so navigating between sections remounts this component from
+// scratch. Without this cache, isAdmin/user reset to their initial values on every click
+// and only catch up once the Supabase round-trip resolves - visible as the "系統管理" nav
+// item (and the account name/avatar) flashing away and back on each navigation.
+let cachedUser: User | null = null;
+let cachedIsAdmin = false;
+
 export function Sidebar({
   className,
   onCollapseChange,
   isOpen = false,
   onOpenChange,
 }: SidebarProps) {
-  const [user, setUser] = useState<User | null>(null);
-  const [isAdmin, setIsAdmin] = useState(false);
+  const [user, setUser] = useState<User | null>(cachedUser);
+  const [isAdmin, setIsAdmin] = useState(cachedIsAdmin);
   const [isCollapsed, setIsCollapsed] = useState(false);
   const { language, setLanguage } = useLanguage();
   const { t } = useTranslation(language);
@@ -94,13 +102,19 @@ export function Sidebar({
         const client = supabase();
         const { data: { user: currentUser } } = await client.auth.getUser();
         setUser(currentUser);
+        cachedUser = currentUser;
         if (currentUser) {
           const { data: profile } = await client
             .from('profiles')
             .select('role')
             .eq('user_id', currentUser.id)
             .maybeSingle();
-          setIsAdmin(profile?.role === 'admin');
+          const admin = profile?.role === 'admin';
+          setIsAdmin(admin);
+          cachedIsAdmin = admin;
+        } else {
+          setIsAdmin(false);
+          cachedIsAdmin = false;
         }
       } catch (error) {
         console.error('Error fetching user:', error);
