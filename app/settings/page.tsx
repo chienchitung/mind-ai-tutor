@@ -177,23 +177,26 @@ export default function SettingsPage() {
       />
 
       <Tabs defaultValue="profile" className="w-full">
-        <div className="mb-8 overflow-x-auto pb-1">
-        <TabsList className="grid min-w-[38rem] grid-cols-4 sm:min-w-0 sm:w-full">
-          <TabsTrigger value="profile" className="flex items-center gap-2">
-            <User className="h-4 w-4" />
-            <span>{t('profile')}</span>
+        <div className="mb-8">
+        {/* grid-cols-2 on mobile so all four tabs stay visible at once (no
+            horizontal scroll to discover) - a 4-wide row needed ~38rem and
+            silently pushed the later tabs off-screen on any phone. */}
+        <TabsList className="grid w-full grid-cols-2 gap-1 sm:grid-cols-4">
+          <TabsTrigger value="profile" className="flex min-w-0 items-center justify-center gap-1.5 sm:gap-2">
+            <User className="h-4 w-4 shrink-0" />
+            <span className="truncate">{t('profile')}</span>
           </TabsTrigger>
-          <TabsTrigger value="account" className="flex items-center gap-2">
-            <Mail className="h-4 w-4" />
-            <span>{t('account')}</span>
+          <TabsTrigger value="account" className="flex min-w-0 items-center justify-center gap-1.5 sm:gap-2">
+            <Mail className="h-4 w-4 shrink-0" />
+            <span className="truncate">{t('account')}</span>
           </TabsTrigger>
-          <TabsTrigger value="team" className="flex items-center gap-2">
-            <Users className="h-4 w-4" />
-            <span>{t('team_workspace')}</span>
+          <TabsTrigger value="team" className="flex min-w-0 items-center justify-center gap-1.5 sm:gap-2">
+            <Users className="h-4 w-4 shrink-0" />
+            <span className="truncate">{t('team_workspace')}</span>
           </TabsTrigger>
-          <TabsTrigger value="billing" className="flex items-center gap-2">
-            <CreditCard className="h-4 w-4" />
-            <span>{t('billing')}</span>
+          <TabsTrigger value="billing" className="flex min-w-0 items-center justify-center gap-1.5 sm:gap-2">
+            <CreditCard className="h-4 w-4 shrink-0" />
+            <span className="truncate">{t('billing')}</span>
           </TabsTrigger>
         </TabsList>
         </div>
