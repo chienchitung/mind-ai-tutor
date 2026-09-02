@@ -45,10 +45,19 @@ export function CommandMenu() {
   // Setup keyboard shortcut to open command menu
   useEffect(() => {
     const down = (e: KeyboardEvent) => {
-      if ((e.key === "k" && (e.metaKey || e.ctrlKey)) || e.key === "/") {
-        e.preventDefault();
-        setOpen((open) => !open);
+      const isMetaK = e.key === "k" && (e.metaKey || e.ctrlKey);
+      if (!isMetaK && e.key !== "/") return;
+      if (e.key === "/") {
+        const target = e.target;
+        const isEditableTarget = target instanceof HTMLElement && (
+          target.tagName === "INPUT" || target.tagName === "TEXTAREA" || target.isContentEditable
+        );
+        // Plain "/" is a real character everywhere text gets typed; only
+        // treat it as the command-menu shortcut outside of those fields.
+        if (isEditableTarget) return;
       }
+      e.preventDefault();
+      setOpen((open) => !open);
     };
 
     document.addEventListener("keydown", down);

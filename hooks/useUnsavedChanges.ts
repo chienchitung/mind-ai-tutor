@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect } from 'react';
+import { useCallback, useEffect, useRef } from 'react';
 import { useLanguage } from '@/app/contexts/LanguageContext';
 import { isLeavingDocument, NAVIGATION_REQUEST } from '@/lib/navigation-guard';
 
@@ -15,6 +15,24 @@ export function useUnsavedChanges(dirty: boolean, busy = false) {
       ? '有尚未儲存的變更。確定要放棄變更並離開嗎？'
       : 'You have unsaved changes. Discard them and leave?');
   }, [busy, dirty, language]);
+
+  // Browser back/forward doesn't go through NAVIGATION_REQUEST or the link
+  // click handler below - the history entry changes before any handler can
+  // run. Push one throwaway entry so the first back press is absorbed as a
+  // popstate on this same page instead of actually leaving; re-armed once
+  // per "became dirty" stretch, not on every render, so confirming a leave
+  // only costs the user one extra back press, not one per keystroke.
+  const guardArmedRef = useRef(false);
+  useEffect(() => {
+    if (!dirty) {
+      guardArmedRef.current = false;
+      return;
+    }
+    if (!guardArmedRef.current) {
+      guardArmedRef.current = true;
+      window.history.pushState(null, '', window.location.href);
+    }
+  }, [dirty]);
 
   useEffect(() => {
     if (!dirty && !busy) return;
@@ -36,13 +54,22 @@ export function useUnsavedChanges(dirty: boolean, busy = false) {
         event.stopImmediatePropagation();
       }
     };
+    const popstate = () => {
+      // The browser already moved back a step by the time this fires.
+      // Cancelling means pushing the guard entry right back on top of it.
+      if (!confirmLeave()) {
+        window.history.pushState(null, '', window.location.href);
+      }
+    };
     window.addEventListener('beforeunload', beforeUnload);
     window.addEventListener(NAVIGATION_REQUEST, requestNavigation);
     document.addEventListener('click', click, true);
+    window.addEventListener('popstate', popstate);
     return () => {
       window.removeEventListener('beforeunload', beforeUnload);
       window.removeEventListener(NAVIGATION_REQUEST, requestNavigation);
       document.removeEventListener('click', click, true);
+      window.removeEventListener('popstate', popstate);
     };
   }, [busy, dirty, confirmLeave]);
 

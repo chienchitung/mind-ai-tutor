@@ -36,7 +36,13 @@ export function AppTopbar({ onOpenMenu }: AppTopbarProps) {
                     ? t('live_session')
                     : pathname.startsWith('/admin')
                       ? (language === 'zh-TW' ? '系統管理' : 'Administration')
-                      : t('dashboard');
+                      : pathname.startsWith('/settings')
+                        ? t('settings')
+                        : pathname.startsWith('/profile')
+                          ? t('profile')
+                          : pathname.startsWith('/subscription')
+                            ? t('subscription')
+                            : t('dashboard');
 
   const openCommandMenu = () => {
     window.dispatchEvent(new CustomEvent('mindai:open-command-menu'));

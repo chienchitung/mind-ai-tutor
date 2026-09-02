@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { generateQuiz } from '@/lib/gemini';
+import { getServerClient } from '@/app/lib/supabase';
 
 export const runtime = 'nodejs';
 // Without this, Vercel applies its own default ceiling (10s on Hobby) well
@@ -9,6 +10,12 @@ export const maxDuration = 60;
 
 export async function POST(request: Request) {
   try {
+    // Without this, anyone with the site URL could call this route and burn
+    // the shared Gemini quota/budget without ever logging in.
+    const client = await getServerClient();
+    const { data: { user }, error: authError } = await client.auth.getUser();
+    if (authError || !user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+
     const {
       content,
       questionType,
