@@ -1,6 +1,7 @@
 import { createServerClient } from '@supabase/ssr';
 import { cookies } from 'next/headers';
 import { NextResponse } from 'next/server';
+import { safeRedirectPath } from './safe-redirect';
 
 export const dynamic = 'force-dynamic';
 
@@ -8,7 +9,7 @@ export async function GET(request: Request) {
   const requestUrl = new URL(request.url);
   const code = requestUrl.searchParams.get('code');
   // 獲取重定向 URL，預設為 dashboard
-  const redirectTo = requestUrl.searchParams.get('redirect') || '/dashboard';
+  const redirectTo = safeRedirectPath(requestUrl.searchParams.get('redirect'));
 
   if (!code) {
     // 沒有授權碼，返回錯誤頁面
@@ -46,8 +47,6 @@ export async function GET(request: Request) {
   const { data: { user } } = await supabase.auth.getUser();
   
   if (user) {
-    console.log("User metadata from Google:", user.user_metadata);
-    
     // 確保用戶有基本的 metadata
     if (!user.user_metadata?.subscription_plan) {
       await supabase.auth.updateUser({
@@ -80,8 +79,6 @@ export async function GET(request: Request) {
         }
       }
       
-      console.log("Extracted name parts:", { firstName, lastName });
-      
       await supabase.auth.updateUser({
         data: {
           first_name: firstName,
@@ -94,4 +91,4 @@ export async function GET(request: Request) {
 
   // 重定向到指定頁面
   return NextResponse.redirect(new URL(redirectTo, request.url));
-} 
+}

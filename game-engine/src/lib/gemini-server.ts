@@ -116,8 +116,6 @@ export async function getChatResponse(message: string, context?: ChatContext, im
   }
 
   try {
-    console.log('Creating chat with message:', message);
-
     // 建立完整的提示訊息，包含系統指令和上下文
     const systemPrompt = context?.tutorPrompt
       || (context?.gameTitle ? GENERIC_SYSTEM_PROMPT : LEGACY_EXCEL_SYSTEM_PROMPT);
@@ -141,20 +139,17 @@ export async function getChatResponse(message: string, context?: ChatContext, im
     completePrompt += `學生：${message}\n\nAI助教：`;
 
     // 發送請求到 Gemini API
-    console.log('Sending message to API...');
-
     let result;
     const client = genAI;
 
     // 封裝呼叫，加入重試與退避（處理 503/UNAVAILABLE/429）
     const callWithRetry = async (): Promise<any> => {
-      const maxAttempts = 5;
+      const maxAttempts = 3;
       const baseDelayMs = 800;
       let lastError: unknown;
       for (let attempt = 1; attempt <= maxAttempts; attempt++) {
         try {
           if (image) {
-            console.log('Processing image with message');
             if (!image.startsWith('data:image/')) {
               return { text: '# 錯誤：圖片格式不正確\n\n> 抱歉，只支援 base64 編碼的圖片格式。' };
             }
@@ -196,8 +191,6 @@ export async function getChatResponse(message: string, context?: ChatContext, im
     };
 
     result = await callWithRetry();
-
-    console.log('Received response from API');
 
     // 檢查回應
     if (!result || !result.text) {

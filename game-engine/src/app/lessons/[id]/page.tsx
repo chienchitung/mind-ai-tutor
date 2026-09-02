@@ -532,13 +532,13 @@ export default function ExcelLearningPlatform({
 
         // 獲取玩家排名
         const studentId = localStorage.getItem(storageKey('student_id')) || 'guest';
-        getPlayerRank(studentId, gameId)
-          .then(rank => {
-            setPlayerRank(rank);
-          })
-          .catch(error => {
-            console.error('Failed to fetch player rank:', error);
-          });
+        if (localStorage.getItem(storageKey('student_ref_id'))) {
+          getPlayerRank(studentId, gameId)
+            .then(rank => setPlayerRank(rank))
+            .catch(error => console.error('Failed to fetch player rank:', error));
+        } else {
+          setPlayerRank(null);
+        }
 
         // 獲取排行榜統計數據
         getLeaderboardStats(gameId)
@@ -1178,7 +1178,7 @@ export default function ExcelLearningPlatform({
         });
         
         if (questionCountRecord) {
-          await incrementQuestionCount(questionCountRecord.id);
+          await incrementQuestionCount(questionCountRecord.id, gameId);
         }
       } else {
         // 未完成課程或沒有 learning_record_id，先暫存
@@ -1359,7 +1359,7 @@ export default function ExcelLearningPlatform({
         if (questionCountRecord) {
           // 更新為累計的提問次數
           for (let i = 0; i < pendingQuestionCount; i++) {
-            await incrementQuestionCount(questionCountRecord.id);
+            await incrementQuestionCount(questionCountRecord.id, gameId);
           }
         }
       }

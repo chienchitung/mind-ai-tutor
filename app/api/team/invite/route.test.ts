@@ -6,7 +6,7 @@ vi.mock('@supabase/supabase-js', () => ({ createClient }));
 import { POST } from './route';
 
 const request = (body: unknown = { email: 'someone@example.com' }) =>
-  new Request('https://test.local/api/team/invite', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+  new Request('https://test.local/api/team/invite', { method: 'POST', headers: { origin: 'https://test.local', 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
 
 let auth: ReturnType<typeof vi.fn>;
 let rpc: ReturnType<typeof vi.fn>;
@@ -14,6 +14,7 @@ let inviteUserByEmail: ReturnType<typeof vi.fn>;
 let maybeSingle: ReturnType<typeof vi.fn>;
 
 beforeEach(() => {
+  vi.clearAllMocks();
   auth = vi.fn().mockResolvedValue({ data: { user: { id: 'owner-1', email: 'owner@example.com' } }, error: null });
   rpc = vi.fn();
   maybeSingle = vi.fn().mockResolvedValue({ data: { teams: { name: 'My Team' } }, error: null });
@@ -29,6 +30,15 @@ afterEach(() => {
 });
 
 describe('POST /api/team/invite', () => {
+  it('rejects cross-origin requests before touching authentication', async () => {
+    const crossOrigin = new Request('https://test.local/api/team/invite', {
+      method: 'POST',
+      headers: { origin: 'https://attacker.test', 'content-type': 'application/json' },
+      body: JSON.stringify({ email: 'someone@example.com' }),
+    });
+    expect((await POST(crossOrigin)).status).toBe(403);
+    expect(getServerClient).not.toHaveBeenCalled();
+  });
   it('rejects unauthenticated requests', async () => {
     auth.mockResolvedValue({ data: { user: null }, error: null });
     expect((await POST(request())).status).toBe(401);
@@ -107,7 +117,7 @@ describe('POST /api/team/invite', () => {
 
     const response = await POST(request());
     expect(response.status).toBe(502);
-    expect(await response.json()).toEqual({ error: 'rate limit exceeded' });
+    expect(await response.json()).toEqual({ error: 'INVITE_EMAIL_FAILED' });
     expect(rpc).toHaveBeenCalledTimes(1);
   });
 });

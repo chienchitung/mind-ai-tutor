@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { generatePracticeExercise } from '@/lib/gemini';
-import { getServerClient } from '@/app/lib/supabase';
+import { HttpInputError, readJsonWithLimit } from '@/lib/http-security';
+import { aiFailure, authorizeTeacherAi, claimTeacherAi } from '../security';
 
 export const runtime = 'nodejs';
 // See app/api/gemini/quiz/route.ts - same fix for the same class of failure.
@@ -8,26 +9,23 @@ export const maxDuration = 60;
 
 export async function POST(request: Request) {
   try {
-    // Without this, anyone with the site URL could call this route and burn
-    // the shared Gemini quota/budget without ever logging in.
-    const client = await getServerClient();
-    const { data: { user }, error: authError } = await client.auth.getUser();
-    if (authError || !user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    const access = await authorizeTeacherAi(request);
+    if (access.response) return access.response;
 
-    const { content, level } = await request.json();
+    const { content, level } = await readJsonWithLimit(request, 150_000) as Record<string, unknown>;
 
-    if (!content || typeof content !== 'string') {
+    if (!content || typeof content !== 'string' || content.length > 100_000 ||
+      (level !== undefined && (typeof level !== 'string' || level.length > 200))) {
       return NextResponse.json({ error: 'Missing content' }, { status: 400 });
     }
+    const quotaResponse = await claimTeacherAi(access.client!, 'practice');
+    if (quotaResponse) return quotaResponse;
 
-    const exercise = await generatePracticeExercise(content, level);
+    const exercise = await generatePracticeExercise(content, level as string | undefined);
 
     return NextResponse.json(exercise);
   } catch (error) {
-    console.error('Error in /api/gemini/practice-exercise:', error);
-    return NextResponse.json(
-      { error: 'Failed to generate practice exercise' },
-      { status: 500 }
-    );
+    if (error instanceof HttpInputError) return NextResponse.json({ error: error.message }, { status: error.status });
+    return aiFailure(error);
   }
 }

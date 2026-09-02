@@ -150,7 +150,7 @@ export default function HomePage({ gameId }: { gameId?: string }) {
         setCompletionTime(savedCompletionTime);
 
         // 如果有學號且完成時間，獲取排名
-        if (savedStudentId && savedCompletionTime) {
+        if (savedStudentId && savedCompletionTime && localStorage.getItem(storageKey('student_ref_id'))) {
           getPlayerRank(savedStudentId, gameId)
             .then(rank => {
               setPlayerRank(rank);
@@ -279,10 +279,11 @@ export default function HomePage({ gameId }: { gameId?: string }) {
     }
   };
 
-  const handleStudentIdSubmit = () => {
-    if (studentId.trim() && studentName.trim()) {
-      startLearningSession(studentId.trim(), studentName.trim(), null);
-    }
+  const handleGuestStart = () => {
+    // Guests stay pseudonymous and device-local. Do not ask children or trial
+    // users for a real name/student number that the product does not need.
+    const guestId = `guest_${crypto.randomUUID()}`;
+    startLearningSession(guestId, '訪客玩家', null);
   };
 
   const handleLoginCodeSubmit = async () => {
@@ -383,42 +384,15 @@ export default function HomePage({ gameId }: { gameId?: string }) {
               </div>
             </TabsContent>
             <TabsContent value="guest" className="space-y-4 py-4">
-              <p className="text-xs text-gray-500">
-                訪客進度只會保存在這台裝置，換裝置或清除瀏覽器資料會遺失紀錄。
-              </p>
-              <div className="space-y-2">
-                <label htmlFor="studentId" className="text-sm font-medium text-gray-700">
-                  學號
-                </label>
-                <input
-                  id="studentId"
-                  type="text"
-                  value={studentId}
-                  onChange={(e) => setStudentId(e.target.value)}
-                  className="w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  placeholder="請輸入學號"
-                />
-              </div>
-              <div className="space-y-2">
-                <label htmlFor="studentName" className="text-sm font-medium text-gray-700">
-                  姓名
-                </label>
-                <input
-                  id="studentName"
-                  type="text"
-                  value={studentName}
-                  onChange={(e) => setStudentName(e.target.value)}
-                  className="w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  placeholder="請輸入姓名"
-                />
+              <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">
+                不需提供姓名或學號。進度只保存在這台裝置，不會寫入學習紀錄與排行榜；換裝置或清除瀏覽器資料後會遺失。
               </div>
               <div className="flex justify-end">
                 <Button
-                  onClick={handleStudentIdSubmit}
-                  disabled={!studentId.trim() || !studentName.trim()}
+                  onClick={handleGuestStart}
                   className="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-lg"
                 >
-                  開始學習
+                  匿名開始
                 </Button>
               </div>
             </TabsContent>
@@ -476,7 +450,7 @@ export default function HomePage({ gameId }: { gameId?: string }) {
                     <div 
                       key={`${entry.student_id}-${index}`}
                       className={`grid grid-cols-12 gap-2 sm:gap-4 px-3 sm:px-4 py-2 sm:py-3 rounded-lg ${
-                        entry.student_id === localStorage.getItem(storageKey('student_id'))
+                        playerRank !== null && entry.rank === playerRank
                           ? 'bg-[#F5F7FF] border border-[#2B4EFF]'
                           : 'bg-white border border-gray-100'
                       }`}

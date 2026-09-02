@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { getServerClient, SUPABASE_URL } from '@/app/lib/supabase';
+import { HttpInputError, isSameOriginRequest, readJsonWithLimit } from '@/lib/http-security';
 
 export const runtime = 'nodejs';
 
@@ -17,13 +18,16 @@ function getAdminClient() {
 
 export async function POST(request: Request) {
   try {
+    if (!isSameOriginRequest(request)) return NextResponse.json({ error: 'FORBIDDEN' }, { status: 403 });
     const client = await getServerClient();
     const { data: { user }, error: authError } = await client.auth.getUser();
     if (authError || !user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
-    const body = await request.json();
+    const body = await readJsonWithLimit(request, 4_096) as Record<string, unknown>;
     const email = typeof body?.email === 'string' ? body.email.trim() : '';
-    if (!email) return NextResponse.json({ error: 'Missing email' }, { status: 400 });
+    if (!email || email.length > 254 || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      return NextResponse.json({ error: 'INVALID_EMAIL' }, { status: 400 });
+    }
 
     // Try the cheap, existing-account path first - it already does every
     // ownership/role/self-invite/already-in-a-team check we need.
@@ -61,7 +65,7 @@ export async function POST(request: Request) {
       data: { inviter_email: user.email ?? '', team_name: teamName ?? '' },
     });
     if (invited.error || !invited.data.user) {
-      return NextResponse.json({ error: invited.error?.message || 'INVITE_EMAIL_FAILED' }, { status: 502 });
+      return NextResponse.json({ error: 'INVITE_EMAIL_FAILED' }, { status: 502 });
     }
 
     // Add the newly-created (unconfirmed) account to the team now - they
@@ -74,6 +78,7 @@ export async function POST(request: Request) {
 
     return NextResponse.json({ status: 'invited' });
   } catch (error) {
+    if (error instanceof HttpInputError) return NextResponse.json({ error: error.message }, { status: error.status });
     console.error('Error in /api/team/invite:', error);
     return NextResponse.json({ error: 'UNEXPECTED_ERROR' }, { status: 500 });
   }

@@ -8,7 +8,7 @@ vi.mock('@supabase/supabase-js', () => ({
 
 vi.mock('uuid', () => ({ v4: vi.fn(() => 'test-id') }));
 
-import { verifyStudentLoginCode } from './supabase';
+import { saveLearningRecord, verifyStudentLoginCode } from './supabase';
 
 describe('verifyStudentLoginCode', () => {
   beforeEach(() => {
@@ -49,5 +49,22 @@ describe('verifyStudentLoginCode', () => {
     rpc.mockResolvedValue({ data: null, error: { message: 'database unavailable' } });
     vi.spyOn(console, 'error').mockImplementation(() => {});
     await expect(verifyStudentLoginCode('HPGZR92P')).resolves.toBeNull();
+  });
+});
+
+describe('guest data minimization', () => {
+  it('does not persist a learning record without a teacher-linked roster id', async () => {
+    vi.stubGlobal('localStorage', { getItem: vi.fn(() => null) });
+    await expect(saveLearningRecord({
+      student_id: 'guest-random',
+      student_name: '訪客玩家',
+      lesson_id: 'lesson-1',
+      started_at: new Date(0).toISOString(),
+      completed_at: new Date(1_000).toISOString(),
+      time_spent_seconds: 1,
+      answer_attempts: 1,
+      game_id: 'game-1',
+    })).resolves.toEqual([]);
+    vi.unstubAllGlobals();
   });
 });

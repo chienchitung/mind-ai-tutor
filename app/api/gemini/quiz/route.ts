@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { generateQuiz } from '@/lib/gemini';
-import { getServerClient } from '@/app/lib/supabase';
+import { HttpInputError, readJsonWithLimit } from '@/lib/http-security';
+import { aiFailure, authorizeTeacherAi, claimTeacherAi } from '../security';
 
 export const runtime = 'nodejs';
 // Without this, Vercel applies its own default ceiling (10s on Hobby) well
@@ -10,11 +11,8 @@ export const maxDuration = 60;
 
 export async function POST(request: Request) {
   try {
-    // Without this, anyone with the site URL could call this route and burn
-    // the shared Gemini quota/budget without ever logging in.
-    const client = await getServerClient();
-    const { data: { user }, error: authError } = await client.auth.getUser();
-    if (authError || !user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    const access = await authorizeTeacherAi(request);
+    if (access.response) return access.response;
 
     const {
       content,
@@ -23,24 +21,32 @@ export async function POST(request: Request) {
       additionalInstructions,
       outputLanguage,
       level,
-    } = await request.json();
+    } = await readJsonWithLimit(request, 200_000) as Record<string, unknown>;
 
-    if (!content || typeof content !== 'string') {
+    const normalizedCount = typeof numQuestions === 'string' || typeof numQuestions === 'number'
+      ? Number(numQuestions)
+      : Number.NaN;
+    if (!content || typeof content !== 'string' || content.length > 100_000 ||
+      !Number.isInteger(normalizedCount) || normalizedCount < 1 || normalizedCount > 50 ||
+      [questionType, additionalInstructions, outputLanguage, level].some(value =>
+        value !== undefined && (typeof value !== 'string' || value.length > 5_000))) {
       return NextResponse.json({ error: 'Missing content' }, { status: 400 });
     }
+    const quotaResponse = await claimTeacherAi(access.client!, 'quiz');
+    if (quotaResponse) return quotaResponse;
 
     const quiz = await generateQuiz(
       content,
-      questionType,
-      numQuestions,
-      additionalInstructions,
-      outputLanguage,
-      level
+      questionType as string | undefined,
+      String(normalizedCount),
+      additionalInstructions as string | undefined,
+      outputLanguage as string | undefined,
+      level as string | undefined
     );
 
     return NextResponse.json(quiz);
   } catch (error) {
-    console.error('Error in /api/gemini/quiz:', error);
-    return NextResponse.json({ error: 'Failed to generate quiz' }, { status: 500 });
+    if (error instanceof HttpInputError) return NextResponse.json({ error: error.message }, { status: error.status });
+    return aiFailure(error);
   }
 }

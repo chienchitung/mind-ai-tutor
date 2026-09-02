@@ -83,6 +83,12 @@ function getStoredStudentRefId(gameId?: string | null): string | null {
   return localStorage.getItem(gameStorageKey(gameId ?? undefined, 'student_ref_id'));
 }
 
+// Cloud learning data is only written after a teacher-issued code has linked
+// this browser to a roster row. Guest play remains entirely device-local.
+export function hasLinkedStudent(gameId?: string | null): boolean {
+  return Boolean(getStoredStudentRefId(gameId));
+}
+
 export interface LeaderboardStats {
   total_participants: number;
   fastest_time: string;
@@ -126,6 +132,7 @@ export interface QuestionCountRecord {
 
 export async function saveLearningRecord(record: Omit<LearningRecord, 'id'>) {
   try {
+    if (!hasLinkedStudent(record.game_id)) return [];
     // Validate input data
     if (!record.student_id || !record.student_name || !record.lesson_id || 
         !record.started_at || !record.completed_at) {
@@ -141,15 +148,14 @@ export async function saveLearningRecord(record: Omit<LearningRecord, 'id'>) {
 
     const { data, error } = await supabase
       .from('learning_records')
-      .insert([recordWithId])
-      .select();
+      .insert([recordWithId]);
 
     if (error) {
       console.error('Error saving learning record:', error.message || JSON.stringify(error));
       throw error;
     }
 
-    return data;
+    return [recordWithId];
   } catch (error) {
     console.error('Error in saveLearningRecord:', error instanceof Error ? error.message : JSON.stringify(error));
     throw error;
@@ -158,6 +164,7 @@ export async function saveLearningRecord(record: Omit<LearningRecord, 'id'>) {
 
 export async function saveLeaderboardEntry(entry: Omit<LeaderboardEntry, 'id' | 'rank' | 'started_at'>) {
   try {
+    if (!hasLinkedStudent(entry.game_id)) return [];
     // 驗證必要的數據
     if (!entry.student_id || !entry.student_name || !entry.completion_time_seconds || 
         !entry.completion_time_string || !entry.completed_at) {
@@ -187,15 +194,14 @@ export async function saveLeaderboardEntry(entry: Omit<LeaderboardEntry, 'id' | 
         student_ref_id: entry.student_ref_id ?? getStoredStudentRefId(entry.game_id),
         started_at: startTime,
         id: uuidv4()
-      }])
-      .select();
+      }]);
 
     if (error) {
       console.error('Error saving leaderboard entry:', error.message || JSON.stringify(error));
       throw error;
     }
     
-    return data;
+    return data || [];
   } catch (error) {
     console.error('Error in saveLeaderboardEntry:', error instanceof Error ? error.message : JSON.stringify(error));
     throw error;
@@ -203,13 +209,9 @@ export async function saveLeaderboardEntry(entry: Omit<LeaderboardEntry, 'id' | 
 }
 
 export async function getLeaderboard(gameId?: string): Promise<LeaderboardEntry[]> {
-  let query = supabase
-    .from('leaderboard_view')
-    .select('*')
-    .order('completion_time_seconds', { ascending: true })
-
-  if (gameId) query = query.eq('game_id', gameId)
-  const { data, error } = await query
+  const { data, error } = await supabase.rpc('get_public_game_leaderboard', {
+    p_game_id: gameId ?? null,
+  });
 
   if (error) {
     console.error('Error fetching leaderboard:', error)
@@ -225,40 +227,13 @@ interface ScoreRecord {
 }
 
 export async function getPlayerRank(student_id: string, gameId?: string): Promise<number> {
-  // 獲取所有用戶的最佳成績
-  let query = supabase
-    .from('leaderboard')
-    .select('student_id, completion_time_seconds, game_id')
-    .order('completion_time_seconds', { ascending: true });
-
-  if (gameId) query = query.eq('game_id', gameId)
-  const { data: allScores, error: scoresError } = await query
-
-  if (scoresError) {
-    console.error('Error getting scores:', scoresError);
-    throw scoresError;
-  }
-
-  if (!allScores || allScores.length === 0) return 0;
-
-  // 獲取每個用戶的最佳成績
-  const bestScores = Array.from(
-    (allScores as ScoreRecord[]).reduce((map: Map<string, ScoreRecord>, score: ScoreRecord) => {
-      if (!map.has(score.student_id) || 
-          map.get(score.student_id)!.completion_time_seconds > score.completion_time_seconds) {
-        map.set(score.student_id, score);
-      }
-      return map;
-    }, new Map<string, ScoreRecord>())
-  ).map(([, score]: [string, ScoreRecord]) => score);
-
-  // 按完成時間排序
-  bestScores.sort((a: ScoreRecord, b: ScoreRecord) => a.completion_time_seconds - b.completion_time_seconds);
-
-  // 找到當前用戶的排名
-  const rank = bestScores.findIndex((score: ScoreRecord) => score.student_id === student_id) + 1;
-  
-  return rank || bestScores.length + 1; // 如果沒有找到，返回最後一名
+  if (!hasLinkedStudent(gameId)) return 0;
+  const { data, error } = await supabase.rpc('get_game_player_rank', {
+    p_student_ref_id: student_id,
+    p_game_id: gameId ?? null,
+  });
+  if (error) throw error;
+  return typeof data === 'number' ? data : 0;
 }
 
 interface LeaderboardRecord {
@@ -269,14 +244,9 @@ interface LeaderboardRecord {
 }
 
 export async function getLeaderboardStats(gameId?: string): Promise<LeaderboardStats> {
-  // 獲取所有用戶的最佳成績
-  let query = supabase
-    .from('leaderboard')
-    .select('student_id, student_name, completion_time_seconds, completion_time_string, game_id')
-    .order('completion_time_seconds', { ascending: true });
-
-  if (gameId) query = query.eq('game_id', gameId)
-  const { data, error } = await query
+  const { data, error } = await supabase.rpc('get_public_game_leaderboard', {
+    p_game_id: gameId ?? null,
+  });
 
   if (error) {
     console.error('Error fetching leaderboard stats:', error);
@@ -313,31 +283,12 @@ export async function getLeaderboardStats(gameId?: string): Promise<LeaderboardS
   const averageRemainingSeconds = averageSeconds % 60;
   const averageTime = `${averageMinutes}分${averageRemainingSeconds}秒`;
 
-  // 添加排名數據（只顯示每個用戶的最佳成績）
+  // The RPC already returns one best score per learner with identifiers
+  // masked inside Postgres, before anything reaches an anonymous client.
   const rankings = bestScores.map((record, index) => {
-    // 遮蔽學號中間四碼
-    let maskedStudentId = record.student_id;
-    if (maskedStudentId.length >= 8) {
-      maskedStudentId = maskedStudentId.slice(0, 2) + '****' + maskedStudentId.slice(-2);
-    } else if (maskedStudentId.length > 4) {
-      // 例如6~7碼，遮蔽中間2~3碼
-      const mid = Math.floor(maskedStudentId.length / 2) - 1;
-      maskedStudentId = maskedStudentId.slice(0, mid) + '****' + maskedStudentId.slice(mid + 4);
-    }
-    
-    // 遮蔽姓名
-    let maskedName = record.student_name;
-    if (maskedName.length === 3) {
-      // 三個字的名字，遮蔽中間字
-      maskedName = maskedName[0] + '○' + maskedName[2];
-    } else if (maskedName.length === 2) {
-      // 兩個字的名字，遮蔽第二個字
-      maskedName = maskedName[0] + '○';
-    }
-
     return {
-      student_id: maskedStudentId,
-      student_name: maskedName,
+      student_id: record.student_id,
+      student_name: record.student_name,
       completion_time_string: record.completion_time_string,
       rank: index + 1
     };
@@ -408,6 +359,7 @@ export async function getLessonOrderMappings(): Promise<LessonOrderMapping[]> {
 // Function to save chat messages to Supabase
 export async function saveChatMessage(message: Omit<ChatMessageRecord, 'id'>) {
   try {
+    if (!hasLinkedStudent(message.game_id)) return null;
     // Validate input data
     if (!message.learning_record_id || !message.student_id || !message.lesson_id || !message.message_content) {
       throw new Error('Missing required fields for chat message');
@@ -422,15 +374,14 @@ export async function saveChatMessage(message: Omit<ChatMessageRecord, 'id'>) {
 
     const { data, error } = await supabase
       .from('chat_messages')
-      .insert([messageWithId])
-      .select();
+      .insert([messageWithId]);
 
     if (error) {
       console.error('Error saving chat message:', error.message || JSON.stringify(error));
       throw error;
     }
 
-    return data;
+    return data || [messageWithId];
   } catch (error) {
     console.error('Error in saveChatMessage:', error instanceof Error ? error.message : JSON.stringify(error));
     // Don't throw to prevent breaking the chat flow
@@ -440,77 +391,22 @@ export async function saveChatMessage(message: Omit<ChatMessageRecord, 'id'>) {
 
 // Function to get or create a question count record
 export async function getOrCreateQuestionCount(record: Omit<QuestionCountRecord, 'id' | 'question_count'>): Promise<{ id: string, question_count: number } | null> {
-  try {
-    // First try to get existing record
-    const { data: existingData } = await supabase
-      .from('question_counts')
-      .select('id, question_count')
-      .eq('learning_record_id', record.learning_record_id)
-      .eq('student_id', record.student_id)
-      .eq('lesson_id', record.lesson_id)
-      .single();
-
-    if (existingData) {
-      return {
-        id: existingData.id,
-        question_count: existingData.question_count
-      };
-    }
-
-    // If no record found, create a new one
-    const { data: newData, error: insertError } = await supabase
-      .from('question_counts')
-      .insert([{
-        ...record,
-        student_ref_id: record.student_ref_id ?? getStoredStudentRefId(record.game_id),
-        question_count: 0,
-        id: uuidv4()
-      }])
-      .select('id, question_count');
-
-    if (insertError) {
-      console.error('Error creating question count record:', insertError.message || JSON.stringify(insertError));
-      throw insertError;
-    }
-
-    return newData?.[0] ? { id: newData[0].id, question_count: newData[0].question_count } : null;
-  } catch (error) {
-    console.error('Error in getOrCreateQuestionCount:', error instanceof Error ? error.message : JSON.stringify(error));
-    return null;
-  }
+  if (!hasLinkedStudent(record.game_id)) return null;
+  return { id: record.learning_record_id, question_count: 0 };
 }
 
 // Function to increment the question count
-export async function incrementQuestionCount(id: string): Promise<number | null> {
+export async function incrementQuestionCount(id: string, gameId?: string | null): Promise<number | null> {
   try {
-    // Get current count
-    const { data: currentData, error: getError } = await supabase
-      .from('question_counts')
-      .select('question_count')
-      .eq('id', id)
-      .single();
-
-    if (getError) {
-      console.error('Error getting current question count:', getError.message || JSON.stringify(getError));
-      throw getError;
-    }
-
-    const currentCount = currentData?.question_count || 0;
-    const newCount = currentCount + 1;
-
-    // Update the count
-    const { data: updatedData, error: updateError } = await supabase
-      .from('question_counts')
-      .update({ question_count: newCount, updated_at: new Date().toISOString() })
-      .eq('id', id)
-      .select('question_count');
-
-    if (updateError) {
-      console.error('Error updating question count:', updateError.message || JSON.stringify(updateError));
-      throw updateError;
-    }
-
-    return updatedData?.[0]?.question_count || null;
+    const studentRefId = getStoredStudentRefId(gameId);
+    if (!studentRefId) return null;
+    const { data, error } = await supabase.rpc('increment_game_question_count', {
+      p_learning_record_id: id,
+      p_student_ref_id: studentRefId,
+      p_increment: 1,
+    });
+    if (error) throw error;
+    return typeof data === 'number' ? data : null;
   } catch (error) {
     console.error('Error in incrementQuestionCount:', error instanceof Error ? error.message : JSON.stringify(error));
     return null;
@@ -520,23 +416,19 @@ export async function incrementQuestionCount(id: string): Promise<number | null>
 // Function to get learning record ID for a student and lesson
 export async function getLearningRecordId(studentId: string, lessonId: string, gameId?: string): Promise<string | null> {
   try {
-    let query = supabase
-      .from('learning_records')
-      .select('id')
-      .eq('student_id', studentId)
-      .eq('lesson_id', lessonId)
-      .order('completed_at', { ascending: false })
-      .limit(1);
-
-    if (gameId) query = query.eq('game_id', gameId)
-    const { data, error } = await query
+    if (!hasLinkedStudent(gameId)) return null;
+    const { data, error } = await supabase.rpc('get_latest_learning_record_id', {
+      p_student_ref_id: studentId,
+      p_lesson_id: lessonId,
+      p_game_id: gameId ?? null,
+    });
 
     if (error) {
       console.error('Error getting learning record ID:', error.message || JSON.stringify(error));
       throw error;
     }
 
-    return data && data.length > 0 ? data[0].id : null;
+    return typeof data === 'string' ? data : null;
   } catch (error) {
     console.error('Error in getLearningRecordId:', error instanceof Error ? error.message : JSON.stringify(error));
     return null;
