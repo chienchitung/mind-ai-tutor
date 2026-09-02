@@ -43,9 +43,22 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'SERVICE_ROLE_NOT_CONFIGURED' }, { status: 500 });
     }
 
+    // Best-effort context for the "Invite user" email template
+    // ({{ .Data.inviter_email }} / {{ .Data.team_name }}, see
+    // docs/email-templates/invite-user.html) - a plain "you're invited"
+    // email with no idea who sent it or to what is a worse invite. Not
+    // fatal if this lookup comes back empty; the template guards for that.
+    const { data: membership } = await client
+      .from('team_members')
+      .select('teams(name)')
+      .eq('user_id', user.id)
+      .maybeSingle();
+    const teamName = (membership as { teams?: { name?: string } } | null)?.teams?.name;
+
     const origin = new URL(request.url).origin;
     const invited = await adminClient.auth.admin.inviteUserByEmail(email, {
       redirectTo: `${origin}/reset-password`,
+      data: { inviter_email: user.email ?? '', team_name: teamName ?? '' },
     });
     if (invited.error || !invited.data.user) {
       return NextResponse.json({ error: invited.error?.message || 'INVITE_EMAIL_FAILED' }, { status: 502 });

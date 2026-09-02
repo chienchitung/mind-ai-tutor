@@ -11,11 +11,14 @@ const request = (body: unknown = { email: 'someone@example.com' }) =>
 let auth: ReturnType<typeof vi.fn>;
 let rpc: ReturnType<typeof vi.fn>;
 let inviteUserByEmail: ReturnType<typeof vi.fn>;
+let maybeSingle: ReturnType<typeof vi.fn>;
 
 beforeEach(() => {
-  auth = vi.fn().mockResolvedValue({ data: { user: { id: 'owner-1' } }, error: null });
+  auth = vi.fn().mockResolvedValue({ data: { user: { id: 'owner-1', email: 'owner@example.com' } }, error: null });
   rpc = vi.fn();
-  getServerClient.mockResolvedValue({ auth: { getUser: auth }, rpc });
+  maybeSingle = vi.fn().mockResolvedValue({ data: { teams: { name: 'My Team' } }, error: null });
+  const from = vi.fn(() => ({ select: vi.fn(() => ({ eq: vi.fn(() => ({ maybeSingle })) })) }));
+  getServerClient.mockResolvedValue({ auth: { getUser: auth }, rpc, from });
   inviteUserByEmail = vi.fn();
   createClient.mockReturnValue({ auth: { admin: { inviteUserByEmail } } });
   vi.unstubAllEnvs();
@@ -71,10 +74,30 @@ describe('POST /api/team/invite', () => {
 
     const response = await POST(request());
 
-    expect(inviteUserByEmail).toHaveBeenCalledWith('someone@example.com', { redirectTo: 'https://test.local/reset-password' });
+    expect(inviteUserByEmail).toHaveBeenCalledWith('someone@example.com', {
+      redirectTo: 'https://test.local/reset-password',
+      data: { inviter_email: 'owner@example.com', team_name: 'My Team' },
+    });
     expect(rpc).toHaveBeenNthCalledWith(2, 'add_team_member_by_id', { p_user_id: 'new-user' });
     expect(response.status).toBe(200);
     expect(await response.json()).toEqual({ status: 'invited' });
+  });
+
+  it('still sends the invite when the team-name lookup comes back empty', async () => {
+    vi.stubEnv('SUPABASE_SERVICE_ROLE_KEY', 'service-role-key');
+    maybeSingle.mockResolvedValue({ data: null, error: null });
+    rpc
+      .mockResolvedValueOnce({ data: null, error: { message: 'USER_NOT_FOUND' } })
+      .mockResolvedValueOnce({ data: [{ user_id: 'new-user', role: 'member' }], error: null });
+    inviteUserByEmail.mockResolvedValue({ data: { user: { id: 'new-user' } }, error: null });
+
+    const response = await POST(request());
+
+    expect(inviteUserByEmail).toHaveBeenCalledWith('someone@example.com', {
+      redirectTo: 'https://test.local/reset-password',
+      data: { inviter_email: 'owner@example.com', team_name: '' },
+    });
+    expect(response.status).toBe(200);
   });
 
   it('reports a failed invite email instead of silently succeeding', async () => {
