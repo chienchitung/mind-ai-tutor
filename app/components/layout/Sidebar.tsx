@@ -211,7 +211,14 @@ export function Sidebar({
     <>
       <aside
         className={cn(
-          'fixed inset-y-0 left-0 z-40 flex h-screen flex-col border-r border-border/80 bg-card transition-[width,transform] duration-300',
+          // inset-y-0 alone already stretches this fixed element to the real
+          // visible viewport. Adding h-screen (height: 100vh) on top of that
+          // is redundant on desktop but actively wrong on mobile Safari:
+          // 100vh is measured against the toolbar-collapsed viewport, taller
+          // than what's visible while the address bar is showing, so the
+          // account/Settings section at the bottom of this drawer rendered
+          // below the visible fold with no way to scroll to it.
+          'fixed inset-y-0 left-0 z-40 flex flex-col border-r border-border/80 bg-card transition-[width,transform] duration-300',
           isCollapsed ? 'w-[70px]' : 'w-64',
           isOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0',
           className,
