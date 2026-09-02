@@ -1,8 +1,13 @@
-'use client';
-
 import { GoogleGenAI } from '@google/genai';
 
-// 系統提示詞
+// Server-only by convention (no 'server-only' package in this app's
+// dependencies to enforce it at build time): this module must never be
+// imported from a 'use client' component, or GEMINI_API_KEY would end up
+// bundled into the browser JS - exactly the bug this module replaces (the
+// old src/lib/gemini.ts took the key from NEXT_PUBLIC_GEMINI_API_KEY,
+// readable straight out of the shipped JS by anyone, no login required).
+// Only src/app/api/chat/route.ts (a server-only route handler) imports it.
+
 const LEGACY_EXCEL_SYSTEM_PROMPT = `
 你是一位友善、樂於助人的 Microsoft Excel 教師，專注於解答 Excel 相關問題。請用繁體中文回答問題。請務必使用繁體中文，並避免使用簡體字。
 你會根據學習科學原則，循序漸進地引導學生學習。
@@ -85,39 +90,16 @@ const GENERIC_SYSTEM_PROMPT = `
 - 不要捏造課程中沒有提供的規則、關卡或獎勵。
 `;
 
-// 全局變數來保存 GoogleGenAI 實例
-let genAI: GoogleGenAI | null = null;
-// 使用 Gemini 3.6 Flash 模型
-const MODEL_NAME = 'gemini-3.6-flash';
+const apiKey = process.env.GEMINI_API_KEY;
+const MODEL_NAME = process.env.GEMINI_MODEL || 'gemini-3.6-flash';
 
-// 驗證 API key 格式
-function isValidApiKey(apiKey: string): boolean {
-  // Gemini API keys 通常以 "AIza" 開頭
-  return apiKey.startsWith('AIza') && apiKey.length > 30;
+if (!apiKey) {
+  console.error('Missing Gemini API key. Set GEMINI_API_KEY in this deployment\'s environment variables.');
 }
 
-export async function initializeGemini(apiKey: string): Promise<void> {
-  if (!apiKey) {
-    throw new Error('API key is required');
-  }
+const genAI = apiKey ? new GoogleGenAI({ apiKey }) : null;
 
-  if (!isValidApiKey(apiKey)) {
-    throw new Error('Invalid API key format. API key should start with "AIza" and be longer than 30 characters.');
-  }
-
-  try {
-    // 初始化 GoogleGenAI 客戶端
-    genAI = new GoogleGenAI({ apiKey });
-    // 不再在初始化時呼叫模型，避免因服務忙碌(503)而中斷初始化
-    console.log('Gemini API client configured');
-  } catch (error) {
-    console.error('Failed to initialize Gemini API:', error);
-    genAI = null; // 確保失敗時清除
-    throw error;
-  }
-}
-
-interface ChatContext {
+export interface ChatContext {
   context: Array<{
     content: string;
     isUser: boolean;
@@ -129,18 +111,18 @@ interface ChatContext {
 
 export async function getChatResponse(message: string, context?: ChatContext, image?: string): Promise<string> {
   if (!genAI) {
-    console.error('Gemini API not initialized. Make sure to call initializeGemini(apiKey) with a valid key.');
-    return '# 服務尚未啟用：Gemini\n\n> 抱歉，目前無法使用 AI 助教。\n\n**可能原因**\n- 未設定或設定了無效的 API 金鑰（需以 "AIza" 開頭）\n- 伺服器暫時無法連線\n\n**處理方式**\n1. 前往系統設定貼上有效的 Gemini API 金鑰\n2. 重新整理頁面後再試一次';
+    console.error('Gemini API not initialized: GEMINI_API_KEY is missing.');
+    return '# 服務尚未啟用：Gemini\n\n> 抱歉，目前無法使用 AI 助教。\n\n**可能原因**\n- 伺服器未設定 Gemini API 金鑰\n- 伺服器暫時無法連線\n\n**處理方式**\n1. 請聯繫系統管理員設定 API 金鑰\n2. 重新整理頁面後再試一次';
   }
 
   try {
     console.log('Creating chat with message:', message);
-    
+
     // 建立完整的提示訊息，包含系統指令和上下文
     const systemPrompt = context?.tutorPrompt
       || (context?.gameTitle ? GENERIC_SYSTEM_PROMPT : LEGACY_EXCEL_SYSTEM_PROMPT);
     let completePrompt = systemPrompt + "\n\n";
-    
+
     // 如果有上下文，加入聊天歷史
     if (context) {
       // 添加課程資訊
@@ -148,21 +130,21 @@ export async function getChatResponse(message: string, context?: ChatContext, im
         completePrompt += `目前遊戲：${context.gameTitle}\n\n`;
       }
       completePrompt += `當前課程資訊：\n${context.lessonInfo}\n\n`;
-      
+
       // 添加之前的對話
       for (const msg of context.context) {
         completePrompt += `${msg.isUser ? '學生' : 'AI助教'}：${msg.content}\n\n`;
       }
     }
-    
+
     // 添加當前用戶消息
     completePrompt += `學生：${message}\n\nAI助教：`;
-    
+
     // 發送請求到 Gemini API
     console.log('Sending message to API...');
-    
+
     let result;
-    const client = genAI as GoogleGenAI; // 先前已檢查非空，這裡斷言以通過型別檢查
+    const client = genAI;
 
     // 封裝呼叫，加入重試與退避（處理 503/UNAVAILABLE/429）
     const callWithRetry = async (): Promise<any> => {
@@ -214,14 +196,14 @@ export async function getChatResponse(message: string, context?: ChatContext, im
     };
 
     result = await callWithRetry();
-    
+
     console.log('Received response from API');
-    
+
     // 檢查回應
     if (!result || !result.text) {
       return '# 系統錯誤\n\n> 抱歉，AI 沒有提供回應。請稍後再試。';
     }
-    
+
     return result.text;
   } catch (error) {
     console.error('Error in chat response:', error);

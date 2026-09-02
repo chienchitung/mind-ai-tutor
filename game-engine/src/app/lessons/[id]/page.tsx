@@ -15,7 +15,6 @@ import { State, type ChatMessage } from '@/types/lesson'
 import { getProgress, updateLessonProgress } from '@/lib/progress'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog"
 import { saveLearningRecord, saveLeaderboardEntry, getPlayerRank, getLeaderboardStats, supabase, getGeniallyLink, getLessonMarkdownContent } from '@/lib/supabase'
-import { initializeGemini, getChatResponse } from '@/lib/gemini'
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm'
 import { MentorAvatar } from '@/components/MentorAvatar'
@@ -731,29 +730,6 @@ export default function ExcelLearningPlatform({
     saveInitialMessage();
   }, [lessonState.currentLesson, currentLesson?.title, currentLesson?.mission?.mentorMessage]);
 
-  const geminiReadyRef = useRef(false);
-  useEffect(() => {
-    // Initialize Gemini API with your API key
-    const initializeAI = async () => {
-      const apiKey = process.env.NEXT_PUBLIC_GEMINI_API_KEY;
-      if (!apiKey) {
-        console.error('Gemini API key is not set in environment variables');
-        return;
-      }
-
-      try {
-        await initializeGemini(apiKey);
-        geminiReadyRef.current = true;
-      } catch (error) {
-        console.error('Failed to initialize Gemini API:', error);
-        geminiReadyRef.current = false;
-        // 可以在這裡添加錯誤提示 UI
-      }
-    };
-
-    initializeAI();
-  }, []);
-
   const handleAnswerSubmit = async () => {
     if (!exercisesData || exercisesData.length === 0) return;
     
@@ -1144,40 +1120,6 @@ export default function ExcelLearningPlatform({
     const hasContent = chatInput.trim() || imagePreview;
     if (!hasContent) return;
 
-    // 確保在送出訊息前，Gemini 已初始化（避免尚未完成初始化就呼叫）
-    if (!geminiReadyRef.current) {
-      const apiKey = process.env.NEXT_PUBLIC_GEMINI_API_KEY;
-      if (apiKey) {
-        try {
-          await initializeGemini(apiKey);
-          geminiReadyRef.current = true;
-        } catch (e) {
-          console.error('Failed to lazily initialize Gemini before sending message:', e);
-          setChatMessages(prev => [
-            ...prev,
-            {
-              id: (Date.now() + 1).toString(),
-              content: '抱歉，AI 助教尚未啟用，請稍後再試或檢查 API 金鑰設定。',
-              isUser: false,
-              timestamp: new Date()
-            }
-          ]);
-          return;
-        }
-      } else {
-        setChatMessages(prev => [
-          ...prev,
-          {
-            id: (Date.now() + 1).toString(),
-            content: '抱歉，尚未設定 Gemini API 金鑰（NEXT_PUBLIC_GEMINI_API_KEY）。',
-            isUser: false,
-            timestamp: new Date()
-          }
-        ]);
-        return;
-      }
-    }
-    
     const newMessage: ChatMessage = {
       id: crypto.randomUUID(),
       content: chatInput.trim(),
@@ -1304,8 +1246,16 @@ export default function ExcelLearningPlatform({
         tutorPrompt: gameDefinition?.settings.tutorPrompt,
       };
       
-      // 使用更新後的 getChatResponse 函數，傳遞圖片
-      const aiResponse = await getChatResponse(chatInput, chatContext, currentImageUrl || undefined);
+      // Gemini now runs server-side (src/app/api/chat) so the API key never
+      // reaches the browser - basePath means this must be called as
+      // /games/api/chat, not /api/chat.
+      const chatResponse = await fetch('/games/api/chat', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ message: chatInput, context: chatContext, image: currentImageUrl || undefined }),
+      });
+      const chatData = chatResponse.ok ? await chatResponse.json() : null;
+      const aiResponse: string = chatData?.response || '# 系統錯誤\n\n> 抱歉，我現在無法回應。請稍後再試。';
       
       // 根據是否找到 learning_record_id 決定如何處理AI回應
       if (hasCompletedLesson && learningRecordId) {
