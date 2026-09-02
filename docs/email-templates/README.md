@@ -20,17 +20,29 @@ paste it in.
 
 ## Logo
 
-All three use the same asset: `https://www.mindaitutor.com/brand/mindaitutor-cover-logo.svg`
-(the repo's `public/brand/mindaitutor-cover-logo.svg` - the same icon +
-wordmark lockup as `BrandLogo.tsx`, deployed and publicly reachable once
-this branch ships), loaded via `<img>` rather than inlined as `<svg>` -
-inline SVG is stripped by several major email clients. Renders correctly
-in Gmail, Apple Mail, Outlook.com, and mobile mail apps; classic Outlook
-desktop (Word's rendering engine) does not support SVG images and will
-show the `alt` text ("MindAiTutor") instead of the logo. If that
-audience matters, replace the `<img src>` in all three files with a
-hosted PNG export of the same asset - regenerating one wasn't something
-this session could do without image tooling.
+All three embed the same image inline as a base64 `data:image/png;base64,...`
+URI - not a link to a hosted file. Two things ruled out linking to
+`public/brand/mindaitutor-cover-logo.svg` by URL, which the first draft of
+these templates used:
+
+- Most email clients block remote images by default until the recipient
+  clicks "show images" - the logo would be missing or broken for anyone
+  who doesn't.
+- It's an `<svg>` file; loaded as `<img src="...svg">` it renders in
+  Gmail/Apple Mail/Outlook.com/mobile, but classic Outlook desktop (Word's
+  rendering engine) doesn't support SVG images at all.
+
+Inlining a PNG as a data URI sidesteps both - nothing to fetch, and no
+SVG-in-`<img>` compatibility question. The PNG is a pixel-identical
+render of `public/brand/mindaitutor-cover-logo.svg` (same icon + wordmark
+paths as `BrandLogo.tsx`, verified byte-for-byte identical) at 2x scale
+for retina displays, generated with headless Chromium and also committed
+as `public/brand/mindaitutor-email-logo.png` for reference/reuse. To
+regenerate after a real logo change: screenshot that SVG at 760x120
+(2x of the 380x60 source) with a transparent background, base64-encode
+the PNG, and replace the `data:image/png;base64,...` string in the
+`<img src>` of all three files - keep the `width="190" height="30"` on
+the tag as-is, that's just the display size.
 
 ## Variables
 
