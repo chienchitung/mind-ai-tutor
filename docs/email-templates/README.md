@@ -20,29 +20,40 @@ paste it in.
 
 ## Logo
 
-All three embed the same image inline as a base64 `data:image/png;base64,...`
-URI - not a link to a hosted file. Two things ruled out linking to
-`public/brand/mindaitutor-cover-logo.svg` by URL, which the first draft of
-these templates used:
+All three load `https://www.mindaitutor.com/brand/mindaitutor-email-logo.png` -
+a real hosted PNG, not the SVG and not a `data:` URI. Both of those were
+tried first and both actually broke rendering, for two unrelated reasons -
+worth recording so nobody swings back to either one:
 
-- Most email clients block remote images by default until the recipient
-  clicks "show images" - the logo would be missing or broken for anyone
-  who doesn't.
-- It's an `<svg>` file; loaded as `<img src="...svg">` it renders in
-  Gmail/Apple Mail/Outlook.com/mobile, but classic Outlook desktop (Word's
-  rendering engine) doesn't support SVG images at all.
+- **`<img src="...cover-logo.svg">` (the SVG by URL)**: renders in Gmail/
+  Apple Mail/Outlook.com/mobile, but classic Outlook desktop (Word's
+  rendering engine) has no SVG support at all.
+- **`<img src="data:image/png;base64,...">` (inlined, tried next)**:
+  Gmail - the client that matters most here - strips `data:` URIs from
+  HTML email bodies outright as an anti-spam measure. Confirmed via a
+  real received email: broken-image icon, `alt` text shown instead.
+  This is a known, long-standing Gmail limitation, not a bug in the PNG
+  or the encoding.
 
-Inlining a PNG as a data URI sidesteps both - nothing to fetch, and no
-SVG-in-`<img>` compatibility question. The PNG is a pixel-identical
-render of `public/brand/mindaitutor-cover-logo.svg` (same icon + wordmark
-paths as `BrandLogo.tsx`, verified byte-for-byte identical) at 2x scale
-for retina displays, generated with headless Chromium and also committed
-as `public/brand/mindaitutor-email-logo.png` for reference/reuse. To
-regenerate after a real logo change: screenshot that SVG at 760x120
-(2x of the 380x60 source) with a transparent background, base64-encode
-the PNG, and replace the `data:image/png;base64,...` string in the
-`<img src>` of all three files - keep the `width="190" height="30"` on
-the tag as-is, that's just the display size.
+A normal hosted PNG is the only one of the three that has no known gap:
+every major client fetches ordinary remote images (Gmail proxies them
+through its own image cache rather than blocking them, unlike `data:`
+URIs), and PNG needs no SVG support. The tradeoff is the one every
+hosted-image approach has - the image only appears once
+`mindaitutor-email-logo.png` is actually deployed and reachable at that
+URL, and remote images still start "blocked, click to show" for
+recipients whose mail client defaults that way (most don't, for images
+from a sender with clean SPF/DKIM, which the Resend setup covers) - both
+far smaller gaps than the alternatives above covered.
+
+The PNG is a pixel-identical render of
+`public/brand/mindaitutor-cover-logo.svg` (same icon + wordmark paths as
+`BrandLogo.tsx`, verified byte-for-byte identical) at 2x scale for retina
+displays, generated with headless Chromium, committed at
+`public/brand/mindaitutor-email-logo.png`. To regenerate after a real
+logo change: screenshot that SVG at 760x120 (2x of the 380x60 source)
+with a transparent background, save over that PNG, and redeploy - the
+`<img src>` URL and its `width="190" height="30"` don't need to change.
 
 ## Variables
 
