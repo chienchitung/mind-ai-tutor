@@ -175,4 +175,56 @@ describe('TeamWorkspaceSection', () => {
       description: '發生未預期的錯誤: column reference "user_id" is ambiguous',
     })));
   });
+
+  it('shares existing events and reports how many were added', async () => {
+    mocks.getUser.mockResolvedValue({ data: { user: { id: MEMBER_ID } } });
+    mocks.rpc
+      .mockResolvedValueOnce({
+        data: membersRow([
+          { member_user_id: OWNER_ID, email: 'owner@example.com', role: 'owner' },
+          { member_user_id: MEMBER_ID, email: 'member@example.com', role: 'member' },
+        ]),
+        error: null,
+      })
+      .mockResolvedValueOnce({ data: 12, error: null });
+
+    render(<TeamWorkspaceSection />);
+    fireEvent.click(await screen.findByRole('button', { name: '分享我的活動' }));
+
+    await waitFor(() => expect(mocks.rpc).toHaveBeenCalledWith('share_my_events_with_team'));
+    expect(mocks.toast).toHaveBeenCalledWith(expect.objectContaining({
+      title: '已分享',
+      description: '已把 12 筆活動加入工作區，其他成員現在看得到。',
+    }));
+  });
+
+  it('reports when there was nothing left to share', async () => {
+    mocks.getUser.mockResolvedValue({ data: { user: { id: OWNER_ID } } });
+    mocks.rpc
+      .mockResolvedValueOnce({ data: membersRow([{ member_user_id: OWNER_ID, email: 'owner@example.com', role: 'owner' }]), error: null })
+      .mockResolvedValueOnce({ data: 0, error: null });
+
+    render(<TeamWorkspaceSection />);
+    fireEvent.click(await screen.findByRole('button', { name: '分享我的活動' }));
+
+    await waitFor(() => expect(mocks.toast).toHaveBeenCalledWith(expect.objectContaining({
+      title: '已分享',
+      description: '沒有可以分享的活動——你所有的活動應該都已經在工作區裡了。',
+    })));
+  });
+
+  it('surfaces a failure to share as an error toast', async () => {
+    mocks.getUser.mockResolvedValue({ data: { user: { id: OWNER_ID } } });
+    mocks.rpc
+      .mockResolvedValueOnce({ data: membersRow([{ member_user_id: OWNER_ID, email: 'owner@example.com', role: 'owner' }]), error: null })
+      .mockResolvedValueOnce({ data: null, error: new Error('NO_TEAM') });
+
+    render(<TeamWorkspaceSection />);
+    fireEvent.click(await screen.findByRole('button', { name: '分享我的活動' }));
+
+    await waitFor(() => expect(mocks.toast).toHaveBeenCalledWith(expect.objectContaining({
+      title: '分享失敗',
+      description: '你目前不屬於任何工作區。',
+    })));
+  });
 });

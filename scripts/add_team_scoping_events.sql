@@ -55,4 +55,35 @@ create policy events_delete_policy
     or (team_id is null and auth.uid() = user_id)
   );
 
+-- One-time bulk action for "share what I already have": events created
+-- before the caller had a workspace stay team_id = null (owner-only)
+-- forever otherwise - joining or creating a workspace does not touch
+-- existing rows (see docs/team-workspace-design.md). Any team member can
+-- run this on their own events (not owner-only - it only ever touches
+-- rows the caller already owns, so there's no privilege question).
+-- Returns how many rows it updated, so the UI can say "12 events shared"
+-- instead of a silent no-op when there was nothing to share.
+create or replace function public.share_my_events_with_team()
+returns integer
+language plpgsql security definer set search_path = public as $$
+declare
+  v_my_team_id uuid;
+  v_count integer;
+begin
+  select tm.team_id into v_my_team_id from public.team_members tm where tm.user_id = auth.uid();
+  if v_my_team_id is null then
+    raise exception 'NO_TEAM';
+  end if;
+
+  update public.events
+  set team_id = v_my_team_id
+  where user_id = auth.uid() and team_id is null;
+
+  get diagnostics v_count = row_count;
+  return v_count;
+end;
+$$;
+revoke all on function public.share_my_events_with_team() from public;
+grant execute on function public.share_my_events_with_team() to authenticated;
+
 commit;

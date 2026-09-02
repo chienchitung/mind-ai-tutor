@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { Loader2, UserPlus, X } from 'lucide-react';
+import { Loader2, Share2, UserPlus, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -142,6 +142,26 @@ export function TeamWorkspaceSection() {
     }
   };
 
+  const shareEvents = async () => {
+    setBusy(true);
+    try {
+      const { supabase } = await import('@/lib/supabase');
+      const { data, error } = await supabase().rpc('share_my_events_with_team');
+      if (error) throw error;
+      const count = typeof data === 'number' ? data : 0;
+      toast({
+        title: zh ? '已分享' : 'Shared',
+        description: count > 0
+          ? (zh ? `已把 ${count} 筆活動加入工作區，其他成員現在看得到。` : `${count} event${count === 1 ? '' : 's'} added to the workspace - other members can see them now.`)
+          : (zh ? '沒有可以分享的活動——你所有的活動應該都已經在工作區裡了。' : "Nothing to share - all your events are already in the workspace."),
+      });
+    } catch (error) {
+      toast({ title: zh ? '分享失敗' : 'Failed to share', description: describeError(error instanceof Error ? error.message : '', zh), variant: 'destructive' });
+    } finally {
+      setBusy(false);
+    }
+  };
+
   if (loading) {
     return <div className="border-t pt-5"><Loader2 className="h-5 w-5 animate-spin text-muted-foreground" /></div>;
   }
@@ -187,6 +207,18 @@ export function TeamWorkspaceSection() {
               </li>
             ))}
           </ul>
+
+          <div className="flex items-start justify-between gap-3 rounded-lg border bg-muted/30 p-3">
+            <p className="text-sm text-muted-foreground">
+              {zh
+                ? '你在加入這個工作區之前建立的活動，其他成員還看不到。分享後就能一起共編。'
+                : "Events you created before joining this workspace aren't visible to other members yet. Share them to start co-editing."}
+            </p>
+            <Button type="button" variant="outline" size="sm" disabled={busy} onClick={shareEvents} className="shrink-0">
+              {busy ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Share2 className="mr-2 h-4 w-4" />}
+              {zh ? '分享我的活動' : 'Share my events'}
+            </Button>
+          </div>
 
           {myRole === 'owner' && (
             <form onSubmit={inviteMember} className="flex flex-wrap items-end gap-2" aria-busy={busy}>
