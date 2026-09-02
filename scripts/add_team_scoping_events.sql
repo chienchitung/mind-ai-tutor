@@ -3,21 +3,21 @@
 -- scripts/add_team_workspaces.sql to already be run.
 --
 -- team_id stays nullable and defaults to whatever team the inserting
--- user currently belongs to (null if they're not in one), via a
--- subquery default - same mechanism events.user_id already uses for
--- auth.uid(), so no application code needs to change to start writing
--- team_id. An event with team_id null keeps behaving exactly like
--- before (visible only to its own user_id); an event with team_id set
--- is visible to every member of that team, not just its creator.
+-- user currently belongs to (null if they're not in one), via
+-- public.current_team_id() (defined in add_team_workspaces.sql) - so
+-- no application code needs to change to start writing team_id. An
+-- event with team_id null keeps behaving exactly like before (visible
+-- only to its own user_id); an event with team_id set is visible to
+-- every member of that team, not just its creator.
 --
--- Run once in the Supabase SQL editor, after add_team_workspaces.sql.
+-- Run once in the Supabase SQL editor, after add_team_workspaces.sql
+-- (re-run that one too if it predates current_team_id() - it's
+-- idempotent).
 
 begin;
 
 alter table public.events add column if not exists team_id uuid references public.teams(id) on delete set null;
-alter table public.events alter column team_id set default (
-  select team_id from public.team_members where user_id = auth.uid()
-);
+alter table public.events alter column team_id set default public.current_team_id();
 
 drop policy if exists events_select_policy on public.events;
 create policy events_select_policy

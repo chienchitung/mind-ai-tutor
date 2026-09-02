@@ -45,6 +45,19 @@ language sql security definer set search_path = public stable as $$
   );
 $$;
 
+-- The team the caller currently belongs to, or null if none. Exists so
+-- every team-scoped table's team_id column can default to
+-- `public.current_team_id()` - a column DEFAULT clause cannot contain a
+-- bare subquery (Postgres error 0A000, "cannot use subquery in DEFAULT
+-- expression"), but a function call wrapping the same query is allowed.
+create or replace function public.current_team_id()
+returns uuid
+language sql security definer set search_path = public stable as $$
+  select team_id from public.team_members where user_id = auth.uid();
+$$;
+revoke all on function public.current_team_id() from public;
+grant execute on function public.current_team_id() to authenticated;
+
 alter table public.teams enable row level security;
 drop policy if exists teams_select_members on public.teams;
 create policy teams_select_members on public.teams

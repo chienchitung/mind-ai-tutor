@@ -50,7 +50,7 @@ alter table public.lessons add column if not exists team_id uuid references publ
 `user_id` 保留不動，繼續代表「這筆資料是誰建立的」（稽核用途）；`team_id` 是另外加的欄位，決定「除了建立者以外，還有誰看得到、改得到」。
 
 **實作時修正的一個設計**（草案原本寫「幫每個帳號自動建立個人工作區」，實作 `events` 試點時發現這樣行不通，改成下面這版）：`team_id` 保持**可為 null，且不強制遷移既有資料**。原因是「一人只能屬於一個工作區」這條規則（見待決策問題 1）如果搭配「每個帳號都自動有個人工作區」，會變成每個既有帳號一開始就「已經在一個 team 裡」——那之後想邀請任何一個既有用戶加入別人的工作區，都會直接被 `ALREADY_IN_A_TEAM` 擋掉，等於邀請功能對所有既有帳號都失效。改成**完全 opt-in**：
-- `team_id` 預設值是「目前使用者現在所屬工作區的 id」（用一個會查 `team_members` 的 subquery default，跟 `user_id default auth.uid()` 是同一種機制），沒有工作區的人就是 `null`。
+- `team_id` 預設值是「目前使用者現在所屬工作區的 id」，沒有工作區的人就是 `null`。實作上**不能**直接把查 `team_members` 的 subquery 塞進 `DEFAULT`（Postgres 會噴 `0A000: cannot use subquery in DEFAULT expression`——這是實際跑 SQL 才發現的，跟 `user_id default auth.uid()` 不是同一種機制，因為 `auth.uid()` 是單純的函式呼叫，不是 subquery）。改成先包一個 `public.current_team_id()` 函式（定義在 `add_team_workspaces.sql`），欄位預設值設成 `default public.current_team_id()`——函式呼叫本身可以放進 `DEFAULT`，即使函式內部跑的是同一條查詢。之後每張表比照辦理，直接重用同一個函式即可，不用每張表各寫一次。
 - 沒有人會被自動塞進工作區。使用者必須明確按下「建立工作區」（`create_team()`）才會第一次出現在 `team_members` 裡；在那之前，他所有資料的 `team_id` 都是 `null`，RLS 退回原本的 owner-only 判斷，行為跟現在完全一樣。
 - 這樣不需要對任何既有資料跑 backfill，上線當下零風險、零行為改變，只有使用者自己主動建立/加入工作區之後才會開始有共用行為。
 
@@ -110,7 +110,7 @@ using (public.is_team_member(team_id))
 
 - **設定頁**新增「工作區成員」區塊：目前成員清單、邀請輸入框、（擁有者限定）移除按鈕。
 - 側邊欄/頂端不需要新增「切換工作區」這種 UI——V1 假設一人只屬於一個工作區（見下方待決策），不需要切換。
-- 現有「新增課程/活動/回饋」的表單邏輯要改：目前是把新資料的 `user_id` 設成 `auth.uid()`，之後要改成把 `team_id` 設成「目前使用者所屬工作區的 id」（多數情況下就是 `auth.uid()` 對應的個人工作區，除非他已加入別人的工作區）。
+- 現有「新增課程/活動/回饋」的表單邏輯**不需要改**：`team_id` 欄位的 `default public.current_team_id()`（見上方「既有資料表怎麼接上」）會在 insert 時自動代入目前使用者所屬工作區的 id（沒有工作區就是 `null`），跟 `user_id` 一直以來用 `default auth.uid()` 是同一個道理，前端完全不用碰。
 
 ## 待決策問題（需要你決定，不是我能替你決定的）
 
