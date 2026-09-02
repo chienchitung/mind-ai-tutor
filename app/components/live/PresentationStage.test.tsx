@@ -166,7 +166,7 @@ describe('projection tools', () => {
     draw(surface);
     expect(document.querySelectorAll('[data-ink-stroke]')).toHaveLength(1);
     fireEvent.keyDown(surface, { key: 'ArrowRight' });
-    expect(screen.getByRole('status').textContent).toContain('2 / 3');
+    expect(screen.getByRole('status', { name: /投影片第/ }).textContent).toContain('2 / 3');
     expect(document.querySelectorAll('[data-ink-stroke]')).toHaveLength(0);
     surface = screen.getByRole('img');
     fireEvent.keyDown(surface, { key: 'ArrowLeft' });
@@ -187,7 +187,7 @@ describe('projection tools', () => {
     const menu = await screen.findByRole('menu');
     expect(screen.getByRole('dialog').contains(menu)).toBe(true);
     fireEvent.keyDown(menu, { key: 'ArrowRight' });
-    expect(screen.getByRole('status').textContent).toContain('1 / 3');
+    expect(screen.getByRole('status', { name: /投影片第/ }).textContent).toContain('1 / 3');
     fireEvent.click(within(menu).getByRole('menuitemradio', { name: /畫筆/ }));
     await waitFor(() => expect(screen.queryByRole('menu')).toBeNull());
     draw(screen.getByRole('img'));
@@ -209,7 +209,7 @@ describe('projection tools', () => {
     render(<Harness />);
     await screen.findByRole('img');
     fireEvent.keyDown(screen.getByRole('button', { name: '投影工具' }), { key: ' ' });
-    expect(screen.getByRole('status').textContent).toContain('1 / 3');
+    expect(screen.getByRole('status', { name: /投影片第/ }).textContent).toContain('1 / 3');
   });
   it('leaves an already-hidden toolbar hidden when paging via keyboard/clicker - only pointer movement wakes it', async () => {
     render(<Harness />);
@@ -217,16 +217,48 @@ describe('projection tools', () => {
     const topBar = document.querySelector('[data-presentation-ui]') as HTMLElement;
     expect(topBar.className).toContain('opacity-100');
 
-    await new Promise((resolve) => setTimeout(resolve, 1300));
+    await new Promise((resolve) => setTimeout(resolve, 2900));
     await waitFor(() => expect(topBar.className).toContain('opacity-0'));
 
     fireEvent.keyDown(surface, { key: 'ArrowRight' });
-    expect(screen.getByRole('status').textContent).toContain('2 / 3');
+    expect(screen.getByRole('status', { name: /投影片第/ }).textContent).toContain('2 / 3');
     expect(topBar.className).toContain('opacity-0');
 
     fireEvent.pointerMove(screen.getByRole('dialog'), { clientX: 10, clientY: 10, pointerId: 1 });
     expect(topBar.className).toContain('opacity-100');
   }, 10000);
+  it('shows the selected tool beside the last pointer position', async () => {
+    vi.stubGlobal('localStorage', { getItem: () => '1', setItem: vi.fn() });
+    render(<Harness />);
+    const dialog = await screen.findByRole('dialog');
+    fireEvent.pointerMove(dialog, { clientX: 240, clientY: 160, pointerId: 1 });
+    fireEvent.keyDown(screen.getByRole('img'), { key: 'p' });
+    const announcement = screen
+      .getAllByRole('status')
+      .find((element) => element.textContent?.includes('畫筆'))!;
+    expect(announcement.textContent).toContain('畫筆');
+    expect(announcement.textContent).toContain('細');
+    expect((announcement as HTMLElement).style.left).toBe('254px');
+    expect((announcement as HTMLElement).style.top).toBe('174px');
+  });
+  it('remembers the presenter toolbar pin preference', async () => {
+    let pinned = '0';
+    vi.stubGlobal('localStorage', {
+      getItem: (key: string) =>
+        key === 'live-presentation-onboarding-seen' ? '1' : pinned,
+      setItem: (key: string, value: string) => {
+        if (key === 'live-presentation-controls-pinned-v1') pinned = value;
+      },
+    });
+    const first = render(<Harness />);
+    const pin = await screen.findByRole('button', { name: '固定顯示控制列' });
+    fireEvent.click(pin);
+    expect(pinned).toBe('1');
+    first.unmount();
+    render(<Harness />);
+    const unpin = await screen.findByRole('button', { name: '自動隱藏控制列' });
+    expect(unpin.getAttribute('aria-pressed')).toBe('true');
+  });
   it('shows a one-time onboarding tip on first open and remembers it was dismissed', async () => {
     let seen: string | null = null;
     vi.stubGlobal('localStorage', {

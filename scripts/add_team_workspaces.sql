@@ -44,6 +44,8 @@ language sql security definer set search_path = public stable as $$
     where team_id = p_team_id and user_id = auth.uid()
   );
 $$;
+revoke all on function public.is_team_member(uuid) from public, anon;
+grant execute on function public.is_team_member(uuid) to authenticated;
 
 -- The team the caller currently belongs to, or null if none. Exists so
 -- every team-scoped table's team_id column can default to
@@ -55,7 +57,7 @@ returns uuid
 language sql security definer set search_path = public stable as $$
   select team_id from public.team_members where user_id = auth.uid();
 $$;
-revoke all on function public.current_team_id() from public;
+revoke all on function public.current_team_id() from public, anon;
 grant execute on function public.current_team_id() to authenticated;
 
 alter table public.teams enable row level security;
@@ -97,7 +99,7 @@ begin
   return v_team_id;
 end;
 $$;
-revoke all on function public.create_team(text) from public;
+revoke all on function public.create_team(text) from public, anon;
 grant execute on function public.create_team(text) to authenticated;
 
 -- Owner-only: add an existing account (by email) to the caller's team.
@@ -141,7 +143,7 @@ begin
   return query select v_invitee_id, 'member'::text;
 end;
 $$;
-revoke all on function public.invite_team_member(text) from public;
+revoke all on function public.invite_team_member(text) from public, anon;
 grant execute on function public.invite_team_member(text) to authenticated;
 
 -- Same ownership/role checks as invite_team_member, but takes a user_id
@@ -180,7 +182,7 @@ begin
   return query select p_user_id, 'member'::text;
 end;
 $$;
-revoke all on function public.add_team_member_by_id(uuid) from public;
+revoke all on function public.add_team_member_by_id(uuid) from public, anon;
 grant execute on function public.add_team_member_by_id(uuid) to authenticated;
 
 -- Owner removes a member, or a member removes themself (leave). The
@@ -217,7 +219,7 @@ begin
   delete from public.team_members where team_id = v_target_team_id and user_id = p_user_id;
 end;
 $$;
-revoke all on function public.remove_team_member(uuid) from public;
+revoke all on function public.remove_team_member(uuid) from public, anon;
 grant execute on function public.remove_team_member(uuid) to authenticated;
 
 -- Member list with email - authenticated/anon have no direct grant on
@@ -241,7 +243,7 @@ begin
     order by (tm.role = 'owner') desc, tm.created_at asc;
 end;
 $$;
-revoke all on function public.list_team_members() from public;
+revoke all on function public.list_team_members() from public, anon;
 grant execute on function public.list_team_members() to authenticated;
 
 commit;

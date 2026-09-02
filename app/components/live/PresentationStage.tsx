@@ -8,6 +8,7 @@ import {
   useRef,
   useState,
   type KeyboardEvent,
+  type PointerEvent as ReactPointerEvent,
   type ReactNode,
 } from 'react';
 import * as Dialog from '@radix-ui/react-dialog';
@@ -39,12 +40,13 @@ import { annotationReducer, EMPTY_INK, type PresentationTool } from '@/lib/prese
 import { AnnotationLayer } from './AnnotationLayer';
 import { DeckViewer } from './DeckViewer';
 
-// Kept short on purpose: the presenter asked for the toolbar to get out of
-// the way quickly, since keyboard/clicker slide changes below no longer keep
-// it awake themselves - only actual pointer movement should.
-const CONTROLS_HIDE_DELAY_MS = 1200;
+// Long enough to identify a tool after moving the pointer. Keyboard/clicker
+// page changes still leave an already-hidden toolbar undisturbed.
+const CONTROLS_HIDE_DELAY_MS = 2800;
 const ONBOARDING_SEEN_KEY = 'live-presentation-onboarding-seen';
+const CONTROLS_PINNED_KEY = 'live-presentation-controls-pinned-v1';
 const ONBOARDING_DURATION_MS = 10000;
+const TOOL_ANNOUNCEMENT_DURATION_MS = 1400;
 const TOOLS = [
   { value: 'cursor', icon: MousePointer2, key: 'V' },
   { value: 'laser', icon: ScanLine, key: 'L' },
@@ -209,8 +211,15 @@ export const PresentationStage = forwardRef<HTMLDivElement, Props>(function Pres
   const [visible, setVisible] = useState(true);
   const [error, setError] = useState(false);
   const [showOnboarding, setShowOnboarding] = useState(false);
+  const [toolAnnouncement, setToolAnnouncement] = useState<{
+    tool: PresentationTool;
+    x: number;
+    y: number;
+  } | null>(null);
   const hideTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const onboardingTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const toolAnnouncementTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const pointerPosition = useRef({ x: 24, y: 96 });
   const history = ink[page] ?? EMPTY_INK;
   const setStageRef = useCallback(
     (node: HTMLDivElement | null) => {
@@ -236,16 +245,23 @@ export const PresentationStage = forwardRef<HTMLDivElement, Props>(function Pres
     if (open) {
       wake();
       setError(false);
+      try {
+        setPinned(localStorage.getItem(CONTROLS_PINNED_KEY) === '1');
+      } catch {
+        setPinned(false);
+      }
     } else {
       setContextOpen(false);
       setToolsOpen(false);
+      setToolAnnouncement(null);
+      if (toolAnnouncementTimer.current) clearTimeout(toolAnnouncementTimer.current);
     }
     return () => {
       if (hideTimer.current) clearTimeout(hideTimer.current);
     };
   }, [open, wake]);
   // Shown once per browser, first time a presenter opens the projection
-  // view - not on the same 1.2s auto-hide as the toolbar, since a new
+  // view - not on the same auto-hide timer as the toolbar, since a new
   // presenter needs a moment to actually read it.
   const dismissOnboarding = useCallback(() => {
     setShowOnboarding(false);
@@ -271,8 +287,40 @@ export const PresentationStage = forwardRef<HTMLDivElement, Props>(function Pres
       if (onboardingTimer.current) clearTimeout(onboardingTimer.current);
     };
   }, [open, dismissOnboarding]);
+  useEffect(
+    () => () => {
+      if (toolAnnouncementTimer.current) clearTimeout(toolAnnouncementTimer.current);
+    },
+    [],
+  );
   const selectTool = (value: PresentationTool) => {
     setTool(value);
+    const point = pointerPosition.current;
+    setToolAnnouncement({
+      tool: value,
+      x: Math.min(Math.max(point.x + 14, 12), Math.max(12, window.innerWidth - 172)),
+      y: Math.min(Math.max(point.y + 14, 72), Math.max(72, window.innerHeight - 72)),
+    });
+    if (toolAnnouncementTimer.current) clearTimeout(toolAnnouncementTimer.current);
+    toolAnnouncementTimer.current = setTimeout(
+      () => setToolAnnouncement(null),
+      TOOL_ANNOUNCEMENT_DURATION_MS,
+    );
+  };
+  const rememberPointer = (event: ReactPointerEvent<HTMLDivElement>) => {
+    pointerPosition.current = { x: event.clientX, y: event.clientY };
+    wake();
+  };
+  const togglePinned = () => {
+    setPinned((current) => {
+      const next = !current;
+      try {
+        localStorage.setItem(CONTROLS_PINNED_KEY, next ? '1' : '0');
+      } catch {
+        // Pinning still works for this presentation when storage is unavailable.
+      }
+      return next;
+    });
   };
   const undo = () => dispatch({ type: 'undo', page });
   const redo = () => dispatch({ type: 'redo', page });
@@ -363,8 +411,8 @@ export const PresentationStage = forwardRef<HTMLDivElement, Props>(function Pres
           onEscapeKeyDown={(event) => {
             if (contextOpen || toolsOpen) event.preventDefault();
           }}
-          onPointerDown={wake}
-          onPointerMove={wake}
+          onPointerDown={rememberPointer}
+          onPointerMove={rememberPointer}
           onFocusCapture={wake}
           onKeyDown={handleKey}
         >
@@ -419,7 +467,30 @@ export const PresentationStage = forwardRef<HTMLDivElement, Props>(function Pres
             </ContextMenu.Portal>
           </ContextMenu.Root>
           {reactions}
-          {/* Always on, independent of the toolbar's own 1.2s auto-hide -
+          {toolAnnouncement && (
+            <div
+              role="status"
+              aria-live="polite"
+              className="pointer-events-none fixed z-[76] flex items-center gap-2 rounded-lg border border-white/15 bg-zinc-950/90 px-3 py-2 text-xs font-medium text-white shadow-xl backdrop-blur-sm"
+              style={{ left: toolAnnouncement.x, top: toolAnnouncement.y }}
+            >
+              <ActiveIcon className="h-4 w-4" aria-hidden="true" />
+              <span>{t(`live_tool_${toolAnnouncement.tool}`)}</span>
+              {toolAnnouncement.tool === 'pen' && (
+                <>
+                  <span
+                    className="h-3.5 w-3.5 rounded-full border border-white/40"
+                    style={{ backgroundColor: color }}
+                    aria-hidden="true"
+                  />
+                  <span className="text-white/70">
+                    {t(width === 3 ? 'live_ink_thin' : 'live_ink_thick')}
+                  </span>
+                </>
+              )}
+            </div>
+          )}
+          {/* Always on, independent of the toolbar's own auto-hide -
               the point is the presenter can glance at these without first
               having to move the mouse, let alone exit projection. */}
           {((onlineCount ?? 0) > 0 || pulseAverage != null || !!latestQuestions?.length) && (
@@ -569,7 +640,7 @@ export const PresentationStage = forwardRef<HTMLDivElement, Props>(function Pres
                 className={`${CONTROL} hidden sm:inline-flex`}
                 aria-label={t(pinned ? 'live_controls_unpin' : 'live_controls_pin')}
                 aria-pressed={pinned}
-                onClick={() => setPinned((value) => !value)}
+                onClick={togglePinned}
               >
                 {pinned ? <PinOff className="h-4 w-4" /> : <Pin className="h-4 w-4" />}
               </Button>

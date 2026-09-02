@@ -45,28 +45,21 @@ ALTER TABLE public.leaderboard
 --    It also stamps last_login as a side effect of a successful check-in.
 CREATE OR REPLACE FUNCTION public.verify_student_login_code(p_code text)
 RETURNS TABLE (student_id uuid, student_name text, grade int)
-LANGUAGE plpgsql
+LANGUAGE sql
 SECURITY DEFINER
-SET search_path = public
+SET search_path = ''
 AS $$
-DECLARE
-  v_row public.students%rowtype;
-BEGIN
-  -- Captured into a row variable rather than RETURN QUERY UPDATE ... RETURNING
-  -- directly: this function's own "grade" OUT column has the same name as
-  -- students.grade, so a bare RETURNING grade is ambiguous between the two
-  -- and Postgres rejects the whole function ("column reference is ambiguous").
-  UPDATE public.students
+  -- A qualified SQL UPDATE returns zero rows for an unknown code and avoids
+  -- the PL/pgSQL OUT-column ambiguity that previously broke `grade`.
+  UPDATE public.students AS student
   SET last_login = now()
-  WHERE login_code = upper(trim(p_code))
-  RETURNING * INTO v_row;
-
-  RETURN QUERY SELECT v_row.id, v_row.name, v_row.grade;
-END;
+  WHERE student.login_code = upper(btrim(p_code))
+    AND char_length(btrim(p_code)) = 8
+  RETURNING student.id, student.name, student.grade;
 $$;
 
-REVOKE ALL ON FUNCTION public.verify_student_login_code(text) FROM PUBLIC;
-GRANT EXECUTE ON FUNCTION public.verify_student_login_code(text) TO anon, authenticated;
+REVOKE ALL ON FUNCTION public.verify_student_login_code(text) FROM PUBLIC, authenticated;
+GRANT EXECUTE ON FUNCTION public.verify_student_login_code(text) TO anon;
 
 -- 4. Verification queries (run after the above):
 --    select column_name from information_schema.columns

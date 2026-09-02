@@ -426,7 +426,7 @@ describe('Live Session experience', () => {
     act(() => {
       mocks.subscribeCallback?.('CHANNEL_ERROR');
     });
-    expect(await screen.findByText('離線中，回應將自動重試')).toBeTruthy();
+    expect(await screen.findByText('目前離線，請恢復連線後再次送出回應')).toBeTruthy();
     act(() => {
       mocks.subscribeCallback?.('SUBSCRIBED');
     });

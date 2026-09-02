@@ -45,7 +45,7 @@ import type {
   LiveSessionStatus,
   LiveQuestion,
 } from '@/lib/live-session';
-import { uploadLiveDeck } from '@/lib/live-deck-storage';
+import { deleteLiveDeck, uploadLiveDeck } from '@/lib/live-deck-storage';
 import { DeckViewer } from '@/components/live/DeckViewer';
 import { PresentationStage } from '@/components/live/PresentationStage';
 import {
@@ -339,26 +339,39 @@ export default function PresenterPage() {
     event.target.value = '';
     if (!file || uploadingDeck) return;
     setUploadingDeck(true);
+    let uploadedUrl: string | null = null;
+    let deckClient: ReturnType<typeof supabase> | null = null;
     try {
       const client = supabase();
+      deckClient = client;
       const {
         data: { user },
         error: userError,
       } = await client.auth.getUser();
       if (userError || !user) throw new Error('DECK_AUTH');
       const url = await uploadLiveDeck(client, user.id, file);
+      uploadedUrl = url;
       const response = await fetch(`/api/live-sessions/${params.id}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ deckUrl: url, deckPage: 1 }),
       });
       if (!response.ok) throw new Error('DECK_SAVE');
+      uploadedUrl = null;
       setNumDeckPages(1);
       setDeckLoadError(false);
       setData((previous) =>
         previous ? { ...previous, deckUrl: url, deckPage: 1 } : previous,
       );
     } catch (error) {
+      // Upload and session PATCH are separate operations. Roll back a newly
+      // uploaded object when the session could not persist its URL, otherwise
+      // every transient API failure leaves an unreachable Storage object.
+      if (uploadedUrl && deckClient) {
+        await deleteLiveDeck(deckClient, uploadedUrl).catch((cleanupError) => {
+          console.error('orphaned live deck cleanup failed:', cleanupError);
+        });
+      }
       const code = error instanceof Error ? error.message : '';
       const key =
         code === 'DECK_TYPE'

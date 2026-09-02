@@ -83,7 +83,7 @@ begin
   return v_count;
 end;
 $$;
-revoke all on function public.share_my_events_with_team() from public;
+revoke all on function public.share_my_events_with_team() from public, anon;
 grant execute on function public.share_my_events_with_team() to authenticated;
 
 commit;

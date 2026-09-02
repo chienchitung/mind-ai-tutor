@@ -58,7 +58,15 @@ export async function verifyStudentLoginCode(code: string): Promise<VerifiedStud
   }
 
   const row = Array.isArray(data) ? data[0] : data;
-  if (!row) return null;
+  // Defensive guard for malformed/legacy RPC responses. A successful login
+  // must always contain both the roster UUID and a non-empty display name.
+  if (
+    !row ||
+    typeof row.student_id !== 'string' ||
+    !row.student_id ||
+    typeof row.student_name !== 'string' ||
+    !row.student_name.trim()
+  ) return null;
 
   return {
     student_id: row.student_id,
