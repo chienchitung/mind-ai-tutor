@@ -67,6 +67,14 @@ function mapLesson(
   const configuredNumber = override.number ?? asNumber(metadata.game_number)
   const metadataDescription = asString(metadata.card_description)
   const description = override.cardDescription ?? metadataDescription ?? row.description ?? ''
+  const metadataFlow = asString(metadata.learning_flow)
+  const learningFlow = metadataFlow === 'content_first' ? 'content_first' : 'challenge_first'
+  const metadataMission = {
+    objective: asString(metadata.learning_objective),
+    scenario: asString(metadata.mission_scenario),
+    mentorMessage: asString(metadata.mentor_message),
+    completionMessage: asString(metadata.completion_message),
+  }
 
   return {
     lesson_id: row.id,
@@ -83,7 +91,8 @@ function mapLesson(
     markdownContent: row.markdown_content,
     practiceExercises: row.practice_exercises,
     metadata,
-    mission: normalizeMission(override.mission),
+    learningFlow,
+    mission: normalizeMission({ ...metadataMission, ...(override.mission || {}) }),
   }
 }
 

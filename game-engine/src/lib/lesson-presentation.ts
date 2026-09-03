@@ -6,8 +6,8 @@ export function lessonStage(wasCompletedOnEntry: boolean, submitted: boolean, co
   return correct ? 'complete' : 'retry'
 }
 
-export function initialLessonTab(intro: boolean, final: boolean) {
-  return intro ? 'content' : final ? 'game' : 'practice'
+export function initialLessonTab(intro: boolean, final: boolean, flow: 'challenge_first' | 'content_first' = 'challenge_first') {
+  return intro ? 'content' : final ? 'game' : flow === 'content_first' ? 'content' : 'practice'
 }
 
 export function mentorGreeting(lessonTitle?: string, greeting?: string) {

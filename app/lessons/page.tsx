@@ -6,7 +6,7 @@ import { PageHeader } from '@/components/layout/PageHeader';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { PlusCircle, Book, Clock, Users, Grid, List, Pencil, ExternalLink, ChevronDown, ChevronUp, X, Trash2, Wand2, Eye, Edit, Search, Loader2 } from 'lucide-react';
+import { PlusCircle, Book, Clock, Users, Grid, List, Pencil, ExternalLink, ChevronDown, ChevronUp, X, Trash2, Wand2, Eye, Edit, Search, Loader2, AlertCircle, CheckCircle2 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -77,6 +77,7 @@ interface Lesson {
   practice_exercises: PracticeExercise[];
   created_at: string;
   markdown_content?: string; // 新增 markdown_content 欄位
+  metadata?: Record<string, unknown>;
 }
 
 // Helper function to safely parse JSON strings from database
@@ -109,6 +110,7 @@ export default function LessonsPage() {
   const { language } = useLanguage();
   const { t } = useTranslation(language);
   const [markdownEditorMode, setMarkdownEditorMode] = useState<'edit' | 'preview'>('edit');
+  const [saveError, setSaveError] = useState<string | null>(null);
   const markdownTexts = useMemo(() => ({
     label: t('markdown_label'),
     placeholder: t('markdown_placeholder'),
@@ -126,6 +128,10 @@ export default function LessonsPage() {
   // first invalid field in that section, not just "somewhere in there".
   function firstBasicsErrorField(errors: typeof form.formState.errors) {
     return (['title', 'cardDescription', 'duration', 'level', 'topics', 'geniallyLink'] as const)
+      .find((key) => errors[key]) ?? null;
+  }
+  function firstDesignErrorField(errors: typeof form.formState.errors) {
+    return (['learningObjective', 'learningFlow', 'missionScenario', 'mentorMessage', 'completionMessage'] as const)
       .find((key) => errors[key]) ?? null;
   }
   function firstPracticeErrorField(errors: typeof form.formState.errors): string | null {
@@ -151,6 +157,11 @@ export default function LessonsPage() {
     level: requiredString(t('level') + t('field_required')),
     topics: requiredString(t('required_topics')),
     geniallyLink: z.union([z.string().url(t('enter_genially_url')), z.literal('')]).optional(),
+    learningObjective: requiredString(language === 'zh-TW' ? '請填寫學生完成後能做到的事' : 'Describe what students can do after this lesson').max(200),
+    learningFlow: z.enum(['challenge_first', 'content_first']),
+    missionScenario: z.string().max(600),
+    mentorMessage: z.string().max(300),
+    completionMessage: z.string().max(300),
     // No .min(1) here on purpose: only the "生成練習題" button actually
     // needs this field, and it has its own guard (below) before calling
     // Gemini. A teacher who writes every question by hand should be able
@@ -186,6 +197,11 @@ export default function LessonsPage() {
       level: "Beginner",
       topics: "",
       geniallyLink: "",
+      learningObjective: "",
+      learningFlow: "challenge_first",
+      missionScenario: "",
+      mentorMessage: "",
+      completionMessage: "",
       teachingContent: "",
       practiceExercises: [{ question: "", answer: "", explanation: "" }]
     }
@@ -198,6 +214,7 @@ export default function LessonsPage() {
     setEditingLesson(null);
     form.reset();
     setPracticeExercises([{ question: '', answer: '', explanation: '' }]);
+    setSaveError(null);
   };
 
   useEffect(() => {
@@ -269,6 +286,11 @@ export default function LessonsPage() {
         level: editingLesson.level,
         topics: editingLesson.topics.join(', '),
         geniallyLink: editingLesson.genially_link,
+        learningObjective: typeof editingLesson.metadata?.learning_objective === 'string' ? editingLesson.metadata.learning_objective : editingLesson.description || '',
+        learningFlow: editingLesson.metadata?.learning_flow === 'content_first' ? 'content_first' : 'challenge_first',
+        missionScenario: typeof editingLesson.metadata?.mission_scenario === 'string' ? editingLesson.metadata.mission_scenario : '',
+        mentorMessage: typeof editingLesson.metadata?.mentor_message === 'string' ? editingLesson.metadata.mentor_message : '',
+        completionMessage: typeof editingLesson.metadata?.completion_message === 'string' ? editingLesson.metadata.completion_message : '',
         teachingContent: editingLesson.teaching_content,
         practiceExercises: editingLesson.practice_exercises?.length ? editingLesson.practice_exercises.map(item => ({ ...item })) : [{ question: "", answer: "", explanation: "" }]
       });
@@ -317,6 +339,7 @@ export default function LessonsPage() {
 
   const onSubmit = async (values: z.infer<typeof lessonFormSchema>) => {
     try {
+      setSaveError(null);
       // 動態導入 supabase 函數
       const { supabase } = await import('@/lib/supabase');
       const supabaseClient = supabase();
@@ -345,6 +368,18 @@ export default function LessonsPage() {
         practice_exercises: practiceExercises,
         markdown_content: values.markdownContent || '',
         card_description: values.cardDescription.trim(),
+        learning_objective: values.learningObjective.trim(),
+        learning_flow: values.learningFlow,
+        mission_scenario: values.missionScenario.trim(),
+        mentor_message: values.mentorMessage.trim(),
+        completion_message: values.completionMessage.trim(),
+      };
+
+      // Preserve game_role, game_number and any future metadata maintained by
+      // the game builder. The lesson editor owns only the fields above.
+      const mergedMetadata = {
+        ...(editingLesson?.metadata || {}),
+        ...jsonExtras,
       };
 
       // Store extended data as JSON in 'metadata' field if it exists
@@ -358,7 +393,7 @@ export default function LessonsPage() {
         practice_exercises: practiceExercises,
         markdown_content: values.markdownContent || '',
         // Also try a metadata field that might exist
-        metadata: jsonExtras
+        metadata: mergedMetadata
       };
 
       if (editingLesson) {
@@ -378,6 +413,7 @@ export default function LessonsPage() {
           teaching_content: values.teachingContent,
           practice_exercises: practiceExercises,
           markdown_content: values.markdownContent || '', // 添加markdown_content欄位
+          metadata: mergedMetadata,
         };
         
         // Update the lesson in state
@@ -442,7 +478,8 @@ export default function LessonsPage() {
           teaching_content: inserted.teaching_content || values.teachingContent,
           practice_exercises: Array.isArray(inserted.practice_exercises) ? inserted.practice_exercises : (typeof inserted.practice_exercises === 'string' ? safeParse(inserted.practice_exercises, []) : practiceExercises),
           created_at: inserted.created_at || new Date().toISOString(),
-          markdown_content: inserted.markdown_content || values.markdownContent || ''
+          markdown_content: inserted.markdown_content || values.markdownContent || '',
+          metadata: inserted.metadata || mergedMetadata,
         } as Lesson;
 
         // Add the new lesson to the state
@@ -461,6 +498,7 @@ export default function LessonsPage() {
       setPracticeExercises([{ question: "", answer: "", explanation: "" }]);
     } catch (error: any) {
       console.error('Error saving lesson:', error);
+      setSaveError(error.message || t('try_again'));
       toast({
         title: `${t(editingLesson ? 'lesson_error_update' : 'lesson_error_create')}`,
         description: error.message || t('try_again'),
@@ -596,15 +634,22 @@ export default function LessonsPage() {
               <Button 
                 onClick={() => {
                   setEditingLesson(null);
+                  setSaveError(null);
                   setShowEditForm(true);
                   setPracticeExercises([{ question: "", answer: "", explanation: "" }]);
                   form.reset({
                     title: "",
+                    cardDescription: "",
                     markdownContent: "",
                     duration: 30,
                     level: "Beginner",
                     topics: "",
                     geniallyLink: "",
+                    learningObjective: "",
+                    learningFlow: "challenge_first",
+                    missionScenario: "",
+                    mentorMessage: "",
+                    completionMessage: "",
                     teachingContent: "",
                     practiceExercises: [{ question: "", answer: "", explanation: "" }]
                   });
@@ -643,14 +688,26 @@ export default function LessonsPage() {
             <div className="min-h-[60vh]">
               <EditorWorkspace
                 title={editingLesson ? t('edit_lesson') : t('create_lesson')}
-                description={language === 'zh-TW' ? '依序完成基本資料、教材內容與練習題。' : 'Complete the basics, lesson content and practice exercise in order.'}
+                description={language === 'zh-TW' ? '先定義學生任務，再安排教材與理解檢查。' : 'Define the student mission before arranging content and checks.'}
                 sections={[
                   { id: 'lesson-basics', label: language === 'zh-TW' ? '基本資料' : 'Basics' },
+                  { id: 'lesson-design', label: language === 'zh-TW' ? '學習設計' : 'Learning design' },
                   { id: 'lesson-content', label: language === 'zh-TW' ? '教材內容' : 'Content' },
                   { id: 'lesson-practice', label: language === 'zh-TW' ? '練習題' : 'Practice' },
                 ]}
                 actions={<>
-                  <span role="status" className="text-xs text-muted-foreground">{form.formState.isDirty ? (language === 'zh-TW' ? '有未儲存的變更' : 'Unsaved changes') : (language === 'zh-TW' ? '尚無變更' : 'No changes')}</span>
+                  <span role="status" className={`inline-flex items-center gap-1.5 text-xs ${saveError ? 'text-destructive' : form.formState.isDirty ? 'text-amber-700' : 'text-emerald-700'}`}>
+                    {saveError ? <AlertCircle className="h-3.5 w-3.5" /> : !form.formState.isDirty && <CheckCircle2 className="h-3.5 w-3.5" />}
+                    {form.formState.isSubmitting
+                      ? (language === 'zh-TW' ? '正在儲存…' : 'Saving…')
+                      : saveError
+                        ? (language === 'zh-TW' ? '上次儲存失敗，內容仍保留' : 'Last save failed; your draft is preserved')
+                        : form.formState.isDirty
+                          ? (language === 'zh-TW' ? '有尚未儲存的變更' : 'Unsaved changes')
+                          : editingLesson
+                            ? (language === 'zh-TW' ? '目前內容已儲存' : 'Current content is saved')
+                            : (language === 'zh-TW' ? '尚未建立' : 'Not created yet')}
+                  </span>
                   <Button variant="outline" size="sm" disabled={form.formState.isSubmitting || isGenerating} onClick={closeEditor}>{t('cancel')}</Button>
                   <Button type="submit" form="lesson-editor-form" disabled={form.formState.isSubmitting || isGenerating}>
                     {form.formState.isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
@@ -667,6 +724,7 @@ export default function LessonsPage() {
                 <form id="lesson-editor-form" onSubmit={form.handleSubmit(onSubmit)} aria-busy={form.formState.isSubmitting}>
                   {Object.keys(form.formState.errors).length > 0 && (() => {
                     const basicsField = firstBasicsErrorField(form.formState.errors);
+                    const designField = firstDesignErrorField(form.formState.errors);
                     const practiceField = firstPracticeErrorField(form.formState.errors);
                     // Clicking jumps to AND focuses the first invalid field in that
                     // section (form.setFocus scrolls the input into view itself),
@@ -678,6 +736,11 @@ export default function LessonsPage() {
                           {basicsField && (
                             <a href="#lesson-basics" className="underline" onClick={(event) => { event.preventDefault(); form.setFocus(basicsField); }}>
                               {language === 'zh-TW' ? '基本資料' : 'Basics'}
+                            </a>
+                          )}
+                          {designField && (
+                            <a href="#lesson-design" className="underline" onClick={(event) => { event.preventDefault(); form.setFocus(designField); }}>
+                              {language === 'zh-TW' ? '學習設計' : 'Learning design'}
                             </a>
                           )}
                           {form.formState.errors.markdownContent && (
@@ -823,6 +886,96 @@ export default function LessonsPage() {
                       )}
                     />
                   </div>
+                  </section>
+
+                  <section id="lesson-design" className="scroll-mt-24 lg:scroll-mt-64 space-y-5 rounded-xl border border-border/70 p-4 sm:p-5">
+                    <div>
+                      <h3 className="font-semibold">{language === 'zh-TW' ? '學習設計' : 'Learning design'}</h3>
+                      <p className="mt-1 text-sm text-muted-foreground">{language === 'zh-TW' ? '設定學生進入關卡後先做什麼，以及 AI 導師如何引導。' : 'Set what students do first and how the AI tutor guides them.'}</p>
+                    </div>
+
+                    <FormField
+                      control={form.control}
+                      name="learningObjective"
+                      render={({ field }: { field: any }) => (
+                        <FormItem>
+                          <FormLabel>{language === 'zh-TW' ? '學生完成後能做到什麼' : 'Student outcome'}</FormLabel>
+                          <FormControl>
+                            <Textarea className="min-h-20" maxLength={200} placeholder={language === 'zh-TW' ? '例如：能使用 IF 函數，依條件自動顯示通過或待加強。' : 'Example: Use IF to display a result based on a condition.'} {...field} />
+                          </FormControl>
+                          <p className="text-xs text-muted-foreground">{language === 'zh-TW' ? '這段文字會顯示在學生關卡頂部。' : 'Shown at the top of the student mission.'} · {field.value?.length ?? 0}/200</p>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+
+                    <FormField
+                      control={form.control}
+                      name="learningFlow"
+                      render={({ field }: { field: any }) => (
+                        <FormItem>
+                          <FormLabel>{language === 'zh-TW' ? '學生進入後的第一步' : 'First student step'}</FormLabel>
+                          <Select onValueChange={field.onChange} value={field.value}>
+                            <FormControl><SelectTrigger><SelectValue /></SelectTrigger></FormControl>
+                            <SelectContent>
+                              <SelectItem value="challenge_first">{language === 'zh-TW' ? '先試任務，再按需要查看教材（推薦）' : 'Try the mission first, then use content as needed'}</SelectItem>
+                              <SelectItem value="content_first">{language === 'zh-TW' ? '先閱讀教材，再進入任務' : 'Read the content before the mission'}</SelectItem>
+                            </SelectContent>
+                          </Select>
+                          <p className="text-xs text-muted-foreground">{language === 'zh-TW' ? '只決定預設開啟步驟，學生仍可切換查看教材。' : 'Sets the default step; students can still switch sections.'}</p>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+
+                    <div className="flex gap-3 rounded-xl border border-emerald-200 bg-emerald-50/70 p-4 text-sm text-emerald-950">
+                      <CheckCircle2 className="mt-0.5 h-5 w-5 shrink-0" />
+                      <div>
+                        <p className="font-medium">{language === 'zh-TW' ? '目前通關條件' : 'Current completion rule'}</p>
+                        <p className="mt-1 leading-6 text-emerald-900/80">
+                          {editingLesson?.metadata?.game_role === 'intro'
+                            ? (language === 'zh-TW' ? '學生閱讀並自行確認完成前導課程。' : 'Students review and confirm the introduction.')
+                            : (language === 'zh-TW' ? '學生答對理解檢查後才會完成關卡。互動教材的觀看狀態不會單獨判定通關。' : 'Students complete the lesson after a correct knowledge check. Viewing an external activity alone does not complete it.')}
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="grid gap-4 lg:grid-cols-2">
+                      <FormField
+                        control={form.control}
+                        name="missionScenario"
+                        render={({ field }: { field: any }) => (
+                          <FormItem>
+                            <FormLabel>{language === 'zh-TW' ? '任務情境（選填）' : 'Mission scenario (optional)'}</FormLabel>
+                            <FormControl><Textarea className="min-h-28" maxLength={600} placeholder={language === 'zh-TW' ? '給學生一個需要解決問題的真實情境。' : 'Give students a realistic problem to solve.'} {...field} /></FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                      <FormField
+                        control={form.control}
+                        name="mentorMessage"
+                        render={({ field }: { field: any }) => (
+                          <FormItem>
+                            <FormLabel>{language === 'zh-TW' ? 'AI 導師開場引導（選填）' : 'AI tutor opening (optional)'}</FormLabel>
+                            <FormControl><Textarea className="min-h-28" maxLength={300} placeholder={language === 'zh-TW' ? '例如：先找出判斷條件，再決定條件成立與不成立時要顯示什麼。' : 'Guide the student without giving away the answer.'} {...field} /></FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                    </div>
+
+                    <FormField
+                      control={form.control}
+                      name="completionMessage"
+                      render={({ field }: { field: any }) => (
+                        <FormItem>
+                          <FormLabel>{language === 'zh-TW' ? '完成後回饋（選填）' : 'Completion feedback (optional)'}</FormLabel>
+                          <FormControl><Textarea className="min-h-20" maxLength={300} placeholder={language === 'zh-TW' ? '說明學生完成了什麼，以及下一關會如何運用。' : 'Explain what the student achieved and what comes next.'} {...field} /></FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
                   </section>
                   
                   {/* Markdown 內容編輯區塊 */}
@@ -1058,9 +1211,11 @@ export default function LessonsPage() {
                     </Badge>
                   )) : null}
                 </div>
-                <Badge variant="outline" className={getLevelColor(lesson.level)}>
-                  {translateLevel(lesson.level)}
-                </Badge>
+                <div className="flex flex-wrap gap-2">
+                  <Badge variant="outline" className={getLevelColor(lesson.level)}>{translateLevel(lesson.level)}</Badge>
+                  <Badge variant="secondary">{lesson.metadata?.learning_flow === 'content_first' ? (language === 'zh-TW' ? '先看教材' : 'Content first') : (language === 'zh-TW' ? '先試任務' : 'Challenge first')}</Badge>
+                  {typeof lesson.metadata?.learning_objective !== 'string' && <Badge variant="outline" className="border-amber-300 bg-amber-50 text-amber-800">{language === 'zh-TW' ? '待補學習目標' : 'Outcome needed'}</Badge>}
+                </div>
                         {lesson.genially_link && (
                           <div className="mt-3 text-sm text-blue-600">
                             <a href={lesson.genially_link} target="_blank" rel="noopener noreferrer" className="flex items-center hover:underline">
@@ -1087,6 +1242,7 @@ export default function LessonsPage() {
                               size="sm"
                               onClick={() => {
                                 setEditingLesson(lesson);
+                                setSaveError(null);
                                 setShowEditForm(true);
                                 setPracticeExercises(lesson.practice_exercises && lesson.practice_exercises.length > 0 
                                   ? [lesson.practice_exercises[0]] 
@@ -1117,6 +1273,8 @@ export default function LessonsPage() {
                               <Badge variant="outline" className={getLevelColor(lesson.level)}>
                                 {translateLevel(lesson.level)}
                               </Badge>
+                              <Badge variant="secondary">{lesson.metadata?.learning_flow === 'content_first' ? (language === 'zh-TW' ? '先看教材' : 'Content first') : (language === 'zh-TW' ? '先試任務' : 'Challenge first')}</Badge>
+                              {typeof lesson.metadata?.learning_objective !== 'string' && <Badge variant="outline" className="border-amber-300 bg-amber-50 text-amber-800">{language === 'zh-TW' ? '待補學習目標' : 'Outcome needed'}</Badge>}
                             </div>
                             <p className="text-muted-foreground line-clamp-2">
                               {lesson.description}
@@ -1135,6 +1293,7 @@ export default function LessonsPage() {
                               size="sm" 
                               onClick={() => {
                                 setEditingLesson(lesson);
+                                setSaveError(null);
                                 setShowEditForm(true);
                                 setPracticeExercises(lesson.practice_exercises && lesson.practice_exercises.length > 0 
                                   ? [lesson.practice_exercises[0]] 

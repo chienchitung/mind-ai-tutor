@@ -27,6 +27,7 @@ export interface Lesson {
   markdownContent?: string | null;
   practiceExercises?: unknown;
   metadata?: Record<string, unknown>;
+  learningFlow?: 'challenge_first' | 'content_first';
   mission?: GameMission;
 }
 

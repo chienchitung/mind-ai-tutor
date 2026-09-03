@@ -1112,7 +1112,9 @@ export default function ExcelLearningPlatform({
     ? ['game']
     : isIntroLesson(lessonState.currentLesson)
       ? ['content']
-      : ['practice', 'content'];
+      : currentLesson?.learningFlow === 'content_first'
+        ? ['content', 'practice']
+        : ['practice', 'content'];
 
   const chatEndRef = useRef<HTMLDivElement>(null);
 
@@ -1513,35 +1515,15 @@ export default function ExcelLearningPlatform({
           </div>
 
           {currentLesson && <MissionBrief lesson={currentLesson} />}
-          <Tabs key={lessonState.currentLesson + (currentLesson?.role || "")} ref={tabsRef} defaultValue={initialLessonTab(isIntroLesson(lessonState.currentLesson), isFinalLesson(lessonState.currentLesson))} className="lesson-tabs">
+          <Tabs key={lessonState.currentLesson + (currentLesson?.role || "")} ref={tabsRef} defaultValue={initialLessonTab(isIntroLesson(lessonState.currentLesson), isFinalLesson(lessonState.currentLesson), currentLesson?.learningFlow)} className="lesson-tabs">
             {!isIntroLesson(lessonState.currentLesson) && (
             <TabsList className="lesson-tab-list" style={{ gridTemplateColumns: `repeat(${showTabs.length}, 1fr)` }}>
-              {showTabs.includes('content') && (
-                <TabsTrigger
-                  value="content"
-                  className="lesson-tab"
-                >
-                  學習資料
+              {showTabs.map((tab, index) => (
+                <TabsTrigger key={tab} value={tab} className="lesson-tab">
+                  <span className="lesson-tab-step" aria-hidden="true">{index + 1}</span>
+                  {tab === 'practice' ? <><Zap className="w-5 h-5" />任務挑戰</> : tab === 'game' ? <><FileSpreadsheet className="w-5 h-5" />互動關卡</> : '學習資料'}
                 </TabsTrigger>
-              )}
-              {showTabs.includes('practice') && (
-                <TabsTrigger
-                  value="practice"
-                  className="lesson-tab"
-                >
-                  <Zap className="w-5 h-5" />
-                  任務挑戰
-                </TabsTrigger>
-              )}
-              {showTabs.includes('game') && (
-                <TabsTrigger
-                  value="game"
-                  className="lesson-tab"
-                >
-                  <FileSpreadsheet className="w-5 h-5" />
-                  互動關卡
-                </TabsTrigger>
-              )}
+              ))}
             </TabsList>
             )}
             

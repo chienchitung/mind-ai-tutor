@@ -54,6 +54,12 @@ const lesson = {
     { question: "問題一", answer: "答案一", explanation: "說明一" },
     { question: "問題二", answer: "答案二", explanation: "說明二" },
   ],
+  metadata: {
+    game_role: "standard",
+    game_number: 2,
+    learning_objective: "能使用 IF 做條件判斷",
+    learning_flow: "challenge_first",
+  },
   created_at: "2026-08-31",
 };
 beforeEach(() => {
@@ -100,7 +106,7 @@ describe("lesson editor experience", () => {
     fireEvent.change(screen.getByLabelText("標題"), {
       target: { value: "IF 條件函數更新" },
     });
-    const preview = screen.getByText("學生看到的課程卡片 · 即時預覽");
+    const preview = screen.getByText("學生任務流程 · 即時預覽");
     expect(preview.parentElement?.textContent).toContain("IF 條件函數更新");
     if (process.env.LIVE_PREVIEW_DIR) {
       mkdirSync(process.env.LIVE_PREVIEW_DIR, { recursive: true });
@@ -175,5 +181,21 @@ describe("lesson editor experience", () => {
     );
     expect(mocks.update).toHaveBeenCalledOnce();
     expect(screen.getByDisplayValue("問題二")).toBeTruthy();
+  });
+  it("saves learning design without overwriting game builder metadata", async () => {
+    await edit();
+    fireEvent.change(screen.getByLabelText("學生完成後能做到什麼"), {
+      target: { value: "能建立完整的 IF 判斷公式" },
+    });
+    fireEvent.click(screen.getAllByRole("button", { name: "儲存變更" })[0]);
+    await waitFor(() => expect(mocks.update).toHaveBeenCalled());
+    expect(mocks.update.mock.calls[0][0].metadata).toEqual(
+      expect.objectContaining({
+        game_role: "standard",
+        game_number: 2,
+        learning_objective: "能建立完整的 IF 判斷公式",
+        learning_flow: "challenge_first",
+      }),
+    );
   });
 });
