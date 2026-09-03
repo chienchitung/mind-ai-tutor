@@ -30,6 +30,14 @@ describe('QuestHome guest notice', () => {
     const html = renderToStaticMarkup(<QuestHome {...baseProps} signedIn={false} isGuest />)
     expect(html).not.toContain('訪客模式')
   })
+  it('greets a guest who typed a local-only nickname', () => {
+    const html = renderToStaticMarkup(<QuestHome {...baseProps} signedIn isGuest guestName="小美" />)
+    expect(html).toContain('嗨，小美！')
+  })
+  it('does not add a redundant greeting for the default guest name', () => {
+    const html = renderToStaticMarkup(<QuestHome {...baseProps} signedIn isGuest guestName="訪客玩家" />)
+    expect(html).not.toContain('嗨，')
+  })
 })
 
 describe('QuestHome learning journey guidance', () => {
