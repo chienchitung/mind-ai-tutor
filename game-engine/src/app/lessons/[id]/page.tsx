@@ -14,7 +14,7 @@ import Link from 'next/link'
 import { State, type ChatMessage } from '@/types/lesson'
 import { getProgress, updateLessonProgress } from '@/lib/progress'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog"
-import { saveLearningRecord, saveLeaderboardEntry, getPlayerRank, getLeaderboardStats, supabase, getGeniallyLink, getLessonMarkdownContent } from '@/lib/supabase'
+import { saveLearningRecord, saveLeaderboardEntry, saveGuestPlayStats, getPlayerRank, getLeaderboardStats, supabase, getGeniallyLink, getLessonMarkdownContent } from '@/lib/supabase'
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm'
 import { MentorAvatar } from '@/components/MentorAvatar'
@@ -827,12 +827,26 @@ export default function ExcelLearningPlatform({
             answer_attempts: newAttemptCount,
             game_id: gameId ?? null,
           });
-          
+
           // 如果成功儲存學習記錄，則儲存暫存的聊天資料
           if (learningRecordResult && learningRecordResult.length > 0) {
             await savePendingChatData(learningRecordResult[0].id);
           }
-          
+
+          // Guest play (no login code) never reaches learning_records - this
+          // is the only place its completion is recorded, anonymously.
+          if (gameId) {
+            await saveGuestPlayStats({
+              game_id: gameId,
+              lesson_id: lessonState.currentLesson,
+              started_at: startTimeStr.replace('+08:00', 'Z'),
+              completed_at: utc8Time.toISOString(),
+              time_spent_seconds: timeSpentSeconds,
+              answer_attempts: newAttemptCount,
+              is_final_lesson: isFinalLesson(lessonState.currentLesson),
+            });
+          }
+
           // For level 5 (final level), also save to leaderboard
           if (isFinalLesson(lessonState.currentLesson)) {
             try {
@@ -929,10 +943,24 @@ export default function ExcelLearningPlatform({
           answer_attempts: newAttemptCount,
           game_id: gameId ?? null,
         });
-        
+
         // 如果成功儲存學習記錄，則儲存暫存的聊天資料
         if (learningRecordResult && learningRecordResult.length > 0) {
           await savePendingChatData(learningRecordResult[0].id);
+        }
+
+        // Guest play (no login code) never reaches learning_records - this
+        // is the only place its completion is recorded, anonymously.
+        if (gameId) {
+          await saveGuestPlayStats({
+            game_id: gameId,
+            lesson_id: lessonState.currentLesson,
+            started_at: startTimeStr.replace('+08:00', 'Z'),
+            completed_at: utc8Time.toISOString(),
+            time_spent_seconds: timeSpentSeconds,
+            answer_attempts: newAttemptCount,
+            is_final_lesson: isFinalLesson(lessonState.currentLesson),
+          });
         }
 
         // For level 5 (final level), also save to leaderboard
