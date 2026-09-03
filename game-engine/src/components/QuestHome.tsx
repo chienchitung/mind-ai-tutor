@@ -15,6 +15,9 @@ interface QuestHomeProps {
   exp: number
   signedIn: boolean
   isGuest?: boolean
+  // Local-only display name (see saveGuestPlayStats() in lib/supabase.ts -
+  // it never accepts a name, so nothing here ever reaches Supabase).
+  guestName?: string | null
   completionTime: string | null
   rank: number | null
   onStart: () => void
@@ -42,6 +45,7 @@ export function QuestHome(props: QuestHomeProps) {
     </div></header>
     {signedIn && props.isGuest && (
       <p className="quest-guest-notice" role="status">
+        {props.guestName && props.guestName !== '訪客玩家' ? `嗨，${props.guestName}！` : ''}
         訪客模式・進度僅保存在這台裝置，清除瀏覽器資料會遺失紀錄
       </p>
     )}

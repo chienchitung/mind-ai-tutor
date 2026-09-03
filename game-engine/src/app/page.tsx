@@ -45,6 +45,11 @@ export default function HomePage({ gameId }: { gameId?: string }) {
   // login code - their progress only ever gets written to this device's
   // localStorage, never linked to a real student row.
   const [isGuest, setIsGuest] = useState(false);
+  // The active session's display name, local-only for guests (never sent to
+  // Supabase - see saveGuestPlayStats(), which doesn't even accept a name).
+  // guestNickname is just the controlled input value before starting.
+  const [activeStudentName, setActiveStudentName] = useState<string | null>(null);
+  const [guestNickname, setGuestNickname] = useState("");
   const [loginCode, setLoginCode] = useState("");
   const [verifyingCode, setVerifyingCode] = useState(false);
   const [loginCodeError, setLoginCodeError] = useState<string | null>(null);
@@ -138,15 +143,16 @@ export default function HomePage({ gameId }: { gameId?: string }) {
         const savedProgress = getProgress(gameId, activeLessons[0]?.lesson_id);
         const savedStudentId = localStorage.getItem(storageKey('student_id'));
         const savedCompletionTime = localStorage.getItem(storageKey('completion_time'));
-        
+
         console.log('Current progress:', savedProgress);
-        
+
         setProgress(prev => ({
           ...prev,
           ...savedProgress,
         }));
         setHasStudentId(!!savedStudentId);
         setIsGuest(!!savedStudentId && !localStorage.getItem(storageKey('student_ref_id')));
+        setActiveStudentName(localStorage.getItem(storageKey('student_name')));
         setCompletionTime(savedCompletionTime);
 
         // 如果有學號且完成時間，獲取排名
@@ -227,6 +233,7 @@ export default function HomePage({ gameId }: { gameId?: string }) {
     setIsGuest(false);
     setStudentId("");
     setStudentName("");
+    setActiveStudentName(null);
     
     // 重新導向到首頁
     router.refresh();
@@ -269,6 +276,7 @@ export default function HomePage({ gameId }: { gameId?: string }) {
     console.log('Setting global start_time on student ID submission:', startTime);
     setHasStudentId(true);
     setIsGuest(!studentRefId);
+    setActiveStudentName(name);
 
     // 直接導航到前導課程（0），若不存在則到第一關
     const firstLesson = mappedLessons.find(lesson => lesson.role === 'intro') || mappedLessons[0];
@@ -280,10 +288,13 @@ export default function HomePage({ gameId }: { gameId?: string }) {
   };
 
   const handleGuestStart = () => {
-    // Guests stay pseudonymous and device-local. Do not ask children or trial
-    // users for a real name/student number that the product does not need.
+    // Guests stay pseudonymous and device-local - never a student number,
+    // and the nickname (if any) is typed voluntarily, never uploaded to
+    // Supabase (saveGuestPlayStats doesn't even accept a name field).
     const guestId = `guest_${crypto.randomUUID()}`;
-    startLearningSession(guestId, '訪客玩家', null);
+    const nickname = guestNickname.trim().slice(0, 20);
+    startLearningSession(guestId, nickname || '訪客玩家', null);
+    setGuestNickname("");
   };
 
   const handleLoginCodeSubmit = async () => {
@@ -336,7 +347,7 @@ export default function HomePage({ gameId }: { gameId?: string }) {
     <div>
       <QuestHome game={gameDefinition} gameId={gameId} lessons={mappedLessons}
         completedLessons={progress.completedLessons} stars={progress.stars} level={progress.level} exp={progress.exp}
-        signedIn={hasStudentId} isGuest={isGuest} completionTime={completionTime} rank={playerRank}
+        signedIn={hasStudentId} isGuest={isGuest} guestName={activeStudentName} completionTime={completionTime} rank={playerRank}
         onStart={handleStartLearning} onReset={handleReset} onLeaderboard={() => setShowLeaderboardDialog(true)} />
 
       {/* 學號輸入對話框 */}
@@ -385,7 +396,22 @@ export default function HomePage({ gameId }: { gameId?: string }) {
             </TabsContent>
             <TabsContent value="guest" className="space-y-4 py-4">
               <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">
-                不需提供姓名或學號。進度只保存在這台裝置，不會寫入學習紀錄與排行榜；換裝置或清除瀏覽器資料後會遺失。
+                不需要學號。進度只保存在這台裝置，不會寫入學習紀錄與排行榜；換裝置或清除瀏覽器資料後會遺失。
+              </div>
+              <div className="space-y-2">
+                <label htmlFor="guestNickname" className="text-sm font-medium text-gray-700">
+                  暱稱（選填）
+                </label>
+                <input
+                  id="guestNickname"
+                  type="text"
+                  value={guestNickname}
+                  onChange={(e) => setGuestNickname(e.target.value)}
+                  maxLength={20}
+                  className="w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  placeholder="訪客玩家"
+                />
+                <p className="text-xs text-gray-500">只會顯示在這台裝置上，不會上傳或存進資料庫。</p>
               </div>
               <div className="flex justify-end">
                 <Button
