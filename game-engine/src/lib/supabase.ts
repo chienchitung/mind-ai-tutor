@@ -208,6 +208,45 @@ export async function saveLeaderboardEntry(entry: Omit<LeaderboardEntry, 'id' | 
   }
 }
 
+export interface GuestPlayStat {
+  game_id: string
+  lesson_id: string | number
+  started_at: string
+  completed_at: string
+  time_spent_seconds: number
+  answer_attempts: number
+  is_final_lesson?: boolean
+}
+
+// Anonymous aggregate stats for guest (no login-code) play, visible only to
+// the game's own creator - see scripts/add_guest_play_stats.sql for why this
+// is its own table (no name, no student id at all) rather than relaxing
+// learning_records'/leaderboard's roster-linked guarantee for guests.
+export async function saveGuestPlayStats(stat: GuestPlayStat) {
+  try {
+    if (!stat.game_id || hasLinkedStudent(stat.game_id)) return null;
+
+    const { error } = await supabase.from('guest_play_stats').insert([{
+      game_id: stat.game_id,
+      lesson_id: String(stat.lesson_id),
+      started_at: stat.started_at,
+      completed_at: stat.completed_at,
+      time_spent_seconds: stat.time_spent_seconds,
+      answer_attempts: stat.answer_attempts,
+      is_final_lesson: stat.is_final_lesson ?? false,
+    }]);
+
+    if (error) {
+      console.error('Error saving guest play stats:', error.message || JSON.stringify(error));
+      return null;
+    }
+    return true;
+  } catch (error) {
+    console.error('Error in saveGuestPlayStats:', error instanceof Error ? error.message : JSON.stringify(error));
+    return null;
+  }
+}
+
 export async function getLeaderboard(gameId?: string): Promise<LeaderboardEntry[]> {
   const { data, error } = await supabase.rpc('get_public_game_leaderboard', {
     p_game_id: gameId ?? null,
