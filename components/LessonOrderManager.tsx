@@ -194,14 +194,12 @@ export function LessonOrderManager({
             <>
               <div className="grid gap-3">
                 {([
-                  ['scenario', '任務情境', 'Mission scenario', '學生正在幫誰解決什麼問題？'],
                   ['objective', '任務目標', 'Mission objective', '這一關要完成什麼？'],
                   ['mentorMessage', '導師開場白', 'Mentor greeting', '給學生一句開始探索的引導。'],
-                  ['completionMessage', '完成回饋', 'Completion message', '任務完成後的回饋；請勿宣稱未經評量的技能精通。'],
                 ] as const).map(([key, zh, en, placeholder]) => (
                   <label key={key} className="grid gap-1.5 text-xs font-medium" htmlFor={`mission-${missionLessonId}-${key}`}>
                     <span className="flex justify-between gap-2"><span>{language === 'zh-TW' ? zh : en}</span><span className="font-normal text-muted-foreground">{missionOverride.mission?.[key]?.length || 0}/{missionLimits[key]}</span></span>
-                    <textarea id={`mission-${missionLessonId}-${key}`} disabled={disabled} rows={key === 'scenario' ? 3 : 2}
+                    <textarea id={`mission-${missionLessonId}-${key}`} disabled={disabled} rows={2}
                       className="w-full resize-y rounded-md border border-input bg-background px-3 py-2 text-sm font-normal focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                       maxLength={missionLimits[key]} value={missionOverride.mission?.[key] ?? ''}
                       placeholder={language === 'zh-TW' ? placeholder : en}
@@ -213,9 +211,7 @@ export function LessonOrderManager({
                 <p className="text-xs font-medium text-blue-800">{language === 'zh-TW' ? '學生端任務預覽' : 'Student mission preview'}</p>
                 <p className="mt-2 font-semibold break-words">{missionLesson.title}</p>
                 <p className="mt-1 whitespace-pre-line break-words text-muted-foreground">{missionOverride.mission?.objective?.trim() || missionOverride.cardDescription || missionLesson.description || (language === 'zh-TW' ? '閱讀學習資料，依課程指引完成練習。' : 'Read the learning materials and follow the lesson instructions.')}</p>
-                {missionOverride.mission?.scenario?.trim() && <p className="mt-2 whitespace-pre-line break-words">{missionOverride.mission.scenario}</p>}
                 {missionOverride.mission?.mentorMessage?.trim() && <p className="mt-2 whitespace-pre-line break-words text-muted-foreground">{language === 'zh-TW' ? '導師：' : 'Mentor: '}{missionOverride.mission.mentorMessage}</p>}
-                {missionOverride.mission?.completionMessage?.trim() && <p className="mt-2 whitespace-pre-line break-words text-muted-foreground">{language === 'zh-TW' ? '完成後：' : 'After completion: '}{missionOverride.mission.completionMessage}</p>}
               </div>
             </>
           )}

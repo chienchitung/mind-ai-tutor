@@ -131,7 +131,7 @@ export default function LessonsPage() {
       .find((key) => errors[key]) ?? null;
   }
   function firstDesignErrorField(errors: typeof form.formState.errors) {
-    return (['learningObjective', 'learningFlow', 'missionScenario', 'mentorMessage', 'completionMessage'] as const)
+    return (['learningObjective', 'mentorMessage'] as const)
       .find((key) => errors[key]) ?? null;
   }
   function firstPracticeErrorField(errors: typeof form.formState.errors): string | null {
@@ -158,10 +158,7 @@ export default function LessonsPage() {
     topics: requiredString(t('required_topics')),
     geniallyLink: z.union([z.string().url(t('enter_genially_url')), z.literal('')]).optional(),
     learningObjective: requiredString(language === 'zh-TW' ? '請填寫學生完成後能做到的事' : 'Describe what students can do after this lesson').max(200),
-    learningFlow: z.enum(['challenge_first', 'content_first']),
-    missionScenario: z.string().max(600),
     mentorMessage: z.string().max(300),
-    completionMessage: z.string().max(300),
     // No .min(1) here on purpose: only the "生成練習題" button actually
     // needs this field, and it has its own guard (below) before calling
     // Gemini. A teacher who writes every question by hand should be able
@@ -198,10 +195,7 @@ export default function LessonsPage() {
       topics: "",
       geniallyLink: "",
       learningObjective: "",
-      learningFlow: "challenge_first",
-      missionScenario: "",
       mentorMessage: "",
-      completionMessage: "",
       teachingContent: "",
       practiceExercises: [{ question: "", answer: "", explanation: "" }]
     }
@@ -287,10 +281,7 @@ export default function LessonsPage() {
         topics: editingLesson.topics.join(', '),
         geniallyLink: editingLesson.genially_link,
         learningObjective: typeof editingLesson.metadata?.learning_objective === 'string' ? editingLesson.metadata.learning_objective : editingLesson.description || '',
-        learningFlow: editingLesson.metadata?.learning_flow === 'content_first' ? 'content_first' : 'challenge_first',
-        missionScenario: typeof editingLesson.metadata?.mission_scenario === 'string' ? editingLesson.metadata.mission_scenario : '',
         mentorMessage: typeof editingLesson.metadata?.mentor_message === 'string' ? editingLesson.metadata.mentor_message : '',
-        completionMessage: typeof editingLesson.metadata?.completion_message === 'string' ? editingLesson.metadata.completion_message : '',
         teachingContent: editingLesson.teaching_content,
         practiceExercises: editingLesson.practice_exercises?.length ? editingLesson.practice_exercises.map(item => ({ ...item })) : [{ question: "", answer: "", explanation: "" }]
       });
@@ -369,10 +360,7 @@ export default function LessonsPage() {
         markdown_content: values.markdownContent || '',
         card_description: values.cardDescription.trim(),
         learning_objective: values.learningObjective.trim(),
-        learning_flow: values.learningFlow,
-        mission_scenario: values.missionScenario.trim(),
         mentor_message: values.mentorMessage.trim(),
-        completion_message: values.completionMessage.trim(),
       };
 
       // Preserve game_role, game_number and any future metadata maintained by
@@ -646,10 +634,7 @@ export default function LessonsPage() {
                     topics: "",
                     geniallyLink: "",
                     learningObjective: "",
-                    learningFlow: "challenge_first",
-                    missionScenario: "",
                     mentorMessage: "",
-                    completionMessage: "",
                     teachingContent: "",
                     practiceExercises: [{ question: "", answer: "", explanation: "" }]
                   });
@@ -911,18 +896,12 @@ export default function LessonsPage() {
 
                     <FormField
                       control={form.control}
-                      name="learningFlow"
+                      name="mentorMessage"
                       render={({ field }: { field: any }) => (
                         <FormItem>
-                          <FormLabel>{language === 'zh-TW' ? '學生進入後的第一步' : 'First student step'}</FormLabel>
-                          <Select onValueChange={field.onChange} value={field.value}>
-                            <FormControl><SelectTrigger><SelectValue /></SelectTrigger></FormControl>
-                            <SelectContent>
-                              <SelectItem value="challenge_first">{language === 'zh-TW' ? '先試任務，再按需要查看教材（推薦）' : 'Try the mission first, then use content as needed'}</SelectItem>
-                              <SelectItem value="content_first">{language === 'zh-TW' ? '先閱讀教材，再進入任務' : 'Read the content before the mission'}</SelectItem>
-                            </SelectContent>
-                          </Select>
-                          <p className="text-xs text-muted-foreground">{language === 'zh-TW' ? '只決定預設開啟步驟，學生仍可切換查看教材。' : 'Sets the default step; students can still switch sections.'}</p>
+                          <FormLabel>{language === 'zh-TW' ? 'Ellis 的第一句引導' : 'Ellis opening message'}</FormLabel>
+                          <FormControl><Textarea className="min-h-20" maxLength={300} placeholder={language === 'zh-TW' ? '例如：先找出判斷條件，再決定條件成立與不成立時要顯示什麼。' : 'Guide the student without giving away the answer.'} {...field} /></FormControl>
+                          <p className="text-xs text-muted-foreground">{language === 'zh-TW' ? '學生打開 Ellis 時會先看到這句話；建議給方向，不要直接寫答案。留白時使用系統預設引導。' : 'Shown when students open Ellis. Give direction without revealing the answer. Leave blank to use the default.'}</p>
                           <FormMessage />
                         </FormItem>
                       )}
@@ -939,50 +918,6 @@ export default function LessonsPage() {
                         </p>
                       </div>
                     </div>
-
-                    <details className="rounded-xl border border-border/70 bg-muted/20 p-4">
-                      <summary className="cursor-pointer font-medium">{language === 'zh-TW' ? '進階引導設定（選填）' : 'Advanced guidance (optional)'}</summary>
-                      <p className="mt-2 text-sm leading-6 text-muted-foreground">{language === 'zh-TW' ? '這些內容只用來改變學生看到的引導文字，不會改變題目答案或通關判定；不確定時可以留白。' : 'These fields only change student guidance. They do not change answers or completion rules, and can be left blank.'}</p>
-                    <div className="mt-4 grid gap-4 lg:grid-cols-2">
-                      <FormField
-                        control={form.control}
-                        name="missionScenario"
-                        render={({ field }: { field: any }) => (
-                          <FormItem>
-                            <FormLabel>{language === 'zh-TW' ? '給學生的任務背景' : 'Student mission background'}</FormLabel>
-                            <FormControl><Textarea className="min-h-28" maxLength={600} placeholder={language === 'zh-TW' ? '例如：你是門市主管，需要從銷售資料找出未達標的商品。' : 'Example: You manage a store and need to find underperforming products.'} {...field} /></FormControl>
-                            <p className="text-xs leading-5 text-muted-foreground">{language === 'zh-TW' ? '學生可在關卡頂部展開「任務情境與導師指引」查看。' : 'Students can expand this from the mission brief.'}</p>
-                            <FormMessage />
-                          </FormItem>
-                        )}
-                      />
-                      <FormField
-                        control={form.control}
-                        name="mentorMessage"
-                        render={({ field }: { field: any }) => (
-                          <FormItem>
-                            <FormLabel>{language === 'zh-TW' ? 'Ellis 的第一句引導' : 'Ellis opening message'}</FormLabel>
-                            <FormControl><Textarea className="min-h-28" maxLength={300} placeholder={language === 'zh-TW' ? '例如：先找出判斷條件，再決定條件成立與不成立時要顯示什麼。' : 'Guide the student without giving away the answer.'} {...field} /></FormControl>
-                            <p className="text-xs leading-5 text-muted-foreground">{language === 'zh-TW' ? '學生打開 Ellis 時會先看到這句話；建議給方向，不要直接寫答案。' : 'Shown when students open Ellis. Give direction without revealing the answer.'}</p>
-                            <FormMessage />
-                          </FormItem>
-                        )}
-                      />
-                    </div>
-
-                    <div className="mt-4"><FormField
-                      control={form.control}
-                      name="completionMessage"
-                      render={({ field }: { field: any }) => (
-                        <FormItem>
-                          <FormLabel>{language === 'zh-TW' ? '答對後顯示的鼓勵' : 'Feedback after a correct answer'}</FormLabel>
-                          <FormControl><Textarea className="min-h-20" maxLength={300} placeholder={language === 'zh-TW' ? '例如：你已能建立 IF 判斷，下一關會把它運用在多個條件上。' : 'Explain what the student achieved and what comes next.'} {...field} /></FormControl>
-                          <p className="text-xs leading-5 text-muted-foreground">{language === 'zh-TW' ? '顯示在「答案正確」訊息下方。留白時使用系統預設回饋。' : 'Shown below the correct-answer message. Leave blank to use the default.'}</p>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    /></div>
-                    </details>
                   </section>
                   
                   {/* Markdown 內容編輯區塊 */}
@@ -1220,7 +1155,6 @@ export default function LessonsPage() {
                 </div>
                 <div className="flex flex-wrap gap-2">
                   <Badge variant="outline" className={getLevelColor(lesson.level)}>{translateLevel(lesson.level)}</Badge>
-                  <Badge variant="secondary">{lesson.metadata?.learning_flow === 'content_first' ? (language === 'zh-TW' ? '先看教材' : 'Content first') : (language === 'zh-TW' ? '先試任務' : 'Challenge first')}</Badge>
                   {typeof lesson.metadata?.learning_objective !== 'string' && <Badge variant="outline" className="border-amber-300 bg-amber-50 text-amber-800">{language === 'zh-TW' ? '待補學習目標' : 'Outcome needed'}</Badge>}
                 </div>
                         {lesson.genially_link && (
@@ -1280,7 +1214,6 @@ export default function LessonsPage() {
                               <Badge variant="outline" className={getLevelColor(lesson.level)}>
                                 {translateLevel(lesson.level)}
                               </Badge>
-                              <Badge variant="secondary">{lesson.metadata?.learning_flow === 'content_first' ? (language === 'zh-TW' ? '先看教材' : 'Content first') : (language === 'zh-TW' ? '先試任務' : 'Challenge first')}</Badge>
                               {typeof lesson.metadata?.learning_objective !== 'string' && <Badge variant="outline" className="border-amber-300 bg-amber-50 text-amber-800">{language === 'zh-TW' ? '待補學習目標' : 'Outcome needed'}</Badge>}
                             </div>
                             <p className="text-muted-foreground line-clamp-2">

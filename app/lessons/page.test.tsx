@@ -58,7 +58,6 @@ const lesson = {
     game_role: "standard",
     game_number: 2,
     learning_objective: "能使用 IF 做條件判斷",
-    learning_flow: "challenge_first",
   },
   created_at: "2026-08-31",
 };
@@ -194,7 +193,6 @@ describe("lesson editor experience", () => {
         game_role: "standard",
         game_number: 2,
         learning_objective: "能建立完整的 IF 判斷公式",
-        learning_flow: "challenge_first",
       }),
     );
   });

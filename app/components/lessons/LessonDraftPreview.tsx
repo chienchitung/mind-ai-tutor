@@ -14,10 +14,7 @@ export interface LessonEditorValues {
   teachingContent: string;
   geniallyLink?: string;
   learningObjective: string;
-  learningFlow: "challenge_first" | "content_first";
-  missionScenario: string;
   mentorMessage: string;
-  completionMessage: string;
   practiceExercises: {
     question: string;
     answer: string;
@@ -32,9 +29,9 @@ export function LessonDraftPreview({
   control: Control<LessonEditorValues>;
 }) {
   const { language } = useLanguage();
-  const [title, summary, duration, level, topics, objective, flow, geniallyLink, exercises, scenario, mentorMessage, completionMessage] = useWatch({
+  const [title, summary, duration, level, topics, objective, geniallyLink, exercises, mentorMessage] = useWatch({
     control,
-    name: ["title", "cardDescription", "duration", "level", "topics", "learningObjective", "learningFlow", "geniallyLink", "practiceExercises", "missionScenario", "mentorMessage", "completionMessage"],
+    name: ["title", "cardDescription", "duration", "level", "topics", "learningObjective", "geniallyLink", "practiceExercises", "mentorMessage"],
   });
   const zh = language === "zh-TW";
   const levels: Record<string, string> = {
@@ -58,30 +55,22 @@ export function LessonDraftPreview({
           </div>
           <h3 className="break-words text-lg font-semibold">{title || (zh ? "課程名稱" : "Lesson title")}</h3>
           <p className="break-words text-sm leading-6 text-muted-foreground">{summary || (zh ? "加入摘要，讓學生快速了解這一關。" : "Add a summary so students understand this mission.")}</p>
-          {scenario && <p className="rounded-lg bg-muted/50 p-3 text-sm leading-6"><span className="font-medium">{zh ? "任務情境：" : "Scenario: "}</span>{scenario}</p>}
           <div className="flex gap-3 rounded-lg border border-primary/15 bg-primary/5 p-3 text-sm">
             <Target className="mt-0.5 h-4 w-4 shrink-0 text-primary" />
             <div><span className="text-xs font-medium text-muted-foreground">{zh ? "完成目標" : "Outcome"}</span><p className="mt-1 leading-6">{objective || (zh ? "填寫學生完成後能做到的事。" : "Describe what students can do after this lesson.")}</p></div>
           </div>
           {mentorMessage && <div className="flex gap-3 rounded-lg bg-emerald-50 p-3 text-sm text-emerald-900"><Sparkles className="mt-0.5 h-4 w-4 shrink-0" /><p className="leading-6">Ellis：{mentorMessage}</p></div>}
-          {completionMessage && <p className="text-xs leading-5 text-muted-foreground">{zh ? "完成回饋：" : "Completion feedback: "}{completionMessage}</p>}
         </div>
 
         <div className="rounded-xl border bg-card p-5">
           <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">{zh ? "學生操作順序" : "Student sequence"}</p>
           <ol className="mt-4 space-y-3">
-            {(flow === "content_first"
-              ? [
-                  { icon: BookOpen, text: zh ? "閱讀核心教材" : "Read core content" },
-                  ...(geniallyLink ? [{ icon: Gamepad2, text: zh ? "進行互動教學" : "Try the interactive activity" }] : []),
-                  { icon: CheckCircle2, text: zh ? `完成理解檢查（${exercises?.length || 0} 題）` : `Complete the check (${exercises?.length || 0})` },
-                ]
-              : [
-                  { icon: Target, text: zh ? "先嘗試任務" : "Try the mission first" },
-                  { icon: BookOpen, text: zh ? "卡住時查看教材" : "Use content when needed" },
-                  ...(geniallyLink ? [{ icon: Gamepad2, text: zh ? "進行互動教學" : "Try the interactive activity" }] : []),
-                  { icon: CheckCircle2, text: zh ? `完成理解檢查（${exercises?.length || 0} 題）` : `Complete the check (${exercises?.length || 0})` },
-                ]).map(({ icon: Icon, text }, index, items) => (
+            {[
+              { icon: Target, text: zh ? "先嘗試任務" : "Try the mission first" },
+              { icon: BookOpen, text: zh ? "卡住時查看教材" : "Use content when needed" },
+              ...(geniallyLink ? [{ icon: Gamepad2, text: zh ? "進行互動教學" : "Try the interactive activity" }] : []),
+              { icon: CheckCircle2, text: zh ? `完成理解檢查（${exercises?.length || 0} 題）` : `Complete the check (${exercises?.length || 0})` },
+            ].map(({ icon: Icon, text }, index, items) => (
               <li key={text} className="flex items-center gap-3 text-sm">
                 <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-muted"><Icon className="h-3.5 w-3.5" /></span>
                 <span className="flex-1">{text}</span>
