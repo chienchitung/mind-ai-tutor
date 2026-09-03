@@ -26,7 +26,11 @@ export function QuestHome(props: QuestHomeProps) {
   const { game, gameId, lessons, completedLessons, signedIn } = props
   const completed = lessons.filter(lesson => completedLessons.includes(lesson.lesson_id))
   const current = lessons.find(lesson => !completedLessons.includes(lesson.lesson_id))
+  const currentIndex = current ? lessons.findIndex(lesson => lesson.lesson_id === current.lesson_id) : lessons.length - 1
   const allDone = lessons.length > 0 && completed.length === lessons.length
+  const remainingMinutes = lessons
+    .filter(lesson => !completedLessons.includes(lesson.lesson_id))
+    .reduce((total, lesson) => total + (Number.parseInt(lesson.duration || '', 10) || 0), 0)
   // No leading /games here - basePath already adds it to every next/link href.
   const href = (id: string) => gameId ? `/${gameId}/lessons/${id}` : `/lessons/${id}`
   return <div className="quest-shell" style={gameThemeStyle(game?.settings.theme)}>
@@ -66,24 +70,25 @@ export function QuestHome(props: QuestHomeProps) {
         </div>
       </section>
 
-      <div className="quest-overview"><div><Flag size={18} /><strong>{completed.length} / {lessons.length}</strong><span>任務已完成</span></div><div className="quest-progress" role="progressbar" aria-label="任務完成進度" aria-valuemin={0} aria-valuemax={lessons.length || 1} aria-valuenow={completed.length}><span style={{width: `${lessons.length ? completed.length / lessons.length * 100 : 0}%`}} /></div><span className="quest-overview-note">依自己的步調，逐步前進</span></div>
+      <div className="quest-overview"><div><Flag size={18} /><strong>已完成 {completed.length} / {lessons.length}</strong><span>個任務</span></div><div className="quest-progress" role="progressbar" aria-label="任務完成進度" aria-valuemin={0} aria-valuemax={lessons.length || 1} aria-valuenow={completed.length}><span style={{width: `${lessons.length ? completed.length / lessons.length * 100 : 0}%`}} /></div><span className="quest-overview-note">{allDone ? '所有任務都完成了' : remainingMinutes ? `剩餘約 ${remainingMinutes} 分鐘` : '依自己的步調前進'}</span></div>
 
       <div className="quest-home-grid">
         <section id="mission-map" className="quest-map" aria-labelledby="map-title">
-          <div className="quest-section-heading"><div><span className="quest-kicker">LEARNING JOURNEY</span><h2 id="map-title">學習任務地圖</h2></div><span className="quest-small-label">{lessons.length} 個探索節點</span></div>
+          <div className="quest-section-heading"><div><span className="quest-kicker">LEARNING JOURNEY</span><h2 id="map-title">學習任務地圖</h2></div><span className="quest-small-label">{!lessons.length ? '尚未設定任務' : allDone ? '旅程已完成' : `目前第 ${Math.max(currentIndex + 1, 1)} / ${lessons.length} 站`}</span></div>
           {!signedIn && <p className="quest-map-note">先點選「開始學習」登入，再依序進入關卡。</p>}
           <ol className="quest-path">
             {lessons.map((lesson, index) => {
               const done = completedLessons.includes(lesson.lesson_id)
               const unlocked = canEnterLesson(lessons, index, completedLessons, signedIn)
               const active = current?.lesson_id === lesson.lesson_id
-              return <li key={lesson.lesson_id} className={`quest-stop ${done ? 'is-done' : active ? 'is-current' : 'is-pending'}`}>
+              const prerequisite = index > 0 ? lessons[index - 1]?.title : undefined
+              return <li key={lesson.lesson_id} className={`quest-stop ${done ? 'is-done' : active ? 'is-current' : 'is-pending'}`} aria-current={active && signedIn ? 'step' : undefined}>
                 <span className="quest-node" aria-hidden="true">{done ? <Check size={23} /> : lesson.number}</span>
                 <div className="quest-stop-card">
-                  <div className="quest-stop-top"><span className="quest-kicker">{lesson.role === 'intro' ? '起點 · 前導課程' : lesson.role === 'final' ? '終點 · 綜合挑戰' : `任務 ${String(lesson.number).padStart(2, '0')}`}</span><span className="quest-status">{done ? '已完成' : unlocked ? '可開始' : !signedIn ? '登入後開始' : '待解鎖'}</span></div>
+                  <div className="quest-stop-top"><span className="quest-kicker">{lesson.role === 'intro' ? '起點 · 前導課程' : lesson.role === 'final' ? '終點 · 綜合挑戰' : `任務 ${String(lesson.number).padStart(2, '0')}`}</span><span className="quest-status">{done ? '已完成' : active && signedIn ? '你在這裡' : unlocked ? '可開始' : !signedIn ? '登入後開始' : '待解鎖'}</span></div>
                   <h3>{lesson.title}</h3><p className="quest-stop-summary">{lesson.description || '進入關卡查看學習資料與任務指引。'}</p>
                   <div className="quest-stop-footer">{lesson.duration ? <span>約 {lesson.duration} 分鐘</span> : <span>依自己的步調探索</span>}
-                    {unlocked ? <Link href={href(lesson.lesson_id)} className="quest-stop-link">{done ? '回顧任務' : '進入任務'}<ArrowUpRight size={16} /></Link> : <span className="quest-lock"><LockKeyhole size={14} />{!signedIn ? '尚未登入' : '先完成上一關'}</span>}
+                    {unlocked ? <Link href={href(lesson.lesson_id)} className="quest-stop-link">{done ? '再看一次' : active ? '開始任務' : '進入任務'}<ArrowUpRight size={16} /></Link> : <span className="quest-lock"><LockKeyhole size={14} />{!signedIn ? '登入後即可開始' : prerequisite ? `先完成「${prerequisite}」` : '尚未解鎖'}</span>}
                   </div>
                 </div>
               </li>

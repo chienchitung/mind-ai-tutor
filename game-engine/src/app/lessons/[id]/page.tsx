@@ -19,7 +19,7 @@ import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm'
 import { MentorAvatar } from '@/components/MentorAvatar'
 import { LessonAnswer, LessonMarkdown, ChallengeHeading } from '@/components/LessonChallenge'
-import { initialLessonTab, lessonStage, mentorGreeting, mentorPrompts } from '@/lib/lesson-presentation'
+import { initialLessonTab, introMentorPrompts, lessonStage, mentorGreeting, mentorPrompts } from '@/lib/lesson-presentation'
 import { getLearningRecordId, getOrCreateQuestionCount, incrementQuestionCount, saveChatMessage } from '@/lib/supabase'
 import { getPublicGameManifest } from '@/lib/game-manifest'
 import { gameStorageKey } from '@/lib/game-storage'
@@ -706,6 +706,9 @@ export default function ExcelLearningPlatform({
 
   // 修改獲取當前課程的方式
   const currentLesson = lessons.find(lesson => lesson.lesson_id === lessonState.currentLesson);
+  const currentLessonIndex = lessons.findIndex(lesson => lesson.lesson_id === lessonState.currentLesson);
+  const nextLesson = currentLessonIndex >= 0 ? lessons[currentLessonIndex + 1] : undefined;
+  const promptOptions = isIntroLesson(lessonState.currentLesson) ? introMentorPrompts : mentorPrompts;
   const stage = lessonStage(wasCompletedOnEntry, lessonState.hasSubmitted, lessonState.isCorrect);
   const greeting = mentorGreeting(currentLesson?.title, currentLesson?.mission?.mentorMessage);
   useEffect(() => {
@@ -1753,7 +1756,7 @@ export default function ExcelLearningPlatform({
             )}
           </Tabs>
 
-          <div className="lesson-navigation">
+          <div className={`lesson-navigation ${isIntroLesson(lessonState.currentLesson) ? 'is-intro' : ''}`}>
             <div>
               {isIntroLesson(lessonState.currentLesson) ? null : (
                 getPrevLessonId(lessonState.currentLesson) ? (
@@ -1777,16 +1780,23 @@ export default function ExcelLearningPlatform({
                 )
               )}
             </div>
-            <div className="flex-1">
+            <div className={isIntroLesson(lessonState.currentLesson) ? 'lesson-complete-action' : 'flex-1'}>
               {isIntroLesson(lessonState.currentLesson) ? (
-                <Button 
-                  className="w-full py-4 md:py-5 text-base md:text-lg font-semibold rounded-xl shadow-md bg-[#58CC02] hover:bg-[#46a001] text-white flex items-center justify-center gap-2"
-                  onClick={handlePreludeComplete}
-                  aria-label="完成課程，前往下一關"
-                >
-                  完成課程
-                  <ChevronRight className="h-5 w-5" />
-                </Button>
+                <>
+                  <div className="lesson-complete-copy">
+                    <span>下一步</span>
+                    <strong>準備好開始第一個任務了嗎？</strong>
+                    <p>{nextLesson ? `完成前導後，將解鎖「${nextLesson.title}」。` : '完成前導後，回到任務地圖繼續探索。'}</p>
+                  </div>
+                  <Button
+                    className="lesson-complete-button"
+                    onClick={handlePreludeComplete}
+                    aria-label={nextLesson ? `完成前導，前往${nextLesson.title}` : '完成前導課程'}
+                  >
+                    完成前導，繼續
+                    <ChevronRight className="h-5 w-5" />
+                  </Button>
+                </>
               ) : (
                 !isFinalLesson(lessonState.currentLesson) && (
                   <Button 
@@ -1893,7 +1903,7 @@ export default function ExcelLearningPlatform({
               )}
               
               <div className="lesson-prompt-buttons" aria-label="提問方向">
-                {mentorPrompts.map(item => <button key={item.label} type="button" onClick={() => handleInsertPreset(item.prompt)} title={item.prompt}>{item.label}</button>)}
+                {promptOptions.map(item => <button key={item.label} type="button" onClick={() => handleInsertPreset(item.prompt)} title={item.prompt}>{item.label}</button>)}
               </div>
 
               <div className="lesson-message-input">
@@ -1916,7 +1926,7 @@ export default function ExcelLearningPlatform({
                   onChange={(e) => setChatInput(e.target.value)}
                   ref={chatInputRef}
                   onInput={(e) => {
-                    e.currentTarget.style.height = '4rem';
+                    e.currentTarget.style.height = 'auto';
                     e.currentTarget.style.height = `${e.currentTarget.scrollHeight}px`;
                   }}
                   onKeyDown={(e) => {

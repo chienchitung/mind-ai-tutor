@@ -19,3 +19,9 @@ export const mentorPrompts = [
   { label: '提醒方向', prompt: '請給我一個解題方向或關鍵概念，讓我先自己試試看。' },
   { label: '檢查想法', prompt: '請協助我檢查解題想法。我目前的思路是：' },
 ] as const
+
+export const introMentorPrompts = [
+  { label: '整理重點', prompt: '請幫我用三個重點整理這堂前導課程，先不要加入教材以外的內容。' },
+  { label: '舉個例子', prompt: '請針對這堂前導課程最重要的概念，給我一個簡短例子。' },
+  { label: '測驗一下', prompt: '請根據這堂前導課程問我一個小問題，先不要公布答案。' },
+] as const
