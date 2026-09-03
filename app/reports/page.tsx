@@ -3,6 +3,7 @@
 import { useState, useEffect, useMemo } from 'react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { BarChart2, Clock, Calendar, MessageSquare } from 'lucide-react';
 import { StudentSelector } from './components/StudentSelector';
 import { GameSelector, ALL_GAMES, UNCLASSIFIED_GAME } from './components/GameSelector';
@@ -67,6 +68,7 @@ interface QuestionCount {
 }
 
 export default function ReportsPage() {
+  const [chartView, setChartView] = useState('time-spent');
   const [selectedStudent, setSelectedStudent] = useState<string | null>(null);
   const [selectedGame, setSelectedGame] = useState<string>(ALL_GAMES);
   const [students, setStudents] = useState<{ id: string; name: string }[]>([]);
@@ -605,9 +607,30 @@ export default function ReportsPage() {
             </Card>
           </div>
 
-          {/* Data Visualization Tabs */}
-          <Tabs defaultValue="time-spent" className="w-full">
-            <div className="mb-4 overflow-x-auto pb-1">
+          {/* Data Visualization Tabs. These 5 labels (up to "AI Interaction
+              Distribution" in English) never fit a single mobile-width row -
+              a horizontally-scrolling TabsList just pushed most of them
+              off-screen with no visible hint there was more to swipe to.
+              A Select dropdown is the standard mobile pattern for exactly
+              this ("switch between several views, one label too long to
+              tab-bar") - both are bound to the same chartView state so
+              they stay in sync with each other and with TabsContent. */}
+          <Tabs value={chartView} onValueChange={setChartView} className="w-full">
+            <div className="mb-4 sm:hidden">
+              <Select value={chartView} onValueChange={setChartView}>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="time-spent">{t('time_distribution')}</SelectItem>
+                  <SelectItem value="completion">{t('completion_rates')}</SelectItem>
+                  <SelectItem value="timeline">{t('learning_timeline')}</SelectItem>
+                  <SelectItem value="categories">{t('categories')}</SelectItem>
+                  <SelectItem value="ai-interactions">{t('ai_interaction_distribution')}</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="mb-4 hidden overflow-x-auto pb-1 sm:block">
             <TabsList className="w-max">
               <TabsTrigger value="time-spent">{t('time_distribution')}</TabsTrigger>
               <TabsTrigger value="completion">{t('completion_rates')}</TabsTrigger>
