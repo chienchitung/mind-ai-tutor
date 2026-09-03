@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
-import { useRef, useState, type ReactNode } from 'react';
+import { useRef, useState, type ComponentProps, type ReactNode } from 'react';
 import { LanguageProvider } from '@/app/contexts/LanguageContext';
 import { AnnotationLayer } from './AnnotationLayer';
 import { PresentationStage } from './PresentationStage';
@@ -304,5 +304,111 @@ describe('projection tools', () => {
     expect(screen.getByText('12')).toBeTruthy();
     expect(screen.getByText('3.4')).toBeTruthy();
     expect(screen.getByText('這題怎麼算？')).toBeTruthy();
+  });
+});
+
+describe('Slido-style Q&A/poll panel', () => {
+  const poll = {
+    pollId: 'poll-1',
+    question: '哪一種資料視覺化最清楚？',
+    options: ['長條圖', '折線圖'],
+    voteCounts: [3, 1],
+    voteTotal: 4,
+  };
+  const questions = [
+    {
+      id: 'q1',
+      text: 'IF 函數可以巢狀使用嗎？',
+      lens: 'clarify' as const,
+      visibility: 'public' as const,
+      upvotes: 2,
+      createdAt: '2026-01-01T00:00:00Z',
+    },
+  ];
+
+  function renderStage(overrides: Partial<ComponentProps<typeof PresentationStage>> = {}) {
+    return render(
+      <LanguageProvider>
+        <PresentationStage
+          open
+          url="/fixture.pdf"
+          page={1}
+          numPages={3}
+          title="Test deck"
+          joinCode="482910"
+          onExit={() => {}}
+          onPageChange={() => {}}
+          onNumPages={() => {}}
+          poll={poll}
+          questions={questions}
+          moderatingId={null}
+          onModerateQuestion={() => {}}
+          onOpenPoll={async () => true}
+          {...overrides}
+        />
+      </LanguageProvider>,
+    );
+  }
+
+  it('stays closed until the toggle button is used, then shows Q&A by default', async () => {
+    renderStage();
+    await screen.findByRole('img');
+    expect(screen.queryByText('IF 函數可以巢狀使用嗎？')).toBeNull();
+    fireEvent.click(screen.getByRole('button', { name: '問答與投票' }));
+    expect(screen.getByText('IF 函數可以巢狀使用嗎？')).toBeTruthy();
+    expect(screen.getByText('▲ 2')).toBeTruthy();
+  });
+
+  it('moderates a question from inside the panel without leaving fullscreen', async () => {
+    const onModerateQuestion = vi.fn();
+    renderStage({ onModerateQuestion });
+    await screen.findByRole('img');
+    fireEvent.click(screen.getByRole('button', { name: '問答與投票' }));
+    fireEvent.click(screen.getByRole('button', { name: '隱藏' }));
+    expect(onModerateQuestion).toHaveBeenCalledWith(questions[0]);
+  });
+
+  it('switches to the poll tab and shows live results', async () => {
+    renderStage();
+    await screen.findByRole('img');
+    fireEvent.click(screen.getByRole('button', { name: '問答與投票' }));
+    fireEvent.click(screen.getByRole('button', { name: '目前投票' }));
+    expect(screen.getByText('哪一種資料視覺化最清楚？')).toBeTruthy();
+    expect(screen.getByText('75% (3)')).toBeTruthy();
+    expect(screen.getByText('4 人已答')).toBeTruthy();
+  });
+
+  it('opens a new poll from the fullscreen composer', async () => {
+    const onOpenPoll = vi.fn().mockResolvedValue(true);
+    renderStage({ poll: null, onOpenPoll });
+    await screen.findByRole('img');
+    fireEvent.click(screen.getByRole('button', { name: '問答與投票' }));
+    fireEvent.click(screen.getByRole('button', { name: '目前投票' }));
+    expect(screen.getByText('目前沒有進行中的投票。')).toBeTruthy();
+    fireEvent.click(screen.getByRole('button', { name: '新增投票' }));
+    fireEvent.change(screen.getByPlaceholderText('題目'), {
+      target: { value: '大家覺得今天的進度如何？' },
+    });
+    fireEvent.change(screen.getByPlaceholderText('選項 A'), { target: { value: '太快' } });
+    fireEvent.change(screen.getByPlaceholderText('選項 B'), { target: { value: '剛好' } });
+    fireEvent.click(screen.getByRole('button', { name: '開啟投票' }));
+    await waitFor(() =>
+      expect(onOpenPoll).toHaveBeenCalledWith('大家覺得今天的進度如何？', ['太快', '剛好']),
+    );
+  });
+
+  it('excludes panel content from projection keyboard shortcuts', async () => {
+    renderStage();
+    const surface = await screen.findByRole('img');
+    fireEvent.click(screen.getByRole('button', { name: '問答與投票' }));
+    fireEvent.click(screen.getByRole('button', { name: '目前投票' }));
+    fireEvent.click(screen.getByRole('button', { name: '新增投票' }));
+    const textarea = screen.getByPlaceholderText('題目');
+    // Typing "p" in a form field inside the panel must not switch the
+    // drawing tool to pen, same guard as any other input on the stage.
+    fireEvent.keyDown(textarea, { key: 'p' });
+    fireEvent.keyDown(textarea, { key: 'ArrowRight' });
+    expect(screen.getByRole('status', { name: /投影片第/ }).textContent).toContain('1 / 3');
+    expect(surface).toBeTruthy();
   });
 });

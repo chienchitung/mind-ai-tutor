@@ -253,34 +253,41 @@ export default function PresenterPage() {
     };
   }, [params.id, pushReaction, registerPing, load]);
 
-  const handleOpenPoll = async (event: React.FormEvent) => {
-    event.preventDefault();
-    const cleanOptions = options.map((option) => option.trim()).filter(Boolean);
-    if (!question.trim() || cleanOptions.length < 2 || isOpeningPoll) return;
-    setIsOpeningPoll(true);
+  // Shared by the composer Dialog (outside fullscreen) and the projection
+  // panel's own inline composer (inside PresentationStage) - each keeps its
+  // own draft-field state, but both open the poll the same way.
+  const openPoll = async (pollQuestion: string, pollOptions: string[]): Promise<boolean> => {
     try {
       const response = await fetch(`/api/live-sessions/${params.id}/polls`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          question: question.trim(),
-          options: cleanOptions,
-        }),
+        body: JSON.stringify({ question: pollQuestion, options: pollOptions }),
       });
       if (!response.ok) throw new Error();
       const poll = await response.json();
       setData((previous) => (previous ? { ...previous, poll } : previous));
-      setShowComposer(false);
-      setQuestion('');
-      setOptions(['', '']);
+      return true;
     } catch {
       toast({
         title: t('error'),
         description: t('error_opening_poll'),
         variant: 'destructive',
       });
-    } finally {
-      setIsOpeningPoll(false);
+      return false;
+    }
+  };
+
+  const handleOpenPoll = async (event: React.FormEvent) => {
+    event.preventDefault();
+    const cleanOptions = options.map((option) => option.trim()).filter(Boolean);
+    if (!question.trim() || cleanOptions.length < 2 || isOpeningPoll) return;
+    setIsOpeningPoll(true);
+    const ok = await openPoll(question.trim(), cleanOptions);
+    setIsOpeningPoll(false);
+    if (ok) {
+      setShowComposer(false);
+      setQuestion('');
+      setOptions(['', '']);
     }
   };
 
@@ -1082,7 +1089,9 @@ export default function PresenterPage() {
         url={data.deckUrl} page={data.deckPage} numPages={numDeckPages} title={data.title} joinCode={data.joinCode}
         onExit={exitPresentation} onPageChange={(page) => void changeDeckPage(page)} onNumPages={setNumDeckPages}
         reactions={<ReactionBurstOverlay reactions={reactions} className="absolute inset-0 z-[75]" />}
-        onlineCount={onlineCount} pulseAverage={pulseAvg} latestQuestions={latestPublicQuestions} />}
+        onlineCount={onlineCount} pulseAverage={pulseAvg} latestQuestions={latestPublicQuestions}
+        poll={data.poll} questions={questions} moderatingId={moderatingId}
+        onModerateQuestion={(item) => void handleModerate(item)} onOpenPoll={openPoll} />}
 
       <Dialog open={showQuizPicker} onOpenChange={setShowQuizPicker}>
         <DialogContent className="max-h-[80vh] max-w-lg overflow-y-auto">

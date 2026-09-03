@@ -37,8 +37,10 @@ import { Button } from '@/components/ui/button';
 import { useLanguage } from '@/app/contexts/LanguageContext';
 import { useTranslation } from '@/utils/translations';
 import { annotationReducer, EMPTY_INK, type PresentationTool } from '@/lib/presentation-annotations';
+import type { LivePollState, LiveQuestion } from '@/lib/live-session';
 import { AnnotationLayer } from './AnnotationLayer';
 import { DeckViewer } from './DeckViewer';
+import { LivePanel } from './LivePanel';
 
 // Long enough to identify a tool after moving the pointer. Keyboard/clicker
 // page changes still leave an already-hidden toolbar undisturbed.
@@ -186,6 +188,14 @@ interface Props {
   onlineCount?: number;
   pulseAverage?: number | null;
   latestQuestions?: { id: string; text: string }[];
+  /** Full Q&A/poll panel, opened on demand - lets the presenter moderate
+   * questions, read poll results, or open a new poll without leaving
+   * projection. */
+  poll?: LivePollState | null;
+  questions?: LiveQuestion[];
+  moderatingId?: string | null;
+  onModerateQuestion?: (item: LiveQuestion) => void;
+  onOpenPoll?: (question: string, options: string[]) => Promise<boolean>;
 }
 
 /** Kept mounted by the owner: closing presentation does not throw away page notes. */
@@ -193,6 +203,7 @@ export const PresentationStage = forwardRef<HTMLDivElement, Props>(function Pres
   {
     open, url, page, numPages, title, joinCode, onExit, onPageChange, onNumPages, reactions,
     onlineCount, pulseAverage, latestQuestions,
+    poll, questions, moderatingId, onModerateQuestion, onOpenPoll,
   },
   forwardedRef,
 ) {
@@ -207,6 +218,7 @@ export const PresentationStage = forwardRef<HTMLDivElement, Props>(function Pres
   const [drawing, setDrawing] = useState(false);
   const [contextOpen, setContextOpen] = useState(false);
   const [toolsOpen, setToolsOpen] = useState(false);
+  const [panelOpen, setPanelOpen] = useState(false);
   const [pinned, setPinned] = useState(false);
   const [visible, setVisible] = useState(true);
   const [error, setError] = useState(false);
@@ -253,6 +265,7 @@ export const PresentationStage = forwardRef<HTMLDivElement, Props>(function Pres
     } else {
       setContextOpen(false);
       setToolsOpen(false);
+      setPanelOpen(false);
       setToolAnnouncement(null);
       if (toolAnnouncementTimer.current) clearTimeout(toolAnnouncementTimer.current);
     }
@@ -521,6 +534,15 @@ export const PresentationStage = forwardRef<HTMLDivElement, Props>(function Pres
               )}
             </div>
           )}
+          <LivePanel
+            open={panelOpen}
+            onClose={() => setPanelOpen(false)}
+            poll={poll ?? null}
+            questions={questions ?? []}
+            moderatingId={moderatingId ?? null}
+            onModerateQuestion={onModerateQuestion ?? (() => {})}
+            onOpenPoll={onOpenPoll ?? (async () => false)}
+          />
           {showOnboarding && (
             <div className="absolute inset-x-0 top-24 z-[75] flex justify-center px-4">
               <div className="flex max-w-full flex-wrap items-center gap-3 rounded-2xl border border-white/15 bg-zinc-950/95 px-4 py-3 text-xs text-white shadow-xl backdrop-blur-md">
@@ -643,6 +665,20 @@ export const PresentationStage = forwardRef<HTMLDivElement, Props>(function Pres
                 onClick={togglePinned}
               >
                 {pinned ? <PinOff className="h-4 w-4" /> : <Pin className="h-4 w-4" />}
+              </Button>
+              <span className="mx-1 h-5 w-px bg-white/20" />
+              <Button
+                variant="ghost"
+                size="icon"
+                className={CONTROL}
+                aria-label={t('live_panel_toggle')}
+                aria-pressed={panelOpen}
+                onClick={() => {
+                  setPanelOpen((current) => !current);
+                  wake();
+                }}
+              >
+                <MessageSquare className="h-4 w-4" />
               </Button>
             </div>
           </div>
