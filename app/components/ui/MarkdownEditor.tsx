@@ -3,6 +3,16 @@ import dynamic from 'next/dynamic';
 import { useToast } from '@/hooks/use-toast';
 import { v4 as uuidv4 } from 'uuid';
 import 'easymde/dist/easymde.min.css';
+// EasyMDE's toolbar icons (bold/italic/heading/etc.) are Font Awesome 4
+// glyph classes (e.g. "fa fa-bold") - EasyMDE itself only draws the button
+// borders, not the icons. Left unset, it tries to inject
+// https://maxcdn.bootstrapcdn.com/font-awesome/latest/css/font-awesome.min.css
+// at runtime, which next.config.ts's CSP (style-src 'self' 'unsafe-inline')
+// silently blocks - the toolbar renders as empty boxes. Importing the same
+// FA4 stylesheet locally serves it from 'self', so it loads under the
+// existing CSP with no policy changes, and autoDownloadFontAwesome: false
+// below stops the now-redundant (and still-blocked) CDN attempt.
+import 'font-awesome/css/font-awesome.min.css';
 import { useLanguage } from '@/app/contexts/LanguageContext';
 import { useTranslation } from '@/utils/translations';
 
@@ -65,6 +75,9 @@ const MarkdownEditor: React.FC<MarkdownEditorProps> = ({
       status: ['lines', 'words'],
       minHeight: '300px',
       maxHeight: '500px',
+      // Font Awesome is bundled locally above - no need for EasyMDE's own
+      // (CSP-blocked) runtime CDN fetch.
+      autoDownloadFontAwesome: false,
       // 替換原始 image 按鈕為我們的自定義按鈕
       toolbar: [
         'bold', 'italic', 'heading', '|',

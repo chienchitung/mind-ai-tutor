@@ -63,6 +63,7 @@
     "easymde": "^2.20.0",
     "exceljs": "^4.4.0",
     "file-saver": "^2.0.5",
+    "font-awesome": "^4.7.0",
     "framer-motion": "^12.6.2",
     "html2pdf.js": "^0.14.0",
     "jspdf": "^4.2.1",
