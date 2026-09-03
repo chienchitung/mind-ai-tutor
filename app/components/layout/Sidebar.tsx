@@ -323,7 +323,15 @@ export function Sidebar({
               </DropdownMenuLabel>
               <DropdownMenuSeparator />
               <DropdownMenuGroup>
-                <DropdownMenuItem onClick={() => { if (confirmAppNavigation()) router.push('/settings'); }}>
+                {/* Mobile already has a direct Settings icon in AppTopbar
+                    (independent of this drawer, on purpose - see its own
+                    comment). Keeping this item there too on mobile just
+                    duplicated the same destination twice; hidden here so
+                    this menu stays focused on account-level actions
+                    (language/subscription/logout) on mobile. Desktop has
+                    no topbar Settings icon, so this remains its only path
+                    to Settings. */}
+                <DropdownMenuItem className="hidden md:flex" onClick={() => { if (confirmAppNavigation()) router.push('/settings'); }}>
                   <Settings className="mr-2 h-4 w-4" />
                   {t('settings')}
                 </DropdownMenuItem>
