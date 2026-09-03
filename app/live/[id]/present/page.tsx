@@ -516,9 +516,11 @@ export default function PresenterPage() {
     }
   };
 
-  const openQuizPicker = async () => {
-    setShowQuizPicker(true);
-    if (quizzes !== null) return;
+  // Shared by the modal quiz picker (outside fullscreen) and the
+  // projection panel's own poll tab, which auto-triggers this the first
+  // time it's viewed so the list is ready without an extra tap.
+  const loadQuizzesOnce = async () => {
+    if (quizzes !== null || quizzesLoading) return;
     setQuizzesLoading(true);
     setQuizPickerError('');
     try {
@@ -532,11 +534,24 @@ export default function PresenterPage() {
     }
   };
 
+  const openQuizPicker = async () => {
+    setShowQuizPicker(true);
+    await loadQuizzesOnce();
+  };
+
   const pickQuizQuestion = (picked: QuizQuestion) => {
     setQuestion(picked.questionText);
     setOptions(picked.options.slice(0, 6).map((option) => option.text));
     setShowQuizPicker(false);
     setShowComposer(true);
+  };
+
+  // The projection panel launches a poll straight from a saved question -
+  // no intermediate review step, since the presenter is already mid-lecture
+  // and the modal composer above sits at a lower z-index than the
+  // fullscreen stage (it would render behind it, not on top).
+  const pickQuizQuestionInPanel = (picked: QuizQuestion) => {
+    void openPoll(picked.questionText, picked.options.slice(0, 6).map((option) => option.text));
   };
 
   if (status === 'loading') {
@@ -563,13 +578,6 @@ export default function PresenterPage() {
   const pulseAvg = data.pulse.pulseAverage;
   const pulsePercent = pulseAvg === null ? 50 : ((pulseAvg - 1) / 4) * 100;
   const visibleQuestions = [...questions].sort(sortQuestions);
-  // Most recent first (not by upvotes) and never a question the teacher
-  // hid from the class - this feeds the small on-projector signal panel.
-  const latestPublicQuestions = [...questions]
-    .filter((item) => item.visibility === 'public')
-    .sort((a, b) => b.createdAt.localeCompare(a.createdAt))
-    .slice(0, 2)
-    .map((item) => ({ id: item.id, text: item.text }));
 
   return (
     <div className="min-h-screen bg-background">
@@ -1089,9 +1097,11 @@ export default function PresenterPage() {
         url={data.deckUrl} page={data.deckPage} numPages={numDeckPages} title={data.title} joinCode={data.joinCode}
         onExit={exitPresentation} onPageChange={(page) => void changeDeckPage(page)} onNumPages={setNumDeckPages}
         reactions={<ReactionBurstOverlay reactions={reactions} className="absolute inset-0 z-[75]" />}
-        onlineCount={onlineCount} pulseAverage={pulseAvg} latestQuestions={latestPublicQuestions}
+        onlineCount={onlineCount} pulseAverage={pulseAvg}
         poll={data.poll} questions={questions} moderatingId={moderatingId}
-        onModerateQuestion={(item) => void handleModerate(item)} onOpenPoll={openPoll} />}
+        onModerateQuestion={(item) => void handleModerate(item)}
+        quizzes={quizzes} quizzesLoading={quizzesLoading} quizPickerError={quizPickerError}
+        onLoadQuizzes={() => void loadQuizzesOnce()} onPickQuizQuestion={pickQuizQuestionInPanel} />}
 
       <Dialog open={showQuizPicker} onOpenChange={setShowQuizPicker}>
         <DialogContent className="max-h-[80vh] max-w-lg overflow-y-auto">

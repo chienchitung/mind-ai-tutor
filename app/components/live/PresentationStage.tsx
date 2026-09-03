@@ -38,6 +38,7 @@ import { useLanguage } from '@/app/contexts/LanguageContext';
 import { useTranslation } from '@/utils/translations';
 import { annotationReducer, EMPTY_INK, type PresentationTool } from '@/lib/presentation-annotations';
 import type { LivePollState, LiveQuestion } from '@/lib/live-session';
+import type { Quiz, QuizQuestion } from '@/lib/quiz';
 import { AnnotationLayer } from './AnnotationLayer';
 import { DeckViewer } from './DeckViewer';
 import { LivePanel } from './LivePanel';
@@ -187,23 +188,30 @@ interface Props {
    * projection just to check them. */
   onlineCount?: number;
   pulseAverage?: number | null;
-  latestQuestions?: { id: string; text: string }[];
   /** Full Q&A/poll panel, opened on demand - lets the presenter moderate
-   * questions, read poll results, or open a new poll without leaving
-   * projection. */
+   * questions, read poll results, or launch the next poll from a saved
+   * quiz without leaving projection. Picking a fresh, never-used question
+   * mid-lecture isn't something a presenter does live, so the panel only
+   * ever launches a poll from already-prepared quiz questions - never a
+   * free-text composer. */
   poll?: LivePollState | null;
   questions?: LiveQuestion[];
   moderatingId?: string | null;
   onModerateQuestion?: (item: LiveQuestion) => void;
-  onOpenPoll?: (question: string, options: string[]) => Promise<boolean>;
+  quizzes?: Quiz[] | null;
+  quizzesLoading?: boolean;
+  quizPickerError?: string;
+  onLoadQuizzes?: () => void;
+  onPickQuizQuestion?: (question: QuizQuestion) => void;
 }
 
 /** Kept mounted by the owner: closing presentation does not throw away page notes. */
 export const PresentationStage = forwardRef<HTMLDivElement, Props>(function PresentationStage(
   {
     open, url, page, numPages, title, joinCode, onExit, onPageChange, onNumPages, reactions,
-    onlineCount, pulseAverage, latestQuestions,
-    poll, questions, moderatingId, onModerateQuestion, onOpenPoll,
+    onlineCount, pulseAverage,
+    poll, questions, moderatingId, onModerateQuestion,
+    quizzes, quizzesLoading, quizPickerError, onLoadQuizzes, onPickQuizQuestion,
   },
   forwardedRef,
 ) {
@@ -505,32 +513,22 @@ export const PresentationStage = forwardRef<HTMLDivElement, Props>(function Pres
           )}
           {/* Always on, independent of the toolbar's own auto-hide -
               the point is the presenter can glance at these without first
-              having to move the mouse, let alone exit projection. */}
-          {((onlineCount ?? 0) > 0 || pulseAverage != null || !!latestQuestions?.length) && (
-            <div className="pointer-events-none absolute bottom-3 left-3 z-[65] flex max-w-[240px] flex-col gap-1.5 rounded-xl border border-white/10 bg-black/60 px-3 py-2 text-[11px] leading-5 text-white/80 backdrop-blur-sm">
-              <div className="flex items-center gap-3">
-                {(onlineCount ?? 0) > 0 && (
-                  <span className="flex items-center gap-1">
-                    <Users className="h-3 w-3" aria-hidden="true" />
-                    {onlineCount}
-                  </span>
-                )}
-                {pulseAverage != null && (
-                  <span className="flex items-center gap-1">
-                    <Gauge className="h-3 w-3" aria-hidden="true" />
-                    {pulseAverage.toFixed(1)}
-                  </span>
-                )}
-              </div>
-              {!!latestQuestions?.length && (
-                <ul className="space-y-0.5">
-                  {latestQuestions.map((item) => (
-                    <li key={item.id} className="flex items-start gap-1">
-                      <MessageSquare className="mt-0.5 h-3 w-3 shrink-0" aria-hidden="true" />
-                      <span className="line-clamp-1">{item.text}</span>
-                    </li>
-                  ))}
-                </ul>
+              having to move the mouse, let alone exit projection. The full
+              Q&A queue lives in the LivePanel below (opened on demand), not
+              here - this is just a numeric glance. */}
+          {((onlineCount ?? 0) > 0 || pulseAverage != null) && (
+            <div className="pointer-events-none absolute bottom-3 left-3 z-[65] flex items-center gap-3 rounded-xl border border-white/10 bg-black/60 px-3 py-2 text-[11px] leading-5 text-white/80 backdrop-blur-sm">
+              {(onlineCount ?? 0) > 0 && (
+                <span className="flex items-center gap-1">
+                  <Users className="h-3 w-3" aria-hidden="true" />
+                  {onlineCount}
+                </span>
+              )}
+              {pulseAverage != null && (
+                <span className="flex items-center gap-1">
+                  <Gauge className="h-3 w-3" aria-hidden="true" />
+                  {pulseAverage.toFixed(1)}
+                </span>
               )}
             </div>
           )}
@@ -541,7 +539,11 @@ export const PresentationStage = forwardRef<HTMLDivElement, Props>(function Pres
             questions={questions ?? []}
             moderatingId={moderatingId ?? null}
             onModerateQuestion={onModerateQuestion ?? (() => {})}
-            onOpenPoll={onOpenPoll ?? (async () => false)}
+            quizzes={quizzes ?? null}
+            quizzesLoading={quizzesLoading ?? false}
+            quizPickerError={quizPickerError ?? ''}
+            onLoadQuizzes={onLoadQuizzes ?? (() => {})}
+            onPickQuizQuestion={onPickQuizQuestion ?? (() => {})}
           />
           {showOnboarding && (
             <div className="absolute inset-x-0 top-24 z-[75] flex justify-center px-4">

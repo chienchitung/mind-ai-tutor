@@ -1,13 +1,12 @@
 'use client';
 
-import { useState, type FormEvent } from 'react';
-import { BarChart3, Eye, EyeOff, MessageSquare, Plus, X } from 'lucide-react';
+import { useEffect, useState } from 'react';
+import { BarChart3, Eye, EyeOff, Loader2, MessageSquare, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Textarea } from '@/components/ui/textarea';
 import { useLanguage } from '@/app/contexts/LanguageContext';
 import { useTranslation } from '@/utils/translations';
 import type { LivePollState, LiveQuestion } from '@/lib/live-session';
+import type { Quiz, QuizQuestion } from '@/lib/quiz';
 
 function sortQuestions(a: LiveQuestion, b: LiveQuestion): number {
   return b.upvotes - a.upvotes || a.createdAt.localeCompare(b.createdAt);
@@ -20,22 +19,30 @@ interface Props {
   questions: LiveQuestion[];
   moderatingId: string | null;
   onModerateQuestion: (item: LiveQuestion) => void;
-  onOpenPoll: (question: string, options: string[]) => Promise<boolean>;
+  quizzes: Quiz[] | null;
+  quizzesLoading: boolean;
+  quizPickerError: string;
+  onLoadQuizzes: () => void;
+  onPickQuizQuestion: (question: QuizQuestion) => void;
 }
 
 /** Slido-style Q&A/poll panel, viewable and usable while still projecting -
  * the presenter no longer has to exit fullscreen to moderate a question,
- * check poll results, or start a new poll. */
+ * check poll results, or launch the next poll. Launching a poll only ever
+ * picks from an already-saved quiz question, never a free-text composer -
+ * writing a brand-new question live, mid-lecture, isn't a real workflow;
+ * that stays on the presenter's regular (non-fullscreen) page instead. */
 export function LivePanel({
-  open, onClose, poll, questions, moderatingId, onModerateQuestion, onOpenPoll,
+  open, onClose, poll, questions, moderatingId, onModerateQuestion,
+  quizzes, quizzesLoading, quizPickerError, onLoadQuizzes, onPickQuizQuestion,
 }: Props) {
   const { language } = useLanguage();
   const { t } = useTranslation(language);
   const [tab, setTab] = useState<'qa' | 'poll'>('qa');
-  const [composing, setComposing] = useState(false);
-  const [draftQuestion, setDraftQuestion] = useState('');
-  const [draftOptions, setDraftOptions] = useState(['', '']);
-  const [submitting, setSubmitting] = useState(false);
+
+  useEffect(() => {
+    if (open && tab === 'poll' && quizzes === null && !quizzesLoading) onLoadQuizzes();
+  }, [open, tab, quizzes, quizzesLoading, onLoadQuizzes]);
 
   if (!open) return null;
 
@@ -51,20 +58,6 @@ export function LivePanel({
       {label}
     </button>
   );
-
-  const submitPoll = async (event: FormEvent) => {
-    event.preventDefault();
-    const cleanOptions = draftOptions.map((option) => option.trim()).filter(Boolean);
-    if (!draftQuestion.trim() || cleanOptions.length < 2 || submitting) return;
-    setSubmitting(true);
-    const ok = await onOpenPoll(draftQuestion.trim(), cleanOptions);
-    setSubmitting(false);
-    if (ok) {
-      setComposing(false);
-      setDraftQuestion('');
-      setDraftOptions(['', '']);
-    }
-  };
 
   return (
     <div
@@ -149,78 +142,38 @@ export function LivePanel({
             ) : (
               <p className="py-6 text-sm text-white/60">{t('live_no_active_poll')}</p>
             )}
-            {composing ? (
-              <form onSubmit={submitPoll} className="mt-5 space-y-3 border-t border-white/10 pt-4">
-                <Textarea
-                  className="border-white/20 bg-white/5 text-white placeholder:text-white/40"
-                  rows={2}
-                  maxLength={500}
-                  value={draftQuestion}
-                  onChange={(event) => setDraftQuestion(event.target.value)}
-                  placeholder={t('live_poll_question_label')}
-                  required
-                />
-                {draftOptions.map((option, index) => (
-                  <div key={index} className="flex gap-2">
-                    <Input
-                      className="border-white/20 bg-white/5 text-white placeholder:text-white/40"
-                      value={option}
-                      maxLength={120}
-                      onChange={(event) =>
-                        setDraftOptions((previous) =>
-                          previous.map((item, itemIndex) => (itemIndex === index ? event.target.value : item)),
-                        )
-                      }
-                      placeholder={`${t('live_poll_option_placeholder')} ${String.fromCharCode(65 + index)}`}
-                    />
-                    {draftOptions.length > 2 && (
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="icon"
-                        className="shrink-0 text-white hover:bg-white/15 hover:text-white"
-                        onClick={() => setDraftOptions((previous) => previous.filter((_, itemIndex) => itemIndex !== index))}
-                        aria-label={t('live_remove_option', { option: String.fromCharCode(65 + index) })}
-                      >
-                        <X className="h-4 w-4" />
-                      </Button>
-                    )}
-                  </div>
-                ))}
-                <div className="flex items-center justify-between gap-2">
-                  {draftOptions.length < 6 ? (
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="sm"
-                      className="text-white hover:bg-white/15 hover:text-white"
-                      onClick={() => setDraftOptions((previous) => [...previous, ''])}
-                    >
-                      <Plus className="mr-1.5 h-3.5 w-3.5" />
-                      {t('live_add_option')}
-                    </Button>
-                  ) : <span />}
-                  <Button
-                    type="submit"
-                    size="sm"
-                    disabled={submitting || !draftQuestion.trim() || draftOptions.filter((option) => option.trim()).length < 2}
-                  >
-                    {t('live_open_poll')}
-                  </Button>
+            <div className="mt-5 border-t border-white/10 pt-4">
+              <p className="mb-2 text-xs font-medium text-white/60">{t('live_load_from_quiz_pick_question')}</p>
+              {quizzesLoading ? (
+                <div className="flex justify-center py-6">
+                  <Loader2 className="h-5 w-5 animate-spin text-white/60" />
                 </div>
-              </form>
-            ) : (
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                className="mt-5 w-full border-white/20 bg-transparent text-white hover:bg-white/15 hover:text-white"
-                onClick={() => setComposing(true)}
-              >
-                <Plus className="mr-1.5 h-3.5 w-3.5" />
-                {t('live_new_poll')}
-              </Button>
-            )}
+              ) : quizPickerError ? (
+                <p role="alert" className="py-4 text-center text-sm text-rose-300">{quizPickerError}</p>
+              ) : !quizzes || quizzes.length === 0 ? (
+                <p className="py-4 text-center text-sm text-white/50">{t('live_load_from_quiz_empty')}</p>
+              ) : (
+                <div className="max-h-64 space-y-3 overflow-y-auto">
+                  {quizzes.map((quiz) => (
+                    <div key={quiz.id}>
+                      <p className="mb-1 truncate text-xs font-semibold text-white/70">{quiz.title}</p>
+                      <div className="space-y-1">
+                        {quiz.questions.map((quizQuestion, index) => (
+                          <button
+                            key={quizQuestion.id}
+                            type="button"
+                            onClick={() => onPickQuizQuestion(quizQuestion)}
+                            className="block w-full whitespace-normal break-words rounded-lg border border-white/10 px-3 py-2 text-left text-sm hover:border-white/30 hover:bg-white/5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/40"
+                          >
+                            {index + 1}. {quizQuestion.questionText}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
           </div>
         )}
       </div>

@@ -280,7 +280,7 @@ describe('projection tools', () => {
     await screen.findByRole('img');
     expect(screen.queryByRole('button', { name: '知道了，不再顯示' })).toBeNull();
   });
-  it('shows small class signals (online count, pulse, latest questions) regardless of toolbar visibility', async () => {
+  it('shows small class signals (online count, pulse) regardless of toolbar visibility', async () => {
     vi.stubGlobal('localStorage', { getItem: () => '1', setItem: vi.fn() });
     render(
       <LanguageProvider>
@@ -296,14 +296,12 @@ describe('projection tools', () => {
           onNumPages={() => {}}
           onlineCount={12}
           pulseAverage={3.4}
-          latestQuestions={[{ id: 'q1', text: '這題怎麼算？' }]}
         />
       </LanguageProvider>,
     );
     await screen.findByRole('img');
     expect(screen.getByText('12')).toBeTruthy();
     expect(screen.getByText('3.4')).toBeTruthy();
-    expect(screen.getByText('這題怎麼算？')).toBeTruthy();
   });
 });
 
@@ -343,7 +341,10 @@ describe('Slido-style Q&A/poll panel', () => {
           questions={questions}
           moderatingId={null}
           onModerateQuestion={() => {}}
-          onOpenPoll={async () => true}
+          quizzes={[]}
+          quizzesLoading={false}
+          onLoadQuizzes={() => {}}
+          onPickQuizQuestion={() => {}}
           {...overrides}
         />
       </LanguageProvider>,
@@ -378,36 +379,50 @@ describe('Slido-style Q&A/poll panel', () => {
     expect(screen.getByText('4 人已答')).toBeTruthy();
   });
 
-  it('opens a new poll from the fullscreen composer', async () => {
-    const onOpenPoll = vi.fn().mockResolvedValue(true);
-    renderStage({ poll: null, onOpenPoll });
+  it('auto-loads the quiz bank the first time the poll tab is viewed', async () => {
+    const onLoadQuizzes = vi.fn();
+    renderStage({ quizzes: null, onLoadQuizzes });
+    await screen.findByRole('img');
+    fireEvent.click(screen.getByRole('button', { name: '問答與投票' }));
+    expect(onLoadQuizzes).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByRole('button', { name: '目前投票' }));
+    expect(onLoadQuizzes).toHaveBeenCalledOnce();
+  });
+
+  it('launches the next poll from a saved quiz question - never a free-text composer', async () => {
+    const onPickQuizQuestion = vi.fn();
+    const quizQuestion = {
+      id: 'qq1',
+      questionText: '哪一個是正確的 IF 語法？',
+      options: [{ id: 'o1', text: '=IF(A1>60,"及格","不及格")' }, { id: 'o2', text: '=IF(A1,60)' }],
+      correctAnswer: 'o1',
+      explanation: '',
+    };
+    renderStage({
+      poll: null,
+      quizzes: [{ id: 'quiz1', title: 'IF 函數測驗', questions: [quizQuestion] }],
+      onPickQuizQuestion,
+    });
     await screen.findByRole('img');
     fireEvent.click(screen.getByRole('button', { name: '問答與投票' }));
     fireEvent.click(screen.getByRole('button', { name: '目前投票' }));
     expect(screen.getByText('目前沒有進行中的投票。')).toBeTruthy();
-    fireEvent.click(screen.getByRole('button', { name: '新增投票' }));
-    fireEvent.change(screen.getByPlaceholderText('題目'), {
-      target: { value: '大家覺得今天的進度如何？' },
-    });
-    fireEvent.change(screen.getByPlaceholderText('選項 A'), { target: { value: '太快' } });
-    fireEvent.change(screen.getByPlaceholderText('選項 B'), { target: { value: '剛好' } });
-    fireEvent.click(screen.getByRole('button', { name: '開啟投票' }));
-    await waitFor(() =>
-      expect(onOpenPoll).toHaveBeenCalledWith('大家覺得今天的進度如何？', ['太快', '剛好']),
-    );
+    // No free-text fields anywhere in the panel - only a pick-from-quiz list.
+    expect(screen.queryByRole('textbox')).toBeNull();
+    fireEvent.click(screen.getByRole('button', { name: /哪一個是正確的 IF 語法？/ }));
+    expect(onPickQuizQuestion).toHaveBeenCalledWith(quizQuestion);
   });
 
   it('excludes panel content from projection keyboard shortcuts', async () => {
     renderStage();
     const surface = await screen.findByRole('img');
     fireEvent.click(screen.getByRole('button', { name: '問答與投票' }));
-    fireEvent.click(screen.getByRole('button', { name: '目前投票' }));
-    fireEvent.click(screen.getByRole('button', { name: '新增投票' }));
-    const textarea = screen.getByPlaceholderText('題目');
-    // Typing "p" in a form field inside the panel must not switch the
-    // drawing tool to pen, same guard as any other input on the stage.
-    fireEvent.keyDown(textarea, { key: 'p' });
-    fireEvent.keyDown(textarea, { key: 'ArrowRight' });
+    const questionText = screen.getByText('IF 函數可以巢狀使用嗎？');
+    // Typing "p" over plain (non-button/input) panel content must not switch
+    // the drawing tool to pen - relies on the panel's own
+    // data-presentation-ui marker, not the button/input part of the guard.
+    fireEvent.keyDown(questionText, { key: 'p' });
+    fireEvent.keyDown(questionText, { key: 'ArrowRight' });
     expect(screen.getByRole('status', { name: /投影片第/ }).textContent).toContain('1 / 3');
     expect(surface).toBeTruthy();
   });
