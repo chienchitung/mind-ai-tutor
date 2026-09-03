@@ -1,6 +1,17 @@
-# MindAiTutor
+<p align="center">
+  <img src="./public/brand/mindaitutor-cover-logo.svg" alt="MindAiTutor" width="280" />
+</p>
 
-繁體中文（預設） ｜ [English](#english)
+<p align="center">
+  <img alt="Next.js" src="https://img.shields.io/badge/Next.js-15-black?logo=nextdotjs&logoColor=white">
+  <img alt="TypeScript" src="https://img.shields.io/badge/TypeScript-5.8-3178C6?logo=typescript&logoColor=white">
+  <img alt="Supabase" src="https://img.shields.io/badge/Supabase-Postgres%20%2B%20Auth-3FCF8E?logo=supabase&logoColor=white">
+  <img alt="Tests" src="https://img.shields.io/badge/Tests-Vitest-6E9F18?logo=vitest&logoColor=white">
+  <img alt="Deploy" src="https://img.shields.io/badge/Deploy-Vercel-black?logo=vercel&logoColor=white">
+  <img alt="License" src="https://img.shields.io/badge/License-Private-lightgrey">
+</p>
+
+<p align="center">繁體中文（預設） ｜ <a href="#english">English</a></p>
 
 給老師使用的教學管理平台：課程、數位遊戲、AI 出題、學生管理、行事曆、即時課堂互動、成效報表，並支援多位老師共用同一個工作區。前端是 Next.js（App Router），後端資料庫、驗證、即時通訊全部走 Supabase；另有一個獨立部署的遊戲引擎子專案（`game-engine/`），透過 Vercel 的 Multi-Zones rewrite 掛在同一個網域的 `/games` 底下。
 
