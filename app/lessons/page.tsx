@@ -940,14 +940,18 @@ export default function LessonsPage() {
                       </div>
                     </div>
 
-                    <div className="grid gap-4 lg:grid-cols-2">
+                    <details className="rounded-xl border border-border/70 bg-muted/20 p-4">
+                      <summary className="cursor-pointer font-medium">{language === 'zh-TW' ? '進階引導設定（選填）' : 'Advanced guidance (optional)'}</summary>
+                      <p className="mt-2 text-sm leading-6 text-muted-foreground">{language === 'zh-TW' ? '這些內容只用來改變學生看到的引導文字，不會改變題目答案或通關判定；不確定時可以留白。' : 'These fields only change student guidance. They do not change answers or completion rules, and can be left blank.'}</p>
+                    <div className="mt-4 grid gap-4 lg:grid-cols-2">
                       <FormField
                         control={form.control}
                         name="missionScenario"
                         render={({ field }: { field: any }) => (
                           <FormItem>
-                            <FormLabel>{language === 'zh-TW' ? '任務情境（選填）' : 'Mission scenario (optional)'}</FormLabel>
-                            <FormControl><Textarea className="min-h-28" maxLength={600} placeholder={language === 'zh-TW' ? '給學生一個需要解決問題的真實情境。' : 'Give students a realistic problem to solve.'} {...field} /></FormControl>
+                            <FormLabel>{language === 'zh-TW' ? '給學生的任務背景' : 'Student mission background'}</FormLabel>
+                            <FormControl><Textarea className="min-h-28" maxLength={600} placeholder={language === 'zh-TW' ? '例如：你是門市主管，需要從銷售資料找出未達標的商品。' : 'Example: You manage a store and need to find underperforming products.'} {...field} /></FormControl>
+                            <p className="text-xs leading-5 text-muted-foreground">{language === 'zh-TW' ? '學生可在關卡頂部展開「任務情境與導師指引」查看。' : 'Students can expand this from the mission brief.'}</p>
                             <FormMessage />
                           </FormItem>
                         )}
@@ -957,25 +961,28 @@ export default function LessonsPage() {
                         name="mentorMessage"
                         render={({ field }: { field: any }) => (
                           <FormItem>
-                            <FormLabel>{language === 'zh-TW' ? 'AI 導師開場引導（選填）' : 'AI tutor opening (optional)'}</FormLabel>
+                            <FormLabel>{language === 'zh-TW' ? 'Ellis 的第一句引導' : 'Ellis opening message'}</FormLabel>
                             <FormControl><Textarea className="min-h-28" maxLength={300} placeholder={language === 'zh-TW' ? '例如：先找出判斷條件，再決定條件成立與不成立時要顯示什麼。' : 'Guide the student without giving away the answer.'} {...field} /></FormControl>
+                            <p className="text-xs leading-5 text-muted-foreground">{language === 'zh-TW' ? '學生打開 Ellis 時會先看到這句話；建議給方向，不要直接寫答案。' : 'Shown when students open Ellis. Give direction without revealing the answer.'}</p>
                             <FormMessage />
                           </FormItem>
                         )}
                       />
                     </div>
 
-                    <FormField
+                    <div className="mt-4"><FormField
                       control={form.control}
                       name="completionMessage"
                       render={({ field }: { field: any }) => (
                         <FormItem>
-                          <FormLabel>{language === 'zh-TW' ? '完成後回饋（選填）' : 'Completion feedback (optional)'}</FormLabel>
-                          <FormControl><Textarea className="min-h-20" maxLength={300} placeholder={language === 'zh-TW' ? '說明學生完成了什麼，以及下一關會如何運用。' : 'Explain what the student achieved and what comes next.'} {...field} /></FormControl>
+                          <FormLabel>{language === 'zh-TW' ? '答對後顯示的鼓勵' : 'Feedback after a correct answer'}</FormLabel>
+                          <FormControl><Textarea className="min-h-20" maxLength={300} placeholder={language === 'zh-TW' ? '例如：你已能建立 IF 判斷，下一關會把它運用在多個條件上。' : 'Explain what the student achieved and what comes next.'} {...field} /></FormControl>
+                          <p className="text-xs leading-5 text-muted-foreground">{language === 'zh-TW' ? '顯示在「答案正確」訊息下方。留白時使用系統預設回饋。' : 'Shown below the correct-answer message. Leave blank to use the default.'}</p>
                           <FormMessage />
                         </FormItem>
                       )}
-                    />
+                    /></div>
+                    </details>
                   </section>
                   
                   {/* Markdown 內容編輯區塊 */}

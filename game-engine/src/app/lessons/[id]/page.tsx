@@ -1790,8 +1790,8 @@ export default function ExcelLearningPlatform({
                 )
               )}
             </div>
-            <div className={isIntroLesson(lessonState.currentLesson) ? 'lesson-complete-action' : 'flex-1'}>
-              {isIntroLesson(lessonState.currentLesson) ? (
+            {isIntroLesson(lessonState.currentLesson) && (
+              <div className="lesson-complete-action">
                 <>
                   <div className="lesson-complete-copy">
                     <span>下一步</span>
@@ -1807,23 +1807,8 @@ export default function ExcelLearningPlatform({
                     <ChevronRight className="h-5 w-5" />
                   </Button>
                 </>
-              ) : (
-                !isFinalLesson(lessonState.currentLesson) && (
-                  <Button 
-                    className={`flex items-center gap-2 ml-auto text-sm md:text-base ${
-                      lessonState.completedLessons.includes(lessonState.currentLesson)
-                        ? 'bg-blue-600 hover:bg-blue-700 text-white'
-                        : 'bg-blue-300 text-white cursor-not-allowed'
-                    }`}
-                    onClick={handleNextLesson}
-                    disabled={!lessonState.completedLessons.includes(lessonState.currentLesson)}
-                  >
-                    下一關
-                    <ChevronRight className="h-4 w-4" />
-                  </Button>
-                )
-              )}
-            </div>
+              </div>
+            )}
           </div>
         </main>
 
