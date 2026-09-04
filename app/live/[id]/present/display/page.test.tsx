@@ -1,20 +1,40 @@
 // @vitest-environment jsdom
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
-import { LanguageProvider } from '@/app/contexts/LanguageContext';
-import PresentDisplayPage from './page';
-
+import { afterEach, beforeEach, describe, it, expect, vi } from "vitest";
+import {
+  act,
+  cleanup,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+} from "@testing-library/react";
+import { LanguageProvider } from "@/app/contexts/LanguageContext";
+import PresentDisplayPage from "./page";
 const mocks = vi.hoisted(() => ({
-  events: new Map<string, (arg: { payload: unknown }) => void>(),
+  events: new Map<string, () => void>(),
+  channels: [] as any[],
 }));
-vi.mock('next/navigation', () => ({ useParams: () => ({ id: '123456' }) }));
-vi.mock('@/components/live/DeckViewer', () => ({
-  DeckViewer: ({ overlay }: { overlay: React.ReactNode }) => <div data-testid="deck">{overlay}</div>,
+vi.mock("next/navigation", () => ({ useParams: () => ({ id: "123456" }) }));
+vi.mock("@/components/live/JoinQRCode", () => ({
+  JoinQRCode: () => <div>QR</div>,
 }));
-vi.mock('@/lib/supabase', () => ({
+vi.mock("@/components/live/DeckViewer", () => ({
+  DeckViewer: ({
+    overlay,
+    page,
+  }: {
+    overlay: React.ReactNode;
+    page: number;
+  }) => (
+    <div data-testid="deck" data-page={page}>
+      {overlay}
+    </div>
+  ),
+}));
+vi.mock("@/lib/supabase", () => ({
   supabase: () => {
     const channel = {
-      on: (_: string, { event }: { event: string }, handler: (arg: { payload: unknown }) => void) => {
+      on: (_: string, { event }: { event: string }, handler: () => void) => {
         mocks.events.set(event, handler);
         return channel;
       },
@@ -23,27 +43,43 @@ vi.mock('@/lib/supabase', () => ({
     return { channel: () => channel, removeChannel: vi.fn() };
   },
 }));
-
-const session = {
-  sessionId: '123456',
-  title: 'AI 素養：一起探索生成式 AI',
-  status: 'open',
-  joinCode: '482910',
+const initial = {
+  sessionId: "123456",
+  title: "Test class",
+  status: "open",
+  joinCode: "482910",
   poll: null,
-  pulse: { pulseCounts: [0, 0, 0, 0, 0], pulseTotal: 0, pulseAverage: null },
-  deckUrl: 'https://example.test/deck.pdf',
+  deckUrl: "/deck.pdf",
   deckPage: 1,
+  mode: "deck",
+  questions: [],
+  answeredIds: [],
 };
-
-function broadcast(event: string, payload: unknown) {
-  act(() => mocks.events.get(event)?.({ payload }));
-}
-
+let current: any;
+let deleted = false;
 beforeEach(() => {
+  current = { ...initial };
+  deleted = false;
   mocks.events.clear();
+  mocks.channels = [];
   vi.stubGlobal(
-    'fetch',
-    vi.fn().mockResolvedValue({ ok: true, status: 200, json: async () => session }),
+    "fetch",
+    vi.fn(async () => ({
+      ok: !deleted,
+      status: deleted ? 404 : 200,
+      json: async () => current,
+    })),
+  );
+  vi.stubGlobal(
+    "BroadcastChannel",
+    class {
+      onmessage: any = null;
+      postMessage = vi.fn();
+      close() {}
+      constructor(public name: string) {
+        mocks.channels.push(this);
+      }
+    },
   );
   Element.prototype.requestFullscreen = vi.fn().mockResolvedValue(undefined);
 });
@@ -51,93 +87,105 @@ afterEach(() => {
   cleanup();
   vi.unstubAllGlobals();
 });
-
-async function renderDisplay() {
+async function mount() {
   render(
     <LanguageProvider>
       <PresentDisplayPage />
     </LanguageProvider>,
   );
-  await screen.findByTestId('deck');
+  await screen.findByTestId("deck");
 }
-
-describe('present display page (projected window)', () => {
-  it('shows the fullscreen gate first, then the deck once entered', async () => {
-    await renderDisplay();
-    const button = screen.getByRole('button', { name: '進入全螢幕' });
-    expect(screen.getByTestId('deck')).toBeTruthy();
-    fireEvent.click(button);
-    await waitFor(() => expect(Element.prototype.requestFullscreen).toHaveBeenCalled());
-    expect(screen.queryByRole('button', { name: '進入全螢幕' })).toBeNull();
+async function notify(event: string) {
+  await act(async () => {
+    mocks.events.get(event)?.();
   });
-
-  it('follows deck:sync broadcasts for page and deck URL changes', async () => {
-    await renderDisplay();
-    broadcast('deck:sync', { page: 4, deckUrl: 'https://example.test/deck-v2.pdf' });
-    // No page-count UI to assert on directly, but the DeckViewer mock re-renders
-    // without throwing, and a follow-up annotation:sync for a different page
-    // proves the page state actually changed (see next test).
-    expect(screen.getByTestId('deck')).toBeTruthy();
-  });
-
-  it('mirrors committed strokes and the live in-progress draft/pointer, scoped per page', async () => {
-    await renderDisplay();
-    broadcast('annotation:sync', {
-      page: 1,
-      strokes: [{ id: 's1', points: [{ x: 0.1, y: 0.1 }, { x: 0.2, y: 0.2 }], color: '#fb7185', width: 3 }],
-    });
-    expect(document.querySelector('[data-ink-stroke="s1"]')).toBeTruthy();
-    broadcast('annotation:live', {
-      tool: 'laser', color: '#fff', width: 3, draft: [], pointer: { x: 0.5, y: 0.5 },
-    });
-    expect(document.querySelector('[data-laser-pointer]')).toBeTruthy();
-    // Switching pages hides strokes committed on a different page.
-    broadcast('deck:sync', { page: 2, deckUrl: session.deckUrl });
-    expect(document.querySelector('[data-ink-stroke="s1"]')).toBeNull();
-  });
-
-  it('shows online count from realtime presence pings, with no pulse/difficulty content', async () => {
-    await renderDisplay();
-    broadcast('presence:ping', { participantId: 'p1' });
-    expect(screen.getByText('1')).toBeTruthy();
-    expect(screen.queryByText('2.5')).toBeNull();
-  });
-
-  it('reveals poll results or featured questions only when the presenter explicitly broadcasts spotlight:show, and hides on spotlight:hide', async () => {
-    await renderDisplay();
-    expect(screen.queryByRole('region', { name: '投票結果，正在投影上顯示' })).toBeNull();
-    broadcast('spotlight:show', {
-      type: 'poll',
-      poll: { pollId: 'poll-1', question: '哪一種資料視覺化最清楚？', options: ['長條圖'], voteCounts: [2], voteTotal: 2 },
-    });
-    expect(screen.getByText('哪一種資料視覺化最清楚？')).toBeTruthy();
-    broadcast('spotlight:show', {
-      type: 'questions',
-      questions: [{ id: 'q1', text: 'IF 函數可以巢狀使用嗎？', upvotes: 3 }],
-    });
-    expect(screen.getByText('IF 函數可以巢狀使用嗎？')).toBeTruthy();
-    expect(screen.queryByText('哪一種資料視覺化最清楚？')).toBeNull();
-    broadcast('spotlight:hide', {});
-    expect(screen.queryByText('IF 函數可以巢狀使用嗎？')).toBeNull();
-  });
-
-  it('shows an ended message when the session is deleted', async () => {
-    await renderDisplay();
-    broadcast('session:deleted', {});
-    await waitFor(() => expect(screen.getByText('這堂課已經結束。')).toBeTruthy());
-    expect(screen.queryByTestId('deck')).toBeNull();
-  });
-
-  it('shows a waiting message when no deck has been shared yet', async () => {
-    vi.stubGlobal(
-      'fetch',
-      vi.fn().mockResolvedValue({ ok: true, status: 200, json: async () => ({ ...session, deckUrl: null }) }),
+}
+function ink(message: any) {
+  act(() =>
+    mocks.channels
+      .find((c) => c.name === "live-ink:123456")
+      .onmessage({ data: message }),
+  );
+}
+describe("reliable projected display", () => {
+  it("opens the fullscreen gate and keeps a re-entry action when fullscreen is unsupported", async () => {
+    await mount();
+    fireEvent.click(screen.getByRole("button", { name: "開始投影" }));
+    await waitFor(() =>
+      expect(Element.prototype.requestFullscreen).toHaveBeenCalled(),
     );
+    expect(screen.getByRole("button", { name: "回到全螢幕" })).toBeTruthy();
+  });
+  it("refetches authoritative deck state rather than trusting a broadcast payload", async () => {
+    await mount();
+    current = { ...current, deckPage: 4 };
+    await notify("deck:sync");
+    await waitFor(() =>
+      expect(screen.getByTestId("deck").getAttribute("data-page")).toBe("4"),
+    );
+  });
+  it("requests ink on mount and scopes late strokes/pointers to their deck and page", async () => {
+    await mount();
+    const channel = mocks.channels.find((c) => c.name === "live-ink:123456");
+    expect(channel.postMessage).toHaveBeenCalledWith({ type: "ready" });
+    ink({
+      type: "ink",
+      page: 1,
+      deckUrl: "/deck.pdf",
+      strokes: [
+        { id: "s", points: [{ x: 0.1, y: 0.1 }], width: 3, color: "#fff" },
+      ],
+    });
+    expect(document.querySelector('[data-ink-stroke="s"]')).toBeTruthy();
+    ink({
+      type: "live",
+      page: 1,
+      deckUrl: "/deck.pdf",
+      payload: {
+        tool: "laser",
+        color: "#fff",
+        width: 3,
+        draft: [],
+        pointer: { x: 0.5, y: 0.5 },
+      },
+    });
+    expect(document.querySelector("[data-laser-pointer]")).toBeTruthy();
+    current = { ...current, deckPage: 2 };
+    await notify("deck:sync");
+    expect(document.querySelector('[data-ink-stroke="s"]')).toBeNull();
+    expect(document.querySelector("[data-laser-pointer]")).toBeNull();
+  });
+  it("restores a pinned question directly on refresh without needing another broadcast", async () => {
+    current = {
+      ...current,
+      mode: "question",
+      questions: [{ id: "q", text: "Pinned question", upvotes: 2 }],
+    };
     render(
       <LanguageProvider>
         <PresentDisplayPage />
       </LanguageProvider>,
     );
-    await waitFor(() => expect(screen.getByText('等待老師分享投影片…')).toBeTruthy());
+    expect(await screen.findByText("Pinned question")).toBeTruthy();
+    expect(screen.queryByTestId("deck")).toBeNull();
+  });
+  it("clears the deck when the session ends or is deleted", async () => {
+    await mount();
+    current = { ...current, status: "closed" };
+    await notify("session:status");
+    expect(await screen.findByText("本場次已結束，謝謝參與")).toBeTruthy();
+    expect(screen.queryByTestId("deck")).toBeNull();
+    deleted = true;
+    await notify("session:deleted");
+    expect(screen.queryByTestId("deck")).toBeNull();
+  });
+  it("shows a welcome screen without requiring an uploaded deck", async () => {
+    current = { ...current, deckUrl: null };
+    render(
+      <LanguageProvider>
+        <PresentDisplayPage />
+      </LanguageProvider>,
+    );
+    expect(await screen.findByText("歡迎加入，等待老師開始")).toBeTruthy();
   });
 });
