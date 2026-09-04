@@ -6,6 +6,7 @@ import { LanguageProvider } from '@/app/contexts/LanguageContext';
 import { AnnotationLayer } from './AnnotationLayer';
 import { PresentationStage } from './PresentationStage';
 
+vi.mock('./JoinQRCode', () => ({ JoinQRCode: () => <div role="img" aria-label="Scan to join / 掃碼加入" /> }));
 vi.mock('./DeckViewer', () => ({
   DeckViewer: ({ overlay }: { overlay: ReactNode }) => <div>{overlay}</div>,
 }));
@@ -155,7 +156,7 @@ describe('projection tools', () => {
         onLiveChange={live}
       />,
     );
-    const surface = screen.getByRole('img');
+    const surface = screen.getByRole('img', { name: 'canvas' });
     move(surface, 300, 200);
     expect(live).toHaveBeenLastCalledWith({ draft: [], pointer: { x: 0.375, y: 0.5 } });
     fireEvent.pointerLeave(surface);
@@ -174,7 +175,7 @@ describe('projection tools', () => {
         onDrawingChange={() => {}}
       />,
     );
-    const surface = screen.getByRole('img');
+    const surface = screen.getByRole('img', { name: 'canvas' });
     fireEvent.pointerDown(surface, { button: 2, pointerId: 1 });
     up(surface, 100, 100);
     fireEvent.pointerDown(surface, { button: 0, pointerId: 2, isPrimary: false });
@@ -194,7 +195,7 @@ describe('projection tools', () => {
         onDrawingChange={() => {}}
       />,
     );
-    const surface = screen.getByRole('img');
+    const surface = screen.getByRole('img', { name: 'canvas' });
     move(surface, 300, 200);
     const dot = container.querySelector('[data-laser-pointer]');
     expect(dot).toBeTruthy();
@@ -218,21 +219,21 @@ describe('projection tools', () => {
     fireEvent.keyDown(surface, { key: 'ArrowRight' });
     expect(screen.getByRole('status', { name: /投影片第/ }).textContent).toContain('2 / 3');
     expect(document.querySelectorAll('[data-ink-stroke]')).toHaveLength(0);
-    surface = screen.getByRole('img');
+    surface = screen.getByRole('img', { name: '投影片標註區' });
     fireEvent.keyDown(surface, { key: 'ArrowLeft' });
     expect(document.querySelectorAll('[data-ink-stroke]')).toHaveLength(1);
-    fireEvent.keyDown(screen.getByRole('img'), { key: 'z', ctrlKey: true });
+    fireEvent.keyDown(screen.getByRole('img', { name: '投影片標註區' }), { key: 'z', ctrlKey: true });
     expect(document.querySelectorAll('[data-ink-stroke]')).toHaveLength(0);
-    fireEvent.keyDown(screen.getByRole('img'), { key: 'z', metaKey: true, shiftKey: true });
+    fireEvent.keyDown(screen.getByRole('img', { name: '投影片標註區' }), { key: 'z', metaKey: true, shiftKey: true });
     expect(document.querySelectorAll('[data-ink-stroke]')).toHaveLength(1);
     fireEvent.click(screen.getByRole('button', { name: '退出投影' }));
     fireEvent.click(screen.getByText('Reopen'));
-    await screen.findByRole('img');
+    await screen.findByRole('img', { name: '投影片標註區' });
     expect(document.querySelectorAll('[data-ink-stroke]')).toHaveLength(1);
   });
   it('opens a right-click menu within the projection dialog and does not navigate while using it', async () => {
     render(<Harness />);
-    const surface = await screen.findByRole('img');
+    const surface = await screen.findByRole('img', { name: '投影片標註區' });
     fireEvent.contextMenu(surface, { clientX: 300, clientY: 100 });
     const menu = await screen.findByRole('menu');
     expect(screen.getByRole('dialog').contains(menu)).toBe(true);
@@ -240,12 +241,12 @@ describe('projection tools', () => {
     expect(screen.getByRole('status', { name: /投影片第/ }).textContent).toContain('1 / 3');
     fireEvent.click(within(menu).getByRole('menuitemradio', { name: /畫筆/ }));
     await waitFor(() => expect(screen.queryByRole('menu')).toBeNull());
-    draw(screen.getByRole('img'));
+    draw(screen.getByRole('img', { name: '投影片標註區' }));
     expect(document.querySelectorAll('[data-ink-stroke]')).toHaveLength(1);
   });
   it('erases strokes with a gesture and lets that gesture be undone', async () => {
     render(<Harness />);
-    const surface = await screen.findByRole('img');
+    const surface = await screen.findByRole('img', { name: '投影片標註區' });
     fireEvent.keyDown(surface, { key: 'p' });
     draw(surface);
     fireEvent.keyDown(surface, { key: 'e' });
@@ -257,13 +258,13 @@ describe('projection tools', () => {
   });
   it('does not turn Space on a toolbar button into a page change', async () => {
     render(<Harness />);
-    await screen.findByRole('img');
+    await screen.findByRole('img', { name: '投影片標註區' });
     fireEvent.keyDown(screen.getByRole('button', { name: '投影工具' }), { key: ' ' });
     expect(screen.getByRole('status', { name: /投影片第/ }).textContent).toContain('1 / 3');
   });
   it('leaves an already-hidden toolbar hidden when paging via keyboard/clicker - only pointer movement wakes it', async () => {
     render(<Harness />);
-    const surface = await screen.findByRole('img');
+    const surface = await screen.findByRole('img', { name: '投影片標註區' });
     const topBar = document.querySelector('[data-presentation-ui]') as HTMLElement;
     expect(topBar.className).toContain('opacity-100');
 
@@ -282,7 +283,7 @@ describe('projection tools', () => {
     render(<Harness />);
     const dialog = await screen.findByRole('dialog');
     fireEvent.pointerMove(dialog, { clientX: 240, clientY: 160, pointerId: 1 });
-    fireEvent.keyDown(screen.getByRole('img'), { key: 'p' });
+    fireEvent.keyDown(screen.getByRole('img', { name: '投影片標註區' }), { key: 'p' });
     const announcement = screen
       .getAllByRole('status')
       .find((element) => element.textContent?.includes('畫筆'))!;
@@ -318,7 +319,7 @@ describe('projection tools', () => {
       },
     });
     render(<Harness />);
-    await screen.findByRole('img');
+    await screen.findByRole('img', { name: '投影片標註區' });
     expect(screen.getByRole('button', { name: '知道了，不再顯示' })).toBeTruthy();
     fireEvent.click(screen.getByRole('button', { name: '知道了，不再顯示' }));
     expect(screen.queryByRole('button', { name: '知道了，不再顯示' })).toBeNull();
@@ -327,7 +328,7 @@ describe('projection tools', () => {
   it('does not show the onboarding tip once it has already been seen', async () => {
     vi.stubGlobal('localStorage', { getItem: () => '1', setItem: vi.fn() });
     render(<Harness />);
-    await screen.findByRole('img');
+    await screen.findByRole('img', { name: '投影片標註區' });
     expect(screen.queryByRole('button', { name: '知道了，不再顯示' })).toBeNull();
   });
   it('shows the online-count signal regardless of toolbar visibility, with no pulse/difficulty content', async () => {
@@ -348,7 +349,7 @@ describe('projection tools', () => {
         />
       </LanguageProvider>,
     );
-    await screen.findByRole('img');
+    await screen.findByRole('img', { name: '投影片標註區' });
     expect(screen.getByText('12')).toBeTruthy();
     expect(screen.queryByText('3.4')).toBeNull();
   });
@@ -402,7 +403,7 @@ describe('Slido-style Q&A/poll panel', () => {
 
   it('stays closed until the toggle button is used, then shows Q&A by default', async () => {
     renderStage();
-    await screen.findByRole('img');
+    await screen.findByRole('img', { name: '投影片標註區' });
     expect(screen.queryByText('IF 函數可以巢狀使用嗎？')).toBeNull();
     fireEvent.click(screen.getByRole('button', { name: '問答與投票' }));
     expect(screen.getByText('IF 函數可以巢狀使用嗎？')).toBeTruthy();
@@ -412,7 +413,7 @@ describe('Slido-style Q&A/poll panel', () => {
   it('moderates a question from inside the panel without leaving fullscreen', async () => {
     const onModerateQuestion = vi.fn();
     renderStage({ onModerateQuestion });
-    await screen.findByRole('img');
+    await screen.findByRole('img', { name: '投影片標註區' });
     fireEvent.click(screen.getByRole('button', { name: '問答與投票' }));
     fireEvent.click(screen.getByRole('button', { name: '隱藏' }));
     expect(onModerateQuestion).toHaveBeenCalledWith(questions[0]);
@@ -420,7 +421,7 @@ describe('Slido-style Q&A/poll panel', () => {
 
   it('switches to the poll tab and shows live results', async () => {
     renderStage();
-    await screen.findByRole('img');
+    await screen.findByRole('img', { name: '投影片標註區' });
     fireEvent.click(screen.getByRole('button', { name: '問答與投票' }));
     fireEvent.click(screen.getByRole('button', { name: '目前投票' }));
     expect(screen.getByText('哪一種資料視覺化最清楚？')).toBeTruthy();
@@ -431,7 +432,7 @@ describe('Slido-style Q&A/poll panel', () => {
   it('auto-loads the quiz bank the first time the poll tab is viewed', async () => {
     const onLoadQuizzes = vi.fn();
     renderStage({ quizzes: null, onLoadQuizzes });
-    await screen.findByRole('img');
+    await screen.findByRole('img', { name: '投影片標註區' });
     fireEvent.click(screen.getByRole('button', { name: '問答與投票' }));
     expect(onLoadQuizzes).not.toHaveBeenCalled();
     fireEvent.click(screen.getByRole('button', { name: '目前投票' }));
@@ -452,7 +453,7 @@ describe('Slido-style Q&A/poll panel', () => {
       quizzes: [{ id: 'quiz1', title: 'IF 函數測驗', questions: [quizQuestion] }],
       onPickQuizQuestion,
     });
-    await screen.findByRole('img');
+    await screen.findByRole('img', { name: '投影片標註區' });
     fireEvent.click(screen.getByRole('button', { name: '問答與投票' }));
     fireEvent.click(screen.getByRole('button', { name: '目前投票' }));
     expect(screen.getByText('目前沒有進行中的投票。')).toBeTruthy();
@@ -464,7 +465,7 @@ describe('Slido-style Q&A/poll panel', () => {
 
   it('excludes panel content from projection keyboard shortcuts', async () => {
     renderStage();
-    const surface = await screen.findByRole('img');
+    const surface = await screen.findByRole('img', { name: '投影片標註區' });
     fireEvent.click(screen.getByRole('button', { name: '問答與投票' }));
     const questionText = screen.getByText('IF 函數可以巢狀使用嗎？');
     // Typing "p" over plain (non-button/input) panel content must not switch
@@ -474,5 +475,17 @@ describe('Slido-style Q&A/poll panel', () => {
     fireEvent.keyDown(questionText, { key: 'ArrowRight' });
     expect(screen.getByRole('status', { name: /投影片第/ }).textContent).toContain('1 / 3');
     expect(surface).toBeTruthy();
+  });
+});
+
+describe('shared projection controls', () => {
+  it('renders a persistent QR footer and dispatches shared undo without a separate local history', async () => {
+    const action = vi.fn();
+    render(<LanguageProvider><PresentationStage open url="/deck.pdf" page={1} numPages={2} title="Shared" joinCode="482910" onExit={()=>{}} onPageChange={()=>{}} onNumPages={()=>{}}
+      annotationState={{1:{strokes:[{id:'s',color:'#fb7185',width:3,points:[{x:0,y:0}]}],past:[[]],future:[]}}} onAnnotationAction={action} /></LanguageProvider>);
+    expect(await screen.findByRole('img',{name:'Scan to join / 掃碼加入'})).toBeTruthy();
+    expect(screen.getByRole('contentinfo',{name:'加入課堂'})).toBeTruthy();
+    fireEvent.keyDown(screen.getByRole('img',{name:'投影片標註區'}),{key:'z',ctrlKey:true});
+    expect(action).toHaveBeenCalledWith({type:'undo',page:1});
   });
 });

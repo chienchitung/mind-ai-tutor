@@ -108,6 +108,16 @@ function ink(message: any) {
   );
 }
 describe("reliable projected display", () => {
+  it("exposes the shared tools and routes undo back to the teacher history", async () => {
+    await mount();
+    const strokes = [{ id: "s", points: [{ x: 0.1, y: 0.1 }], width: 3, color: "#fb7185" }];
+    ink({ type:"ink", page:1, deckUrl:"/deck.pdf", strokes, history:{strokes,past:[[]],future:[]} });
+    fireEvent.click(screen.getByRole("button",{name:"開始投影"}));
+    expect(await screen.findByRole("button",{name:"投影工具"})).toBeTruthy();
+    fireEvent.click(screen.getByRole("button",{name:"復原"}));
+    const channel=mocks.channels.find(c=>c.name==="live-ink:123456");
+    expect(channel.postMessage).toHaveBeenCalledWith({type:"annotation-action",page:1,deckUrl:"/deck.pdf",baseStrokes:strokes,action:{type:"undo",page:1}});
+  });
   it("opens the fullscreen gate and keeps a re-entry action when fullscreen is unsupported", async () => {
     await mount();
     fireEvent.click(screen.getByRole("button", { name: "開始投影" }));

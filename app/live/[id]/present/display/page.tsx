@@ -9,7 +9,10 @@ import type {
   InkPoint,
   InkStroke,
   PresentationTool,
+  InkHistory,
 } from "@/lib/presentation-annotations";
+import { PresentationStage } from "@/components/live/PresentationStage";
+import { EMPTY_INK } from "@/lib/presentation-annotations";
 import { DeckViewer } from "@/components/live/DeckViewer";
 import { RemoteInkOverlay } from "@/components/live/RemoteInkOverlay";
 import {
@@ -38,11 +41,15 @@ export default function PresentDisplayPage() {
   const [joinCode, setJoinCode] = useState("");
   const [entered, setEntered] = useState(false);
   const [fullscreen, setFullscreen] = useState(false);
+  const [numPages, setNumPages] = useState(1);
+  const [pageError, setPageError] = useState(false);
+  const pageWriting = useRef(false);
   const [deckError, setDeckError] = useState(false);
   const [ink, setInk] = useState<{
     page: number;
     deckUrl: string | null;
     strokes: InkStroke[];
+    history?: InkHistory;
   } | null>(null);
   const [live, setLive] = useState<
     (LiveDraft & { page: number; deckUrl: string | null }) | null
@@ -219,12 +226,102 @@ export default function PresentDisplayPage() {
               {zh ? "簡報載入失敗，重試" : "Retry slides"}
             </Button>
           </div>
+        ) : entered ? (
+          <PresentationStage
+            key={snapshot.deckUrl}
+            open={entered}
+            portalContainer={containerRef.current}
+            url={snapshot.deckUrl}
+            page={snapshot.deckPage}
+            numPages={numPages}
+            title={snapshot.title}
+            joinCode={joinCode}
+            onNumPages={setNumPages}
+            onRequestFullscreen={!fullscreen ? () => void enter() : undefined}
+            toolsDisabled={!connected}
+            annotationState={{
+              [snapshot.deckPage]: inkMatches
+                ? (ink!.history ?? { ...EMPTY_INK, strokes: ink!.strokes })
+                : EMPTY_INK,
+            }}
+            onAnnotationAction={(action) =>
+              inkChannelRef.current?.postMessage({
+                type: "annotation-action",
+                page: snapshot.deckPage,
+                deckUrl: snapshot.deckUrl,
+                baseStrokes: inkMatches ? ink!.strokes : [],
+                action,
+              })
+            }
+            onExit={() => {
+              setEntered(false);
+              if (document.fullscreenElement)
+                void document.exitFullscreen().catch(() => {});
+            }}
+            onPageChange={async (page) => {
+              if (pageWriting.current || page < 1 || page > numPages) return;
+              pageWriting.current = true;
+              setPageError(false);
+              try {
+                const response = await fetch(`/api/live-sessions/${id}`, {
+                  method: "PATCH",
+                  headers: { "Content-Type": "application/json" },
+                  body: JSON.stringify({ deckPage: page }),
+                  signal: AbortSignal.timeout(8000),
+                });
+                if (!response.ok) throw new Error();
+                await refresh();
+              } catch {
+                setPageError(true);
+              } finally {
+                pageWriting.current = false;
+              }
+            }}
+            onOpenPanel={() => {
+              if (window.opener && !window.opener.closed) window.opener.focus();
+              else window.open(`/live/${id}/present`, "_blank", "noopener");
+            }}
+            reactions={
+              <>
+                <ReactionBurstOverlay
+                  reactions={reactions}
+                  className="absolute inset-0 z-[75]"
+                />
+                {(pageError || !connected) && (
+                  <p
+                    role="status"
+                    className="absolute left-4 top-24 z-[76] rounded bg-amber-950 px-3 py-2 text-sm"
+                  >
+                    {pageError
+                      ? zh
+                        ? "換頁失敗，請重試"
+                        : "Page change failed. Retry."
+                      : zh
+                        ? "老師控制台未連線，畫筆暫停同步"
+                        : "Presenter disconnected. Drawing paused."}
+                  </p>
+                )}
+              </>
+            }
+            remoteOverlay={
+              <RemoteInkOverlay
+                strokes={[]}
+                draft={liveMatches ? live!.draft : []}
+                pointer={liveMatches ? live!.pointer : null}
+                tool={liveMatches ? live!.tool : "cursor"}
+                color={liveMatches ? live!.color : "#fb7185"}
+                width={liveMatches ? live!.width : 3}
+                label={zh ? "遠端筆跡" : "Remote annotations"}
+              />
+            }
+          />
         ) : (
           <DeckViewer
             url={snapshot.deckUrl}
             page={snapshot.deckPage}
-            className="h-[calc(100dvh-5rem)] w-full"
+            onNumPages={setNumPages}
             onError={() => setDeckError(true)}
+            className="h-[calc(100dvh-5rem)] w-full"
             overlay={
               <RemoteInkOverlay
                 strokes={inkMatches ? ink!.strokes : []}

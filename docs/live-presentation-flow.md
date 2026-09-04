@@ -38,3 +38,11 @@ Rollback: revert the application first. If reverting to a client without phase c
 - React tests cover projection restoration, fullscreen denial/re-entry, deck-scoped ink, local transport, reveal/blank/end rendering, queued user actions during reads, and failed mutations/reconnect.
 - Full repo Vitest, TypeScript, targeted ESLint and production build are run locally.
 - Browser checks use synthetic rendered fixtures for layout; they do not certify production Supabase or physical dual-monitor behavior. Production migration and an authenticated two-window smoke test remain rollout requirements.
+
+## Shared slide tools and joining footer
+
+Both fullscreen slides and the secondary display use PresentationStage: page navigation, cursor/laser/pen/eraser, colors, width, undo/redo, keyboard shortcuts, right-click tools and pinned controls. The QR join footer remains visible independently of the toolbar auto-hide timer; the PDF fits above its reserved 80px area.
+
+The teacher owns annotation history in both modes. The secondary display sends deck/page-scoped commands with the base drawing; malformed or stale commands are rejected and current history replayed. Drawing requires the teacher window to remain connected. Display-page navigation uses the existing authenticated owner API. The secondary display's classroom control button returns to the teacher window (opens it if unavailable), keeping moderation on the teacher side. Single-screen mode retains its inline Q&A/poll panel.
+
+No database migration is required for this shared-tools update. Validation includes browser drawing/undo/QR layout on a local PDF and component tests for dual-window undo routing and fullscreen recovery; physical projector hardware is not covered.
