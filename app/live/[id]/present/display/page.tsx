@@ -21,6 +21,7 @@ import {
 } from "@/components/live/ReactionBurst";
 import { usePresentationSnapshot } from "@/components/live/usePresentationSnapshot";
 import { PresentationContent } from "@/components/live/PresentationContent";
+import { useFastDeckPage } from "@/components/live/useFastDeckPage";
 import { JoinQRCode } from "@/components/live/JoinQRCode";
 
 interface LiveDraft {
@@ -42,8 +43,15 @@ export default function PresentDisplayPage() {
   const [entered, setEntered] = useState(false);
   const [fullscreen, setFullscreen] = useState(false);
   const [numPages, setNumPages] = useState(1);
-  const [pageError, setPageError] = useState(false);
-  const pageWriting = useRef(false);
+  const navigation = useFastDeckPage(
+    id,
+    snapshot?.deckUrl,
+    snapshot?.deckPage ?? 1,
+    refresh,
+  );
+  const pageError = navigation.error;
+  const previewRef = useRef(navigation.preview);
+  previewRef.current = navigation.preview;
   const [deckError, setDeckError] = useState(false);
   const [ink, setInk] = useState<{
     page: number;
@@ -110,6 +118,8 @@ export default function PresentDisplayPage() {
     inkChannelRef.current = channel;
     let idle: ReturnType<typeof setTimeout> | undefined;
     channel.onmessage = ({ data }) => {
+      if (data?.type === "deck-preview" && typeof data.deckUrl === "string")
+        previewRef.current(data.deckUrl, data.page);
       if (data?.type === "ink" && Array.isArray(data.strokes)) {
         lastInk.current = Date.now();
         setConnected(true);
@@ -184,9 +194,9 @@ export default function PresentDisplayPage() {
       </main>
     );
   const inkMatches =
-    ink?.page === snapshot.deckPage && ink?.deckUrl === snapshot.deckUrl;
+    ink?.page === navigation.page && ink?.deckUrl === snapshot.deckUrl;
   const liveMatches =
-    live?.page === snapshot.deckPage && live?.deckUrl === snapshot.deckUrl;
+    live?.page === navigation.page && live?.deckUrl === snapshot.deckUrl;
   const hidden = snapshot.mode === "blank" || snapshot.status === "closed";
   return (
     <div
@@ -232,22 +242,22 @@ export default function PresentDisplayPage() {
             open={entered}
             portalContainer={containerRef.current}
             url={snapshot.deckUrl}
-            page={snapshot.deckPage}
+            page={navigation.page}
             numPages={numPages}
             title={snapshot.title}
             joinCode={joinCode}
             onNumPages={setNumPages}
             onRequestFullscreen={!fullscreen ? () => void enter() : undefined}
-            toolsDisabled={!connected}
+            toolsDisabled={!connected || !inkMatches}
             annotationState={{
-              [snapshot.deckPage]: inkMatches
+              [navigation.page]: inkMatches
                 ? (ink!.history ?? { ...EMPTY_INK, strokes: ink!.strokes })
                 : EMPTY_INK,
             }}
             onAnnotationAction={(action) =>
               inkChannelRef.current?.postMessage({
                 type: "annotation-action",
-                page: snapshot.deckPage,
+                page: navigation.page,
                 deckUrl: snapshot.deckUrl,
                 baseStrokes: inkMatches ? ink!.strokes : [],
                 action,
@@ -258,24 +268,8 @@ export default function PresentDisplayPage() {
               if (document.fullscreenElement)
                 void document.exitFullscreen().catch(() => {});
             }}
-            onPageChange={async (page) => {
-              if (pageWriting.current || page < 1 || page > numPages) return;
-              pageWriting.current = true;
-              setPageError(false);
-              try {
-                const response = await fetch(`/api/live-sessions/${id}`, {
-                  method: "PATCH",
-                  headers: { "Content-Type": "application/json" },
-                  body: JSON.stringify({ deckPage: page }),
-                  signal: AbortSignal.timeout(8000),
-                });
-                if (!response.ok) throw new Error();
-                await refresh();
-              } catch {
-                setPageError(true);
-              } finally {
-                pageWriting.current = false;
-              }
+            onPageChange={(page) => {
+              if (page >= 1 && page <= numPages) navigation.navigate(page);
             }}
             onOpenPanel={() => {
               if (window.opener && !window.opener.closed) window.opener.focus();
@@ -287,7 +281,7 @@ export default function PresentDisplayPage() {
                   reactions={reactions}
                   className="absolute inset-0 z-[75]"
                 />
-                {(pageError || !connected) && (
+                {(pageError || !connected || !inkMatches) && (
                   <p
                     role="status"
                     className="absolute left-4 top-24 z-[76] rounded bg-amber-950 px-3 py-2 text-sm"
@@ -296,9 +290,9 @@ export default function PresentDisplayPage() {
                       ? zh
                         ? "換頁失敗，請重試"
                         : "Page change failed. Retry."
-                      : zh
-                        ? "老師控制台未連線，畫筆暫停同步"
-                        : "Presenter disconnected. Drawing paused."}
+                      : !connected
+                        ? zh ? "老師控制台未連線，畫筆暫停同步" : "Presenter disconnected. Drawing paused."
+                        : zh ? "正在同步本頁筆跡…" : "Synchronizing annotations…"}
                   </p>
                 )}
               </>
@@ -318,7 +312,7 @@ export default function PresentDisplayPage() {
         ) : (
           <DeckViewer
             url={snapshot.deckUrl}
-            page={snapshot.deckPage}
+            page={navigation.page}
             onNumPages={setNumPages}
             onError={() => setDeckError(true)}
             className="h-[calc(100dvh-5rem)] w-full"

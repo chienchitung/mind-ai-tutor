@@ -46,3 +46,9 @@ Both fullscreen slides and the secondary display use PresentationStage: page nav
 The teacher owns annotation history in both modes. The secondary display sends deck/page-scoped commands with the base drawing; malformed or stale commands are rejected and current history replayed. Drawing requires the teacher window to remain connected. Display-page navigation uses the existing authenticated owner API. The secondary display's classroom control button returns to the teacher window (opens it if unavailable), keeping moderation on the teacher side. Single-screen mode retains its inline Q&A/poll panel.
 
 No database migration is required for this shared-tools update. Validation includes browser drawing/undo/QR layout on a local PDF and component tests for dual-window undo routing and fullscreen recovery; physical projector hardware is not covered.
+
+## Responsive slide navigation
+
+Both teacher and secondary-display navigation show the chosen page immediately, serialize writes and coalesce queued clicks to the newest target. Failed saves restore server state and show an error. A same-origin deck preview hint lets the secondary window follow teacher clicks before the server round trip; it is deck-scoped and expires after eight seconds, with server snapshots remaining authoritative. Older teacher reads cannot overwrite newer completed reads.
+
+PDF pages render into a staging canvas before replacing the visible image. Each viewer retains at most three rendered pages keyed by deck URL, page and viewport size. This removes repeated rendering on recent-page revisits, not the initial cost of decoding complex PDFs. Toolbar pinning now has a visible label and explanatory title.

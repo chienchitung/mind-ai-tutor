@@ -792,8 +792,9 @@ export const PresentationStage = forwardRef<HTMLDivElement, Props>(
                 </Button>
                 <Button
                   variant="ghost"
-                  size="icon"
-                  className={`${CONTROL} hidden sm:inline-flex`}
+                  size="sm"
+                  className={`${CONTROL} gap-2 px-3`}
+                  title={language === "zh-TW" ? "開啟後工具列持續顯示；關閉則閒置時自動隱藏" : "Keep the toolbar visible instead of hiding when idle"}
                   aria-label={t(
                     pinned ? "live_controls_unpin" : "live_controls_pin",
                   )}
@@ -805,6 +806,7 @@ export const PresentationStage = forwardRef<HTMLDivElement, Props>(
                   ) : (
                     <Pin className="h-4 w-4" />
                   )}
+                  <span>{language === "zh-TW" ? (pinned ? "工具列已固定" : "固定工具列") : (pinned ? "Toolbar pinned" : "Pin toolbar")}</span>
                 </Button>
                 <span className="mx-1 h-5 w-px bg-white/20" />
                 <Button

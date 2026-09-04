@@ -19,6 +19,7 @@ interface DeckViewerProps {
 export function DeckViewer({ url, page, onNumPages, onError, className, overlay }: DeckViewerProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
+  const pages = useRef(new Map<string, HTMLCanvasElement>());
   const [doc, setDoc] = useState<any>(null);
   const [error, setError] = useState(false);
   const [rendered, setRendered] = useState<{
@@ -50,6 +51,8 @@ export function DeckViewer({ url, page, onNumPages, onError, className, overlay 
   useEffect(() => {
     let cancelled = false;
     setDoc(null);
+    setRendered(null);
+    pages.current.clear();
     setError(false);
     async function load() {
       try {
@@ -96,6 +99,16 @@ export function DeckViewer({ url, page, onNumPages, onError, className, overlay 
     async function render() {
       try {
         const clampedPage = Math.min(Math.max(1, page), doc.numPages);
+        const key = `${url}:${clampedPage}:${containerSize.width}:${containerSize.height}`;
+        const show = (image: HTMLCanvasElement) => {
+          const canvas = canvasRef.current;
+          if (!canvas || cancelled) return;
+          canvas.width = image.width; canvas.height = image.height;
+          canvas.getContext('2d')?.drawImage(image, 0, 0);
+          setRendered({ url, page, width: image.width, height: image.height });
+        };
+        const cached = pages.current.get(key);
+        if (cached) { pages.current.delete(key); pages.current.set(key, cached); show(cached); return; }
         const pdfPage = await doc.getPage(clampedPage);
         if (cancelled) return;
         // Contain-fit: scale so the page is as large as possible without
@@ -104,16 +117,20 @@ export function DeckViewer({ url, page, onNumPages, onError, className, overlay 
         const unscaled = pdfPage.getViewport({ scale: 1 });
         const scale = Math.min(containerSize.width / unscaled.width, containerSize.height / unscaled.height);
         const viewport = pdfPage.getViewport({ scale: Math.max(scale, 0.1) });
-        const canvas = canvasRef.current;
-        if (!canvas || cancelled) return;
-        setRendered(null);
+        // Render offscreen so the previous slide stays visible until the new one is ready.
+        const canvas = document.createElement('canvas');
+        if (cancelled) return;
         canvas.width = viewport.width;
         canvas.height = viewport.height;
         const context = canvas.getContext('2d');
         if (!context) return;
         renderTask = pdfPage.render({ canvasContext: context, viewport });
         await renderTask.promise;
-        if (!cancelled) setRendered({ url, page, width: viewport.width, height: viewport.height });
+        if (!cancelled) {
+          pages.current.set(key, canvas);
+          if (pages.current.size > 3) pages.current.delete(pages.current.keys().next().value!);
+          show(canvas);
+        }
       } catch (cause) {
         // A render we cancelled ourselves rejects too (RenderingCancelledException) -
         // that's expected when the page changed again mid-render, not a real failure.
