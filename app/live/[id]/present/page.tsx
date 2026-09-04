@@ -57,6 +57,7 @@ import { annotationReducer, EMPTY_INK, type InkPoint, type InkStroke, type Prese
 import { PresentationControls } from '@/components/live/PresentationControls';
 import { DeckViewer } from '@/components/live/DeckViewer';
 import { AnnotationLayer } from '@/components/live/AnnotationLayer';
+import { readAnnotationCommand } from '@/lib/live-annotation-command';
 import { PresentationStage } from '@/components/live/PresentationStage';
 import {
   REACTION_EMOJI,
@@ -136,7 +137,7 @@ export default function PresenterPage() {
 
   // Dual-screen presenting: this page stays the presenter's own control
   // surface (Q&A moderation, poll picker, drawing input) while a second,
-  // read-only window (app/live/[id]/present/display) gets dragged onto a
+  // synchronized window (app/live/[id]/present/display) gets dragged onto a
   // projector/external display. The two windows sync over the same
   // realtime channel this page already subscribes to for polls/questions.
   const [dualDisplayOpen, setDualDisplayOpen] = useState(false);
@@ -292,9 +293,9 @@ export default function PresenterPage() {
 
   // Drawing stays on this browser's origin, never on the public student channel.
   // A refreshed display asks for the current ink; periodic replay repairs missed messages.
-  const inkSnapshotRef = useRef({ page: data?.deckPage, deckUrl: data?.deckUrl, strokes: [] as InkStroke[] });
+  const inkSnapshotRef = useRef({ page: data?.deckPage, deckUrl: data?.deckUrl, strokes: [] as InkStroke[], history: EMPTY_INK });
   useEffect(() => {
-    inkSnapshotRef.current = { page: data?.deckPage, deckUrl: data?.deckUrl, strokes: (controlInk[data?.deckPage ?? 1] ?? EMPTY_INK).strokes };
+    inkSnapshotRef.current = { page: data?.deckPage, deckUrl: data?.deckUrl, strokes: (controlInk[data?.deckPage ?? 1] ?? EMPTY_INK).strokes, history: controlInk[data?.deckPage ?? 1] ?? EMPTY_INK };
     inkChannelRef.current?.postMessage({ type: 'ink', ...inkSnapshotRef.current });
   }, [controlInk, data?.deckPage, data?.deckUrl]);
   useEffect(() => {
@@ -302,6 +303,16 @@ export default function PresenterPage() {
     const channel = new BroadcastChannel(`live-ink:${params.id}`);
     inkChannelRef.current = channel;
     channel.onmessage = ({ data: message }) => {
+      if (message?.type === 'annotation-action') {
+        const current = inkSnapshotRef.current;
+        const action = readAnnotationCommand(message, current);
+        if (action) {
+          const history = annotationReducer({ [action.page]: current.history }, action)[action.page];
+          inkSnapshotRef.current = { ...current, history, strokes: history.strokes };
+          dispatchControlInk(action);
+        }
+        channel.postMessage({ type: 'ink', ...inkSnapshotRef.current });
+      }
       if (message?.type === 'ready') {
         lastDisplayPing.current = Date.now();
         setDisplayConnected(true);
@@ -1320,6 +1331,8 @@ export default function PresenterPage() {
         url={data.deckUrl} page={data.deckPage} numPages={numDeckPages} title={data.title} joinCode={data.joinCode}
         onExit={exitPresentation} onPageChange={(page) => void changeDeckPage(page)} onNumPages={setNumDeckPages}
         reactions={<ReactionBurstOverlay reactions={reactions} className="absolute inset-0 z-[75]" />}
+        annotationState={controlInk} onAnnotationAction={dispatchControlInk}
+        onLiveChange={live => inkChannelRef.current?.postMessage({ type: 'live', page: data.deckPage, deckUrl: data.deckUrl, payload: live })}
         onlineCount={onlineCount}
         poll={data.poll} questions={questions} moderatingId={moderatingId}
         onModerateQuestion={(item) => void handleModerate(item)}
