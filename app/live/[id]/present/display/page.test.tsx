@@ -103,6 +103,24 @@ describe('present display page (projected window)', () => {
     expect(screen.queryByText('2.5')).toBeNull();
   });
 
+  it('reveals poll results or featured questions only when the presenter explicitly broadcasts spotlight:show, and hides on spotlight:hide', async () => {
+    await renderDisplay();
+    expect(screen.queryByRole('region', { name: '投票結果，正在投影上顯示' })).toBeNull();
+    broadcast('spotlight:show', {
+      type: 'poll',
+      poll: { pollId: 'poll-1', question: '哪一種資料視覺化最清楚？', options: ['長條圖'], voteCounts: [2], voteTotal: 2 },
+    });
+    expect(screen.getByText('哪一種資料視覺化最清楚？')).toBeTruthy();
+    broadcast('spotlight:show', {
+      type: 'questions',
+      questions: [{ id: 'q1', text: 'IF 函數可以巢狀使用嗎？', upvotes: 3 }],
+    });
+    expect(screen.getByText('IF 函數可以巢狀使用嗎？')).toBeTruthy();
+    expect(screen.queryByText('哪一種資料視覺化最清楚？')).toBeNull();
+    broadcast('spotlight:hide', {});
+    expect(screen.queryByText('IF 函數可以巢狀使用嗎？')).toBeNull();
+  });
+
   it('shows an ended message when the session is deleted', async () => {
     await renderDisplay();
     broadcast('session:deleted', {});

@@ -11,6 +11,7 @@ import type { LiveSessionOwnerState } from '@/lib/live-session';
 import type { InkPoint, InkStroke, PresentationTool } from '@/lib/presentation-annotations';
 import { DeckViewer } from '@/components/live/DeckViewer';
 import { RemoteInkOverlay } from '@/components/live/RemoteInkOverlay';
+import { SpotlightOverlay, type Spotlight } from '@/components/live/SpotlightOverlay';
 import { ReactionBurstOverlay, useReactionBursts } from '@/components/live/ReactionBurst';
 import { useOnlinePresenceCount } from '@/components/live/usePresenceHeartbeat';
 import { LivePageState } from '@/components/live/LiveSessionUI';
@@ -26,11 +27,13 @@ interface LiveDraft {
 /**
  * The audience-safe half of dual-screen presenting: opened as a second
  * window (dragged onto a projector/external display) by the presenter's
- * control page. Purely a mirror - deck, live ink, reactions, and the same
- * low-sensitivity online-count signal the control page shows, all driven
- * by the live-session:{id} realtime channel. No Q&A list, no moderation,
- * no poll controls, no pulse/difficulty feedback - that's all presenter-
- * facing content that stays on the control window, never projected.
+ * control page. Mostly a passive mirror - deck, live ink, reactions, and
+ * the same low-sensitivity online-count signal the control page shows -
+ * plus one explicit exception: a SpotlightOverlay the presenter can turn
+ * on/off from the control page to reveal a poll's results or a curated,
+ * already-public set of questions. No Q&A moderation queue, no poll
+ * controls, no pulse/difficulty feedback ever reach here - that stays on
+ * the control window, on the presenter's own screen.
  */
 export default function PresentDisplayPage() {
   const params = useParams<{ id: string }>();
@@ -45,6 +48,7 @@ export default function PresentDisplayPage() {
   const [entered, setEntered] = useState(false);
   const [strokesByPage, setStrokesByPage] = useState<Record<number, InkStroke[]>>({});
   const [live, setLive] = useState<LiveDraft | null>(null);
+  const [spotlight, setSpotlight] = useState<Spotlight | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
 
   const { reactions, push: pushReaction } = useReactionBursts();
@@ -101,6 +105,13 @@ export default function PresentDisplayPage() {
       .on('broadcast', { event: 'presence:ping' }, ({ payload }) => {
         registerPing((payload as { participantId: string }).participantId);
       })
+      // The presenter's explicit "reveal" moment - only ever fires with
+      // already-public content (a poll's own results, or questions the
+      // presenter already approved), never the moderation queue.
+      .on('broadcast', { event: 'spotlight:show' }, ({ payload }) => {
+        setSpotlight(payload as Spotlight);
+      })
+      .on('broadcast', { event: 'spotlight:hide' }, () => setSpotlight(null))
       .on('broadcast', { event: 'session:deleted' }, () => setStatus('ended'))
       .subscribe();
     return () => {
@@ -189,6 +200,7 @@ export default function PresentDisplayPage() {
         </p>
       )}
       <ReactionBurstOverlay reactions={reactions} className="absolute inset-0 z-10" />
+      {spotlight && <SpotlightOverlay spotlight={spotlight} />}
       {onlineCount > 0 && (
         <div className="pointer-events-none absolute bottom-3 left-3 z-10 flex items-center gap-1 rounded-xl border border-white/10 bg-black/60 px-3 py-2 text-[11px] leading-5 text-white/80 backdrop-blur-sm">
           <Users className="h-3 w-3" aria-hidden="true" />

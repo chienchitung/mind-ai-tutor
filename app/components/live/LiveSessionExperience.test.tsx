@@ -531,6 +531,49 @@ describe('dual-screen presenting', () => {
     )!;
     expect(syncCall[0].payload.strokes).toHaveLength(1);
   });
+
+  it('reveals the current poll results on the display window, then hides them again', async () => {
+    vi.stubGlobal('open', vi.fn().mockReturnValue({ closed: false, close: vi.fn() }));
+    mount(<PresenterPage />);
+    await screen.findByRole('heading', { name: session.title });
+    fireEvent.click(screen.getByRole('button', { name: '雙螢幕投影' }));
+    fireEvent.click(screen.getByRole('button', { name: '在投影上顯示投票結果' }));
+    await waitFor(() =>
+      expect(mocks.send).toHaveBeenCalledWith(
+        expect.objectContaining({
+          event: 'spotlight:show',
+          payload: { type: 'poll', poll: session.poll },
+        }),
+      ),
+    );
+    mocks.send.mockClear();
+    fireEvent.click(screen.getByRole('button', { name: '停止顯示投票結果' }));
+    expect(mocks.send).toHaveBeenCalledWith(expect.objectContaining({ event: 'spotlight:hide' }));
+  });
+
+  it('reveals only already-public questions, never the moderation queue', async () => {
+    fetchMock.mockImplementation(async (url: string) =>
+      response(
+        url.includes('/questions')
+          ? [
+              ...questions,
+              { id: 'q2', text: '這題應該私下回答', lens: 'clarify', visibility: 'author_only', upvotes: 9, createdAt: '2026-08-31T11:00:00Z' },
+            ]
+          : { ...session, deckUrl: '/deck.pdf' },
+      ),
+    );
+    vi.stubGlobal('open', vi.fn().mockReturnValue({ closed: false, close: vi.fn() }));
+    mount(<PresenterPage />);
+    await screen.findByRole('heading', { name: session.title });
+    fireEvent.click(screen.getByRole('button', { name: '雙螢幕投影' }));
+    fireEvent.click(await screen.findByRole('button', { name: '在投影上顯示精選問題' }));
+    await waitFor(() => expect(mocks.send).toHaveBeenCalledWith(expect.objectContaining({ event: 'spotlight:show' })));
+    const call = mocks.send.mock.calls.find((entry) => entry[0]?.event === 'spotlight:show')!;
+    expect(call[0].payload).toEqual({
+      type: 'questions',
+      questions: [{ id: questions[0].id, text: questions[0].text, upvotes: questions[0].upvotes }],
+    });
+  });
 });
 
 describe('session deletion and immediate reactions', () => {

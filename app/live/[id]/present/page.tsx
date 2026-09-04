@@ -146,6 +146,10 @@ export default function PresenterPage() {
   const [controlWidth] = useState(3);
   const [controlInk, dispatchControlInk] = useReducer(annotationReducer, {});
   const lastLiveSendRef = useRef(0);
+  // The presenter's explicit "reveal" to the projected display window -
+  // never automatic, and only ever built from already-public data (the
+  // poll's own results; questions already visible to the class).
+  const [spotlight, setSpotlight] = useState<'none' | 'poll' | 'questions'>('none');
 
   const load = useCallback(async () => {
     try {
@@ -315,6 +319,12 @@ export default function PresenterPage() {
     return () => clearInterval(interval);
   }, [dualDisplayOpen]);
 
+  // No one to show it to once the display window is gone - reset locally
+  // (no broadcast needed) so a later reopen doesn't inherit stale state.
+  useEffect(() => {
+    if (!dualDisplayOpen && spotlight !== 'none') setSpotlight('none');
+  }, [dualDisplayOpen, spotlight]);
+
   const openDisplayWindow = () => {
     const win = window.open(
       `/live/${params.id}/present/display`,
@@ -353,6 +363,53 @@ export default function PresenterPage() {
     },
     [controlTool, controlColor, controlWidth],
   );
+
+  const broadcastPollSpotlight = useCallback(() => {
+    if (!data?.poll) return;
+    channelRef.current?.send({ type: 'broadcast', event: 'spotlight:show', payload: { type: 'poll', poll: data.poll } });
+  }, [data?.poll]);
+
+  const broadcastQuestionsSpotlight = useCallback(() => {
+    const featured = [...questions]
+      .filter((item) => item.visibility === 'public')
+      .sort(sortQuestions)
+      .slice(0, 5)
+      .map((item) => ({ id: item.id, text: item.text, upvotes: item.upvotes }));
+    channelRef.current?.send({ type: 'broadcast', event: 'spotlight:show', payload: { type: 'questions', questions: featured } });
+  }, [questions]);
+
+  const hideSpotlight = useCallback(() => {
+    channelRef.current?.send({ type: 'broadcast', event: 'spotlight:hide', payload: {} });
+  }, []);
+
+  const toggleSpotlight = (kind: 'poll' | 'questions') => {
+    if (spotlight === kind) {
+      setSpotlight('none');
+      hideSpotlight();
+      return;
+    }
+    setSpotlight(kind);
+    if (kind === 'poll') broadcastPollSpotlight();
+    else broadcastQuestionsSpotlight();
+  };
+
+  // Keeps the projected reveal live: re-broadcasts whenever the underlying
+  // data changes while that spotlight is the one currently showing (fresh
+  // vote counts, fresh upvotes) - not just at the moment it was turned on.
+  useEffect(() => {
+    if (spotlight !== 'poll' || !dualDisplayOpen) return;
+    if (!data?.poll) {
+      setSpotlight('none');
+      hideSpotlight();
+      return;
+    }
+    broadcastPollSpotlight();
+  }, [data?.poll, spotlight, dualDisplayOpen, broadcastPollSpotlight, hideSpotlight]);
+
+  useEffect(() => {
+    if (spotlight !== 'questions' || !dualDisplayOpen) return;
+    broadcastQuestionsSpotlight();
+  }, [questions, spotlight, dualDisplayOpen, broadcastQuestionsSpotlight]);
 
   // Shared by the composer Dialog (outside fullscreen) and the projection
   // panel's own inline composer (inside PresentationStage) - each keeps its
@@ -854,6 +911,18 @@ export default function PresenterPage() {
                     <ListChecks className="mr-2 h-4 w-4" />
                     {t('live_load_from_quiz')}
                   </Button>
+                  {dualDisplayOpen && data.poll && (
+                    <Button
+                      type="button"
+                      variant={spotlight === 'poll' ? 'secondary' : 'outline'}
+                      className="min-h-11"
+                      aria-pressed={spotlight === 'poll'}
+                      onClick={() => toggleSpotlight('poll')}
+                    >
+                      <MonitorPlay className="mr-2 h-4 w-4" />
+                      {t(spotlight === 'poll' ? 'live_spotlight_hide_poll' : 'live_spotlight_show_poll')}
+                    </Button>
+                  )}
                 </div>
               </CardContent>
             </Card>
@@ -1123,14 +1192,29 @@ export default function PresenterPage() {
             </Card>
             <Card className="min-w-0">
               <CardContent className="p-5 md:pt-6">
-                <div className="mb-3 flex items-center justify-between">
+                <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
                   <h2 className="flex items-center gap-2 text-sm font-semibold">
                     <MessageSquare className="h-4 w-4 text-muted-foreground" />
                     {t('live_qa_title')}
                   </h2>
-                  <span className="font-mono text-xs text-muted-foreground">
-                    {questions.length}
-                  </span>
+                  <div className="flex items-center gap-2">
+                    <span className="font-mono text-xs text-muted-foreground">
+                      {questions.length}
+                    </span>
+                    {dualDisplayOpen && (
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant={spotlight === 'questions' ? 'secondary' : 'outline'}
+                        className="min-h-9"
+                        aria-pressed={spotlight === 'questions'}
+                        onClick={() => toggleSpotlight('questions')}
+                      >
+                        <MonitorPlay className="mr-1.5 h-3.5 w-3.5" />
+                        {t(spotlight === 'questions' ? 'live_spotlight_hide_questions' : 'live_spotlight_show_questions')}
+                      </Button>
+                    )}
+                  </div>
                 </div>
                 {visibleQuestions.length === 0 ? (
                   <p className="py-6 text-center text-sm text-muted-foreground">
