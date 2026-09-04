@@ -108,6 +108,16 @@ function ink(message: any) {
   );
 }
 describe("reliable projected display", () => {
+  it("keeps pen, laser and eraser active without a teacher connection", async () => {
+    await mount();
+    fireEvent.click(screen.getByRole("button", { name: "開始投影" }));
+    const surface = document.querySelector('[data-annotation-surface]') as SVGElement;
+    for (const [key, cursor] of [['p', 'crosshair'], ['l', 'none'], ['e', 'cell']]) {
+      fireEvent.keyDown(surface, { key });
+      expect(surface.style.cursor).toBe(cursor);
+    }
+    expect(screen.getByText(/老師控制台未連線；工具仍可使用/)).toBeTruthy();
+  });
   it("exposes the shared tools and routes undo back to the teacher history", async () => {
     await mount();
     const strokes = [{ id: "s", points: [{ x: 0.1, y: 0.1 }], width: 3, color: "#fb7185" }];

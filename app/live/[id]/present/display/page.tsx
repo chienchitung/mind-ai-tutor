@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useParams } from "next/navigation";
 import { Maximize } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -12,7 +12,7 @@ import type {
   InkHistory,
 } from "@/lib/presentation-annotations";
 import { PresentationStage } from "@/components/live/PresentationStage";
-import { EMPTY_INK } from "@/lib/presentation-annotations";
+import { useProjectionInk } from "@/components/live/useProjectionInk";
 import { DeckViewer } from "@/components/live/DeckViewer";
 import { RemoteInkOverlay } from "@/components/live/RemoteInkOverlay";
 import {
@@ -66,6 +66,17 @@ export default function PresentDisplayPage() {
   const lastInk = useRef(0);
   const readyRef = useRef(false);
   const inkChannelRef = useRef<BroadcastChannel | null>(null);
+  const sendInk = useCallback(
+    (value: unknown) => inkChannelRef.current?.postMessage(value),
+    [],
+  );
+  const drawing = useProjectionInk(
+    snapshot?.deckUrl ?? null,
+    navigation.page,
+    ink,
+    connected,
+    sendInk,
+  );
   useEffect(() => {
     readyRef.current = !!snapshot && !error;
     if (readyRef.current) inkChannelRef.current?.postMessage({ type: "ready" });
@@ -248,21 +259,8 @@ export default function PresentDisplayPage() {
             joinCode={joinCode}
             onNumPages={setNumPages}
             onRequestFullscreen={!fullscreen ? () => void enter() : undefined}
-            toolsDisabled={!connected || !inkMatches}
-            annotationState={{
-              [navigation.page]: inkMatches
-                ? (ink!.history ?? { ...EMPTY_INK, strokes: ink!.strokes })
-                : EMPTY_INK,
-            }}
-            onAnnotationAction={(action) =>
-              inkChannelRef.current?.postMessage({
-                type: "annotation-action",
-                page: navigation.page,
-                deckUrl: snapshot.deckUrl,
-                baseStrokes: inkMatches ? ink!.strokes : [],
-                action,
-              })
-            }
+            annotationState={{ [navigation.page]: drawing.history }}
+            onAnnotationAction={drawing.act}
             onExit={() => {
               setEntered(false);
               if (document.fullscreenElement)
@@ -281,18 +279,42 @@ export default function PresentDisplayPage() {
                   reactions={reactions}
                   className="absolute inset-0 z-[75]"
                 />
-                {(pageError || !connected || !inkMatches) && (
+                {(pageError ||
+                  !connected ||
+                  !inkMatches ||
+                  drawing.pending ||
+                  drawing.conflict) && (
                   <p
                     role="status"
                     className="absolute left-4 top-24 z-[76] rounded bg-amber-950 px-3 py-2 text-sm"
                   >
                     {pageError
                       ? zh
-                        ? "換頁失敗，請重試"
-                        : "Page change failed. Retry."
-                      : !connected
-                        ? zh ? "老師控制台未連線，畫筆暫停同步" : "Presenter disconnected. Drawing paused."
-                        : zh ? "正在同步本頁筆跡…" : "Synchronizing annotations…"}
+                        ? "換頁同步失敗，請重試"
+                        : "Page sync failed. Retry."
+                      : drawing.conflict
+                        ? zh
+                          ? "兩個視窗的筆跡不同；本視窗筆跡已保留。"
+                          : "Drawings differ. This window’s edits are retained."
+                        : !connected
+                          ? zh
+                            ? "老師控制台未連線；工具仍可使用，筆跡暫存於本視窗。"
+                            : "Presenter disconnected. Tools remain available; drawings are kept in this window."
+                          : zh
+                            ? "正在同步筆跡；工具仍可使用。"
+                            : "Synchronizing drawings. Tools remain available."}
+                    {drawing.conflict && (
+                      <span className="ml-2 inline-flex gap-2">
+                        <Button size="sm" onClick={drawing.useRemote}>
+                          {zh ? "採用老師端筆跡" : "Use teacher drawing"}
+                        </Button>
+                        <Button size="sm" onClick={drawing.keepLocal}>
+                          {zh
+                            ? "以本視窗筆跡覆蓋老師端"
+                            : "Replace teacher drawing with this one"}
+                        </Button>
+                      </span>
+                    )}
                   </p>
                 )}
               </>
