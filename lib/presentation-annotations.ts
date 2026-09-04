@@ -104,3 +104,8 @@ export function hitsStroke(
     );
   });
 }
+
+/** Keep equal page numbers from different slide decks independent. */
+export function deckAnnotationReducer(state: Record<string, AnnotationState>, event: { deckUrl: string; action: AnnotationAction }): Record<string, AnnotationState> {
+  return { ...state, [event.deckUrl]: annotationReducer(state[event.deckUrl] ?? {}, event.action) };
+}

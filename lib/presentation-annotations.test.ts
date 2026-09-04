@@ -1,3 +1,4 @@
+import { deckAnnotationReducer } from './presentation-annotations';
 import { describe, expect, it } from 'vitest';
 import {
   annotationReducer,
@@ -52,4 +53,14 @@ describe('page annotations', () => {
     const dot = { ...line, points: [{ x: 0.4, y: 0.4 }] };
     expect(hitsStroke(dot, { x: 0.4, y: 0.4 }, { x: 0.4, y: 0.4 }, { width: 800, height: 400 })).toBe(true);
   });
+});
+
+
+it('isolates shared history by deck URL, including undo', () => {
+  const stroke = { id:'s',points:[{x:0,y:0}],color:'#fb7185',width:3 };
+  let state = deckAnnotationReducer({}, {deckUrl:'a.pdf',action:{type:'commit',page:1,strokes:[stroke]}});
+  state = deckAnnotationReducer(state, {deckUrl:'b.pdf',action:{type:'commit',page:1,strokes:[{...stroke,id:'b'}]}});
+  state = deckAnnotationReducer(state, {deckUrl:'b.pdf',action:{type:'undo',page:1}});
+  expect(state['a.pdf'][1].strokes).toEqual([stroke]);
+  expect(state['b.pdf'][1].strokes).toEqual([]);
 });
