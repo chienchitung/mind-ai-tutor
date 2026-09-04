@@ -53,7 +53,7 @@ import type {
   LiveQuestion,
 } from '@/lib/live-session';
 import { deleteLiveDeck, uploadLiveDeck } from '@/lib/live-deck-storage';
-import { annotationReducer, EMPTY_INK, type InkPoint, type InkStroke, type PresentationTool } from '@/lib/presentation-annotations';
+import { annotationReducer, deckAnnotationReducer, EMPTY_INK, type AnnotationAction, type AnnotationState, type InkPoint, type InkStroke, type PresentationTool } from '@/lib/presentation-annotations';
 import { PresentationControls } from '@/components/live/PresentationControls';
 import { DeckViewer } from '@/components/live/DeckViewer';
 import { AnnotationLayer } from '@/components/live/AnnotationLayer';
@@ -84,6 +84,7 @@ const CONTROL_COLORS = ['#fb7185', '#facc15', '#38bdf8', '#ffffff'] as const;
 // Idle (draft cleared, pointer hidden) always sends immediately - dropping
 // that one would leave stale ink stuck on the projected display window.
 const LIVE_SEND_THROTTLE_MS = 33;
+const EMPTY_ANNOTATIONS: AnnotationState = {};
 
 function sortQuestions(a: LiveQuestion, b: LiveQuestion): number {
   return b.upvotes - a.upvotes || a.createdAt.localeCompare(b.createdAt);
@@ -145,7 +146,9 @@ export default function PresenterPage() {
   const [controlTool, setControlTool] = useState<PresentationTool>('cursor');
   const [controlColor, setControlColor] = useState<string>(CONTROL_COLORS[0]);
   const [controlWidth] = useState(3);
-  const [controlInk, dispatchControlInk] = useReducer(annotationReducer, {});
+  const [deckInk, dispatchDeckInk] = useReducer(deckAnnotationReducer, {});
+  const controlInk = deckInk[data?.deckUrl ?? ''] ?? EMPTY_ANNOTATIONS;
+  const dispatchControlInk = (action: AnnotationAction) => dispatchDeckInk({ deckUrl: data?.deckUrl ?? '', action });
   const lastLiveSendRef = useRef(0);
   const [displayConnected, setDisplayConnected] = useState(false);
   const inkChannelRef = useRef<BroadcastChannel | null>(null);
@@ -309,7 +312,7 @@ export default function PresenterPage() {
         if (action) {
           const history = annotationReducer({ [action.page]: current.history }, action)[action.page];
           inkSnapshotRef.current = { ...current, history, strokes: history.strokes };
-          dispatchControlInk(action);
+          dispatchDeckInk({ deckUrl: current.deckUrl ?? '', action });
         }
         channel.postMessage({ type: 'ink', ...inkSnapshotRef.current });
       }
