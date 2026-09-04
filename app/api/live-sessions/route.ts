@@ -59,7 +59,7 @@ export async function POST(request: Request) {
     // the teacher opens one later from the presenter workspace.
     if (parsed.data.question !== undefined && parsed.data.options !== undefined) {
       const { data: poll, error: pollError } = await client.from('live_polls')
-        .insert({ session_id: session.id, question: parsed.data.question, options: parsed.data.options })
+        .insert({ session_id: session.id, question: parsed.data.question, options: parsed.data.options, phase: 'draft' })
         .select('id').single();
       if (pollError || !poll) {
         await client.from('live_sessions').delete().eq('id', session.id);

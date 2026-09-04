@@ -21,6 +21,8 @@ import {
   SessionStatus,
 } from '@/components/live/LiveSessionUI';
 import { Textarea } from '@/components/ui/textarea';
+import { usePresentationSnapshot } from '@/components/live/usePresentationSnapshot';
+import { phaseLabel } from '@/lib/live-presentation';
 import { supabase } from '@/lib/supabase';
 import { useLanguage } from '@/app/contexts/LanguageContext';
 import { useTranslation } from '@/utils/translations';
@@ -64,12 +66,19 @@ function getParticipantId(sessionId: string): string {
 export default function AudiencePage() {
   const params = useParams<{ id: string }>();
   const code = params.id;
+  const presentation = usePresentationSnapshot(`/api/live/${code}/presentation`);
+  const qaRef = useRef<HTMLDivElement>(null);
   const { language } = useLanguage();
   const { t } = useTranslation(language);
   const [status, setStatus] = useState<
     'loading' | 'ready' | 'not-found' | 'error'
   >('loading');
   const [data, setData] = useState<LiveSessionPublicState | null>(null);
+  useEffect(() => {
+    const next = presentation.snapshot;
+    if (!next) return;
+    setData(previous => previous ? { ...previous, status: next.status, poll: next.poll, deckUrl: next.deckUrl, deckPage: next.deckPage } : previous);
+  }, [presentation.snapshot]);
   const [participantId, setParticipantId] = useState<string | null>(null);
   const [selectedOption, setSelectedOption] = useState<number | null>(null);
   const [myVote, setMyVote] = useState<number | null>(null);
@@ -246,11 +255,13 @@ export default function AudiencePage() {
       .on('broadcast', { event: 'presence:ping' }, ({ payload }) => {
         registerPing((payload as { participantId: string }).participantId);
       })
+      .on('broadcast', { event: 'presentation:changed' }, () => { void presentation.refresh(); })
       .subscribe((subscribeStatus) => {
         // Sending before the channel has actually joined would silently
         // drop the message - wait for confirmation, then the interval
         // below keeps it alive every HEARTBEAT_INTERVAL_MS after that.
         if (subscribeStatus === 'SUBSCRIBED') {
+          void load(); void loadQuestions(); void presentation.refresh();
           if (wasOfflineRef.current) {
             // Briefly confirm recovery rather than just silently going back
             // to normal - a student who saw "offline" deserves to see it
@@ -294,10 +305,12 @@ export default function AudiencePage() {
     loadQuestions,
     pushReaction,
     registerPing,
+    load,
+    presentation.refresh,
   ]);
 
   const selectOption = (optionIndex: number) => {
-    if (!data?.poll || data.status !== 'open') return;
+    if (!data?.poll || data.status !== 'open' || presentation.snapshot?.poll?.pollId !== data.poll.pollId || presentation.snapshot?.poll?.phase !== 'open') return;
     setSelectedOption(optionIndex);
     setVoteError('');
   };
@@ -309,7 +322,9 @@ export default function AudiencePage() {
       !participantId ||
       data.status !== 'open' ||
       voteSubmitting ||
-      selectedOption === myVote
+      selectedOption === myVote ||
+      presentation.snapshot?.poll?.pollId !== data.poll.pollId ||
+      presentation.snapshot?.poll?.phase !== 'open'
     )
       return;
     setVoteSubmitting(true);
@@ -318,7 +333,7 @@ export default function AudiencePage() {
       const response = await fetch(`/api/live/${code}/vote`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ participantId, optionIndex: selectedOption }),
+        body: JSON.stringify({ participantId, pollId: data.poll.pollId, optionIndex: selectedOption }),
       });
       if (!response.ok) throw new Error();
       const result = await response.json();
@@ -329,6 +344,7 @@ export default function AudiencePage() {
           : previous,
       );
     } catch {
+      void presentation.refresh();
       setVoteError(t('live_vote_error'));
     } finally {
       setVoteSubmitting(false);
@@ -465,6 +481,14 @@ export default function AudiencePage() {
     }
   };
 
+  // Refreshes preserve a vote on the same poll, but never carry it to another.
+  const currentPollId = data?.poll?.pollId;
+  const previousPollId = useRef(currentPollId);
+  useEffect(() => {
+    if (previousPollId.current !== currentPollId) { setMyVote(null); setSelectedOption(null); }
+    previousPollId.current = currentPollId;
+  }, [currentPollId]);
+
   if (status === 'loading') {
     return <LivePageState loading message={t('live_loading')} />;
   }
@@ -594,6 +618,15 @@ export default function AudiencePage() {
             {t('live_audience_paused')}
           </p>
         )}
+        {presentation.snapshot && presentation.snapshot.questions.length > 0 && ['question','questions'].includes(presentation.snapshot.mode) && (
+          <div role="status" className="rounded-xl border border-teal-200 bg-teal-50 p-4 text-teal-950">
+            <p>{language === 'zh-TW' ? '老師正在討論問題，你的輸入會保留。' : 'The teacher is discussing questions. Your draft is preserved.'}</p>
+            {presentation.snapshot.questions[0] && <p className="mt-1 break-words font-medium">{presentation.snapshot.questions[0].text}</p>}
+            <Button variant="link" onClick={() => qaRef.current?.scrollIntoView({behavior:'smooth',block:'start'})}>{language === 'zh-TW' ? '查看問答' : 'View Q&A'}</Button>
+          </div>
+        )}
+        {presentation.error && <p role="alert" className="rounded-xl border border-destructive/30 p-3 text-sm">{language === 'zh-TW' ? '無法同步目前活動，請重新同步後再作答。' : 'Unable to sync the activity. Please retry before voting.'}<Button variant="link" onClick={presentation.retry}>{language === 'zh-TW' ? '重新同步' : 'Retry'}</Button></p>}
+        {presentation.snapshot?.poll && <p role="status" className="rounded-xl border p-3 text-sm">{phaseLabel(presentation.snapshot.poll.phase, language === 'zh-TW')}</p>}
         <div className="grid items-start gap-5 md:grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)]">
           <div className="min-w-0 space-y-5">
             <Card>
@@ -615,7 +648,7 @@ export default function AudiencePage() {
                         <button
                           key={index}
                           type="button"
-                          disabled={data.status !== 'open'}
+                          disabled={data.status !== 'open' || presentation.snapshot?.poll?.pollId !== data.poll?.pollId || presentation.snapshot?.poll?.phase !== 'open'}
                           aria-pressed={selectedOption === index}
                           onClick={() => selectOption(index)}
                           className={`flex min-h-14 w-full items-center gap-3 rounded-xl border p-4 text-left text-sm transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-60 ${selectedOption === index ? 'border-primary bg-primary/5' : 'bg-card hover:border-foreground/40 hover:bg-muted/40'}`}
@@ -629,6 +662,7 @@ export default function AudiencePage() {
                           <span className="min-w-0 flex-1 break-words">
                             {option}
                           </span>
+                          {presentation.snapshot?.poll?.phase === 'results' && <span className="shrink-0 tabular-nums">{data.poll?.voteCounts[index] ?? 0} {language === 'zh-TW' ? '票' : 'votes'}</span>}
                           {selectedOption === index && (
                             <CheckCircle2
                               aria-hidden="true"
@@ -646,7 +680,7 @@ export default function AudiencePage() {
                         selectedOption === null ||
                         selectedOption === myVote ||
                         voteSubmitting ||
-                        data.status !== 'open'
+                        data.status !== 'open' || presentation.snapshot?.poll?.pollId !== data.poll.pollId || presentation.snapshot?.poll?.phase !== 'open'
                       }
                     >
                       {voteSubmitting ? (
@@ -677,7 +711,7 @@ export default function AudiencePage() {
                 )}
               </CardContent>
             </Card>
-            <Card>
+            <Card ref={qaRef}>
               <CardContent className="p-5 sm:p-6 md:pt-6">
                 <h2 className="mb-4 flex items-center gap-2 text-sm font-semibold">
                   <MessageSquare className="h-4 w-4 text-muted-foreground" />
@@ -745,6 +779,7 @@ export default function AudiencePage() {
                             {t(`live_qa_lens_${item.lens}` as const)}
                           </span>
                           <p className="break-words">{item.text}</p>
+                          {presentation.snapshot?.answeredIds.includes(item.id) && <span className="text-teal-700">{language === 'zh-TW' ? '老師已回答' : 'Answered'}</span>}
                           {item.isMine && item.visibility === 'author_only' && (
                             <p className="mt-1 text-[10px] text-muted-foreground">
                               {t('live_qa_mine_hidden')}

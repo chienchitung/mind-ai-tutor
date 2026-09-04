@@ -25,6 +25,7 @@ const mocks = vi.hoisted(() => ({
   events: new Map<string, (arg: { payload: unknown }) => void>(),
   subscribeCallback: null as ((status: string) => void) | null,
   send: vi.fn(),
+  inkSend: vi.fn(),
 }));
 vi.mock('next/navigation', () => {
   const router = { push: mocks.push };
@@ -76,8 +77,9 @@ const session = {
   joinCode: '482910',
   title: 'AI 素養：一起探索生成式 AI',
   status: 'open',
+  mode: 'deck', questions: [], answeredIds: [],
   poll: {
-    pollId: 'poll-1',
+    pollId: 'poll-1', phase: 'open',
     question: '當 AI 給出一個看似合理的答案，你會先做什麼？',
     options: [
       '直接採用，AI 的答案通常正確',
@@ -126,6 +128,8 @@ beforeEach(() => {
   mocks.push.mockClear();
   mocks.toast.mockClear();
   mocks.send.mockClear();
+  mocks.inkSend.mockClear();
+  vi.stubGlobal('BroadcastChannel', class { onmessage = null; postMessage = mocks.inkSend; close() {} });
   // Explicit storage doubles also work with Node versions exposing native Web Storage.
   for (const name of ['localStorage', 'sessionStorage']) {
     const values = new Map<string, string>();
@@ -336,7 +340,7 @@ describe('Live Session experience', () => {
     expect(
       (
         within(dialog).getByRole('button', {
-          name: '開啟投票',
+          name: '建立待開放投票',
         }) as HTMLButtonElement
       ).disabled,
     ).toBe(true);
@@ -429,7 +433,7 @@ describe('Live Session experience', () => {
     await screen.findByText(session.title);
     // The mock's subscribe() resolves SUBSCRIBED synchronously, so the
     // initial "connecting" badge should already be gone on a normal connect.
-    expect(screen.queryByText('連線中…')).toBeNull();
+    await waitFor(() => expect(screen.queryByText('連線中…')).toBeNull());
     act(() => {
       mocks.subscribeCallback?.('CHANNEL_ERROR');
     });
@@ -506,7 +510,7 @@ describe('dual-screen presenting', () => {
     expect(screen.queryByRole('button', { name: '畫筆' })).toBeNull();
   });
 
-  it('broadcasts a drawn stroke to the display window over the same realtime channel', async () => {
+  it('sends a drawn stroke over the local channel, never the public student channel', async () => {
     vi.stubGlobal('open', vi.fn().mockReturnValue({ closed: false, close: vi.fn() }));
     mount(<PresenterPage />);
     await screen.findByRole('heading', { name: session.title });
@@ -521,59 +525,38 @@ describe('dual-screen presenting', () => {
     // carrying the just-committed stroke, not just any annotation:sync call.
     await waitFor(() =>
       expect(
-        mocks.send.mock.calls.some(
-          (call) => call[0]?.event === 'annotation:sync' && call[0]?.payload?.strokes?.length === 1,
+        mocks.inkSend.mock.calls.some(
+          (call) => call[0]?.type === 'ink' && call[0]?.strokes?.length === 1,
         ),
       ).toBe(true),
     );
-    const syncCall = mocks.send.mock.calls.find(
-      (call) => call[0]?.event === 'annotation:sync' && call[0]?.payload?.page === 1 && call[0]?.payload?.strokes?.length === 1,
+    const syncCall = mocks.inkSend.mock.calls.find(
+      (call) => call[0]?.type === 'ink' && call[0]?.page === 1 && call[0]?.strokes?.length === 1,
     )!;
-    expect(syncCall[0].payload.strokes).toHaveLength(1);
+    expect(syncCall[0].strokes).toHaveLength(1);
+    expect(mocks.send).not.toHaveBeenCalledWith(expect.objectContaining({event:"annotation:sync"}));
   });
 
-  it('reveals the current poll results on the display window, then hides them again', async () => {
-    vi.stubGlobal('open', vi.fn().mockReturnValue({ closed: false, close: vi.fn() }));
+  it('uses persisted commands to show a poll and return to slides', async () => {
     mount(<PresenterPage />);
     await screen.findByRole('heading', { name: session.title });
-    fireEvent.click(screen.getByRole('button', { name: '雙螢幕投影' }));
-    fireEvent.click(screen.getByRole('button', { name: '在投影上顯示投票結果' }));
-    await waitFor(() =>
-      expect(mocks.send).toHaveBeenCalledWith(
-        expect.objectContaining({
-          event: 'spotlight:show',
-          payload: { type: 'poll', poll: session.poll },
-        }),
-      ),
-    );
-    mocks.send.mockClear();
-    fireEvent.click(screen.getByRole('button', { name: '停止顯示投票結果' }));
-    expect(mocks.send).toHaveBeenCalledWith(expect.objectContaining({ event: 'spotlight:hide' }));
+    fireEvent.click(await screen.findByRole('button', { name: '展示投票' }));
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledWith('/api/live-sessions/123456/presentation',expect.objectContaining({method:'POST',body:JSON.stringify({action:'show',mode:'poll'})})));
+    await waitFor(() => expect((screen.getByRole('button',{name:'返回簡報'}) as HTMLButtonElement).disabled).toBe(false));
+    fireEvent.click(screen.getByRole('button',{name:'返回簡報'}));
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledWith('/api/live-sessions/123456/presentation',expect.objectContaining({body:JSON.stringify({action:'show',mode:'deck'})})));
   });
 
-  it('reveals only already-public questions, never the moderation queue', async () => {
-    fetchMock.mockImplementation(async (url: string) =>
-      response(
-        url.includes('/questions')
-          ? [
-              ...questions,
-              { id: 'q2', text: '這題應該私下回答', lens: 'clarify', visibility: 'author_only', upvotes: 9, createdAt: '2026-08-31T11:00:00Z' },
-            ]
-          : { ...session, deckUrl: '/deck.pdf' },
-      ),
-    );
-    vi.stubGlobal('open', vi.fn().mockReturnValue({ closed: false, close: vi.fn() }));
+  it('offers projection only for public questions, never the moderation queue', async () => {
+    fetchMock.mockImplementation(async (url:string) => response(url.includes('/questions') ? [...questions,{id:'private',text:'Private question',visibility:'author_only',upvotes:9}] : session));
     mount(<PresenterPage />);
-    await screen.findByRole('heading', { name: session.title });
-    fireEvent.click(screen.getByRole('button', { name: '雙螢幕投影' }));
-    fireEvent.click(await screen.findByRole('button', { name: '在投影上顯示精選問題' }));
-    await waitFor(() => expect(mocks.send).toHaveBeenCalledWith(expect.objectContaining({ event: 'spotlight:show' })));
-    const call = mocks.send.mock.calls.find((entry) => entry[0]?.event === 'spotlight:show')!;
-    expect(call[0].payload).toEqual({
-      type: 'questions',
-      questions: [{ id: questions[0].id, text: questions[0].text, upvotes: questions[0].upvotes }],
-    });
+    await screen.findByRole('heading',{name:session.title});
+    fireEvent.click(screen.getByText('問答控場：指定問題、標記已回答'));
+    expect(screen.getAllByRole('button',{name:'投射這題'})).toHaveLength(1);
+    fireEvent.click(screen.getByRole('button',{name:'投射這題'}));
+    await waitFor(()=>expect(fetchMock).toHaveBeenCalledWith('/api/live-sessions/123456/presentation',expect.objectContaining({body:JSON.stringify({action:'question',questionId:questions[0].id})})));
   });
+
 });
 
 describe('session deletion and immediate reactions', () => {

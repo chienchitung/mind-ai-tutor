@@ -4,7 +4,7 @@ import { voteSchema } from '@/lib/live-session';
 import { broadcastLiveUpdate } from '@/lib/live-broadcast';
 
 const codePattern = /^[0-9]{6}$/;
-const knownErrors = ['SESSION_NOT_OPEN', 'POLL_NOT_ACTIVE', 'INVALID_OPTION', 'POLL_NOT_FOUND', 'INVALID_PARTICIPANT'];
+const knownErrors = ['POLL_NOT_OPEN', 'SESSION_NOT_OPEN', 'POLL_NOT_ACTIVE', 'INVALID_OPTION', 'POLL_NOT_FOUND', 'INVALID_PARTICIPANT'];
 
 export async function POST(request: Request, { params }: { params: Promise<{ code: string }> }) {
   try {
@@ -22,6 +22,8 @@ export async function POST(request: Request, { params }: { params: Promise<{ cod
     if (lookupError) return NextResponse.json({ error: 'LIVE_STORAGE_ERROR' }, { status: 500 });
     const row = Array.isArray(lookup) ? lookup[0] : lookup;
     if (!row?.active_poll_id) return NextResponse.json({ error: 'NOT_FOUND' }, { status: 404 });
+
+    if (parsed.data.pollId && parsed.data.pollId !== row.active_poll_id) return NextResponse.json({ error: 'POLL_NOT_ACTIVE' }, { status: 409 });
 
     const { data, error } = await client.rpc('cast_live_poll_vote', {
       p_poll_id: row.active_poll_id,

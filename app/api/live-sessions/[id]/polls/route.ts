@@ -28,7 +28,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     if (!session) return NextResponse.json({ error: 'NOT_FOUND' }, { status: 404 });
 
     const { data: poll, error: pollError } = await client.from('live_polls')
-      .insert({ session_id: id, question: parsed.data.question, options: parsed.data.options })
+      .insert({ session_id: id, question: parsed.data.question, options: parsed.data.options, phase: 'draft' })
       .select('id, question, options').single();
     if (pollError || !poll) return NextResponse.json({ error: 'LIVE_STORAGE_ERROR' }, { status: 500 });
 

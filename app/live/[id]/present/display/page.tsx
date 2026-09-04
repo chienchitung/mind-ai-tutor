@@ -1,20 +1,24 @@
-'use client';
-
-import { useCallback, useEffect, useRef, useState } from 'react';
-import { useParams } from 'next/navigation';
-import { Maximize, Users } from 'lucide-react';
-import { Button } from '@/components/ui/button';
-import { supabase } from '@/lib/supabase';
-import { useLanguage } from '@/app/contexts/LanguageContext';
-import { useTranslation } from '@/utils/translations';
-import type { LiveSessionOwnerState } from '@/lib/live-session';
-import type { InkPoint, InkStroke, PresentationTool } from '@/lib/presentation-annotations';
-import { DeckViewer } from '@/components/live/DeckViewer';
-import { RemoteInkOverlay } from '@/components/live/RemoteInkOverlay';
-import { SpotlightOverlay, type Spotlight } from '@/components/live/SpotlightOverlay';
-import { ReactionBurstOverlay, useReactionBursts } from '@/components/live/ReactionBurst';
-import { useOnlinePresenceCount } from '@/components/live/usePresenceHeartbeat';
-import { LivePageState } from '@/components/live/LiveSessionUI';
+"use client";
+import { useEffect, useRef, useState } from "react";
+import { useParams } from "next/navigation";
+import { Maximize } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { supabase } from "@/lib/supabase";
+import { useLanguage } from "@/app/contexts/LanguageContext";
+import type {
+  InkPoint,
+  InkStroke,
+  PresentationTool,
+} from "@/lib/presentation-annotations";
+import { DeckViewer } from "@/components/live/DeckViewer";
+import { RemoteInkOverlay } from "@/components/live/RemoteInkOverlay";
+import {
+  ReactionBurstOverlay,
+  useReactionBursts,
+} from "@/components/live/ReactionBurst";
+import { usePresentationSnapshot } from "@/components/live/usePresentationSnapshot";
+import { PresentationContent } from "@/components/live/PresentationContent";
+import { JoinQRCode } from "@/components/live/JoinQRCode";
 
 interface LiveDraft {
   tool: PresentationTool;
@@ -23,189 +27,250 @@ interface LiveDraft {
   draft: InkPoint[];
   pointer: InkPoint | null;
 }
-
-/**
- * The audience-safe half of dual-screen presenting: opened as a second
- * window (dragged onto a projector/external display) by the presenter's
- * control page. Mostly a passive mirror - deck, live ink, reactions, and
- * the same low-sensitivity online-count signal the control page shows -
- * plus one explicit exception: a SpotlightOverlay the presenter can turn
- * on/off from the control page to reveal a poll's results or a curated,
- * already-public set of questions. No Q&A moderation queue, no poll
- * controls, no pulse/difficulty feedback ever reach here - that stays on
- * the control window, on the presenter's own screen.
- */
 export default function PresentDisplayPage() {
-  const params = useParams<{ id: string }>();
+  const { id } = useParams<{ id: string }>();
   const { language } = useLanguage();
-  const { t } = useTranslation(language);
-  const [status, setStatus] = useState<'loading' | 'ready' | 'not-found' | 'error' | 'ended'>('loading');
-  const [title, setTitle] = useState('');
-  const [joinCode, setJoinCode] = useState('');
-  const [deckUrl, setDeckUrl] = useState<string | null>(null);
-  const [page, setPage] = useState(1);
-  const [deckLoadError, setDeckLoadError] = useState(false);
+  const zh = language === "zh-TW";
+  const { snapshot, error, refresh } = usePresentationSnapshot(
+    `/api/live-sessions/${id}/presentation`,
+    id,
+  );
+  const [joinCode, setJoinCode] = useState("");
   const [entered, setEntered] = useState(false);
-  const [strokesByPage, setStrokesByPage] = useState<Record<number, InkStroke[]>>({});
-  const [live, setLive] = useState<LiveDraft | null>(null);
-  const [spotlight, setSpotlight] = useState<Spotlight | null>(null);
+  const [fullscreen, setFullscreen] = useState(false);
+  const [deckError, setDeckError] = useState(false);
+  const [ink, setInk] = useState<{
+    page: number;
+    deckUrl: string | null;
+    strokes: InkStroke[];
+  } | null>(null);
+  const [live, setLive] = useState<
+    (LiveDraft & { page: number; deckUrl: string | null }) | null
+  >(null);
+  const [connected, setConnected] = useState(false);
+  const lastInk = useRef(0);
+  const readyRef = useRef(false);
+  const inkChannelRef = useRef<BroadcastChannel | null>(null);
+  useEffect(() => {
+    readyRef.current = !!snapshot && !error;
+    if (readyRef.current) inkChannelRef.current?.postMessage({ type: "ready" });
+  }, [snapshot, error]);
   const containerRef = useRef<HTMLDivElement>(null);
-
   const { reactions, push: pushReaction } = useReactionBursts();
-  const { onlineCount, registerPing } = useOnlinePresenceCount();
-
-  const load = useCallback(async () => {
-    try {
-      const response = await fetch(`/api/live-sessions/${params.id}`, { cache: 'no-store' });
-      if (response.status === 404) {
-        setStatus('not-found');
-        return;
-      }
-      if (!response.ok) {
-        setStatus('error');
-        return;
-      }
-      const data: LiveSessionOwnerState = await response.json();
-      setTitle(data.title);
-      setJoinCode(data.joinCode);
-      setDeckUrl(data.deckUrl);
-      setPage(data.deckPage);
-      setStatus('ready');
-    } catch {
-      setStatus('error');
-    }
-  }, [params.id]);
-
   useEffect(() => {
-    void load();
-  }, [load]);
-
+    const abort = new AbortController();
+    fetch(`/api/live-sessions/${id}`, {
+      cache: "no-store",
+      signal: abort.signal,
+    })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((value) => {
+        if (value) setJoinCode(value.joinCode);
+      })
+      .catch(() => {});
+    return () => abort.abort();
+  }, [id]);
   useEffect(() => {
-    if (!params.id) return;
+    setDeckError(false);
+    setLive(null);
+  }, [snapshot?.deckPage, snapshot?.deckUrl]);
+  useEffect(() => {
+    const handle = () => setFullscreen(!!document.fullscreenElement);
+    document.addEventListener("fullscreenchange", handle);
+    return () => document.removeEventListener("fullscreenchange", handle);
+  }, []);
+  useEffect(() => {
     const client = supabase();
-    const channel = client.channel(`live-session:${params.id}`);
+    const channel = client.channel(`live-session:${id}`);
     channel
-      .on('broadcast', { event: 'deck:sync' }, ({ payload }) => {
-        const { page: nextPage, deckUrl: nextUrl } = payload as { page: number; deckUrl: string | null };
-        setPage(nextPage);
-        setDeckUrl(nextUrl);
-        setDeckLoadError(false);
-      })
-      .on('broadcast', { event: 'annotation:sync' }, ({ payload }) => {
-        const { page: strokePage, strokes } = payload as { page: number; strokes: InkStroke[] };
-        setStrokesByPage((previous) => ({ ...previous, [strokePage]: strokes }));
-      })
-      .on('broadcast', { event: 'annotation:live' }, ({ payload }) => {
-        setLive(payload as LiveDraft);
-      })
-      .on('broadcast', { event: 'reaction:sent' }, ({ payload }) => {
-        const { kind } = payload as { kind: string };
-        pushReaction(kind);
-      })
-      .on('broadcast', { event: 'presence:ping' }, ({ payload }) => {
-        registerPing((payload as { participantId: string }).participantId);
-      })
-      // The presenter's explicit "reveal" moment - only ever fires with
-      // already-public content (a poll's own results, or questions the
-      // presenter already approved), never the moderation queue.
-      .on('broadcast', { event: 'spotlight:show' }, ({ payload }) => {
-        setSpotlight(payload as Spotlight);
-      })
-      .on('broadcast', { event: 'spotlight:hide' }, () => setSpotlight(null))
-      .on('broadcast', { event: 'session:deleted' }, () => setStatus('ended'))
-      .subscribe();
+      .on("broadcast", { event: "reaction:sent" }, ({ payload }) =>
+        pushReaction(payload.kind, payload.reactionId),
+      )
+      .on("broadcast", { event: "presentation:changed" }, () => void refresh())
+      .on("broadcast", { event: "deck:sync" }, () => void refresh())
+      .on("broadcast", { event: "session:status" }, () => void refresh())
+      .on("broadcast", { event: "session:deleted" }, () => void refresh())
+      .subscribe((state) => {
+        if (state === "SUBSCRIBED") void refresh();
+      });
     return () => {
       void client.removeChannel(channel);
     };
-  }, [params.id, pushReaction, registerPing]);
-
-  const enterFullscreen = async () => {
+  }, [id, pushReaction, refresh]);
+  useEffect(() => {
+    if (typeof BroadcastChannel === "undefined") return;
+    const channel = new BroadcastChannel(`live-ink:${id}`);
+    inkChannelRef.current = channel;
+    let idle: ReturnType<typeof setTimeout> | undefined;
+    channel.onmessage = ({ data }) => {
+      if (data?.type === "ink" && Array.isArray(data.strokes)) {
+        lastInk.current = Date.now();
+        setConnected(true);
+        setInk(data);
+      }
+      if (
+        data?.type === "scroll" &&
+        (data.direction === 1 || data.direction === -1)
+      ) {
+        const content = containerRef.current?.querySelector(
+          "[data-projection-scroll]",
+        );
+        content?.scrollBy({
+          top: data.direction * content.clientHeight * 0.7,
+          behavior: "smooth",
+        });
+      }
+      if (data?.type === "live") {
+        setLive({ ...data.payload, page: data.page, deckUrl: data.deckUrl });
+        clearTimeout(idle);
+        idle = setTimeout(() => setLive(null), 1200);
+      }
+    };
+    const ping = () => {
+      if (readyRef.current) channel.postMessage({ type: "ready" });
+      setConnected(Date.now() - lastInk.current < 6000);
+    };
+    ping();
+    const timer = setInterval(ping, 2000);
+    return () => {
+      clearInterval(timer);
+      clearTimeout(idle);
+      channel.close();
+      inkChannelRef.current = null;
+    };
+  }, [id]);
+  const enter = async () => {
+    setEntered(true);
     try {
       await containerRef.current?.requestFullscreen?.();
     } catch {
-      // Fullscreen can be denied or unsupported - the fixed full-bleed
-      // layout below still fills the window either way, it just won't
-      // hide the browser chrome too.
+      /* The window remains usable without native fullscreen. */
     }
-    setEntered(true);
   };
-
-  if (status === 'loading') {
-    return <LivePageState presenter loading message={t('live_loading')} />;
-  }
-  if (status === 'not-found' || status === 'error' || status === 'ended') {
+  if (!snapshot)
     return (
-      <LivePageState
-        presenter
-        message={t(
-          status === 'not-found'
-            ? 'live_session_not_found'
-            : status === 'ended'
-              ? 'live_display_ended'
-              : 'live_session_error',
-        )}
-      />
+      <main className="flex min-h-screen items-center justify-center bg-slate-950 text-white">
+        <Button onClick={() => void refresh()}>
+          {error
+            ? zh
+              ? "載入失敗，重試"
+              : "Retry loading"
+            : zh
+              ? "正在連線…"
+              : "Connecting…"}
+        </Button>
+      </main>
     );
-  }
-
+  const inkMatches =
+    ink?.page === snapshot.deckPage && ink?.deckUrl === snapshot.deckUrl;
+  const liveMatches =
+    live?.page === snapshot.deckPage && live?.deckUrl === snapshot.deckUrl;
+  const hidden = snapshot.mode === "blank" || snapshot.status === "closed";
   return (
     <div
       ref={containerRef}
-      className="fixed inset-0 z-0 h-[100dvh] w-screen overflow-hidden bg-black text-white"
+      className="fixed inset-0 h-[100dvh] w-screen overflow-hidden bg-slate-950 text-white"
     >
       {!entered && (
-        <div className="absolute inset-0 z-20 flex flex-col items-center justify-center gap-4 bg-black px-6 text-center">
-          <p className="max-w-sm truncate text-sm text-white/70">{title}</p>
-          <Button onClick={() => void enterFullscreen()} className="min-h-11">
+        <div className="absolute inset-0 z-50 flex flex-col items-center justify-center gap-5 bg-slate-950 p-8 text-center">
+          <h1 className="text-2xl">{snapshot.title}</h1>
+          <p>
+            {zh
+              ? "將此視窗拖到投影螢幕，再開始全螢幕。"
+              : "Move this window to the projector, then enter fullscreen."}
+          </p>
+          <Button onClick={() => void enter()}>
             <Maximize className="mr-2 h-4 w-4" />
-            {t('live_display_enter_fullscreen')}
+            {zh ? "開始投影" : "Start presenting"}
           </Button>
         </div>
       )}
-      <div className="absolute inset-x-0 top-0 z-10 p-4">
-        <div className="inline-block rounded-xl bg-black/70 px-3 py-2 backdrop-blur-sm">
-          <p className="truncate text-sm font-medium">{title}</p>
-          <p className="mt-1 text-xs text-white/70">
-            {t('live_join_code_label')} <span className="font-mono tracking-widest text-white">{joinCode}</span>
-          </p>
+      {snapshot.status === "closed" || snapshot.mode !== "deck" ? (
+        <div className={hidden ? "h-full" : "h-[calc(100dvh-5rem)]"}>
+          <PresentationContent
+            key={`${snapshot.mode}:${snapshot.poll?.pollId}:${snapshot.questions.map((q) => q.id).join()}`}
+            snapshot={snapshot}
+          />
         </div>
-      </div>
-      {deckUrl ? (
-        deckLoadError ? (
-          <p role="alert" className="flex h-full items-center justify-center p-6 text-center text-white/80">
-            {t('live_deck_load_error')}
-          </p>
+      ) : snapshot.deckUrl ? (
+        deckError ? (
+          <div role="alert" className="flex h-full items-center justify-center">
+            <Button
+              onClick={() => {
+                setDeckError(false);
+                void refresh();
+              }}
+            >
+              {zh ? "簡報載入失敗，重試" : "Retry slides"}
+            </Button>
+          </div>
         ) : (
           <DeckViewer
-            url={deckUrl}
-            page={page}
-            onError={() => setDeckLoadError(true)}
-            className="h-full w-full"
+            url={snapshot.deckUrl}
+            page={snapshot.deckPage}
+            className="h-[calc(100dvh-5rem)] w-full"
+            onError={() => setDeckError(true)}
             overlay={
               <RemoteInkOverlay
-                strokes={strokesByPage[page] ?? []}
-                draft={live?.draft ?? []}
-                pointer={live?.pointer ?? null}
-                tool={live?.tool ?? 'cursor'}
-                color={live?.color ?? '#fb7185'}
-                width={live?.width ?? 3}
-                label={t('live_ink_surface')}
+                strokes={inkMatches ? ink!.strokes : []}
+                draft={liveMatches ? live!.draft : []}
+                pointer={liveMatches ? live!.pointer : null}
+                tool={liveMatches ? live!.tool : "cursor"}
+                color={liveMatches ? live!.color : "#fb7185"}
+                width={liveMatches ? live!.width : 3}
+                label={zh ? "簡報筆跡" : "Slide annotations"}
               />
             }
           />
         )
       ) : (
-        <p className="flex h-full items-center justify-center p-6 text-center text-white/60">
-          {t('live_display_waiting_for_deck')}
+        <div className="flex h-full items-center justify-center text-3xl">
+          {zh ? "歡迎加入，等待老師開始" : "Welcome! Waiting for the teacher"}
+        </div>
+      )}
+      {!hidden && (
+        <footer className="absolute inset-x-0 bottom-0 flex h-20 items-center justify-between gap-4 border-t border-white/10 bg-slate-950 px-6">
+          <div className="min-w-0">
+            <p className="truncate text-sm text-white/60">{snapshot.title}</p>
+            <p className="text-xl">
+              mindaitutor.com/live ·{" "}
+              <strong className="font-mono tracking-widest text-teal-300">
+                {joinCode}
+              </strong>
+            </p>
+          </div>
+          {joinCode && <JoinQRCode code={joinCode} />}
+        </footer>
+      )}
+      {!hidden && (
+        <ReactionBurstOverlay
+          reactions={reactions}
+          className="pointer-events-none absolute inset-0 z-10"
+        />
+      )}
+      {(error || !connected) && entered && !hidden && (
+        <p
+          role="status"
+          className="absolute right-3 top-3 rounded bg-amber-950 px-3 py-2 text-xs"
+        >
+          {error
+            ? zh
+              ? "連線中斷，正在重新同步"
+              : "Connection lost. Reconnecting"
+            : zh
+              ? "老師控制台未連線"
+              : "Presenter disconnected"}
         </p>
       )}
-      <ReactionBurstOverlay reactions={reactions} className="absolute inset-0 z-10" />
-      {spotlight && <SpotlightOverlay spotlight={spotlight} />}
-      {onlineCount > 0 && (
-        <div className="pointer-events-none absolute bottom-3 left-3 z-10 flex items-center gap-1 rounded-xl border border-white/10 bg-black/60 px-3 py-2 text-[11px] leading-5 text-white/80 backdrop-blur-sm">
-          <Users className="h-3 w-3" aria-hidden="true" />
-          {onlineCount}
-        </div>
+      {entered && !fullscreen && (
+        <Button
+          className="absolute right-3 top-14 z-40"
+          variant="secondary"
+          onClick={() => void enter()}
+          aria-label={zh ? "回到全螢幕" : "Enter fullscreen"}
+        >
+          <Maximize className="h-4 w-4" />
+        </Button>
       )}
     </div>
   );

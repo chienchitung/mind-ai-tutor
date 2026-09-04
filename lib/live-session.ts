@@ -77,6 +77,7 @@ export const sessionPatchSchema = z.object({
 }).refine((value) => Object.keys(value).length > 0, 'At least one field is required');
 
 export const voteSchema = z.object({
+  pollId: z.string().uuid().optional(),
   participantId: z.string().uuid(),
   optionIndex: z.number().int().min(0).max(5),
 });

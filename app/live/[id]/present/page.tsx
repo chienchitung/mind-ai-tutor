@@ -54,6 +54,7 @@ import type {
 } from '@/lib/live-session';
 import { deleteLiveDeck, uploadLiveDeck } from '@/lib/live-deck-storage';
 import { annotationReducer, EMPTY_INK, type InkPoint, type InkStroke, type PresentationTool } from '@/lib/presentation-annotations';
+import { PresentationControls } from '@/components/live/PresentationControls';
 import { DeckViewer } from '@/components/live/DeckViewer';
 import { AnnotationLayer } from '@/components/live/AnnotationLayer';
 import { PresentationStage } from '@/components/live/PresentationStage';
@@ -140,16 +141,14 @@ export default function PresenterPage() {
   // realtime channel this page already subscribes to for polls/questions.
   const [dualDisplayOpen, setDualDisplayOpen] = useState(false);
   const displayWindowRef = useRef<Window | null>(null);
-  const channelRef = useRef<ReturnType<ReturnType<typeof supabase>['channel']> | null>(null);
   const [controlTool, setControlTool] = useState<PresentationTool>('cursor');
   const [controlColor, setControlColor] = useState<string>(CONTROL_COLORS[0]);
   const [controlWidth] = useState(3);
   const [controlInk, dispatchControlInk] = useReducer(annotationReducer, {});
   const lastLiveSendRef = useRef(0);
-  // The presenter's explicit "reveal" to the projected display window -
-  // never automatic, and only ever built from already-public data (the
-  // poll's own results; questions already visible to the class).
-  const [spotlight, setSpotlight] = useState<'none' | 'poll' | 'questions'>('none');
+  const [displayConnected, setDisplayConnected] = useState(false);
+  const inkChannelRef = useRef<BroadcastChannel | null>(null);
+  const lastDisplayPing = useRef(0);
 
   const load = useCallback(async () => {
     try {
@@ -199,7 +198,6 @@ export default function PresenterPage() {
     if (!params.id) return;
     const client = supabase();
     const channel = client.channel(`live-session:${params.id}`);
-    channelRef.current = channel;
     channel
       .on('broadcast', { event: 'poll:opened' }, ({ payload }) => {
         setData((previous) =>
@@ -285,26 +283,34 @@ export default function PresenterPage() {
       .on('broadcast', { event: 'presence:ping' }, ({ payload }) => {
         registerPing((payload as { participantId: string }).participantId);
       })
-      .subscribe();
+      .on('broadcast', { event: 'presentation:changed' }, () => window.dispatchEvent(new Event('live:presentation-refresh')))
+      .subscribe((state) => { if (state === 'SUBSCRIBED') { void load(); void loadQuestions(); window.dispatchEvent(new Event('live:presentation-refresh')); } });
     return () => {
-      channelRef.current = null;
       void client.removeChannel(channel);
     };
-  }, [params.id, pushReaction, registerPing, load]);
+  }, [params.id, pushReaction, registerPing, load, loadQuestions]);
 
-  // Re-broadcasts the current page's committed strokes whenever they change
-  // (a new stroke, undo, redo, or clear) so a projected display window stays
-  // in sync - including a freshly opened one catching up on whatever was
-  // already drawn, since dualDisplayOpen flipping true is itself a trigger.
+  // Drawing stays on this browser's origin, never on the public student channel.
+  // A refreshed display asks for the current ink; periodic replay repairs missed messages.
+  const inkSnapshotRef = useRef({ page: data?.deckPage, deckUrl: data?.deckUrl, strokes: [] as InkStroke[] });
   useEffect(() => {
-    if (!data || !dualDisplayOpen) return;
-    const strokes = (controlInk[data.deckPage] ?? EMPTY_INK).strokes;
-    channelRef.current?.send({
-      type: 'broadcast',
-      event: 'annotation:sync',
-      payload: { page: data.deckPage, strokes },
-    });
-  }, [controlInk, data?.deckPage, dualDisplayOpen]);
+    inkSnapshotRef.current = { page: data?.deckPage, deckUrl: data?.deckUrl, strokes: (controlInk[data?.deckPage ?? 1] ?? EMPTY_INK).strokes };
+    inkChannelRef.current?.postMessage({ type: 'ink', ...inkSnapshotRef.current });
+  }, [controlInk, data?.deckPage, data?.deckUrl]);
+  useEffect(() => {
+    if (typeof BroadcastChannel === 'undefined') return;
+    const channel = new BroadcastChannel(`live-ink:${params.id}`);
+    inkChannelRef.current = channel;
+    channel.onmessage = ({ data: message }) => {
+      if (message?.type === 'ready') {
+        lastDisplayPing.current = Date.now();
+        setDisplayConnected(true);
+        channel.postMessage({ type: 'ink', ...inkSnapshotRef.current });
+      }
+    };
+    const timer = setInterval(() => setDisplayConnected(Date.now() - lastDisplayPing.current < 6000), 2000);
+    return () => { clearInterval(timer); channel.close(); inkChannelRef.current = null; };
+  }, [params.id]);
 
   // Detects the presenter closing the projected window directly (not via
   // the "stop dual-screen" button) so the control-side toolbar disappears too.
@@ -318,12 +324,6 @@ export default function PresenterPage() {
     }, 1000);
     return () => clearInterval(interval);
   }, [dualDisplayOpen]);
-
-  // No one to show it to once the display window is gone - reset locally
-  // (no broadcast needed) so a later reopen doesn't inherit stale state.
-  useEffect(() => {
-    if (!dualDisplayOpen && spotlight !== 'none') setSpotlight('none');
-  }, [dualDisplayOpen, spotlight]);
 
   const openDisplayWindow = () => {
     const win = window.open(
@@ -355,61 +355,13 @@ export default function PresenterPage() {
       const isIdle = live.draft.length === 0 && live.pointer === null;
       if (!isIdle && now - lastLiveSendRef.current < LIVE_SEND_THROTTLE_MS) return;
       lastLiveSendRef.current = now;
-      channelRef.current?.send({
-        type: 'broadcast',
-        event: 'annotation:live',
+      inkChannelRef.current?.postMessage({
+        type: 'live', page: data?.deckPage, deckUrl: data?.deckUrl,
         payload: { tool: controlTool, color: controlColor, width: controlWidth, ...live },
       });
     },
-    [controlTool, controlColor, controlWidth],
+    [controlTool, controlColor, controlWidth, data?.deckPage, data?.deckUrl],
   );
-
-  const broadcastPollSpotlight = useCallback(() => {
-    if (!data?.poll) return;
-    channelRef.current?.send({ type: 'broadcast', event: 'spotlight:show', payload: { type: 'poll', poll: data.poll } });
-  }, [data?.poll]);
-
-  const broadcastQuestionsSpotlight = useCallback(() => {
-    const featured = [...questions]
-      .filter((item) => item.visibility === 'public')
-      .sort(sortQuestions)
-      .slice(0, 5)
-      .map((item) => ({ id: item.id, text: item.text, upvotes: item.upvotes }));
-    channelRef.current?.send({ type: 'broadcast', event: 'spotlight:show', payload: { type: 'questions', questions: featured } });
-  }, [questions]);
-
-  const hideSpotlight = useCallback(() => {
-    channelRef.current?.send({ type: 'broadcast', event: 'spotlight:hide', payload: {} });
-  }, []);
-
-  const toggleSpotlight = (kind: 'poll' | 'questions') => {
-    if (spotlight === kind) {
-      setSpotlight('none');
-      hideSpotlight();
-      return;
-    }
-    setSpotlight(kind);
-    if (kind === 'poll') broadcastPollSpotlight();
-    else broadcastQuestionsSpotlight();
-  };
-
-  // Keeps the projected reveal live: re-broadcasts whenever the underlying
-  // data changes while that spotlight is the one currently showing (fresh
-  // vote counts, fresh upvotes) - not just at the moment it was turned on.
-  useEffect(() => {
-    if (spotlight !== 'poll' || !dualDisplayOpen) return;
-    if (!data?.poll) {
-      setSpotlight('none');
-      hideSpotlight();
-      return;
-    }
-    broadcastPollSpotlight();
-  }, [data?.poll, spotlight, dualDisplayOpen, broadcastPollSpotlight, hideSpotlight]);
-
-  useEffect(() => {
-    if (spotlight !== 'questions' || !dualDisplayOpen) return;
-    broadcastQuestionsSpotlight();
-  }, [questions, spotlight, dualDisplayOpen, broadcastQuestionsSpotlight]);
 
   // Shared by the composer Dialog (outside fullscreen) and the projection
   // panel's own inline composer (inside PresentationStage) - each keeps its
@@ -424,6 +376,7 @@ export default function PresenterPage() {
       if (!response.ok) throw new Error();
       const poll = await response.json();
       setData((previous) => (previous ? { ...previous, poll } : previous));
+      window.dispatchEvent(new Event('live:presentation-refresh'));
       return true;
     } catch {
       toast({
@@ -466,6 +419,7 @@ export default function PresenterPage() {
         body: JSON.stringify({ status: next }),
       });
       if (!response.ok) throw new Error();
+      window.dispatchEvent(new Event('live:presentation-refresh'));
     } catch {
       setData((previous) =>
         previous ? { ...previous, status: previousStatus } : previous,
@@ -824,6 +778,7 @@ export default function PresenterPage() {
             )}
           </p>
         )}
+        <PresentationControls sessionId={params.id} questions={questions} connected={displayConnected} onOpen={openDisplayWindow} />
         <div className="grid items-start gap-6 lg:grid-cols-[minmax(0,1fr)_340px] xl:grid-cols-[minmax(0,1fr)_380px]">
           <div className="min-w-0 space-y-6">
             <Card className="min-w-0">
@@ -911,18 +866,7 @@ export default function PresenterPage() {
                     <ListChecks className="mr-2 h-4 w-4" />
                     {t('live_load_from_quiz')}
                   </Button>
-                  {dualDisplayOpen && data.poll && (
-                    <Button
-                      type="button"
-                      variant={spotlight === 'poll' ? 'secondary' : 'outline'}
-                      className="min-h-11"
-                      aria-pressed={spotlight === 'poll'}
-                      onClick={() => toggleSpotlight('poll')}
-                    >
-                      <MonitorPlay className="mr-2 h-4 w-4" />
-                      {t(spotlight === 'poll' ? 'live_spotlight_hide_poll' : 'live_spotlight_show_poll')}
-                    </Button>
-                  )}
+
                 </div>
               </CardContent>
             </Card>
@@ -1201,19 +1145,7 @@ export default function PresenterPage() {
                     <span className="font-mono text-xs text-muted-foreground">
                       {questions.length}
                     </span>
-                    {dualDisplayOpen && (
-                      <Button
-                        type="button"
-                        size="sm"
-                        variant={spotlight === 'questions' ? 'secondary' : 'outline'}
-                        className="min-h-9"
-                        aria-pressed={spotlight === 'questions'}
-                        onClick={() => toggleSpotlight('questions')}
-                      >
-                        <MonitorPlay className="mr-1.5 h-3.5 w-3.5" />
-                        {t(spotlight === 'questions' ? 'live_spotlight_hide_questions' : 'live_spotlight_show_questions')}
-                      </Button>
-                    )}
+
                   </div>
                 </div>
                 {visibleQuestions.length === 0 ? (
