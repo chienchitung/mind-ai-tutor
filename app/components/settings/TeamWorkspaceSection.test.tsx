@@ -176,51 +176,66 @@ describe('TeamWorkspaceSection', () => {
     })));
   });
 
-  it('shares existing events and reports how many were added', async () => {
+  it('shares existing data across all resource types and reports a combined breakdown', async () => {
     mocks.getUser.mockResolvedValue({ data: { user: { id: MEMBER_ID } } });
-    mocks.rpc
-      .mockResolvedValueOnce({
-        data: membersRow([
-          { member_user_id: OWNER_ID, email: 'owner@example.com', role: 'owner' },
-          { member_user_id: MEMBER_ID, email: 'member@example.com', role: 'member' },
-        ]),
-        error: null,
-      })
-      .mockResolvedValueOnce({ data: 12, error: null });
+    mocks.rpc.mockImplementation((name: string) => {
+      if (name === 'list_team_members') {
+        return Promise.resolve({
+          data: membersRow([
+            { member_user_id: OWNER_ID, email: 'owner@example.com', role: 'owner' },
+            { member_user_id: MEMBER_ID, email: 'member@example.com', role: 'member' },
+          ]),
+          error: null,
+        });
+      }
+      const counts: Record<string, number> = {
+        share_my_events_with_team: 12,
+        share_my_lessons_with_team: 3,
+        share_my_feedback_with_team: 0,
+        share_my_digital_games_with_team: 1,
+      };
+      return Promise.resolve({ data: counts[name] ?? 0, error: null });
+    });
 
     render(<TeamWorkspaceSection />);
-    fireEvent.click(await screen.findByRole('button', { name: '分享我的活動' }));
+    fireEvent.click(await screen.findByRole('button', { name: '分享我的舊資料' }));
 
-    await waitFor(() => expect(mocks.rpc).toHaveBeenCalledWith('share_my_events_with_team'));
+    await waitFor(() => expect(mocks.rpc).toHaveBeenCalledWith('share_my_digital_games_with_team'));
     expect(mocks.toast).toHaveBeenCalledWith(expect.objectContaining({
       title: '已分享',
-      description: '已把 12 筆活動加入工作區，其他成員現在看得到。',
+      description: '已把12 筆活動、3 筆課程、1 筆數位遊戲加入工作區，其他成員現在看得到。',
     }));
   });
 
   it('reports when there was nothing left to share', async () => {
     mocks.getUser.mockResolvedValue({ data: { user: { id: OWNER_ID } } });
-    mocks.rpc
-      .mockResolvedValueOnce({ data: membersRow([{ member_user_id: OWNER_ID, email: 'owner@example.com', role: 'owner' }]), error: null })
-      .mockResolvedValueOnce({ data: 0, error: null });
+    mocks.rpc.mockImplementation((name: string) => {
+      if (name === 'list_team_members') {
+        return Promise.resolve({ data: membersRow([{ member_user_id: OWNER_ID, email: 'owner@example.com', role: 'owner' }]), error: null });
+      }
+      return Promise.resolve({ data: 0, error: null });
+    });
 
     render(<TeamWorkspaceSection />);
-    fireEvent.click(await screen.findByRole('button', { name: '分享我的活動' }));
+    fireEvent.click(await screen.findByRole('button', { name: '分享我的舊資料' }));
 
     await waitFor(() => expect(mocks.toast).toHaveBeenCalledWith(expect.objectContaining({
       title: '已分享',
-      description: '沒有可以分享的活動——你所有的活動應該都已經在工作區裡了。',
+      description: '沒有可以分享的資料——你的資料應該都已經在工作區裡了。',
     })));
   });
 
-  it('surfaces a failure to share as an error toast', async () => {
+  it('surfaces a failure to share as an error toast when every resource fails', async () => {
     mocks.getUser.mockResolvedValue({ data: { user: { id: OWNER_ID } } });
-    mocks.rpc
-      .mockResolvedValueOnce({ data: membersRow([{ member_user_id: OWNER_ID, email: 'owner@example.com', role: 'owner' }]), error: null })
-      .mockResolvedValueOnce({ data: null, error: new Error('NO_TEAM') });
+    mocks.rpc.mockImplementation((name: string) => {
+      if (name === 'list_team_members') {
+        return Promise.resolve({ data: membersRow([{ member_user_id: OWNER_ID, email: 'owner@example.com', role: 'owner' }]), error: null });
+      }
+      return Promise.resolve({ data: null, error: new Error('NO_TEAM') });
+    });
 
     render(<TeamWorkspaceSection />);
-    fireEvent.click(await screen.findByRole('button', { name: '分享我的活動' }));
+    fireEvent.click(await screen.findByRole('button', { name: '分享我的舊資料' }));
 
     await waitFor(() => expect(mocks.toast).toHaveBeenCalledWith(expect.objectContaining({
       title: '分享失敗',

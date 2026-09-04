@@ -142,18 +142,54 @@ export function TeamWorkspaceSection() {
     }
   };
 
-  const shareEvents = async () => {
+  // One RPC per team-scoped resource (scripts/add_team_scoping_*.sql), each
+  // only ever touching rows the caller already owns - run together so
+  // "share what I already have" is one click instead of one per resource
+  // type. A single failed RPC (e.g. NO_TEAM) still lets the others report
+  // their counts; Promise.allSettled is used instead of Promise.all so one
+  // rejection can't hide the results of the rest.
+  const shareResources: { rpc: string; labelZh: string; labelEn: string }[] = [
+    { rpc: 'share_my_events_with_team', labelZh: '活動', labelEn: 'events' },
+    { rpc: 'share_my_lessons_with_team', labelZh: '課程', labelEn: 'lessons' },
+    { rpc: 'share_my_feedback_with_team', labelZh: '回饋', labelEn: 'feedback items' },
+    { rpc: 'share_my_digital_games_with_team', labelZh: '數位遊戲', labelEn: 'digital games' },
+  ];
+
+  const shareAll = async () => {
     setBusy(true);
     try {
       const { supabase } = await import('@/lib/supabase');
-      const { data, error } = await supabase().rpc('share_my_events_with_team');
-      if (error) throw error;
-      const count = typeof data === 'number' ? data : 0;
+      const client = supabase();
+      const results = await Promise.allSettled(shareResources.map(r => client.rpc(r.rpc)));
+
+      const shared: string[] = [];
+      let total = 0;
+      let firstError: string | null = null;
+      results.forEach((result, index) => {
+        const resource = shareResources[index];
+        if (result.status === 'rejected') {
+          firstError ??= result.reason instanceof Error ? result.reason.message : String(result.reason);
+          return;
+        }
+        const { data, error } = result.value;
+        if (error) {
+          firstError ??= error.message;
+          return;
+        }
+        const count = typeof data === 'number' ? data : 0;
+        if (count > 0) {
+          total += count;
+          shared.push(zh ? `${count} 筆${resource.labelZh}` : `${count} ${resource.labelEn}`);
+        }
+      });
+
+      if (total === 0 && firstError) throw new Error(firstError);
+
       toast({
         title: zh ? '已分享' : 'Shared',
-        description: count > 0
-          ? (zh ? `已把 ${count} 筆活動加入工作區，其他成員現在看得到。` : `${count} event${count === 1 ? '' : 's'} added to the workspace - other members can see them now.`)
-          : (zh ? '沒有可以分享的活動——你所有的活動應該都已經在工作區裡了。' : "Nothing to share - all your events are already in the workspace."),
+        description: total > 0
+          ? (zh ? `已把${shared.join('、')}加入工作區，其他成員現在看得到。` : `Added ${shared.join(', ')} to the workspace - other members can see them now.`)
+          : (zh ? '沒有可以分享的資料——你的資料應該都已經在工作區裡了。' : "Nothing to share - all your data is already in the workspace."),
       });
     } catch (error) {
       toast({ title: zh ? '分享失敗' : 'Failed to share', description: describeError(error instanceof Error ? error.message : '', zh), variant: 'destructive' });
@@ -211,12 +247,12 @@ export function TeamWorkspaceSection() {
           <div className="flex items-start justify-between gap-3 rounded-lg border bg-muted/30 p-3">
             <p className="text-sm text-muted-foreground">
               {zh
-                ? '你在加入這個工作區之前建立的活動，其他成員還看不到。分享後就能一起共編。'
-                : "Events you created before joining this workspace aren't visible to other members yet. Share them to start co-editing."}
+                ? '你在加入這個工作區之前建立的課程、活動、回饋與數位遊戲，其他成員還看不到。分享後就能一起共編。'
+                : "Lessons, events, feedback, and digital games you created before joining this workspace aren't visible to other members yet. Share them to start co-editing."}
             </p>
-            <Button type="button" variant="outline" size="sm" disabled={busy} onClick={shareEvents} className="shrink-0">
+            <Button type="button" variant="outline" size="sm" disabled={busy} onClick={shareAll} className="shrink-0">
               {busy ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Share2 className="mr-2 h-4 w-4" />}
-              {zh ? '分享我的活動' : 'Share my events'}
+              {zh ? '分享我的舊資料' : 'Share my existing data'}
             </Button>
           </div>
 

@@ -133,5 +133,6 @@ using (public.is_team_member(team_id))
 
 1. ~~先確認上面 4 個待決策問題~~ — 已確認，照本文件的建議值進行。
 2. ~~`teams`/`team_members` 表 + `is_team_member()` 函式 + migration 腳本~~ — 已寫成 `scripts/add_team_workspaces.sql`（純新增，不動任何既有表，上線零風險），還多加了 `create_team`/`invite_team_member`/`remove_team_member`/`list_team_members` 四支 RPC，成員管理全部走這幾支函式，不開放直接寫 `teams`/`team_members`。**這個腳本需要你手動到 Supabase SQL editor 執行一次**，我在這個環境沒有資料庫存取權限。
-3. **進行中**：選 `events` 當試點，`scripts/add_team_scoping_events.sql` 已寫好（加 `team_id` 欄位 + 換 RLS policy），等你跑完第 2 步的腳本後再跑這個。設定頁的成員管理 UI 也在同一批做（列出成員、邀請、移除、離開）。
-4. 確認 `events` 這條路徑（建立工作區 → 邀請 → 對方也能看到/編輯同一批活動）真的沒問題後，把 `lessons`/`feedback`/`digital_games`/`live_sessions` 依序比照辦理——每張表都是同樣的三步驟（加 `team_id` 欄位 + subquery default + 換 RLS policy），可以個別驗證、個別上線，不用一次全部做完。
+3. ~~選 `events` 當試點~~ — `scripts/add_team_scoping_events.sql` 已完成（加 `team_id` 欄位 + 換 RLS policy + `share_my_events_with_team()`）。設定頁的成員管理 UI 也已完成（列出成員、邀請、移除、離開）。
+4. **已完成**：確認 `events` 這條路徑沒問題後，`lessons`/`feedback`/`digital_games` 依樣比照辦理，寫成 `scripts/add_team_scoping_lessons.sql`／`add_team_scoping_feedback.sql`／`add_team_scoping_digital_games.sql`，同樣的三步驟（加 `team_id` 欄位 + subquery default + 換 RLS policy + `share_my_X_with_team()`）。`lessons` 多一個例外：`lessons_select_anon`（開放給 `anon` 角色，game-engine 讀取課程內容用）完全不動，只換 `authenticated` 角色的 select policy。設定頁的「分享我的活動」按鈕也擴充成「分享我的舊資料」，一次呼叫全部 4 支 `share_my_*_with_team()`，回報各類型分享了幾筆。**這三個腳本一樣需要你手動到 Supabase SQL editor 各自執行一次**。
+5. `live_sessions` 尚未比照辦理——是否需要，以及要不要連同 live session 底下的問題/投票/回饋一起納入工作區共用，留待之後有需求再談。
