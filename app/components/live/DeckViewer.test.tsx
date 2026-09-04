@@ -42,7 +42,7 @@ beforeEach(() => {
   getDocument.mockReset().mockReturnValue({ promise: Promise.resolve(makeDoc(5)) });
   HTMLCanvasElement.prototype.getContext = vi
     .fn()
-    .mockReturnValue({}) as unknown as typeof HTMLCanvasElement.prototype.getContext;
+    .mockReturnValue({drawImage: vi.fn()}) as unknown as typeof HTMLCanvasElement.prototype.getContext;
 });
 afterEach(() => {
   cleanup();
@@ -51,6 +51,16 @@ afterEach(() => {
 });
 
 describe('DeckViewer', () => {
+  it('reuses a recently rendered page at the same size', async () => {
+    const {rerender}=render(<DeckViewer url="https://example.test/cache.pdf" page={1} overlay={<span>page-one</span>} />);
+    await waitFor(()=>expect(document.body.textContent).toContain('page-one'));
+    rerender(<DeckViewer url="https://example.test/cache.pdf" page={2} overlay={<span>page-two</span>} />);
+    await waitFor(()=>expect(document.body.textContent).toContain('page-two'));
+    const calls=getPage.mock.calls.length;
+    rerender(<DeckViewer url="https://example.test/cache.pdf" page={1} overlay={<span>page-one</span>} />);
+    await waitFor(()=>expect(document.body.textContent).toContain('page-one'));
+    expect(getPage).toHaveBeenCalledTimes(calls);
+  });
   it('loads the document, sets the worker once, and reports the page count', async () => {
     const onNumPages = vi.fn();
     render(<DeckViewer url="https://example.test/deck.pdf" page={1} onNumPages={onNumPages} />);

@@ -58,6 +58,7 @@ import { PresentationControls } from '@/components/live/PresentationControls';
 import { DeckViewer } from '@/components/live/DeckViewer';
 import { AnnotationLayer } from '@/components/live/AnnotationLayer';
 import { readAnnotationCommand } from '@/lib/live-annotation-command';
+import { useFastDeckPage } from '@/components/live/useFastDeckPage';
 import { PresentationStage } from '@/components/live/PresentationStage';
 import {
   REACTION_EMOJI,
@@ -99,7 +100,13 @@ export default function PresenterPage() {
   const [status, setStatus] = useState<
     'loading' | 'ready' | 'not-found' | 'error'
   >('loading');
-  const [data, setData] = useState<LiveSessionOwnerState | null>(null);
+  const [sessionData, setData] = useState<LiveSessionOwnerState | null>(null);
+  const loadPageRef = useRef<() => Promise<void>>(async () => {});
+  const navigation = useFastDeckPage(params.id, sessionData?.deckUrl, sessionData?.deckPage ?? 1, () => loadPageRef.current());
+  const data = sessionData ? { ...sessionData, deckPage: navigation.page } : null;
+  useEffect(() => {
+    if (navigation.error) toast({ title: language === 'zh-TW' ? '換頁同步失敗，請重試' : 'Could not save slide position. Retry.', variant: 'destructive' });
+  }, [navigation.error, toast, language]);
   const [changingStatus, setChangingStatus] = useState(false);
   const statusChangePending = useRef(false);
   const [showComposer, setShowComposer] = useState(false);
@@ -154,11 +161,14 @@ export default function PresenterPage() {
   const inkChannelRef = useRef<BroadcastChannel | null>(null);
   const lastDisplayPing = useRef(0);
 
+  const loadSequence = useRef(0);
   const load = useCallback(async () => {
+    const sequence = ++loadSequence.current;
     try {
       const response = await fetch(`/api/live-sessions/${params.id}`, {
         cache: 'no-store',
       });
+      if (sequence !== loadSequence.current) return;
       if (response.status === 401) {
         router.push('/login');
         return;
@@ -171,12 +181,17 @@ export default function PresenterPage() {
         setStatus('error');
         return;
       }
-      setData(await response.json());
+      const next = await response.json();
+      if (sequence !== loadSequence.current) return;
+      setData(next);
       setStatus('ready');
     } catch {
+      if (sequence !== loadSequence.current) return;
       setStatus('error');
     }
   }, [params.id, router]);
+
+  loadPageRef.current = load;
 
   const loadQuestions = useCallback(async () => {
     try {
@@ -548,19 +563,8 @@ export default function PresenterPage() {
     if (!data?.deckUrl || uploadingDeck) return;
     const clamped = Math.min(Math.max(1, nextPage), numDeckPages);
     if (clamped === data.deckPage) return;
-    setData((previous) =>
-      previous ? { ...previous, deckPage: clamped } : previous,
-    );
-    try {
-      await fetch(`/api/live-sessions/${params.id}`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ deckPage: clamped }),
-      });
-    } catch {
-      // Best-effort - the presenter's own view already advanced; a missed
-      // persist just means a page refresh could land one page behind.
-    }
+    inkChannelRef.current?.postMessage({ type: 'deck-preview', deckUrl: data.deckUrl, page: clamped });
+    navigation.navigate(clamped);
   };
 
   const enterPresentation = async () => {
