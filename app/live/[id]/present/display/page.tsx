@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useParams } from 'next/navigation';
-import { Gauge, Maximize, Users } from 'lucide-react';
+import { Maximize, Users } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { supabase } from '@/lib/supabase';
 import { useLanguage } from '@/app/contexts/LanguageContext';
@@ -27,10 +27,10 @@ interface LiveDraft {
  * The audience-safe half of dual-screen presenting: opened as a second
  * window (dragged onto a projector/external display) by the presenter's
  * control page. Purely a mirror - deck, live ink, reactions, and the same
- * low-sensitivity online-count/pulse signal the control page shows, all
- * driven by the live-session:{id} realtime channel. No Q&A list, no
- * moderation, no poll controls - that content stays on the control window,
- * on the presenter's own screen, never projected to the class.
+ * low-sensitivity online-count signal the control page shows, all driven
+ * by the live-session:{id} realtime channel. No Q&A list, no moderation,
+ * no poll controls, no pulse/difficulty feedback - that's all presenter-
+ * facing content that stays on the control window, never projected.
  */
 export default function PresentDisplayPage() {
   const params = useParams<{ id: string }>();
@@ -43,7 +43,6 @@ export default function PresentDisplayPage() {
   const [page, setPage] = useState(1);
   const [deckLoadError, setDeckLoadError] = useState(false);
   const [entered, setEntered] = useState(false);
-  const [pulseAverage, setPulseAverage] = useState<number | null>(null);
   const [strokesByPage, setStrokesByPage] = useState<Record<number, InkStroke[]>>({});
   const [live, setLive] = useState<LiveDraft | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -67,7 +66,6 @@ export default function PresentDisplayPage() {
       setJoinCode(data.joinCode);
       setDeckUrl(data.deckUrl);
       setPage(data.deckPage);
-      setPulseAverage(data.pulse.pulseAverage);
       setStatus('ready');
     } catch {
       setStatus('error');
@@ -99,9 +97,6 @@ export default function PresentDisplayPage() {
       .on('broadcast', { event: 'reaction:sent' }, ({ payload }) => {
         const { kind } = payload as { kind: string };
         pushReaction(kind);
-      })
-      .on('broadcast', { event: 'pulse:update' }, ({ payload }) => {
-        setPulseAverage((payload as LiveSessionOwnerState['pulse']).pulseAverage);
       })
       .on('broadcast', { event: 'presence:ping' }, ({ payload }) => {
         registerPing((payload as { participantId: string }).participantId);
@@ -194,20 +189,10 @@ export default function PresentDisplayPage() {
         </p>
       )}
       <ReactionBurstOverlay reactions={reactions} className="absolute inset-0 z-10" />
-      {((onlineCount ?? 0) > 0 || pulseAverage != null) && (
-        <div className="pointer-events-none absolute bottom-3 left-3 z-10 flex items-center gap-3 rounded-xl border border-white/10 bg-black/60 px-3 py-2 text-[11px] leading-5 text-white/80 backdrop-blur-sm">
-          {onlineCount > 0 && (
-            <span className="flex items-center gap-1">
-              <Users className="h-3 w-3" aria-hidden="true" />
-              {onlineCount}
-            </span>
-          )}
-          {pulseAverage != null && (
-            <span className="flex items-center gap-1">
-              <Gauge className="h-3 w-3" aria-hidden="true" />
-              {pulseAverage.toFixed(1)}
-            </span>
-          )}
+      {onlineCount > 0 && (
+        <div className="pointer-events-none absolute bottom-3 left-3 z-10 flex items-center gap-1 rounded-xl border border-white/10 bg-black/60 px-3 py-2 text-[11px] leading-5 text-white/80 backdrop-blur-sm">
+          <Users className="h-3 w-3" aria-hidden="true" />
+          {onlineCount}
         </div>
       )}
     </div>

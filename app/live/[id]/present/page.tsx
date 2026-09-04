@@ -1304,7 +1304,7 @@ export default function PresenterPage() {
         url={data.deckUrl} page={data.deckPage} numPages={numDeckPages} title={data.title} joinCode={data.joinCode}
         onExit={exitPresentation} onPageChange={(page) => void changeDeckPage(page)} onNumPages={setNumDeckPages}
         reactions={<ReactionBurstOverlay reactions={reactions} className="absolute inset-0 z-[75]" />}
-        onlineCount={onlineCount} pulseAverage={pulseAvg}
+        onlineCount={onlineCount}
         poll={data.poll} questions={questions} moderatingId={moderatingId}
         onModerateQuestion={(item) => void handleModerate(item)}
         quizzes={quizzes} quizzesLoading={quizzesLoading} quizPickerError={quizPickerError}

@@ -111,9 +111,13 @@ describe('GET /api/live-sessions/[id]', () => {
     pollsChain = Object.fromEntries(['select', 'eq', 'maybeSingle'].map((name) => [name, vi.fn()]));
     for (const name of ['select', 'eq']) pollsChain[name].mockReturnValue(pollsChain);
     pollsChain.maybeSingle.mockResolvedValue({ data: { id: 'poll-1', question: 'SUMIF?', options: ['A', 'B'] }, error: null });
-    rpc = vi.fn()
-      .mockResolvedValueOnce({ data: [{ vote_counts: [1, 2], vote_total: 3 }], error: null })
-      .mockResolvedValueOnce({ data: [{ pulse_counts: [0, 1, 0, 1, 0], pulse_total: 2, pulse_average: '3.00' }], error: null });
+    // Poll tally and pulse summary now fetch concurrently (see the GET
+    // handler), so this must respond by RPC name, not call order.
+    rpc = vi.fn((name: string) =>
+      name === 'get_live_poll_tally'
+        ? Promise.resolve({ data: [{ vote_counts: [1, 2], vote_total: 3 }], error: null })
+        : Promise.resolve({ data: [{ pulse_counts: [0, 1, 0, 1, 0], pulse_total: 2, pulse_average: '3.00' }], error: null }),
+    );
     from = vi.fn((table: string) => (table === 'live_polls' ? pollsChain : sessionsChain));
     getServerClient.mockResolvedValue({ auth: { getUser: auth }, from, rpc });
   });

@@ -96,12 +96,11 @@ describe('present display page (projected window)', () => {
     expect(document.querySelector('[data-ink-stroke="s1"]')).toBeNull();
   });
 
-  it('shows online count and pulse average from realtime broadcasts', async () => {
+  it('shows online count from realtime presence pings, with no pulse/difficulty content', async () => {
     await renderDisplay();
     broadcast('presence:ping', { participantId: 'p1' });
-    broadcast('pulse:update', { pulseCounts: [0, 1, 0, 0, 0], pulseTotal: 1, pulseAverage: 2.5 });
     expect(screen.getByText('1')).toBeTruthy();
-    expect(screen.getByText('2.5')).toBeTruthy();
+    expect(screen.queryByText('2.5')).toBeNull();
   });
 
   it('shows an ended message when the session is deleted', async () => {

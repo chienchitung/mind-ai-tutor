@@ -31,7 +31,6 @@ import {
   PinOff,
   Users,
   MessageSquare,
-  Gauge,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useLanguage } from '@/app/contexts/LanguageContext';
@@ -184,10 +183,9 @@ interface Props {
   onPageChange: (page: number) => void;
   onNumPages: (pages: number) => void;
   reactions?: ReactNode;
-  /** Small class signals kept on screen so the presenter never has to exit
-   * projection just to check them. */
+  /** Small class signal kept on screen so the presenter never has to exit
+   * projection just to check it. */
   onlineCount?: number;
-  pulseAverage?: number | null;
   /** Full Q&A/poll panel, opened on demand - lets the presenter moderate
    * questions, read poll results, or launch the next poll from a saved
    * quiz without leaving projection. Picking a fresh, never-used question
@@ -209,7 +207,7 @@ interface Props {
 export const PresentationStage = forwardRef<HTMLDivElement, Props>(function PresentationStage(
   {
     open, url, page, numPages, title, joinCode, onExit, onPageChange, onNumPages, reactions,
-    onlineCount, pulseAverage,
+    onlineCount,
     poll, questions, moderatingId, onModerateQuestion,
     quizzes, quizzesLoading, quizPickerError, onLoadQuizzes, onPickQuizQuestion,
   },
@@ -512,24 +510,16 @@ export const PresentationStage = forwardRef<HTMLDivElement, Props>(function Pres
             </div>
           )}
           {/* Always on, independent of the toolbar's own auto-hide -
-              the point is the presenter can glance at these without first
+              the point is the presenter can glance at this without first
               having to move the mouse, let alone exit projection. The full
               Q&A queue lives in the LivePanel below (opened on demand), not
-              here - this is just a numeric glance. */}
-          {((onlineCount ?? 0) > 0 || pulseAverage != null) && (
-            <div className="pointer-events-none absolute bottom-3 left-3 z-[65] flex items-center gap-3 rounded-xl border border-white/10 bg-black/60 px-3 py-2 text-[11px] leading-5 text-white/80 backdrop-blur-sm">
-              {(onlineCount ?? 0) > 0 && (
-                <span className="flex items-center gap-1">
-                  <Users className="h-3 w-3" aria-hidden="true" />
-                  {onlineCount}
-                </span>
-              )}
-              {pulseAverage != null && (
-                <span className="flex items-center gap-1">
-                  <Gauge className="h-3 w-3" aria-hidden="true" />
-                  {pulseAverage.toFixed(1)}
-                </span>
-              )}
+              here - this is just a numeric glance. Pulse/difficulty was
+              dropped from here - it's presenter-facing feedback, not
+              something to project to the class. */}
+          {(onlineCount ?? 0) > 0 && (
+            <div className="pointer-events-none absolute bottom-3 left-3 z-[65] flex items-center gap-1 rounded-xl border border-white/10 bg-black/60 px-3 py-2 text-[11px] leading-5 text-white/80 backdrop-blur-sm">
+              <Users className="h-3 w-3" aria-hidden="true" />
+              {onlineCount}
             </div>
           )}
           <LivePanel

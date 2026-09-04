@@ -330,7 +330,7 @@ describe('projection tools', () => {
     await screen.findByRole('img');
     expect(screen.queryByRole('button', { name: '知道了，不再顯示' })).toBeNull();
   });
-  it('shows small class signals (online count, pulse) regardless of toolbar visibility', async () => {
+  it('shows the online-count signal regardless of toolbar visibility, with no pulse/difficulty content', async () => {
     vi.stubGlobal('localStorage', { getItem: () => '1', setItem: vi.fn() });
     render(
       <LanguageProvider>
@@ -345,13 +345,12 @@ describe('projection tools', () => {
           onPageChange={() => {}}
           onNumPages={() => {}}
           onlineCount={12}
-          pulseAverage={3.4}
         />
       </LanguageProvider>,
     );
     await screen.findByRole('img');
     expect(screen.getByText('12')).toBeTruthy();
-    expect(screen.getByText('3.4')).toBeTruthy();
+    expect(screen.queryByText('3.4')).toBeNull();
   });
 });
 

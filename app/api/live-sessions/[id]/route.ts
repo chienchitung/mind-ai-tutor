@@ -22,22 +22,35 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
     if (sessionError) return NextResponse.json({ error: 'LIVE_STORAGE_ERROR' }, { status: 500 });
     if (!session) return NextResponse.json({ error: 'NOT_FOUND' }, { status: 404 });
 
-    let poll: { pollId: string; question: string; options: string[]; voteCounts: number[]; voteTotal: number } | null = null;
-    if (session.active_poll_id) {
+    // Poll (+ its tally, once the poll row resolves) and pulse are
+    // independent of each other - only the poll fetch itself has an
+    // internal two-step dependency (needs the poll row's id before it can
+    // ask for the tally). Running the whole poll chain concurrently with
+    // pulse instead of after it saves a full round trip on every load.
+    type PollResult = { pollId: string; question: string; options: string[]; voteCounts: number[]; voteTotal: number } | null;
+    const activePollId = session.active_poll_id;
+    const fetchPoll = async (): Promise<{ poll: PollResult } | { errorResponse: NextResponse }> => {
+      if (!activePollId) return { poll: null };
       const { data: pollRow, error: pollError } = await client.from('live_polls')
-        .select('id, question, options').eq('id', session.active_poll_id).maybeSingle();
-      if (pollError) return NextResponse.json({ error: 'LIVE_STORAGE_ERROR' }, { status: 500 });
-      if (pollRow) {
-        const { data: tally, error: tallyError } = await client.rpc('get_live_poll_tally', { p_poll_id: pollRow.id });
-        if (tallyError) return NextResponse.json({ error: 'LIVE_STORAGE_ERROR' }, { status: 500 });
-        const tallyRow = Array.isArray(tally) ? tally[0] : tally;
-        poll = {
+        .select('id, question, options').eq('id', activePollId).maybeSingle();
+      if (pollError) return { errorResponse: NextResponse.json({ error: 'LIVE_STORAGE_ERROR' }, { status: 500 }) };
+      if (!pollRow) return { poll: null };
+      const { data: tally, error: tallyError } = await client.rpc('get_live_poll_tally', { p_poll_id: pollRow.id });
+      if (tallyError) return { errorResponse: NextResponse.json({ error: 'LIVE_STORAGE_ERROR' }, { status: 500 }) };
+      const tallyRow = Array.isArray(tally) ? tally[0] : tally;
+      return {
+        poll: {
           pollId: pollRow.id, question: pollRow.question, options: pollRow.options as string[],
           voteCounts: tallyRow?.vote_counts ?? [], voteTotal: tallyRow?.vote_total ?? 0,
-        };
-      }
-    }
-    const { data: pulse, error: pulseError } = await client.rpc('get_live_pulse_summary', { p_session_id: id });
+        },
+      };
+    };
+    const [pollResult, { data: pulse, error: pulseError }] = await Promise.all([
+      fetchPoll(),
+      client.rpc('get_live_pulse_summary', { p_session_id: id }),
+    ]);
+    if ('errorResponse' in pollResult) return pollResult.errorResponse;
+    const poll = pollResult.poll;
     if (pulseError) return NextResponse.json({ error: 'LIVE_STORAGE_ERROR' }, { status: 500 });
     const pulseRow = Array.isArray(pulse) ? pulse[0] : pulse;
 
