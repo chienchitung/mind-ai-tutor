@@ -43,6 +43,7 @@ beforeAll(async () => {
     "scripts/add_live_sessions.sql",
     "scripts/add_live_session_phase2.sql",
     "supabase/migrations/20260904051713_live_presentation_flow.sql",
+    "supabase/migrations/20260904101418_live_qa_display_options.sql",
   ])
     await db.exec(readFileSync(file, "utf8"));
   await db.query(
@@ -144,6 +145,70 @@ describe("presentation state and database enforcement", () => {
       [sid],
     );
     expect((await snapshot()).questions).toEqual([]);
+  });
+  it("persists density/sorting, freezes selection, validates commands and advances atomically", async () => {
+    const ids: string[] = [];
+    for (let i = 0; i < 8; i++) {
+      const r = await db.query<{ id: string }>(
+        "insert into live_questions(session_id,participant_id,text,lens,visibility,upvotes,created_at) values($1,$2,$3,'clarify','public',$4,now()+($4::int::text || ' seconds')::interval) returning id",
+        [sid, participant, `Question ${i}`, i],
+      );
+      ids.push(r.rows[0].id);
+    }
+    await command({ action: "show", mode: "questions" });
+    expect((await snapshot()).questions).toHaveLength(4);
+    await command({
+      action: "show",
+      mode: "questions",
+      pageSize: 6,
+      sort: "oldest",
+    });
+    expect((await snapshot()).questions.map((q: any) => q.id)).toEqual(
+      ids.slice(0, 6),
+    );
+    await command({
+      action: "show",
+      mode: "questions",
+      pageSize: 3,
+      sort: "newest",
+      offset: 3,
+    });
+    let state = await snapshot();
+    expect(state.questions.map((q: any) => q.id)).toEqual([
+      ids[4],
+      ids[3],
+      ids[2],
+    ]);
+    expect(state.overview).toMatchObject({
+      pageSize: 3,
+      sort: "newest",
+      offset: 3,
+      total: 8,
+    });
+    await db.query("update live_questions set upvotes=999 where id=$1", [
+      ids[0],
+    ]);
+    expect((await snapshot()).questions.map((q: any) => q.id)).toEqual(
+      state.questions.map((q: any) => q.id),
+    );
+    await expect(
+      command({ action: "show", mode: "questions", pageSize: 100 }),
+    ).rejects.toThrow("INVALID_COMMAND");
+    await expect(
+      command({ action: "show", mode: "questions", sort: "unsafe" }),
+    ).rejects.toThrow("INVALID_COMMAND");
+    await command({ action: "show", mode: "question", questionId: ids[7] });
+    await command({
+      action: "answer",
+      questionId: ids[7],
+      answered: true,
+      advance: true,
+    });
+    state = await snapshot();
+    expect(state.questions[0].id).toBe(ids[6]);
+    expect(state.answeredIds).toContain(ids[7]);
+    await command({ action: "show", mode: "questions", offset: 999 });
+    expect((await snapshot()).overview.offset).toBe(6);
   });
   it("rejects stale poll commands and controls after the session ends", async () => {
     await expect(

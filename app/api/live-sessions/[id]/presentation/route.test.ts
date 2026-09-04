@@ -41,6 +41,11 @@ beforeEach(() => {
     });
 });
 describe("presentation API boundary", () => {
+  it("rejects unsupported display size and sorting before RPC", async () => {
+    expect((await call({ action:"show", mode:"questions", pageSize:100 })).status).toBe(400);
+    expect((await call({ action:"show", mode:"questions", sort:"random" })).status).toBe(400);
+    expect(mocks.rpc).not.toHaveBeenCalled();
+  });
   it("rejects cross-origin writes before touching storage", async () => {
     expect(
       (await call({ action: "show", mode: "blank" }, "https://other.test"))

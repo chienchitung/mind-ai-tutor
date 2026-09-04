@@ -127,7 +127,22 @@ export default function PresentDisplayPage() {
       }
     };
     const ping = () => {
-      if (readyRef.current) channel.postMessage({ type: "ready" });
+      if (readyRef.current) {
+        channel.postMessage({ type: "ready" });
+        const content = containerRef.current?.querySelector(
+          "[data-projection-scroll]",
+        );
+        if (content)
+          channel.postMessage({
+            type: "viewport",
+            width: content.clientWidth,
+            height: content.clientHeight,
+            up: content.scrollTop > 1,
+            down:
+              content.scrollTop + content.clientHeight <
+              content.scrollHeight - 1,
+          });
+      }
       setConnected(Date.now() - lastInk.current < 6000);
     };
     ping();

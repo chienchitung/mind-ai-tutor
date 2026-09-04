@@ -12,6 +12,13 @@ export interface PresentationSnapshot {
   poll: (LivePollState & { phase: PollPhase }) | null;
   questions: { id: string; text: string; upvotes: number; answered: boolean }[];
   answeredIds: string[];
+  overview?: {
+    pageSize: 3 | 4 | 6;
+    sort: "popular" | "newest" | "oldest";
+    offset: number;
+    total: number;
+    newCount: number;
+  };
 }
 export const presentationCommandSchema = z.discriminatedUnion("action", [
   z
@@ -19,6 +26,8 @@ export const presentationCommandSchema = z.discriminatedUnion("action", [
       action: z.literal("show"),
       mode: z.enum(["deck", "blank", "poll", "questions"]),
       offset: z.number().int().min(0).max(10000).optional(),
+      pageSize: z.union([z.literal(3), z.literal(4), z.literal(6)]).optional(),
+      sort: z.enum(["popular", "newest", "oldest"]).optional(),
     })
     .strict(),
   // z.discriminatedUnion needs unique discriminants; single-question is normalized by the route.
@@ -37,6 +46,7 @@ export const presentationCommandSchema = z.discriminatedUnion("action", [
       action: z.literal("answer"),
       questionId: z.string().uuid(),
       answered: z.boolean(),
+      advance: z.boolean().optional(),
     })
     .strict(),
 ]);

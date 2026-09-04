@@ -7,8 +7,10 @@ This change adds a persisted presentation state for the dual-screen classroom mo
 1. Create a poll (it starts in **draft**, including the first poll in a new session).
 2. Show the question, open voting, close voting, then reveal results. Reopening retains existing votes and allows students to change their vote.
 3. Q&A and reactions remain available when only voting is closed. Session pause/close still applies to all student interaction.
-4. Feature a single public question, or show three pending questions per overview page. The overview's IDs/order are frozen until the teacher selects a different page. Hidden/answered questions are excluded when snapshots are read.
-5. Use Back to slides or Blank screen at any time. Long projected content can be scrolled using the controls beside the preview.
+4. Feature a single public question, or show 3, 4 (default), or 6 pending questions per overview page. The overview's IDs/order are frozen until the teacher explicitly refreshes, changes sorting/density, or selects a different page. Hidden/answered questions are excluded when snapshots are read.
+5. Use Back to slides or Blank screen at any time. Long single questions and polls expose scroll arrows only when the connected display reports overflow. The overview uses bounded cards (long text is summarized with an ellipsis; feature the question to read it fully). Content previews use the display content aspect ratio, defaulting to 1600:820 while disconnected, and container-relative typography. An enlarged preview is available.
+
+6. Choose Popular / Newest / Oldest sorting. Display settings and offset survive reload; new public submissions are counted without replacing the frozen selection. Answer-and-next is one atomic owner command and chooses the next pending public question using the saved sorting.
 
 ## Synchronization and privacy
 
@@ -23,6 +25,8 @@ This change adds a persisted presentation state for the dual-screen classroom mo
 ## Rollout — migration before application deployment
 
 Apply `supabase/migrations/20260904051713_live_presentation_flow.sql` **after** the existing `scripts/add_live_sessions.sql` and `scripts/add_live_session_phase2.sql` setup, before deploying this app version. The repository's older schema lives in `scripts/`; this is an incremental migration, not a complete empty-database bootstrap.
+
+Also apply `supabase/migrations/20260904101418_live_qa_display_options.sql` after the initial presentation migration and before deploying the adjustable Q&A UI. This replaces the two RPC definitions without changing existing rows or grants. Roll back this UI before restoring the prior RPC definitions if required.
 
 The migration is additive and transactional. Existing polls default to open for compatibility with current sessions. It adds no direct anonymous table grants. Only the owner command RPC can change phases; the guard also protects existing vote RPC callers.
 

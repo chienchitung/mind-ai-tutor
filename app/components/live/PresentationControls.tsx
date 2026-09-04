@@ -1,5 +1,11 @@
 "use client";
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import {
+  Dialog,
+  DialogContent,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { useLanguage } from "@/app/contexts/LanguageContext";
 import { displayLabel, phaseLabel } from "@/lib/live-presentation";
@@ -24,7 +30,45 @@ export function PresentationControls({
     `/api/live-sessions/${sessionId}/presentation`,
     sessionId,
   );
-  const [offset, setOffset] = useState(0);
+  const offset = snapshot?.overview?.offset ?? 0;
+  const pageSize = snapshot?.overview?.pageSize ?? 4;
+  const sort = snapshot?.overview?.sort ?? "popular";
+  const total = snapshot?.overview?.total ?? 0;
+  const [displayMetrics, setDisplayMetrics] = useState({
+    width: 1600,
+    height: 820,
+    up: false,
+    down: false,
+  });
+  useEffect(() => {
+    if (typeof BroadcastChannel === "undefined") return;
+    const channel = new BroadcastChannel(`live-ink:${sessionId}`);
+    channel.onmessage = ({ data }) => {
+      if (
+        data?.type === "viewport" &&
+        Number.isFinite(data.width) &&
+        Number.isFinite(data.height) &&
+        data.width > 0 &&
+        data.height > 0
+      ) {
+        setDisplayMetrics({
+          width: data.width,
+          height: data.height,
+          up: data.up === true,
+          down: data.down === true,
+        });
+      }
+    };
+    return () => channel.close();
+  }, [sessionId]);
+  const showOverview = (nextOffset = 0, size = pageSize, order = sort) =>
+    command({
+      action: "show",
+      mode: "questions",
+      offset: nextOffset,
+      pageSize: size,
+      sort: order,
+    });
   const [showAnswered, setShowAnswered] = useState(false);
   const disabled = pending || !snapshot || snapshot.status === "closed";
   const candidates = questions.filter(
@@ -180,7 +224,7 @@ export function PresentationControls({
               </div>
             </div>
           )}
-          <details className="rounded-xl border p-4">
+          <details open className="rounded-xl border p-4">
             <summary className="cursor-pointer font-semibold">
               {zh
                 ? "問答控場：指定問題、標記已回答"
@@ -188,61 +232,93 @@ export function PresentationControls({
             </summary>
             <p className="my-3 text-sm text-muted-foreground">
               {zh
-                ? "只有公開問題可以投射；投射不會改變問題的公開設定。總覽每頁最多三題，順序在換頁時更新。"
-                : "Only public questions can be projected. Visibility stays unchanged. Overview shows three questions per page."}
+                ? "只有公開問題可以投射；投射不會改變問題的公開設定。可調整每頁題數與排序；新提問或按讚不會使投影跳動。長題目在總覽顯示摘要，按「放大這題」閱讀全文。"
+                : "Only public questions can be projected. Visibility stays unchanged. Choose the display density and order. Questions stay in place until you update them."}
             </p>
-            <div className="mb-3 flex flex-wrap gap-2">
+            <div className="mb-3 flex flex-wrap items-end gap-3">
+              <label className="grid gap-1 text-sm">
+                {zh ? "每頁題數" : "Questions per page"}
+                <select
+                  className="rounded-md border bg-background p-2"
+                  disabled={disabled}
+                  value={pageSize}
+                  onChange={(e) =>
+                    void showOverview(0, Number(e.target.value) as 3 | 4 | 6)
+                  }
+                >
+                  {[3, 4, 6].map((n) => (
+                    <option key={n} value={n}>
+                      {n}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label className="grid gap-1 text-sm">
+                {zh ? "投影排序" : "Display order"}
+                <select
+                  className="rounded-md border bg-background p-2"
+                  disabled={disabled}
+                  value={sort}
+                  onChange={(e) =>
+                    void showOverview(
+                      0,
+                      pageSize,
+                      e.target.value as typeof sort,
+                    )
+                  }
+                >
+                  <option value="popular">
+                    {zh ? "最多讚" : "Most votes"}
+                  </option>
+                  <option value="newest">{zh ? "最新" : "Newest"}</option>
+                  <option value="oldest">{zh ? "最早" : "Oldest"}</option>
+                </select>
+              </label>
+            </div>
+            <div className="mb-3 flex flex-wrap items-center gap-2">
               <Button
                 disabled={disabled}
                 variant="outline"
-                onClick={() => {
-                  setOffset(0);
-                  void command({
-                    action: "show",
-                    mode: "questions",
-                    offset: 0,
-                  });
-                }}
+                onClick={() => void showOverview()}
               >
                 {zh ? "投射問題總覽" : "Show overview"}
               </Button>
               <Button
                 disabled={disabled || offset === 0}
                 variant="outline"
-                onClick={() => {
-                  const next = Math.max(0, offset - 3);
-                  setOffset(next);
-                  void command({
-                    action: "show",
-                    mode: "questions",
-                    offset: next,
-                  });
-                }}
+                onClick={() =>
+                  void showOverview(Math.max(0, offset - pageSize))
+                }
               >
-                {zh ? "上一頁" : "Previous"}
+                {zh ? "上一組" : "Previous group"}
               </Button>
               <Button
-                disabled={
-                  disabled ||
-                  offset + 3 >=
-                    questions.filter(
-                      (q) =>
-                        q.visibility === "public" &&
-                        !snapshot?.answeredIds.includes(q.id),
-                    ).length
-                }
+                disabled={disabled || offset + pageSize >= total}
                 variant="outline"
-                onClick={() => {
-                  const next = offset + 3;
-                  setOffset(next);
-                  void command({
-                    action: "show",
-                    mode: "questions",
-                    offset: next,
-                  });
-                }}
+                onClick={() => void showOverview(offset + pageSize)}
               >
-                {zh ? "下一頁" : "Next"}
+                {zh ? "下一組" : "Next group"}
+              </Button>
+              <span className="text-sm text-muted-foreground" role="status">
+                {zh ? `共 ${total} 題待回答` : `${total} pending`}
+                {snapshot?.mode === "questions" &&
+                  snapshot.questions.length > 0 &&
+                  (zh
+                    ? ` · 本組 ${offset + 1}–${offset + snapshot.questions.length}`
+                    : ` · Group ${offset + 1}–${offset + snapshot.questions.length}`)}
+              </span>
+              <Button
+                disabled={disabled}
+                variant="outline"
+                onClick={() => void showOverview(offset)}
+              >
+                {(snapshot?.overview?.newCount ?? 0) > 0
+                  ? zh
+                    ? `${snapshot!.overview!.newCount} 個新問題・更新總覽`
+                    : `${snapshot!.overview!.newCount} new · Update overview`
+                  : zh
+                    ? "更新總覽排序"
+                    : "Refresh overview"}
               </Button>
               <Button
                 variant="ghost"
@@ -261,7 +337,7 @@ export function PresentationControls({
               {candidates.map((q) => (
                 <li key={q.id} className="space-y-2 rounded-lg bg-muted/40 p-3">
                   <p className="break-words text-sm">{q.text}</p>
-                  <div className="flex gap-2">
+                  <div className="flex flex-wrap gap-2">
                     {!showAnswered && (
                       <Button
                         size="sm"
@@ -270,9 +346,27 @@ export function PresentationControls({
                           void command({ action: "question", questionId: q.id })
                         }
                       >
-                        {zh ? "投射這題" : "Feature"}
+                        {zh ? "放大這題" : "Feature"}
                       </Button>
                     )}
+                    {!showAnswered &&
+                      snapshot?.mode === "question" &&
+                      snapshot.questions[0]?.id === q.id && (
+                        <Button
+                          size="sm"
+                          disabled={disabled}
+                          onClick={() =>
+                            void command({
+                              action: "answer",
+                              questionId: q.id,
+                              answered: true,
+                              advance: true,
+                            })
+                          }
+                        >
+                          {zh ? "已回答並顯示下一題" : "Answer and show next"}
+                        </Button>
+                      )}
                     <Button
                       size="sm"
                       variant="outline"
@@ -304,25 +398,66 @@ export function PresentationControls({
             <summary className="mb-2 cursor-pointer text-sm font-medium">
               {zh ? "投影內容預覽" : "Projected content preview"}
             </summary>
-            <div className="mb-2 flex gap-2">
-              <Button
-                size="sm"
-                variant="ghost"
-                disabled={!connected}
-                onClick={() => scrollDisplay(-1)}
-              >
-                {zh ? "投影內容往上" : "Scroll display up"}
-              </Button>
-              <Button
-                size="sm"
-                variant="ghost"
-                disabled={!connected}
-                onClick={() => scrollDisplay(1)}
-              >
-                {zh ? "投影內容往下" : "Scroll display down"}
-              </Button>
-            </div>
-            <div className="h-72 overflow-hidden rounded-xl bg-slate-950 text-white">
+            {connected &&
+              ["question", "poll"].includes(snapshot.mode) &&
+              (displayMetrics.up || displayMetrics.down) && (
+                <div className="mb-2 flex items-center gap-2 text-sm">
+                  <span>{zh ? "捲動投影畫面" : "Scroll projected screen"}</span>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    disabled={!displayMetrics.up}
+                    onClick={() => scrollDisplay(-1)}
+                    aria-label={zh ? "投影往上捲動" : "Scroll display up"}
+                  >
+                    ↑
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    disabled={!displayMetrics.down}
+                    onClick={() => scrollDisplay(1)}
+                    aria-label={zh ? "投影往下捲動" : "Scroll display down"}
+                  >
+                    ↓
+                  </Button>
+                </div>
+              )}
+            <Dialog>
+              <DialogTrigger asChild>
+                <Button variant="outline" size="sm" className="mb-2">
+                  {zh ? "放大預覽" : "Enlarge preview"}
+                </Button>
+              </DialogTrigger>
+              <DialogContent className="max-w-6xl">
+                <DialogTitle>
+                  {zh ? "投影內容預覽" : "Projected content preview"}
+                </DialogTitle>
+                <div
+                  className="mx-auto overflow-hidden rounded-xl bg-slate-950 text-white"
+                  style={{
+                    aspectRatio: `${displayMetrics.width}/${displayMetrics.height}`,
+                    width: `min(100%, ${(75 * displayMetrics.width) / displayMetrics.height}vh)`,
+                  }}
+                >
+                  {snapshot.mode === "deck" && snapshot.deckUrl ? (
+                    <DeckViewer
+                      url={snapshot.deckUrl}
+                      page={snapshot.deckPage}
+                      className="h-full w-full"
+                    />
+                  ) : (
+                    <PresentationContent snapshot={snapshot} preview />
+                  )}
+                </div>
+              </DialogContent>
+            </Dialog>
+            <div
+              className="overflow-hidden rounded-xl bg-slate-950 text-white"
+              style={{
+                aspectRatio: `${displayMetrics.width}/${displayMetrics.height}`,
+              }}
+            >
               {snapshot.mode === "deck" && snapshot.deckUrl ? (
                 <DeckViewer
                   url={snapshot.deckUrl}

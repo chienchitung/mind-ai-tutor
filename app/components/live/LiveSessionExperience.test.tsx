@@ -552,8 +552,8 @@ describe('dual-screen presenting', () => {
     mount(<PresenterPage />);
     await screen.findByRole('heading',{name:session.title});
     fireEvent.click(screen.getByText('問答控場：指定問題、標記已回答'));
-    expect(screen.getAllByRole('button',{name:'投射這題'})).toHaveLength(1);
-    fireEvent.click(screen.getByRole('button',{name:'投射這題'}));
+    expect(screen.getAllByRole('button',{name:'放大這題'})).toHaveLength(1);
+    fireEvent.click(screen.getByRole('button',{name:'放大這題'}));
     await waitFor(()=>expect(fetchMock).toHaveBeenCalledWith('/api/live-sessions/123456/presentation',expect.objectContaining({body:JSON.stringify({action:'question',questionId:questions[0].id})})));
   });
 
