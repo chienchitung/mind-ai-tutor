@@ -111,6 +111,56 @@ describe('projection tools', () => {
     expect(commit.mock.calls[0][0][0].points[0]).toEqual({ x: 0.125, y: 0.25 });
     expect(drawing).toHaveBeenLastCalledWith(false);
   });
+  it('reports live draft/pointer changes as they happen, for mirroring onto a second window', () => {
+    const live = vi.fn();
+    render(
+      <AnnotationLayer
+        strokes={[]}
+        tool="pen"
+        color="#fb7185"
+        width={3}
+        label="canvas"
+        onCommit={() => {}}
+        onDrawingChange={() => {}}
+        onLiveChange={live}
+      />,
+    );
+    const surface = screen.getByRole('img', { name: 'canvas' });
+    expect(live).toHaveBeenLastCalledWith({ draft: [], pointer: null });
+    live.mockClear();
+    down(surface, 100, 100);
+    expect(live.mock.calls.some(([value]) => value.draft.length === 1)).toBe(true);
+    move(surface, 200, 150);
+    expect(live.mock.calls.some(([value]) => value.draft.length === 2)).toBe(true);
+    live.mockClear();
+    up(surface, 300, 200);
+    // draft clears once the stroke commits; pointer isn't touched by a pen
+    // gesture past its very first point (move() only tracks pointer
+    // position for laser/eraser, which drive the visible dot) - it just
+    // sits wherever the gesture started until the tool changes or the
+    // pointer leaves the surface with no active gesture.
+    expect(live).toHaveBeenLastCalledWith({ draft: [], pointer: { x: 0.125, y: 0.25 } });
+  });
+  it('reports the laser pointer position live, with no draft stroke', () => {
+    const live = vi.fn();
+    render(
+      <AnnotationLayer
+        strokes={[]}
+        tool="laser"
+        color="#fff"
+        width={3}
+        label="canvas"
+        onCommit={() => {}}
+        onDrawingChange={() => {}}
+        onLiveChange={live}
+      />,
+    );
+    const surface = screen.getByRole('img');
+    move(surface, 300, 200);
+    expect(live).toHaveBeenLastCalledWith({ draft: [], pointer: { x: 0.375, y: 0.5 } });
+    fireEvent.pointerLeave(surface);
+    expect(live).toHaveBeenLastCalledWith({ draft: [], pointer: null });
+  });
   it('ignores right clicks and additional touch pointers while drawing', () => {
     const commit = vi.fn();
     render(

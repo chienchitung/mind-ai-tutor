@@ -102,13 +102,20 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
 
     // Scheduled after the response is sent: a slow or hung Realtime connect
     // must never delay the click that triggered it - the write already
-    // committed, so the client's own optimistic update is the source of
-    // truth for its own action either way. Deck page changes are presenter-
-    // only state (the audience never sees the deck), so only a status change
-    // is worth broadcasting.
+    // committed, so the initiating client's own optimistic update is the
+    // source of truth for its own action either way; these broadcasts are
+    // for OTHER listeners (the audience page for status, and now the
+    // presenter's own read-only projected display window for deck page).
     if (parsed.data.status !== undefined) {
       after(() => broadcastLiveUpdate(id, 'session:status', { status: data.status })
         .catch((cause) => console.error('live-sessions status broadcast failed:', cause)));
+    }
+    // deckUrl and deckPage always land in the same PATCH in practice (a deck
+    // upload/swap/removal resets the page too), so one event carries both -
+    // the display window never needs a follow-up fetch to pick up a swap.
+    if (parsed.data.deckPage !== undefined) {
+      after(() => broadcastLiveUpdate(id, 'deck:sync', { page: data.deck_page, deckUrl: data.deck_url ?? null })
+        .catch((cause) => console.error('live-sessions deck sync broadcast failed:', cause)));
     }
 
     return NextResponse.json(

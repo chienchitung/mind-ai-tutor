@@ -24,6 +24,7 @@ const mocks = vi.hoisted(() => ({
   toast: vi.fn(),
   events: new Map<string, (arg: { payload: unknown }) => void>(),
   subscribeCallback: null as ((status: string) => void) | null,
+  send: vi.fn(),
 }));
 vi.mock('next/navigation', () => {
   const router = { push: mocks.push };
@@ -41,7 +42,12 @@ vi.mock('@/hooks/use-toast', () => ({
   useToast: () => ({ toast: mocks.toast }),
 }));
 vi.mock('@/components/live/DeckViewer', () => ({
-  DeckViewer: () => <div>PDF viewer</div>,
+  DeckViewer: ({ overlay }: { overlay?: ReactNode }) => (
+    <div>
+      PDF viewer
+      {overlay}
+    </div>
+  ),
 }));
 vi.mock('@/lib/supabase', () => ({
   supabase: () => {
@@ -59,7 +65,7 @@ vi.mock('@/lib/supabase', () => ({
         callback?.('SUBSCRIBED');
         return channel;
       },
-      send: vi.fn(),
+      send: mocks.send,
     };
     return { channel: () => channel, removeChannel: vi.fn() };
   },
@@ -119,6 +125,7 @@ beforeEach(() => {
   mocks.events.clear();
   mocks.push.mockClear();
   mocks.toast.mockClear();
+  mocks.send.mockClear();
   // Explicit storage doubles also work with Node versions exposing native Web Storage.
   for (const name of ['localStorage', 'sessionStorage']) {
     const values = new Map<string, string>();
@@ -448,6 +455,81 @@ describe('Live Session experience', () => {
     // The interactive area is gone entirely for a closed session, not just
     // disabled - that's the point of the simplified screen.
     expect(screen.queryByRole('button', { name: '掌聲' })).toBeNull();
+  });
+});
+
+describe('dual-screen presenting', () => {
+  class TestPointer extends MouseEvent {
+    pointerId: number;
+    isPrimary: boolean;
+    constructor(type: string, args: PointerEventInit = {}) {
+      super(type, args);
+      this.pointerId = args.pointerId ?? 1;
+      this.isPrimary = args.isPrimary ?? true;
+    }
+  }
+  beforeEach(() => {
+    fetchMock.mockImplementation(async (url: string) =>
+      response(url.includes('/questions') ? questions : { ...session, deckUrl: '/deck.pdf' }),
+    );
+    vi.stubGlobal('PointerEvent', TestPointer);
+    Element.prototype.setPointerCapture = vi.fn();
+    Element.prototype.releasePointerCapture = vi.fn();
+    Element.prototype.hasPointerCapture = vi.fn(() => true);
+    vi.spyOn(Element.prototype, 'getBoundingClientRect').mockReturnValue({
+      x: 0, y: 0, left: 0, top: 0, width: 800, height: 400, bottom: 400, right: 800, toJSON: () => ({}),
+    });
+  });
+
+  it('opens a second window for the projector and shows the drawing toolbar', async () => {
+    const displayWindow = { closed: false, close: vi.fn() };
+    const open = vi.fn().mockReturnValue(displayWindow);
+    vi.stubGlobal('open', open);
+    mount(<PresenterPage />);
+    await screen.findByRole('heading', { name: session.title });
+    expect(screen.queryByRole('button', { name: '畫筆' })).toBeNull();
+    fireEvent.click(screen.getByRole('button', { name: '雙螢幕投影' }));
+    expect(open).toHaveBeenCalledWith('/live/123456/present/display', 'live-display-123456', 'popup');
+    expect(screen.getByRole('button', { name: '畫筆' })).toBeTruthy();
+    expect(screen.getByRole('button', { name: '停止雙螢幕投影' })).toBeTruthy();
+    fireEvent.click(screen.getByRole('button', { name: '停止雙螢幕投影' }));
+    expect(displayWindow.close).toHaveBeenCalled();
+    expect(screen.queryByRole('button', { name: '畫筆' })).toBeNull();
+  });
+
+  it('shows a destructive toast when the popup is blocked', async () => {
+    vi.stubGlobal('open', vi.fn().mockReturnValue(null));
+    mount(<PresenterPage />);
+    await screen.findByRole('heading', { name: session.title });
+    fireEvent.click(screen.getByRole('button', { name: '雙螢幕投影' }));
+    expect(mocks.toast).toHaveBeenCalledWith(expect.objectContaining({ variant: 'destructive' }));
+    expect(screen.queryByRole('button', { name: '畫筆' })).toBeNull();
+  });
+
+  it('broadcasts a drawn stroke to the display window over the same realtime channel', async () => {
+    vi.stubGlobal('open', vi.fn().mockReturnValue({ closed: false, close: vi.fn() }));
+    mount(<PresenterPage />);
+    await screen.findByRole('heading', { name: session.title });
+    fireEvent.click(screen.getByRole('button', { name: '雙螢幕投影' }));
+    fireEvent.click(screen.getByRole('button', { name: '畫筆' }));
+    const surface = screen.getByRole('img', { name: '投影片標註區' });
+    fireEvent.pointerDown(surface, { clientX: 100, clientY: 100, pointerId: 1, button: 0 });
+    fireEvent.pointerMove(surface, { clientX: 200, clientY: 150, pointerId: 1, buttons: 1 });
+    fireEvent.pointerUp(surface, { clientX: 200, clientY: 150, pointerId: 1, button: 0 });
+    // The dual-screen toggle itself already sends one "catch-up" sync with
+    // zero strokes (nothing drawn yet) - wait specifically for the one
+    // carrying the just-committed stroke, not just any annotation:sync call.
+    await waitFor(() =>
+      expect(
+        mocks.send.mock.calls.some(
+          (call) => call[0]?.event === 'annotation:sync' && call[0]?.payload?.strokes?.length === 1,
+        ),
+      ).toBe(true),
+    );
+    const syncCall = mocks.send.mock.calls.find(
+      (call) => call[0]?.event === 'annotation:sync' && call[0]?.payload?.page === 1 && call[0]?.payload?.strokes?.length === 1,
+    )!;
+    expect(syncCall[0].payload.strokes).toHaveLength(1);
   });
 });
 

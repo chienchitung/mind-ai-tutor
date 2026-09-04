@@ -57,13 +57,19 @@ describe('PATCH /api/live-sessions/[id]', () => {
     expect(chain.eq).toHaveBeenCalledWith('user_id', 'owner');
     expect(broadcastLiveUpdate).toHaveBeenCalledWith(id, 'session:status', { status: 'paused' });
   });
-  it('updates the deck url/page without broadcasting (presenter-only state)', async () => {
+  it('updates the deck url/page and broadcasts it for a projected display window to follow', async () => {
     chain.maybeSingle.mockResolvedValue({ data: { id, status: 'open', deck_url: 'https://example.test/deck.pdf', deck_page: 3 }, error: null });
     const response = await PATCH(request({ deckUrl: 'https://example.test/deck.pdf', deckPage: 3 }), { params: params() });
     expect(response.status).toBe(200);
     expect(await response.json()).toEqual({ id, status: 'open', deckUrl: 'https://example.test/deck.pdf', deckPage: 3 });
     expect(chain.update).toHaveBeenCalledWith(expect.objectContaining({ deck_url: 'https://example.test/deck.pdf', deck_page: 3 }));
-    expect(broadcastLiveUpdate).not.toHaveBeenCalled();
+    expect(broadcastLiveUpdate).toHaveBeenCalledWith(id, 'deck:sync', { page: 3, deckUrl: 'https://example.test/deck.pdf' });
+  });
+  it('broadcasts a plain page turn (no deck url change) the same way', async () => {
+    // Default mock: chain.maybeSingle resolves { id, status: 'paused', deck_url: null, deck_page: 1 }.
+    const response = await PATCH(request({ deckPage: 2 }), { params: params() });
+    expect(response.status).toBe(200);
+    expect(broadcastLiveUpdate).toHaveBeenCalledWith(id, 'deck:sync', { page: 1, deckUrl: null });
   });
   it('returns 404 when nothing owned by this user matched', async () => {
     chain.maybeSingle.mockResolvedValue({ data: null, error: null });

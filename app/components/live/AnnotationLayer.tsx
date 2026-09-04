@@ -17,6 +17,12 @@ interface Props {
   label: string;
   onCommit: (strokes: InkStroke[]) => void;
   onDrawingChange: (drawing: boolean) => void;
+  /** Fires on every change to the in-progress (uncommitted) draft stroke or
+   * the laser/eraser pointer position - draft is empty and pointer is null
+   * between gestures. A parent can use this to mirror drawing in real time
+   * onto a second, read-only surface (e.g. a projected display window)
+   * before the stroke is ever committed. */
+  onLiveChange?: (live: { draft: InkPoint[]; pointer: InkPoint | null }) => void;
 }
 interface Gesture {
   pointerId: number;
@@ -25,7 +31,7 @@ interface Gesture {
   erased: Set<string>;
 }
 
-export function AnnotationLayer({ strokes, tool, color, width, label, onCommit, onDrawingChange }: Props) {
+export function AnnotationLayer({ strokes, tool, color, width, label, onCommit, onDrawingChange, onLiveChange }: Props) {
   const surfaceRef = useRef<SVGSVGElement>(null);
   const gesture = useRef<Gesture | null>(null);
   const [draft, setDraft] = useState<InkPoint[]>([]);
@@ -43,6 +49,12 @@ export function AnnotationLayer({ strokes, tool, color, width, label, onCommit, 
   useEffect(() => {
     setPointer(null);
   }, [tool]);
+  // A plain effect (rather than calling onLiveChange at every setDraft/
+  // setPointer call site) so every state transition is reported exactly
+  // once, including the laser-hide timeout's own setPointer(null).
+  useEffect(() => {
+    onLiveChange?.({ draft, pointer });
+  }, [draft, pointer, onLiveChange]);
 
   function sample(event: PointerEvent<SVGSVGElement>) {
     return pagePoint(event.clientX, event.clientY, event.currentTarget.getBoundingClientRect());

@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useReducer, useRef, useState } from 'react';
 import { flushSync } from 'react-dom';
 import { useParams, useRouter } from 'next/navigation';
 import {
@@ -23,6 +23,13 @@ import {
   MessageSquare,
   Presentation,
   Activity,
+  MonitorPlay,
+  MousePointer2,
+  ScanLine,
+  Pencil,
+  Eraser,
+  Undo2,
+  Redo2,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
@@ -46,7 +53,9 @@ import type {
   LiveQuestion,
 } from '@/lib/live-session';
 import { deleteLiveDeck, uploadLiveDeck } from '@/lib/live-deck-storage';
+import { annotationReducer, EMPTY_INK, type InkPoint, type InkStroke, type PresentationTool } from '@/lib/presentation-annotations';
 import { DeckViewer } from '@/components/live/DeckViewer';
+import { AnnotationLayer } from '@/components/live/AnnotationLayer';
 import { PresentationStage } from '@/components/live/PresentationStage';
 import {
   REACTION_EMOJI,
@@ -63,6 +72,16 @@ import {
 import type { Quiz, QuizQuestion } from '@/lib/quiz';
 
 const REACTION_KINDS = ['applause', 'insight', 'resonate', 'pause'] as const;
+const CONTROL_TOOLS = [
+  { value: 'cursor', icon: MousePointer2 },
+  { value: 'laser', icon: ScanLine },
+  { value: 'pen', icon: Pencil },
+  { value: 'eraser', icon: Eraser },
+] as const;
+const CONTROL_COLORS = ['#fb7185', '#facc15', '#38bdf8', '#ffffff'] as const;
+// Idle (draft cleared, pointer hidden) always sends immediately - dropping
+// that one would leave stale ink stuck on the projected display window.
+const LIVE_SEND_THROTTLE_MS = 33;
 
 function sortQuestions(a: LiveQuestion, b: LiveQuestion): number {
   return b.upvotes - a.upvotes || a.createdAt.localeCompare(b.createdAt);
@@ -114,6 +133,20 @@ export default function PresenterPage() {
   // former should close the overlay (see handleFullscreenChange).
   const wasFullscreenRef = useRef(false);
 
+  // Dual-screen presenting: this page stays the presenter's own control
+  // surface (Q&A moderation, poll picker, drawing input) while a second,
+  // read-only window (app/live/[id]/present/display) gets dragged onto a
+  // projector/external display. The two windows sync over the same
+  // realtime channel this page already subscribes to for polls/questions.
+  const [dualDisplayOpen, setDualDisplayOpen] = useState(false);
+  const displayWindowRef = useRef<Window | null>(null);
+  const channelRef = useRef<ReturnType<ReturnType<typeof supabase>['channel']> | null>(null);
+  const [controlTool, setControlTool] = useState<PresentationTool>('cursor');
+  const [controlColor, setControlColor] = useState<string>(CONTROL_COLORS[0]);
+  const [controlWidth] = useState(3);
+  const [controlInk, dispatchControlInk] = useReducer(annotationReducer, {});
+  const lastLiveSendRef = useRef(0);
+
   const load = useCallback(async () => {
     try {
       const response = await fetch(`/api/live-sessions/${params.id}`, {
@@ -162,6 +195,7 @@ export default function PresenterPage() {
     if (!params.id) return;
     const client = supabase();
     const channel = client.channel(`live-session:${params.id}`);
+    channelRef.current = channel;
     channel
       .on('broadcast', { event: 'poll:opened' }, ({ payload }) => {
         setData((previous) =>
@@ -249,9 +283,76 @@ export default function PresenterPage() {
       })
       .subscribe();
     return () => {
+      channelRef.current = null;
       void client.removeChannel(channel);
     };
   }, [params.id, pushReaction, registerPing, load]);
+
+  // Re-broadcasts the current page's committed strokes whenever they change
+  // (a new stroke, undo, redo, or clear) so a projected display window stays
+  // in sync - including a freshly opened one catching up on whatever was
+  // already drawn, since dualDisplayOpen flipping true is itself a trigger.
+  useEffect(() => {
+    if (!data || !dualDisplayOpen) return;
+    const strokes = (controlInk[data.deckPage] ?? EMPTY_INK).strokes;
+    channelRef.current?.send({
+      type: 'broadcast',
+      event: 'annotation:sync',
+      payload: { page: data.deckPage, strokes },
+    });
+  }, [controlInk, data?.deckPage, dualDisplayOpen]);
+
+  // Detects the presenter closing the projected window directly (not via
+  // the "stop dual-screen" button) so the control-side toolbar disappears too.
+  useEffect(() => {
+    if (!dualDisplayOpen) return;
+    const interval = setInterval(() => {
+      if (!displayWindowRef.current || displayWindowRef.current.closed) {
+        displayWindowRef.current = null;
+        setDualDisplayOpen(false);
+      }
+    }, 1000);
+    return () => clearInterval(interval);
+  }, [dualDisplayOpen]);
+
+  const openDisplayWindow = () => {
+    const win = window.open(
+      `/live/${params.id}/present/display`,
+      `live-display-${params.id}`,
+      'popup',
+    );
+    if (!win) {
+      toast({
+        title: t('error'),
+        description: t('live_dual_screen_popup_blocked'),
+        variant: 'destructive',
+      });
+      return;
+    }
+    displayWindowRef.current = win;
+    setDualDisplayOpen(true);
+  };
+
+  const closeDisplayWindow = () => {
+    displayWindowRef.current?.close();
+    displayWindowRef.current = null;
+    setDualDisplayOpen(false);
+  };
+
+  const broadcastLiveChange = useCallback(
+    (live: { draft: InkPoint[]; pointer: InkPoint | null }) => {
+      const now = Date.now();
+      const isIdle = live.draft.length === 0 && live.pointer === null;
+      if (!isIdle && now - lastLiveSendRef.current < LIVE_SEND_THROTTLE_MS) return;
+      lastLiveSendRef.current = now;
+      channelRef.current?.send({
+        type: 'broadcast',
+        event: 'annotation:live',
+        payload: { tool: controlTool, color: controlColor, width: controlWidth, ...live },
+      });
+    },
+    [controlTool, controlColor, controlWidth],
+  );
 
   // Shared by the composer Dialog (outside fullscreen) and the projection
   // panel's own inline composer (inside PresentationStage) - each keeps its
@@ -578,6 +679,7 @@ export default function PresenterPage() {
   const pulseAvg = data.pulse.pulseAverage;
   const pulsePercent = pulseAvg === null ? 50 : ((pulseAvg - 1) / 4) * 100;
   const visibleQuestions = [...questions].sort(sortQuestions);
+  const controlHistory = controlInk[data.deckPage] ?? EMPTY_INK;
 
   return (
     <div className="min-h-screen bg-background">
@@ -798,6 +900,20 @@ export default function PresenterPage() {
                         {t('live_present_fullscreen')}
                       </Button>
                     )}
+                    {data.deckUrl && !deckLoadError && (
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant={dualDisplayOpen ? 'secondary' : 'outline'}
+                        className="min-h-11"
+                        aria-pressed={dualDisplayOpen}
+                        title={t('live_dual_screen_hint')}
+                        onClick={dualDisplayOpen ? closeDisplayWindow : openDisplayWindow}
+                      >
+                        <MonitorPlay className="mr-1.5 h-3.5 w-3.5" />
+                        {t(dualDisplayOpen ? 'live_dual_screen_close' : 'live_dual_screen_present')}
+                      </Button>
+                    )}
                     {data.deckUrl && (
                       <Button
                         type="button"
@@ -829,8 +945,99 @@ export default function PresenterPage() {
                           className="h-[35vh] min-h-[200px] w-full lg:h-[42vh]"
                           onNumPages={setNumDeckPages}
                           onError={() => setDeckLoadError(true)}
+                          overlay={
+                            dualDisplayOpen ? (
+                              <AnnotationLayer
+                                strokes={controlHistory.strokes}
+                                tool={controlTool}
+                                color={controlColor}
+                                width={controlWidth}
+                                label={t('live_ink_surface')}
+                                onCommit={(strokes) =>
+                                  dispatchControlInk({ type: 'commit', page: data.deckPage, strokes })
+                                }
+                                onDrawingChange={() => {}}
+                                onLiveChange={broadcastLiveChange}
+                              />
+                            ) : undefined
+                          }
                         />
                       </div>
+                      {dualDisplayOpen && (
+                        <div className="flex flex-wrap items-center gap-1.5 rounded-lg border bg-muted/30 p-2">
+                          {CONTROL_TOOLS.map(({ value, icon: Icon }) => (
+                            <Button
+                              key={value}
+                              type="button"
+                              size="sm"
+                              variant={controlTool === value ? 'secondary' : 'ghost'}
+                              className="h-9 w-9 p-0"
+                              aria-label={t(`live_tool_${value}`)}
+                              aria-pressed={controlTool === value}
+                              onClick={() => setControlTool(value)}
+                            >
+                              <Icon className="h-4 w-4" />
+                            </Button>
+                          ))}
+                          <span className="mx-1 h-6 w-px bg-border" />
+                          {CONTROL_COLORS.map((value) => (
+                            <button
+                              key={value}
+                              type="button"
+                              aria-label={value}
+                              aria-pressed={controlColor === value}
+                              className={`flex h-9 w-9 items-center justify-center rounded-md ${controlColor === value ? 'ring-2 ring-ring' : ''}`}
+                              onClick={() => {
+                                setControlColor(value);
+                                setControlTool('pen');
+                              }}
+                            >
+                              <span
+                                className="h-5 w-5 rounded-full border border-black/10"
+                                style={{ background: value }}
+                              />
+                            </button>
+                          ))}
+                          <span className="mx-1 h-6 w-px bg-border" />
+                          <Button
+                            type="button"
+                            size="sm"
+                            variant="ghost"
+                            className="h-9 w-9 p-0"
+                            aria-label={t('live_ink_undo')}
+                            disabled={!controlHistory.past.length}
+                            onClick={() => dispatchControlInk({ type: 'undo', page: data.deckPage })}
+                          >
+                            <Undo2 className="h-4 w-4" />
+                          </Button>
+                          <Button
+                            type="button"
+                            size="sm"
+                            variant="ghost"
+                            className="h-9 w-9 p-0"
+                            aria-label={t('live_ink_redo')}
+                            disabled={!controlHistory.future.length}
+                            onClick={() => dispatchControlInk({ type: 'redo', page: data.deckPage })}
+                          >
+                            <Redo2 className="h-4 w-4" />
+                          </Button>
+                          <Button
+                            type="button"
+                            size="sm"
+                            variant="ghost"
+                            className="h-9 w-9 p-0"
+                            aria-label={t('live_ink_clear')}
+                            disabled={!controlHistory.strokes.length}
+                            onClick={() => dispatchControlInk({ type: 'clear', page: data.deckPage })}
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                          <span className="ml-auto flex items-center gap-1.5 text-xs text-muted-foreground">
+                            <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
+                            {t('live_dual_screen_active')}
+                          </span>
+                        </div>
+                      )}
                       <div className="flex items-center justify-center gap-3">
                         <Button
                           type="button"
