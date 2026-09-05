@@ -159,3 +159,7 @@ npm run dev
 ## 授權
 
 本專案採用 MIT 授權條款
+
+## Visual templates
+
+`digital_games.settings.theme.template` selects presentation without changing lesson IDs, assessment, progress, rewards, or analytics. Supported values are `discovery` (the backwards-compatible default), `neo-brutal`, and `arcade`. The engine validates this value with `gameVisualTemplate()` and falls back to `discovery` for missing or unknown values. Both the journey map and lesson workspace receive the same `data-quest-template` value; template CSS stays scoped below `.quest-shell`.

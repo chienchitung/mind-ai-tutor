@@ -2,7 +2,7 @@ import Link from 'next/link'
 import { ArrowUpRight, ArrowRight, Check, Compass, Flag, LockKeyhole, RotateCcw, Sparkles, Star, Trophy } from 'lucide-react'
 import type { GameDefinition } from '../types/game'
 import type { Lesson } from '../types/lesson'
-import { canEnterLesson, gameThemeStyle, missionObjective } from '../lib/mission'
+import { canEnterLesson, gameThemeStyle, gameVisualTemplate, missionObjective } from '../lib/mission'
 import { GameBrand } from './GameBrand'
 
 interface QuestHomeProps {
@@ -36,7 +36,7 @@ export function QuestHome(props: QuestHomeProps) {
     .reduce((total, lesson) => total + (Number.parseInt(lesson.duration || '', 10) || 0), 0)
   // No leading /games here - basePath already adds it to every next/link href.
   const href = (id: string) => gameId ? `/${gameId}/lessons/${id}` : `/lessons/${id}`
-  return <div className="quest-shell" style={gameThemeStyle(game?.settings.theme)}>
+  return <div className="quest-shell" data-quest-template={gameVisualTemplate(game?.settings.theme)} style={gameThemeStyle(game?.settings.theme)}>
     <a className="quest-skip" href="#mission-map">跳至任務地圖</a>
     <header className="quest-header"><div className="quest-header-inner">
       <Link href={gameId ? `/${gameId}` : '/'} aria-label="遊戲首頁"><GameBrand game={game} legacy={!gameId} /></Link>

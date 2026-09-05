@@ -1,4 +1,4 @@
-import type { GameMission, GameTheme } from '../types/game'
+import type { GameMission, GameTheme, GameVisualTemplate } from '../types/game'
 import type { Lesson } from '../types/lesson'
 
 export const missionLimits = { scenario: 600, objective: 200, mentorMessage: 300, completionMessage: 300 } as const
@@ -27,6 +27,10 @@ export function gameThemeStyle(theme?: GameTheme): Record<string, string> {
   // Accept only hex colors, never arbitrary CSS from public configuration.
   const color = (value: unknown, fallback: string) => typeof value === 'string' && /^#[\da-f]{6}$/i.test(value) ? value : fallback
   return { '--quest-primary': color(theme?.primaryColor, '#1764d8'), '--quest-accent': color(theme?.accentColor, '#0f8a91') }
+}
+
+export function gameVisualTemplate(theme?: GameTheme): GameVisualTemplate {
+  return theme?.template === 'neo-brutal' || theme?.template === 'arcade' ? theme.template : 'discovery'
 }
 
 export function gameBrandKind(label: string, isLegacy: boolean) {
