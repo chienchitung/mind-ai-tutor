@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { useRef, useState, type ComponentProps, type ReactNode } from 'react';
 import { LanguageProvider } from '@/app/contexts/LanguageContext';
 import { AnnotationLayer } from './AnnotationLayer';
@@ -119,7 +119,7 @@ function ConnectedProjectionHarness() {
 }
 
 describe('projection tools', () => {
-  it('commits normalized pen strokes only on release and cancels interrupted strokes', () => {
+  it('commits normalized pen strokes on release and preserves sampled work if pointer capture is interrupted', () => {
     const commit = vi.fn(),
       drawing = vi.fn();
     render(
@@ -138,11 +138,35 @@ describe('projection tools', () => {
     move(surface, 200, 150);
     expect(commit).not.toHaveBeenCalled();
     fireEvent.pointerCancel(surface, { pointerId: 1 });
-    expect(commit).not.toHaveBeenCalled();
+    expect(commit).toHaveBeenCalledTimes(1);
+    expect(commit.mock.calls[0][0][0].points).toHaveLength(2);
+    commit.mockClear();
     draw(surface);
     expect(commit).toHaveBeenCalledTimes(1);
     expect(commit.mock.calls[0][0][0].points[0]).toEqual({ x: 0.125, y: 0.25 });
     expect(drawing).toHaveBeenLastCalledWith(false);
+  });
+  it('keeps a high-density long stroke when capture is lost near the slide boundary', () => {
+    const commit = vi.fn();
+    render(
+      <AnnotationLayer
+        strokes={[]}
+        tool="pen"
+        color="#fb7185"
+        width={3}
+        label="long-line-canvas"
+        onCommit={commit}
+        onDrawingChange={() => {}}
+      />,
+    );
+    const surface = screen.getByRole('img', { name: 'long-line-canvas' });
+    down(surface, 5, 20);
+    for (let index = 1; index <= 240; index += 1) {
+      move(surface, 5 + index * 3.25, 20 + index * 1.4);
+    }
+    fireEvent.lostPointerCapture(surface, { pointerId: 1 });
+    expect(commit).toHaveBeenCalledTimes(1);
+    expect(commit.mock.calls[0][0][0].points.length).toBeGreaterThan(200);
   });
   it('reports live draft/pointer changes as they happen, for mirroring onto a second window', () => {
     const live = vi.fn();
@@ -300,6 +324,26 @@ describe('projection tools', () => {
     down(surface, 200, 20);
     up(surface, 200, 300);
     expect(document.querySelectorAll('[data-ink-stroke]')).toHaveLength(0);
+  });
+  it('keeps a long high-density stroke after a delayed normal release', async () => {
+    vi.useFakeTimers();
+    try {
+      vi.stubGlobal('localStorage', { getItem: () => '1', setItem: vi.fn() });
+      render(<Harness />);
+      const surface = screen.getByRole('img', { name: '投影片標註區' });
+      fireEvent.keyDown(surface, { key: 'p' });
+      down(surface, 5, 20);
+      for (let index = 1; index <= 240; index += 1) {
+        move(surface, 5 + index * 3.25, 20 + index * 1.4);
+      }
+      act(() => vi.advanceTimersByTime(1600));
+      up(surface, 790, 370);
+      const stroke = document.querySelector('[data-ink-stroke]');
+      expect(stroke).toBeTruthy();
+      expect(stroke?.getAttribute('points')?.split(' ').length).toBeGreaterThan(200);
+    } finally {
+      vi.useRealTimers();
+    }
   });
   it('does not turn Space on a toolbar button into a page change', async () => {
     render(<Harness />);

@@ -103,12 +103,15 @@ export function AnnotationLayer({ strokes, tool, color, width, label, onCommit, 
   function finish(event: PointerEvent<SVGSVGElement>, cancelled = false) {
     const current = gesture.current;
     if (!current || current.pointerId !== event.pointerId) return;
-    if (!cancelled) {
-      move(event);
-      if (current.tool === 'pen')
-        onCommit([...strokes, { id: crypto.randomUUID(), points: current.points, color, width }]);
-      else if (current.erased.size) onCommit(strokes.filter((stroke) => !current.erased.has(stroke.id)));
-    }
+    // pointercancel/lostpointercapture can occur after a long drag crosses the
+    // PDF edge or the browser briefly loses capture. Keep the valid portion
+    // already sampled instead of throwing away the whole visible stroke.
+    // A normal pointer-up samples its final coordinate as before.
+    if (!cancelled) move(event);
+    if (current.tool === 'pen' && current.points.length > 1)
+      onCommit([...strokes, { id: crypto.randomUUID(), points: current.points, color, width }]);
+    else if (current.tool === 'eraser' && current.erased.size)
+      onCommit(strokes.filter((stroke) => !current.erased.has(stroke.id)));
     gesture.current = null;
     setDraft([]);
     setErased(new Set());
