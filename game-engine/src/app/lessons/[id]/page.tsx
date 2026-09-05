@@ -1529,7 +1529,7 @@ export default function ExcelLearningPlatform({
             
             {showTabs.includes('content') && (
               <TabsContent value="content">
-                <Card className="bg-white rounded-2xl shadow-sm border border-gray-100">
+                <Card className="lesson-content-card bg-white rounded-2xl shadow-sm border border-gray-100">
                   <div className="bg-gray-900 text-white p-4 rounded-t-2xl">
                     <h2 className="text-lg md:text-xl font-semibold">課程內容</h2>
                   </div>

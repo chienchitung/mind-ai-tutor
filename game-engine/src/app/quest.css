@@ -159,6 +159,7 @@
 
 .quest-shell[data-quest-template="arcade"] { background:#090720; color:#e8e9ff; font-family:ui-monospace,"SFMono-Regular",Consolas,"Noto Sans TC",monospace; }
 .quest-shell[data-quest-template="arcade"] .quest-header { background:#100c2ff2; border-bottom:1px solid #7c5cff; box-shadow:0 0 22px #7c5cff55; }
+.quest-shell[data-quest-template="arcade"] .quest-header-inner > a { color:#102f56; background:#fff; border-radius:5px; padding:5px 9px; box-shadow:3px 3px 0 #7c5cff; }
 .quest-shell[data-quest-template="arcade"] :is(.quest-header-label,.quest-kicker,.quest-small-label,.quest-overview,.quest-caption,.quest-footer) { color:#a9a4d4; }
 .quest-shell[data-quest-template="arcade"] .quest-player-stats span:last-child { color:#fff49b; background:#30234c; border:1px solid #ffdd55; }
 .quest-shell[data-quest-template="arcade"] .quest-hero { background:linear-gradient(135deg,#18113f,#171c4e); border:1px solid #49e7ff; border-radius:4px; box-shadow:0 0 24px #2ad4ff33,7px 7px 0 #7c5cff; }

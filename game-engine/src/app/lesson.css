@@ -131,3 +131,33 @@
   .lesson-shell .lesson-complete-button { width:100%; }
   .lesson-chat-launcher { right:14px; bottom:14px; }
 }
+
+/* Template-aware lesson surfaces keep authored content legible and visually coherent. */
+.lesson-shell[data-quest-template="neo-brutal"] .lesson-breadcrumb a { color:#111; font-weight:800; }
+.lesson-shell[data-quest-template="neo-brutal"] :is(.lesson-content-card,.lesson-challenge-card,.lesson-navigation.is-intro) { color:#111; background:#fff; border:3px solid #111; border-radius:7px; box-shadow:6px 6px 0 #111; }
+.lesson-shell[data-quest-template="neo-brutal"] :is(.lesson-content-card,.lesson-challenge-card) > :first-child { border-bottom:3px solid #111; border-radius:3px 3px 0 0; }
+.lesson-shell[data-quest-template="neo-brutal"] .lesson-content-card .prose { color:#222; --tw-prose-body:#222; --tw-prose-headings:#111; --tw-prose-links:#174d87; --tw-prose-bold:#111; --tw-prose-bullets:#111; }
+.lesson-shell[data-quest-template="neo-brutal"] .lesson-content-card .prose :is(h1,h2) { color:#111; text-decoration:underline; text-decoration-color:#ff6b9d; text-decoration-thickness:5px; text-underline-offset:4px; }
+.lesson-shell[data-quest-template="neo-brutal"] .lesson-content-card :is(code,pre) { border:2px solid #111; border-radius:3px; background:#fff4bd; color:#111; }
+.lesson-shell[data-quest-template="neo-brutal"] .lesson-table-scroll { border:2px solid #111; border-radius:3px; }
+.lesson-shell[data-quest-template="neo-brutal"] .lesson-table-scroll th { background:#ffde59; }
+
+.lesson-shell[data-quest-template="arcade"] .lesson-breadcrumb a { color:#d9dcff; }
+.lesson-shell[data-quest-template="arcade"] .lesson-breadcrumb a:hover { color:#70efff; }
+.lesson-shell[data-quest-template="arcade"] .lesson-brief { color:#c8c9eb; }
+.lesson-shell[data-quest-template="arcade"] .lesson-story summary { color:#70efff; }
+.lesson-shell[data-quest-template="arcade"] :is(.lesson-content-card,.lesson-challenge-card,.lesson-navigation.is-intro) { color:#f1f2ff; background:#151233; border:1px solid #554b98; border-radius:4px; box-shadow:0 0 18px #7c5cff33; }
+.lesson-shell[data-quest-template="arcade"] :is(.lesson-content-card,.lesson-challenge-card) > :first-child { color:#fff; background:#211a55; border-bottom:1px solid #49e7ff; border-radius:3px 3px 0 0; }
+.lesson-shell[data-quest-template="arcade"] .lesson-content-card .prose { color:#e6e7ff; --tw-prose-body:#e6e7ff; --tw-prose-headings:#fff; --tw-prose-lead:#c4c5e8; --tw-prose-links:#70efff; --tw-prose-bold:#fff; --tw-prose-counters:#b9b5e4; --tw-prose-bullets:#49e7ff; --tw-prose-hr:#4b4384; --tw-prose-quotes:#f0f1ff; --tw-prose-quote-borders:#ff4fd8; --tw-prose-code:#9af3ff; --tw-prose-th-borders:#5b5294; --tw-prose-td-borders:#3d376d; }
+.lesson-shell[data-quest-template="arcade"] .lesson-content-card .prose :is(h1,h2) { color:#70efff; text-shadow:2px 2px 0 #7c5cff; }
+.lesson-shell[data-quest-template="arcade"] .lesson-content-card .prose :is(h3,h4,strong,p,li) { color:inherit; }
+.lesson-shell[data-quest-template="arcade"] .lesson-content-card :is(code,pre) { background:#090720; color:#9af3ff; border-color:#49e7ff; }
+.lesson-shell[data-quest-template="arcade"] .lesson-content-card :is(blockquote,.bg-blue-50,.bg-gray-50,.bg-amber-50) { color:#eef0ff; background:#211d4b; border-color:#ff4fd8; }
+.lesson-shell[data-quest-template="arcade"] .lesson-content-card :is(th,td) { color:#eef0ff; background:#1c1844; border-color:#51498b; }
+.lesson-shell[data-quest-template="arcade"] .lesson-content-card th { color:#70efff; background:#25205a; }
+.lesson-shell[data-quest-template="arcade"] .lesson-markdown { color:#e6e7ff; }
+.lesson-shell[data-quest-template="arcade"] .lesson-markdown :is(h1,h2,h3,h4,strong) { color:#fff; }
+.lesson-shell[data-quest-template="arcade"] .lesson-markdown :is(code,pre) { color:#9af3ff; background:#090720; }
+.lesson-shell[data-quest-template="arcade"] .lesson-task > h3,
+.lesson-shell[data-quest-template="arcade"] :is(.lesson-empty,.lesson-interactive-note,.lesson-reward-note) { color:#c4c5e8; }
+.lesson-shell[data-quest-template="arcade"] .lesson-complete-copy :is(strong,p) { color:#f1f2ff; }
