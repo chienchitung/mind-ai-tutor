@@ -48,11 +48,11 @@ export async function POST(
   if (!z.string().uuid().safeParse(id).success || !parsed.success)
     return NextResponse.json({ error: "INVALID_INPUT" }, { status: 400 });
   const client = await getServerClient();
-  const {
-    data: { user },
-  } = await client.auth.getUser();
-  if (!user)
-    return NextResponse.json({ error: "UNAUTHORIZED" }, { status: 401 });
+  // No client.auth.getUser() round trip here (unlike GET, which needs the
+  // user id to look up join_code) - control_live_presentation itself
+  // raises UNAUTHORIZED/NOT_FOUND from auth.uid(), so an extra Auth-server
+  // round trip before every single owner command would only add latency
+  // without adding any check the RPC doesn't already enforce.
   const command =
     parsed.data.action === "question"
       ? { action: "show", mode: "question", questionId: parsed.data.questionId }
@@ -63,6 +63,7 @@ export async function POST(
   });
   if (error) {
     const known = [
+      "UNAUTHORIZED",
       "NOT_FOUND",
       "SESSION_CLOSED",
       "POLL_NOT_ACTIVE",
@@ -72,7 +73,10 @@ export async function POST(
     ].find((x) => error.message?.includes(x));
     return NextResponse.json(
       { error: known ?? "LIVE_STORAGE_ERROR" },
-      { status: known === "NOT_FOUND" ? 404 : known ? 409 : 500 },
+      {
+        status:
+          known === "UNAUTHORIZED" ? 401 : known === "NOT_FOUND" ? 404 : known ? 409 : 500,
+      },
     );
   }
   // Broadcast only invalidation; clients read an authorized, current snapshot.

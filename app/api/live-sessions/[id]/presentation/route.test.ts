@@ -54,9 +54,16 @@ describe("presentation API boundary", () => {
     expect(mocks.rpc).not.toHaveBeenCalled();
   });
   it("requires authentication", async () => {
-    mocks.user = null;
+    // The route no longer pre-checks the session itself with a separate
+    // client.auth.getUser() round trip (see route.ts) - the RPC is the sole
+    // source of the UNAUTHORIZED verdict, so simulate its rejection here
+    // instead of forcing a null user through the (now unused) auth mock.
+    mocks.rpc.mockResolvedValueOnce({
+      data: null,
+      error: { message: "UNAUTHORIZED" },
+    });
     expect((await call({ action: "show", mode: "blank" })).status).toBe(401);
-    expect(mocks.rpc).not.toHaveBeenCalled();
+    expect(mocks.rpc).toHaveBeenCalled();
   });
   it("only accepts IDs and commands, never arbitrary question text", async () => {
     expect(

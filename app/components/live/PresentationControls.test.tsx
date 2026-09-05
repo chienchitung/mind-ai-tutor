@@ -115,6 +115,62 @@ it("answers the featured question and advances in a single command", () => {
     advance: true,
   });
 });
+it("shows a poll's state instantly via an optimistic patch, without waiting for the write to resolve", () => {
+  mocks.state.poll = {
+    pollId: "p1",
+    question: "哪一種比較清楚？",
+    options: ["A", "B"],
+    voteCounts: [0, 0],
+    voteTotal: 0,
+    phase: "draft",
+  };
+  view();
+  fireEvent.click(screen.getByText("展示投票"));
+  const [command, patch] = mocks.command.mock.calls.at(-1)!;
+  expect(command).toEqual({ action: "show", mode: "poll" });
+  // The patch is what the panel shows immediately, before any round trip -
+  // applying it to the current snapshot must already reflect the click.
+  expect(patch(mocks.state).mode).toBe("poll");
+});
+
+it("flips the poll phase instantly, mirroring control_live_presentation's own mode-to-poll side effect", () => {
+  mocks.state.poll = {
+    pollId: "p1",
+    question: "哪一種比較清楚？",
+    options: ["A", "B"],
+    voteCounts: [0, 0],
+    voteTotal: 0,
+    phase: "draft",
+  };
+  view();
+  fireEvent.click(screen.getByText("開放作答"));
+  const [command, patch] = mocks.command.mock.calls.at(-1)!;
+  expect(command).toEqual({ action: "phase", pollId: "p1", phase: "open" });
+  const patched = patch(mocks.state);
+  expect(patched.poll.phase).toBe("open");
+  expect(patched.mode).toBe("poll");
+});
+
+it("features a question instantly from data already on the page, without waiting for the write", () => {
+  view();
+  fireEvent.click(screen.getAllByText("放大這題")[0]);
+  const [command, patch] = mocks.command.mock.calls.at(-1)!;
+  expect(command).toEqual({ action: "question", questionId: "q0" });
+  const patched = patch(mocks.state);
+  expect(patched.mode).toBe("question");
+  expect(patched.questions).toEqual([
+    { id: "q0", text: questions[0].text, upvotes: 0, answered: false },
+  ]);
+});
+
+it("marks a question answered instantly by updating answeredIds locally", () => {
+  view();
+  fireEvent.click(screen.getAllByText("標記已回答")[0]);
+  const [command, patch] = mocks.command.mock.calls.at(-1)!;
+  expect(command).toEqual({ action: "answer", questionId: "q0", answered: true });
+  expect(patch(mocks.state).answeredIds).toEqual(["q0"]);
+});
+
 it("renders six questions in a complete proportional preview", () => {
   mocks.state.questions = questions.slice(0, 6);
   mocks.state.overview.pageSize = 6;

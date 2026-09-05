@@ -53,6 +53,56 @@ describe("snapshot recovery and commands", () => {
       }),
     );
   });
+  it("applies an optimistic patch before the write resolves, then overwrites it with the authoritative response", async () => {
+    let finish!: (value: unknown) => void;
+    const fetcher = vi
+      .fn()
+      .mockResolvedValueOnce(response(snap))
+      .mockImplementationOnce(
+        () =>
+          new Promise((resolve) => {
+            finish = resolve;
+          }),
+      );
+    vi.stubGlobal("fetch", fetcher);
+    const { result } = renderHook(() => usePresentationSnapshot("/api/test"));
+    await waitFor(() => expect(result.current.snapshot?.mode).toBe("deck"));
+    act(() => {
+      void result.current.command({ action: "show", mode: "blank" }, (prev) => ({
+        ...prev,
+        mode: "blank",
+      }));
+    });
+    // The patch lands well before the POST settles - the fetch it triggers
+    // is still paused on `finish` at this point.
+    await waitFor(() => expect(result.current.snapshot?.mode).toBe("blank"));
+    expect(fetcher).toHaveBeenCalledTimes(2);
+    await act(async () => {
+      finish(response({ ...snap, mode: "poll" }));
+      await Promise.resolve();
+    });
+    // The server's actual answer always wins over the guess.
+    expect(result.current.snapshot?.mode).toBe("poll");
+  });
+
+  it("reverts an optimistic patch instead of leaving a guess on screen when the write fails", async () => {
+    const fetcher = vi.fn().mockResolvedValue(response(snap));
+    vi.stubGlobal("fetch", fetcher);
+    const { result } = renderHook(() => usePresentationSnapshot("/api/test"));
+    await waitFor(() => expect(result.current.snapshot?.mode).toBe("deck"));
+    fetcher.mockResolvedValue({ ok: false, status: 500 });
+    await act(async () => {
+      expect(
+        await result.current.command({ action: "show", mode: "blank" }, (prev) => ({
+          ...prev,
+          mode: "blank",
+        })),
+      ).toBe(false);
+    });
+    expect(result.current.snapshot?.mode).toBe("deck");
+    expect(result.current.error).toBe(true);
+  });
+
   it("refreshes on network recovery and fails visibly without pretending a write succeeded", async () => {
     const fetcher = vi.fn().mockResolvedValue(response(snap));
     vi.stubGlobal("fetch", fetcher);

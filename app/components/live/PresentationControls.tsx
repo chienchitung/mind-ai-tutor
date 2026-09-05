@@ -8,11 +8,26 @@ import {
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { useLanguage } from "@/app/contexts/LanguageContext";
-import { displayLabel, phaseLabel } from "@/lib/live-presentation";
+import {
+  displayLabel,
+  phaseLabel,
+  type PresentationSnapshot,
+} from "@/lib/live-presentation";
 import { usePresentationSnapshot } from "./usePresentationSnapshot";
 import { DeckViewer } from "./DeckViewer";
 import { PresentationContent } from "./PresentationContent";
 import type { LiveQuestion } from "@/lib/live-session";
+// control_live_presentation always sets mode back to "poll" on a phase
+// transition (see supabase/migrations/20260904051713_live_presentation_flow.sql),
+// even if something else was on screen - mirrored here so the optimistic
+// guess matches what the RPC will actually do.
+function withPollPhase(
+  prev: PresentationSnapshot,
+  phase: "open" | "closed" | "results",
+): PresentationSnapshot {
+  if (!prev.poll) return prev;
+  return { ...prev, mode: "poll", poll: { ...prev.poll, phase } };
+}
 export function PresentationControls({
   sessionId,
   questions,
@@ -110,19 +125,25 @@ export function PresentationControls({
         <Button
           disabled={disabled}
           variant="outline"
-          onClick={() => void command({ action: "show", mode: "deck" })}
+          onClick={() =>
+            void command({ action: "show", mode: "deck" }, (prev) => ({
+              ...prev,
+              mode: "deck",
+            }))
+          }
         >
           {zh ? "返回簡報" : "Back to slides"}
         </Button>
         <Button
           disabled={disabled}
           variant={snapshot?.mode === "blank" ? "secondary" : "outline"}
-          onClick={() =>
-            void command({
-              action: "show",
-              mode: snapshot?.mode === "blank" ? "deck" : "blank",
-            })
-          }
+          onClick={() => {
+            const nextMode = snapshot?.mode === "blank" ? "deck" : "blank";
+            void command({ action: "show", mode: nextMode }, (prev) => ({
+              ...prev,
+              mode: nextMode,
+            }));
+          }}
         >
           {snapshot?.mode === "blank"
             ? zh
@@ -160,7 +181,12 @@ export function PresentationControls({
                 <Button
                   disabled={disabled}
                   variant="outline"
-                  onClick={() => void command({ action: "show", mode: "poll" })}
+                  onClick={() =>
+                    void command({ action: "show", mode: "poll" }, (prev) => ({
+                      ...prev,
+                      mode: "poll",
+                    }))
+                  }
                 >
                   {zh ? "展示投票" : "Show poll"}
                 </Button>
@@ -168,11 +194,14 @@ export function PresentationControls({
                   <Button
                     disabled={disabled}
                     onClick={() =>
-                      void command({
-                        action: "phase",
-                        pollId: snapshot.poll!.pollId,
-                        phase: "open",
-                      })
+                      void command(
+                        {
+                          action: "phase",
+                          pollId: snapshot.poll!.pollId,
+                          phase: "open",
+                        },
+                        (prev) => withPollPhase(prev, "open"),
+                      )
                     }
                   >
                     {zh ? "開放作答" : "Open voting"}
@@ -182,11 +211,14 @@ export function PresentationControls({
                   <Button
                     disabled={disabled}
                     onClick={() =>
-                      void command({
-                        action: "phase",
-                        pollId: snapshot.poll!.pollId,
-                        phase: "closed",
-                      })
+                      void command(
+                        {
+                          action: "phase",
+                          pollId: snapshot.poll!.pollId,
+                          phase: "closed",
+                        },
+                        (prev) => withPollPhase(prev, "closed"),
+                      )
                     }
                   >
                     {zh ? "結束收票" : "Close voting"}
@@ -196,11 +228,14 @@ export function PresentationControls({
                   <Button
                     disabled={disabled}
                     onClick={() =>
-                      void command({
-                        action: "phase",
-                        pollId: snapshot.poll!.pollId,
-                        phase: "results",
-                      })
+                      void command(
+                        {
+                          action: "phase",
+                          pollId: snapshot.poll!.pollId,
+                          phase: "results",
+                        },
+                        (prev) => withPollPhase(prev, "results"),
+                      )
                     }
                   >
                     {zh ? "公布結果" : "Reveal results"}
@@ -211,11 +246,14 @@ export function PresentationControls({
                     disabled={disabled}
                     variant="outline"
                     onClick={() =>
-                      void command({
-                        action: "phase",
-                        pollId: snapshot.poll!.pollId,
-                        phase: "open",
-                      })
+                      void command(
+                        {
+                          action: "phase",
+                          pollId: snapshot.poll!.pollId,
+                          phase: "open",
+                        },
+                        (prev) => withPollPhase(prev, "open"),
+                      )
                     }
                   >
                     {zh ? "重新收票（保留票數）" : "Reopen (keep votes)"}
@@ -343,7 +381,16 @@ export function PresentationControls({
                         size="sm"
                         disabled={disabled}
                         onClick={() =>
-                          void command({ action: "question", questionId: q.id })
+                          void command(
+                            { action: "question", questionId: q.id },
+                            (prev) => ({
+                              ...prev,
+                              mode: "question",
+                              questions: [
+                                { id: q.id, text: q.text, upvotes: q.upvotes, answered: false },
+                              ],
+                            }),
+                          )
                         }
                       >
                         {zh ? "放大這題" : "Feature"}
@@ -371,13 +418,18 @@ export function PresentationControls({
                       size="sm"
                       variant="outline"
                       disabled={disabled}
-                      onClick={() =>
-                        void command({
-                          action: "answer",
-                          questionId: q.id,
-                          answered: !showAnswered,
-                        })
-                      }
+                      onClick={() => {
+                        const answered = !showAnswered;
+                        void command(
+                          { action: "answer", questionId: q.id, answered },
+                          (prev) => ({
+                            ...prev,
+                            answeredIds: answered
+                              ? [...prev.answeredIds, q.id]
+                              : prev.answeredIds.filter((id) => id !== q.id),
+                          }),
+                        );
+                      }}
                     >
                       {showAnswered
                         ? zh

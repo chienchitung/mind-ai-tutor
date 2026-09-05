@@ -9,6 +9,15 @@ import type {
  * periodically repair missed events. One request at a time, including writes. */
 export function usePresentationSnapshot(url: string, sessionId?: string) {
   const [snapshot, setSnapshot] = useState<PresentationSnapshot | null>(null);
+  // Mirrors `snapshot` as of the last committed render. command() reads this
+  // (not a setState functional updater) to capture "the value before my
+  // optimistic guess": React doesn't guarantee an updater runs synchronously
+  // at the setState call site, but an effect is guaranteed to have flushed
+  // by the time a user-triggered command() call runs.
+  const snapshotRef = useRef<PresentationSnapshot | null>(null);
+  useEffect(() => {
+    snapshotRef.current = snapshot;
+  }, [snapshot]);
   const [error, setError] = useState(false);
   const [pending, setPending] = useState(false);
   const [actionError, setActionError] = useState(false);
@@ -92,7 +101,18 @@ export function usePresentationSnapshot(url: string, sessionId?: string) {
     };
   }, [sessionId, refresh]);
   const command = useCallback(
-    async (value: PresentationCommand) => {
+    async (
+      value: PresentationCommand,
+      // Applied right before the request goes out, so the panel reflects the
+      // click immediately instead of waiting on the round trip - the
+      // authoritative response (or a revert on failure) always overwrites it,
+      // so a guess that turns out wrong self-heals within one request rather
+      // than drifting. Only supplied for commands whose outcome is a simple,
+      // fully-known local field flip (see PresentationControls.tsx); commands
+      // whose result depends on server-side computation (pagination totals,
+      // "next question by sort") pass no patch and behave as before.
+      optimisticPatch?: (previous: PresentationSnapshot) => PresentationSnapshot,
+    ) => {
       if (writing.current) return false;
       writing.current = true;
       setActionError(false);
@@ -104,6 +124,10 @@ export function usePresentationSnapshot(url: string, sessionId?: string) {
       }
       busy.current = true;
       let ok = false;
+      const previous = snapshotRef.current;
+      if (optimisticPatch && previous) {
+        setSnapshot(optimisticPatch(previous));
+      }
       try {
         const response = await fetch(url, {
           method: "POST",
@@ -124,7 +148,10 @@ export function usePresentationSnapshot(url: string, sessionId?: string) {
         }
         ok = true;
       } catch {
-        if (mounted.current) setActionError(true);
+        if (mounted.current) {
+          setActionError(true);
+          if (optimisticPatch && previous) setSnapshot(previous);
+        }
       } finally {
         busy.current = false;
         writing.current = false;
