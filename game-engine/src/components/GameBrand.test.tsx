@@ -4,8 +4,11 @@ import { describe, expect, it } from 'vitest'
 import { GameBrand } from './GameBrand'
 
 describe('GameBrand asset paths', () => {
-  it('renders the legacy logo below /games', () => {
-    expect(renderToStaticMarkup(<GameBrand legacy />)).toContain('src="/games/excel-master-logo.svg"')
+  it('renders the recolorable legacy flag mark and label', () => {
+    const html = renderToStaticMarkup(<GameBrand legacy />)
+    expect(html).toContain('quest-brand-excel')
+    expect(html).toContain('var(--quest-brand-flag)')
+    expect(html).toContain('Excel Master')
   })
   it('prefixes app-local custom logos and keeps remote logos', () => {
     const local = { title:'Course', settings:{ theme:{ logoUrl:'/brand.svg' } } } as never

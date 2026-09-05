@@ -1487,7 +1487,6 @@ export default function ExcelLearningPlatform({
       <header className="quest-header" inert={lessonState.showChat && (compactChat || isExpanded)}>
         <div className="quest-header-inner">
           <Link href={gameId ? `/${gameId}` : "/"} aria-label="返回任務基地"><GameBrand game={gameDefinition} legacy={!gameId} /></Link>
-          <span className="quest-header-label">任務工作臺</span>
           <div className="quest-player-stats"><span>Lv. {lessonState.level}</span><span>{lessonState.exp} XP</span><span><Star size={16} aria-hidden="true" />{lessonState.stars}</span></div>
         </div>
       </header>

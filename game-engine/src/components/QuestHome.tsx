@@ -4,6 +4,7 @@ import type { GameDefinition, GameVisualTemplate } from '../types/game'
 import type { Lesson } from '../types/lesson'
 import { canEnterLesson, gameThemeStyle, gameVisualTemplate, missionObjective } from '../lib/mission'
 import { GameBrand } from './GameBrand'
+import { gameAssetPath } from '../lib/game-asset-path'
 
 interface QuestHomeProps {
   game?: GameDefinition | null
@@ -26,24 +27,16 @@ interface QuestHomeProps {
 }
 
 function HeroArtwork({ template }: { template: GameVisualTemplate }) {
-  if (template === 'neo-brutal') return <div className="quest-hero-art" aria-hidden="true">
-    <svg viewBox="0 0 320 225" fill="none">
-      <path d="M40 54h113v88H40z" fill="#ff6b9d" stroke="#111" strokeWidth="6"/><path d="M55 70h113v88H55z" fill="#fff" stroke="#111" strokeWidth="6"/>
-      <circle cx="221" cy="75" r="39" fill="#70e1f5" stroke="#111" strokeWidth="6"/><path d="m192 145 63-22 27 55-64 21z" fill="#7c5cff" stroke="#111" strokeWidth="6"/>
-      <path d="m89 112 18 18 39-43" stroke="#111" strokeWidth="9" strokeLinecap="square"/><path d="m208 75 13 13 24-27" stroke="#111" strokeWidth="7"/>
-    </svg><span className="quest-art-caption">把挑戰拆成一塊一塊</span>
-  </div>
-  if (template === 'arcade') return <div className="quest-hero-art" aria-hidden="true">
-    <svg viewBox="0 0 320 225" fill="none">
-      <path d="M45 38h230v150H45z" fill="#090720" stroke="#49e7ff" strokeWidth="3"/><path d="M45 70h230M83 38v150m39-150v150m39-150v150m39-150v150m38-150v150M45 108h230M45 148h230" stroke="#7c5cff" opacity=".45"/>
-      <path d="m160 69 22 24-9 8 20 21-33 35-33-35 20-21-9-8z" fill="#ff4fd8" stroke="#d8d3ff" strokeWidth="3"/><path d="M62 169h196" stroke="#49e7ff" strokeWidth="7"/><path d="M62 169h128" stroke="#fff49b" strokeWidth="7"/>
-      <circle cx="83" cy="89" r="5" fill="#49e7ff"/><circle cx="238" cy="119" r="5" fill="#49e7ff"/><path d="m244 55 5 10 10 5-10 5-5 10-5-10-10-5 10-5z" fill="#fff49b"/>
-    </svg><span className="quest-art-caption">READY · LEARN · LEVEL UP</span>
-  </div>
+  const artwork = template === 'neo-brutal'
+    ? { src: '/template-art/neo-blocks-hero.webp', caption: '把挑戰拆成一塊一塊' }
+    : template === 'arcade'
+      ? { src: '/template-art/arcade-hero.webp', caption: 'READY · LEARN · LEVEL UP' }
+      : { src: '/template-art/discovery-hero.webp', caption: '每一步，都是新的發現' }
   return <div className="quest-hero-art" aria-hidden="true">
-    <svg viewBox="0 0 320 225" fill="none">
-      <ellipse cx="160" cy="183" rx="121" ry="24" fill="#071d32" opacity=".35" /><path d="m33 134 106-59 148 58-114 62z" fill="#194665" stroke="#51859c" /><path d="m33 134 140 52 114-53v15l-114 63-140-53z" fill="#102e4b" /><path d="m74 133 62 24 41-24-43-18 52-29" stroke="#5acddd" strokeWidth="7" strokeLinecap="round" strokeLinejoin="round" /><ellipse cx="75" cy="131" rx="13" ry="8" fill="#a0eef4" /><ellipse cx="137" cy="155" rx="13" ry="8" fill="#a0eef4" /><path d="M184 92V31" stroke="#c0ecf4" strokeWidth="5" strokeLinecap="round" /><path d="M187 33c17-13 29 14 48 0v31c-19 14-31-13-48 0z" fill="#53dccf" /><circle cx="73" cy="64" r="3" fill="#a0eef4" /><path d="M254 83v14m-7-7h14M117 34v10m-5-5h10" stroke="#a0eef4" strokeWidth="2" />
-    </svg><span className="quest-art-caption">每一步，都是新的發現</span>
+    {/* Local transparent artwork uses the Game Engine base path. */}
+    {/* eslint-disable-next-line @next/next/no-img-element */}
+    <img src={gameAssetPath(artwork.src)} alt="" width="720" height="526" />
+    <span className="quest-art-caption">{artwork.caption}</span>
   </div>
 }
 

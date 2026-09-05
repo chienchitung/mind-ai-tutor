@@ -67,13 +67,14 @@ describe('QuestHome learning journey guidance', () => {
 
 describe('QuestHome template artwork', () => {
   it.each([
-    ['discovery', '每一步，都是新的發現'],
-    ['neo-brutal', '把挑戰拆成一塊一塊'],
-    ['arcade', 'READY · LEARN · LEVEL UP'],
-  ] as const)('renders distinct %s hero artwork', (template, caption) => {
+    ['discovery', '每一步，都是新的發現', 'discovery-hero.webp'],
+    ['neo-brutal', '把挑戰拆成一塊一塊', 'neo-blocks-hero.webp'],
+    ['arcade', 'READY · LEARN · LEVEL UP', 'arcade-hero.webp'],
+  ] as const)('renders distinct %s hero artwork', (template, caption, asset) => {
     const html = renderToStaticMarkup(
       <QuestHome {...baseProps} signedIn game={{ id: 'game', title: '測試遊戲', description: '', lessons: [], settings: { theme: { template } } }} />,
     )
     expect(html).toContain(caption)
+    expect(html).toContain(`/games/template-art/${asset}`)
   })
 })
