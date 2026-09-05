@@ -77,10 +77,20 @@ interface DigitalGame {
   user_id: string;
   is_active?: boolean;
   settings?: {
+    theme?: { template?: GameVisualTemplate; [key: string]: unknown };
     lessonOverrides?: Record<string, LessonOverride>;
     [key: string]: unknown;
   };
 }
+
+type GameVisualTemplate = 'discovery' | 'neo-brutal' | 'arcade';
+const visualTemplateOf = (value: unknown): GameVisualTemplate =>
+  value === 'neo-brutal' || value === 'arcade' ? value : 'discovery';
+const visualTemplates = [
+  { id: 'discovery', zh: '探索基地', en: 'Discovery', zhDescription: '沉穩、清楚，適合一般課程與較長教材。', enDescription: 'Calm and clear for general courses and longer materials.', preview: 'bg-[#102e4b] border-[#5acddd]' },
+  { id: 'neo-brutal', zh: '玩色積木', en: 'Neo Blocks', zhDescription: '粗框、硬陰影與高彩度，適合活潑的闖關活動。', enDescription: 'Bold borders and vivid colors for playful challenges.', preview: 'bg-[#ffde59] border-black' },
+  { id: 'arcade', zh: '午夜電玩', en: 'Midnight Arcade', zhDescription: '深色霓虹介面，適合競賽、科技與遊戲化課程。', enDescription: 'A dark neon interface for competitions and game-driven lessons.', preview: 'bg-[#100c2f] border-[#7c5cff]' },
+] satisfies Array<{ id: GameVisualTemplate; zh: string; en: string; zhDescription: string; enDescription: string; preview: string }>;
 
 export default function DigitalGamesPage() {
   const [digitalGames, setDigitalGames] = useState<DigitalGame[]>([]);
@@ -102,6 +112,7 @@ export default function DigitalGamesPage() {
   const [coverFile, setCoverFile] = useState<File | null>(null);
   const [coverEditing, setCoverEditing] = useState(false);
   const [openSection, setOpenSection] = useState("game-basics");
+  const [visualTemplate, setVisualTemplate] = useState<GameVisualTemplate>('discovery');
   const { toast } = useToast();
   const { language } = useLanguage();
   const { t } = useTranslation(language);
@@ -245,6 +256,7 @@ export default function DigitalGamesPage() {
         editingGame.settings?.lessonOverrides || {},
         lessons,
       ));
+      setVisualTemplate(visualTemplateOf(editingGame.settings?.theme?.template));
     } else {
       form.reset({
         title: "",
@@ -255,12 +267,14 @@ export default function DigitalGamesPage() {
       });
       setSelectedLessons([]);
       setLessonOverrides({});
+      setVisualTemplate('discovery');
     }
   }, [editingGame, form, lessons]);
 
-  const pathDirty = JSON.stringify({ ids: selectedLessons, overrides: lessonOverrides }) !== JSON.stringify({
+  const pathDirty = JSON.stringify({ ids: selectedLessons, overrides: lessonOverrides, template: visualTemplate }) !== JSON.stringify({
     ids: editingGame?.lesson_ids || [],
     overrides: normalizeLessonOverrides(editingGame?.lesson_ids || [], editingGame?.settings?.lessonOverrides || {}, lessons),
+    template: visualTemplateOf(editingGame?.settings?.theme?.template),
   });
   const confirmLeave = useUnsavedChanges(showEditForm && (form.formState.isDirty || pathDirty || Boolean(coverFile) || coverEditing), showEditForm && form.formState.isSubmitting);
   const closeEditor = () => {
@@ -269,6 +283,7 @@ export default function DigitalGamesPage() {
     setEditingGame(null);
     setSelectedLessons([]);
     setLessonOverrides({});
+    setVisualTemplate('discovery');
     setCoverFile(null);
     setCoverEditing(false);
     form.reset();
@@ -307,6 +322,7 @@ export default function DigitalGamesPage() {
         is_active: true,
         settings: {
           ...(editingGame?.settings || {}),
+          theme: { ...(editingGame?.settings?.theme || {}), template: visualTemplate },
           lessonOverrides: normalizedOverrides,
         },
       };
@@ -344,6 +360,7 @@ export default function DigitalGamesPage() {
       form.reset();
       setSelectedLessons([]);
       setLessonOverrides({});
+      setVisualTemplate('discovery');
     } catch (error: any) {
       toast({
         title: t("error"),
@@ -500,6 +517,7 @@ export default function DigitalGamesPage() {
                 setShowEditForm(true);
                 setSelectedLessons([]);
                 setLessonOverrides({});
+                setVisualTemplate('discovery');
                 form.reset();
               }}
             >
@@ -538,6 +556,7 @@ export default function DigitalGamesPage() {
                 description={language === 'zh-TW' ? '先完成遊戲資料，再安排學習路線與各關卡顯示內容。' : 'Complete the game details, then arrange the learning path and level content.'}
                 sections={[
                   { id: 'game-basics', label: language === 'zh-TW' ? '遊戲資料' : 'Game details' },
+                  { id: 'game-style', label: language === 'zh-TW' ? '視覺樣板' : 'Visual template' },
                   { id: 'game-lessons', label: language === 'zh-TW' ? '學習路線' : 'Learning path' },
                 ]}
                 actions={<Button
@@ -644,6 +663,35 @@ export default function DigitalGamesPage() {
                       </FormItem>
                     )}
                   />
+                    </AccordionContent>
+                  </AccordionItem>
+
+                  <AccordionItem value="game-style" id="game-style" className="scroll-mt-24 lg:scroll-mt-64">
+                    <AccordionTrigger>
+                      <div className="text-left">
+                        <h3 className="font-semibold">{language === 'zh-TW' ? '視覺樣板' : 'Visual template'}</h3>
+                        <p className="mt-1 text-sm text-muted-foreground">{language === 'zh-TW' ? '只改變遊戲外觀；關卡內容、作答、進度與資料紀錄保持相同。' : 'Changes presentation only. Lessons, answers, progress and tracking stay the same.'}</p>
+                      </div>
+                    </AccordionTrigger>
+                    <AccordionContent>
+                      <fieldset>
+                        <legend className="sr-only">{language === 'zh-TW' ? '選擇視覺樣板' : 'Choose a visual template'}</legend>
+                        <div className="grid gap-3 md:grid-cols-3">
+                          {visualTemplates.map(template => {
+                            const selected = visualTemplate === template.id;
+                            return <label key={template.id} className={`cursor-pointer rounded-xl border-2 p-3 transition-colors ${selected ? 'border-primary ring-2 ring-primary/20' : 'border-border hover:border-foreground/30'}`}>
+                              <input className="sr-only" type="radio" name="visual-template" value={template.id} checked={selected} onChange={() => setVisualTemplate(template.id)} />
+                              <span className={`block h-24 rounded-lg border-2 ${template.preview}`} aria-hidden="true">
+                                <span className="m-3 block h-7 w-2/3 border-2 border-current bg-white shadow-[4px_4px_0_currentColor]" />
+                                <span className="mx-3 block h-3 w-1/2 rounded-full bg-white/80" />
+                              </span>
+                              <span className="mt-3 block font-semibold">{language === 'zh-TW' ? template.zh : template.en}</span>
+                              <span className="mt-1 block text-xs leading-5 text-muted-foreground">{language === 'zh-TW' ? template.zhDescription : template.enDescription}</span>
+                              {selected && <Badge className="mt-2">{language === 'zh-TW' ? '已選擇' : 'Selected'}</Badge>}
+                            </label>;
+                          })}
+                        </div>
+                      </fieldset>
                     </AccordionContent>
                   </AccordionItem>
 

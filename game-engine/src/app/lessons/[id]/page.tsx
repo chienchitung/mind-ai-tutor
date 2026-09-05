@@ -27,7 +27,7 @@ import type { Lesson } from '@/types/lesson'
 import type { GameDefinition } from '@/types/game'
 import { GameBrand } from '@/components/GameBrand'
 import { MissionBrief } from '@/components/MissionBrief'
-import { gameThemeStyle } from '@/lib/mission'
+import { gameThemeStyle, gameVisualTemplate } from '@/lib/mission'
 
 
 const ChatMessage = ({ message, isUser, imageUrl }: { message: string; isUser: boolean; imageUrl?: string }) => {
@@ -1482,7 +1482,7 @@ export default function ExcelLearningPlatform({
   }
 
   return (
-    <div className="quest-shell lesson-shell" style={gameThemeStyle(gameDefinition?.settings.theme)}>
+    <div className="quest-shell lesson-shell" data-quest-template={gameVisualTemplate(gameDefinition?.settings.theme)} style={gameThemeStyle(gameDefinition?.settings.theme)}>
       <a className="quest-skip" href="#lesson-workspace">跳至任務工作臺</a>
       <header className="quest-header" inert={lessonState.showChat && (compactChat || isExpanded)}>
         <div className="quest-header-inner">

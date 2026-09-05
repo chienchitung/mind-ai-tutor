@@ -14,10 +14,11 @@ const row = (id: string, position: number) => ({
 describe('public game manifest presentation compatibility', () => {
   it('keeps configured order, original materials, questions and IDs while adding game-specific mission', async () => {
     const source = [row('b', 1), row('a', 2)];
-    rpc.mockResolvedValueOnce({ error: null, data: { id: 'game-a', title: 'Excel Master', settings: { lessonOverrides: { b: { number: 0, role: 'intro', cardDescription: '遊戲摘要', mission: { scenario: ' 幫忙核對預算 ', objective: '核對總額' } } } }, lessons: source } });
+    rpc.mockResolvedValueOnce({ error: null, data: { id: 'game-a', title: 'Excel Master', settings: { theme: { template: 'neo-brutal' }, lessonOverrides: { b: { number: 0, role: 'intro', cardDescription: '遊戲摘要', mission: { scenario: ' 幫忙核對預算 ', objective: '核對總額' } } } }, lessons: source } });
     const game = await getPublicGameManifest('game-a');
     expect(rpc).toHaveBeenLastCalledWith('get_public_game_manifest', { p_game_id: 'game-a' });
     expect(game.lessons.map(lesson => lesson.lesson_id)).toEqual(['b', 'a']);
+    expect(game.settings.theme?.template).toBe('neo-brutal');
     expect(game.lessons[0]).toMatchObject({ title: '老師課程 b', number: 0, role: 'intro', description: '遊戲摘要', content: source[0].teaching_content, markdownContent: source[0].markdown_content, practiceExercises: source[0].practice_exercises, geniallyLink: source[0].genially_link, mission: { scenario: '幫忙核對預算', objective: '核對總額' } });
     expect(source[0].title).toBe('老師課程 b');
   });

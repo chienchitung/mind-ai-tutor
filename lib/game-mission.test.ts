@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { normalizeMission, missionObjective, canEnterLesson, gameThemeStyle, gameBrandKind } from '../game-engine/src/lib/mission';
+import { normalizeMission, missionObjective, canEnterLesson, gameThemeStyle, gameBrandKind, gameVisualTemplate } from '../game-engine/src/lib/mission';
 import { normalizeLessonOverrides, serializeLessonOverrides } from './game-lesson-settings';
 import type { Lesson } from '../game-engine/src/types/lesson';
 
@@ -41,6 +41,12 @@ describe('optional mission presentation', () => {
     expect(gameBrandKind('excel master', false)).toBe('excel');
     expect(gameBrandKind('研究探險', false)).toBe('generic');
     expect(gameBrandKind('', true)).toBe('excel');
+  });
+  it('allows known visual templates and safely falls back for old or invalid settings', () => {
+    expect(gameVisualTemplate()).toBe('discovery');
+    expect(gameVisualTemplate({ template: 'neo-brutal' })).toBe('neo-brutal');
+    expect(gameVisualTemplate({ template: 'arcade' })).toBe('arcade');
+    expect(gameVisualTemplate({ template: 'unknown' as never })).toBe('discovery');
   });
   it('accepts hex accents and rejects arbitrary CSS', () => {
     expect(gameThemeStyle({ primaryColor: '#ab1234', accentColor: 'url(https://example.org)' })).toEqual({ '--quest-primary': '#ab1234', '--quest-accent': '#0f8a91' });
