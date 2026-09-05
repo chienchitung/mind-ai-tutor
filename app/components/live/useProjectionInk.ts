@@ -13,7 +13,7 @@ type Remote = {
   strokes: InkStroke[];
   history?: InkHistory;
 };
-type Draft = { history: InkHistory; base: InkStroke[] };
+type Draft = { history: InkHistory; base: InkStroke[]; sent: boolean };
 const signature = (strokes: InkStroke[]) =>
   JSON.stringify(
     strokes.map((s) => [
@@ -60,7 +60,7 @@ export function useProjectionInk(
         delete next[key];
         return next;
       });
-    } else if (!conflict) {
+    } else if (!conflict && !draft.sent) {
       send({
         type: "annotation-action",
         deckUrl,
@@ -68,30 +68,54 @@ export function useProjectionInk(
         baseStrokes: remote!.strokes,
         action: { type: "commit", page, strokes: draft.history.strokes },
       });
+      setDrafts((previous) =>
+        previous[key] === draft
+          ? { ...previous, [key]: { ...draft, sent: true } }
+          : previous,
+      );
     }
   }, [draft, connected, matches, remote, key, deckUrl, page, conflict, send]);
+  useEffect(() => {
+    if (connected || !draft?.sent) return;
+    setDrafts((previous) =>
+      previous[key] === draft
+        ? { ...previous, [key]: { ...draft, sent: false } }
+        : previous,
+    );
+  }, [connected, draft, key]);
   const act = (action: AnnotationAction) => {
-    if (!draft && connected && matches) {
+    // Always apply the command locally first. Waiting for the teacher window
+    // to echo it makes a finished pen stroke disappear between pointer-up and
+    // the round trip; it also leaves the eraser with no visible stroke to hit
+    // when that acknowledgement is delayed or missed. The effect above sends
+    // this optimistic draft and retires it only after the same strokes return.
+    const history = annotationReducer(
+      { [page]: draft?.history ?? remoteHistory },
+      action,
+    )[page];
+    const canSend = connected && matches && !conflict;
+    if (canSend) {
       send({
         type: "annotation-action",
         deckUrl,
         page,
         baseStrokes: remote!.strokes,
-        action,
+        // Preserve undo/redo semantics when there is no earlier command in
+        // flight. If there is, send the cumulative visible result so commands
+        // cannot be applied out of order by the teacher window.
+        action: draft
+          ? { type: "commit", page, strokes: history.strokes }
+          : action,
       });
-      return;
     }
-    setDrafts((previous) => {
-      const current = previous[key];
-      const history = annotationReducer(
-        { [page]: current?.history ?? remoteHistory },
-        action,
-      )[page];
-      return {
-        ...previous,
-        [key]: { history, base: current?.base ?? remoteHistory.strokes },
-      };
-    });
+    setDrafts((previous) => ({
+      ...previous,
+      [key]: {
+        history,
+        base: previous[key]?.base ?? remoteHistory.strokes,
+        sent: canSend,
+      },
+    }));
   };
   return {
     history: draft?.history ?? remoteHistory,
@@ -110,7 +134,7 @@ export function useProjectionInk(
           previous[key]
             ? {
                 ...previous,
-                [key]: { ...previous[key], base: remote!.strokes },
+                [key]: { ...previous[key], base: remote!.strokes, sent: false },
               }
             : previous,
         );

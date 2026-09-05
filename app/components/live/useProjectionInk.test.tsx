@@ -61,6 +61,35 @@ it("syncs unchanged-base drafts after reconnect and retires them only after ackn
   expect(result.current.pending).toBe(false);
   expect(result.current.history.strokes).toEqual(local);
 });
+it("keeps connected pen and eraser results visible while acknowledgement is pending", () => {
+  const { result, rerender, send } = setup();
+  rerender({ connected: true, value: remote(), deck: "a.pdf", page: 1 });
+
+  act(() => result.current.act({ type: "commit", page: 1, strokes: local }));
+  expect(result.current.history.strokes).toEqual(local);
+  expect(result.current.pending).toBe(true);
+  expect(send).toHaveBeenCalledWith({
+    type: "annotation-action",
+    deckUrl: "a.pdf",
+    page: 1,
+    baseStrokes: [],
+    action: { type: "commit", page: 1, strokes: local },
+  });
+
+  rerender({ connected: true, value: remote(local), deck: "a.pdf", page: 1 });
+  expect(result.current.history.strokes).toEqual(local);
+  expect(result.current.pending).toBe(false);
+  send.mockClear();
+  act(() => result.current.act({ type: "commit", page: 1, strokes: [] }));
+  expect(result.current.history.strokes).toEqual([]);
+  expect(result.current.pending).toBe(true);
+  expect(send).toHaveBeenCalledWith(
+    expect.objectContaining({
+      baseStrokes: local,
+      action: { type: "commit", page: 1, strokes: [] },
+    }),
+  );
+});
 it("preserves conflicting drawings until the user explicitly selects the teacher copy", () => {
   const { result, rerender, send } = setup();
   act(() => result.current.act({ type: "commit", page: 1, strokes: local }));

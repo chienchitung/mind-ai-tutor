@@ -5,6 +5,7 @@ import { useRef, useState, type ComponentProps, type ReactNode } from 'react';
 import { LanguageProvider } from '@/app/contexts/LanguageContext';
 import { AnnotationLayer } from './AnnotationLayer';
 import { PresentationStage } from './PresentationStage';
+import { useProjectionInk } from './useProjectionInk';
 
 vi.mock('./JoinQRCode', () => ({ JoinQRCode: () => <div role="img" aria-label="Scan to join / 掃碼加入" /> }));
 vi.mock('./DeckViewer', () => ({
@@ -81,6 +82,37 @@ function Harness() {
         onExit={() => setOpen(false)}
         onPageChange={setPage}
         onNumPages={() => {}}
+      />
+    </LanguageProvider>
+  );
+}
+const CONNECTED_EMPTY_INK = {
+  deckUrl: '/fixture.pdf',
+  page: 1,
+  strokes: [],
+};
+function ConnectedProjectionHarness() {
+  const drawing = useProjectionInk(
+    '/fixture.pdf',
+    1,
+    CONNECTED_EMPTY_INK,
+    true,
+    () => {},
+  );
+  return (
+    <LanguageProvider>
+      <PresentationStage
+        open
+        url="/fixture.pdf"
+        page={1}
+        numPages={2}
+        title="Connected projection"
+        joinCode="482910"
+        onExit={() => {}}
+        onPageChange={() => {}}
+        onNumPages={() => {}}
+        annotationState={{ 1: drawing.history }}
+        onAnnotationAction={drawing.act}
       />
     </LanguageProvider>
   );
@@ -255,6 +287,19 @@ describe('projection tools', () => {
     expect(document.querySelectorAll('[data-ink-stroke]')).toHaveLength(0);
     fireEvent.keyDown(surface, { key: 'z', ctrlKey: true });
     expect(document.querySelectorAll('[data-ink-stroke]')).toHaveLength(1);
+  });
+  it('keeps a connected-window stroke visible after release and lets the eraser remove it before an echo arrives', async () => {
+    vi.stubGlobal('localStorage', { getItem: () => '1', setItem: vi.fn() });
+    render(<ConnectedProjectionHarness />);
+    const surface = await screen.findByRole('img', { name: '投影片標註區' });
+    fireEvent.keyDown(surface, { key: 'p' });
+    draw(surface);
+    expect(document.querySelectorAll('[data-ink-stroke]')).toHaveLength(1);
+
+    fireEvent.keyDown(surface, { key: 'e' });
+    down(surface, 200, 20);
+    up(surface, 200, 300);
+    expect(document.querySelectorAll('[data-ink-stroke]')).toHaveLength(0);
   });
   it('does not turn Space on a toolbar button into a page change', async () => {
     render(<Harness />);
