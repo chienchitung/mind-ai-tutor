@@ -421,11 +421,11 @@ export const PresentationStage = forwardRef<HTMLDivElement, Props>(
       pointerPosition.current = { x: event.clientX, y: event.clientY };
       wake();
     };
-    const handleDrawingChange = (active: boolean) => {
+    const handleDrawingChange = useCallback((active: boolean) => {
       setDrawing(active);
       setVisible(false);
       if (hideTimer.current) clearTimeout(hideTimer.current);
-    };
+    }, []);
     const undo = () => dispatch({ type: "undo", page });
     const redo = () => dispatch({ type: "redo", page });
     const clear = () => dispatch({ type: "clear", page });
@@ -560,7 +560,7 @@ export const PresentationStage = forwardRef<HTMLDivElement, Props>(
                         <>
                           {remoteOverlay}
                           <AnnotationLayer
-                            key={`${page}-${contextOpen || toolsOpen}`}
+                            key={page}
                             strokes={history.strokes}
                             tool={toolsDisabled ? "cursor" : tool}
                             color={color}
