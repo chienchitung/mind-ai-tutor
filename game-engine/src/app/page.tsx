@@ -14,6 +14,7 @@ import { useRouter } from "next/navigation"
 import { getLeaderboardStats, getPlayerRank, getLessonOrderMappings, verifyStudentLoginCode } from '@/lib/supabase'
 import { Lesson } from '@/types/lesson'
 import type { GameDefinition } from '@/types/game'
+import { gameVisualTemplate } from '@/lib/mission'
 
 interface ProgressData {
   completedLessons: string[];
@@ -343,6 +344,8 @@ export default function HomePage({ gameId }: { gameId?: string }) {
     );
   }
 
+  const visualTemplate = gameVisualTemplate(gameDefinition?.settings.theme);
+
   return (
     <div>
       <QuestHome game={gameDefinition} gameId={gameId} lessons={mappedLessons}
@@ -428,44 +431,47 @@ export default function HomePage({ gameId }: { gameId?: string }) {
 
       {/* 排行榜對話框 */}
       <Dialog open={showLeaderboardDialog} onOpenChange={setShowLeaderboardDialog}>
-        <DialogContent className="sm:max-w-[600px] w-[95vw] max-h-[90vh] overflow-y-auto">
+        <DialogContent
+          data-game-template={visualTemplate}
+          className="game-leaderboard sm:max-w-[640px] w-[95vw] max-h-[90vh] overflow-hidden"
+        >
           <DialogHeader>
-            <DialogTitle className="flex items-center gap-2 text-lg sm:text-xl mb-2">
-              <Trophy className="h-5 w-5 sm:h-6 sm:w-6 text-[#2B4EFF]" />
+            <DialogTitle className="game-leaderboard-title flex items-center gap-2 text-lg sm:text-xl mb-2">
+              <span className="game-leaderboard-icon"><Trophy className="h-5 w-5 sm:h-6 sm:w-6" /></span>
               完成時間排行榜
             </DialogTitle>
-            <DialogDescription className="text-sm sm:text-base">
+            <DialogDescription className="game-leaderboard-description text-sm sm:text-base">
               查看所有學習者的完成時間排名
             </DialogDescription>
           </DialogHeader>
           
           <div className="space-y-4 sm:space-y-6">
             {/* 排行榜統計資訊 */}
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 sm:gap-4">
-              <div className="bg-[#F5F7FF] rounded-xl p-3 sm:p-4 text-center">
-                <div className="text-xl sm:text-2xl font-bold text-[#2B4EFF]">{leaderboardStats.total_participants}</div>
-                <div className="text-xs sm:text-sm text-gray-500">參與人數</div>
+            <div className="game-leaderboard-stats grid grid-cols-3 gap-2 sm:gap-4">
+              <div className="game-leaderboard-stat is-participants p-3 sm:p-4 text-center">
+                <div className="game-leaderboard-value text-xl sm:text-2xl font-bold">{leaderboardStats.total_participants}</div>
+                <div className="game-leaderboard-label text-xs sm:text-sm">參與人數</div>
               </div>
-              <div className="bg-[#FFF5E5] rounded-xl p-3 sm:p-4 text-center">
-                <div className="text-xl sm:text-2xl font-bold text-[#FF9900]">{leaderboardStats.fastest_time}</div>
-                <div className="text-xs sm:text-sm text-gray-500">最快紀錄</div>
+              <div className="game-leaderboard-stat is-fastest p-3 sm:p-4 text-center">
+                <div className="game-leaderboard-value text-xl sm:text-2xl font-bold">{leaderboardStats.fastest_time}</div>
+                <div className="game-leaderboard-label text-xs sm:text-sm">最快紀錄</div>
               </div>
-              <div className="bg-[#E5FFE1] rounded-xl p-3 sm:p-4 text-center">
-                <div className="text-xl sm:text-2xl font-bold text-[#58CC02]">{leaderboardStats.average_time}</div>
-                <div className="text-xs sm:text-sm text-gray-500">平均時間</div>
+              <div className="game-leaderboard-stat is-average p-3 sm:p-4 text-center">
+                <div className="game-leaderboard-value text-xl sm:text-2xl font-bold">{leaderboardStats.average_time}</div>
+                <div className="game-leaderboard-label text-xs sm:text-sm">平均時間</div>
               </div>
             </div>
 
             {/* 排行榜列表 */}
             <div className="space-y-3 max-h-[calc(90vh-280px)] overflow-y-auto pr-2">
               {leaderboardStats.total_participants === 0 ? (
-                <div className="text-center text-gray-500 py-8">
+                <div className="game-leaderboard-empty text-center py-8">
                   目前還沒有完成紀錄
                 </div>
               ) : (
                 <div className="space-y-2">
                   {/* 表頭 */}
-                  <div className="grid grid-cols-12 gap-2 sm:gap-4 px-3 sm:px-4 py-2 bg-gray-50 rounded-lg text-xs sm:text-sm font-medium text-gray-600">
+                  <div className="game-leaderboard-head grid grid-cols-12 gap-2 sm:gap-4 px-3 sm:px-4 py-2 text-xs sm:text-sm font-medium">
                     <div className="col-span-2">排名</div>
                     <div className="col-span-3 sm:col-span-4">學號</div>
                     <div className="col-span-3">姓名</div>
@@ -475,20 +481,16 @@ export default function HomePage({ gameId }: { gameId?: string }) {
                   {leaderboardStats.rankings.map((entry, index) => (
                     <div 
                       key={`${entry.student_id}-${index}`}
-                      className={`grid grid-cols-12 gap-2 sm:gap-4 px-3 sm:px-4 py-2 sm:py-3 rounded-lg ${
+                      className={`game-leaderboard-row grid grid-cols-12 gap-2 sm:gap-4 px-3 sm:px-4 py-2 sm:py-3 ${
                         playerRank !== null && entry.rank === playerRank
-                          ? 'bg-[#F5F7FF] border border-[#2B4EFF]'
-                          : 'bg-white border border-gray-100'
+                          ? 'is-current-player'
+                          : ''
                       }`}
                     >
                       <div className="col-span-2 flex items-center">
-                        <div className={`
-                          w-6 h-6 sm:w-8 sm:h-8 rounded-full flex items-center justify-center font-bold text-xs sm:text-sm
-                          ${index === 0 ? 'bg-[#FFD700] text-white' :
-                            index === 1 ? 'bg-[#C0C0C0] text-white' :
-                            index === 2 ? 'bg-[#CD7F32] text-white' :
-                            'bg-gray-100 text-gray-600'}
-                        `}>
+                        <div className={`game-leaderboard-rank w-6 h-6 sm:w-8 sm:h-8 flex items-center justify-center font-bold text-xs sm:text-sm ${
+                          index === 0 ? 'is-gold' : index === 1 ? 'is-silver' : index === 2 ? 'is-bronze' : 'is-standard'
+                        }`}>
                           {entry.rank}
                         </div>
                       </div>
@@ -503,7 +505,7 @@ export default function HomePage({ gameId }: { gameId?: string }) {
                         </span>
                       </div>
                       <div className="col-span-4 sm:col-span-3 flex items-center">
-                        <span className="text-xs sm:text-sm text-gray-600">
+                        <span className="game-leaderboard-time text-xs sm:text-sm">
                           {entry.completion_time_string}
                         </span>
                       </div>

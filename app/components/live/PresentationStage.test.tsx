@@ -292,23 +292,34 @@ describe('projection tools', () => {
     expect((announcement as HTMLElement).style.left).toBe('254px');
     expect((announcement as HTMLElement).style.top).toBe('174px');
   });
-  it('remembers the presenter toolbar pin preference', async () => {
-    let pinned = '0';
-    vi.stubGlobal('localStorage', {
-      getItem: (key: string) =>
-        key === 'live-presentation-onboarding-seen' ? '1' : pinned,
-      setItem: (key: string, value: string) => {
-        if (key === 'live-presentation-controls-pinned-v1') pinned = value;
-      },
-    });
-    const first = render(<Harness />);
-    const pin = await screen.findByRole('button', { name: '固定顯示控制列' });
-    fireEvent.click(pin);
-    expect(pinned).toBe('1');
-    first.unmount();
+  it('closes and hides the toolbar after choosing a drawing tool', async () => {
+    vi.stubGlobal('localStorage', { getItem: () => '1', setItem: vi.fn() });
     render(<Harness />);
-    const unpin = await screen.findByRole('button', { name: '自動隱藏控制列' });
-    expect(unpin.getAttribute('aria-pressed')).toBe('true');
+    await screen.findByRole('img', { name: '投影片標註區' });
+    fireEvent.pointerDown(screen.getByRole('button', { name: '投影工具' }), {
+      button: 0,
+      pointerType: 'mouse',
+    });
+    const menu = await screen.findByRole('menu');
+    fireEvent.click(within(menu).getByRole('menuitemradio', { name: /畫筆/ }));
+    await waitFor(() => expect(screen.queryByRole('menu')).toBeNull());
+    const toolbars = [...document.querySelectorAll('[data-presentation-ui]')]
+      .filter((element) => element.className.includes('transition-opacity'));
+    expect(toolbars).toHaveLength(2);
+    toolbars.forEach((toolbar) => expect(toolbar.className).toContain('opacity-0'));
+    expect(screen.queryByRole('button', { name: '固定顯示控制列' })).toBeNull();
+  });
+  it('keeps the toolbar hidden after a pen stroke until the pointer moves again', async () => {
+    vi.stubGlobal('localStorage', { getItem: () => '1', setItem: vi.fn() });
+    render(<Harness />);
+    const surface = await screen.findByRole('img', { name: '投影片標註區' });
+    fireEvent.keyDown(surface, { key: 'p' });
+    draw(surface);
+    const toolbars = [...document.querySelectorAll('[data-presentation-ui]')]
+      .filter((element) => element.className.includes('transition-opacity'));
+    toolbars.forEach((toolbar) => expect(toolbar.className).toContain('opacity-0'));
+    fireEvent.pointerMove(screen.getByRole('dialog'), { clientX: 20, clientY: 20, pointerId: 1 });
+    toolbars.forEach((toolbar) => expect(toolbar.className).toContain('opacity-100'));
   });
   it('shows a one-time onboarding tip on first open and remembers it was dismissed', async () => {
     let seen: string | null = null;

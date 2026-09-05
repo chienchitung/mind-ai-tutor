@@ -281,8 +281,6 @@ export default function PresentDisplayPage() {
                 />
                 {(pageError ||
                   !connected ||
-                  !inkMatches ||
-                  drawing.pending ||
                   drawing.conflict) && (
                   <p
                     role="status"
@@ -300,9 +298,7 @@ export default function PresentDisplayPage() {
                           ? zh
                             ? "老師控制台未連線；工具仍可使用，筆跡暫存於本視窗。"
                             : "Presenter disconnected. Tools remain available; drawings are kept in this window."
-                          : zh
-                            ? "正在同步筆跡；工具仍可使用。"
-                            : "Synchronizing drawings. Tools remain available."}
+                          : null}
                     {drawing.conflict && (
                       <span className="ml-2 inline-flex gap-2">
                         <Button size="sm" onClick={drawing.useRemote}>

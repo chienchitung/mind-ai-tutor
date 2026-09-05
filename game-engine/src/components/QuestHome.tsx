@@ -56,7 +56,6 @@ export function QuestHome(props: QuestHomeProps) {
     <a className="quest-skip" href="#mission-map">跳至任務地圖</a>
     <header className="quest-header"><div className="quest-header-inner">
       <Link href={gameId ? `/${gameId}` : '/'} aria-label="遊戲首頁"><GameBrand game={game} legacy={!gameId} /></Link>
-      <span className="quest-header-label">學習冒險基地</span>
       <div className="quest-player-stats"><span>Lv. {props.level}</span><span title="經驗值">{props.exp} XP</span><span><Star size={16} aria-hidden="true" />{props.stars}</span></div>
     </div></header>
     {signedIn && props.isGuest && (

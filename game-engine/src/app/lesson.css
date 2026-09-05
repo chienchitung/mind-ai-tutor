@@ -140,7 +140,10 @@
 .lesson-shell[data-quest-template="neo-brutal"] .lesson-content-card .prose :is(h1,h2) { color:#111; text-decoration:underline; text-decoration-color:#ff6b9d; text-decoration-thickness:5px; text-underline-offset:4px; }
 .lesson-shell[data-quest-template="neo-brutal"] .lesson-content-card :is(code,pre) { border:2px solid #111; border-radius:3px; background:#fff4bd; color:#111; }
 .lesson-shell[data-quest-template="neo-brutal"] .lesson-table-scroll { border:2px solid #111; border-radius:3px; }
+.lesson-shell[data-quest-template="neo-brutal"] .lesson-table-scroll :is(th,td) { color:#111; border-color:#111; }
 .lesson-shell[data-quest-template="neo-brutal"] .lesson-table-scroll th { background:#ffde59; }
+.lesson-shell[data-quest-template="neo-brutal"] .lesson-table-scroll td { background:#fff; }
+.lesson-shell[data-quest-template="neo-brutal"] .lesson-table-scroll tbody tr:nth-child(even) td { background:#d9f7ff; }
 
 .lesson-shell[data-quest-template="arcade"] .lesson-breadcrumb a { color:#d9dcff; }
 .lesson-shell[data-quest-template="arcade"] .lesson-breadcrumb a:hover { color:#70efff; }
@@ -158,6 +161,10 @@
 .lesson-shell[data-quest-template="arcade"] .lesson-markdown { color:#e6e7ff; }
 .lesson-shell[data-quest-template="arcade"] .lesson-markdown :is(h1,h2,h3,h4,strong) { color:#fff; }
 .lesson-shell[data-quest-template="arcade"] .lesson-markdown :is(code,pre) { color:#9af3ff; background:#090720; }
+.lesson-shell[data-quest-template="arcade"] .lesson-table-scroll { background:#151233; border-color:#554b98; }
+.lesson-shell[data-quest-template="arcade"] .lesson-table-scroll :is(th,td) { color:#eef0ff; background:#151233; border-color:#4b4384; }
+.lesson-shell[data-quest-template="arcade"] .lesson-table-scroll th { color:#70efff; background:#25205a; }
+.lesson-shell[data-quest-template="arcade"] .lesson-table-scroll tbody tr:nth-child(even) td { background:#211d4b; }
 .lesson-shell[data-quest-template="arcade"] .lesson-task > h3,
 .lesson-shell[data-quest-template="arcade"] :is(.lesson-empty,.lesson-interactive-note,.lesson-reward-note) { color:#c4c5e8; }
 .lesson-shell[data-quest-template="arcade"] .lesson-complete-copy :is(strong,p) { color:#f1f2ff; }
