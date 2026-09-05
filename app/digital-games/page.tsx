@@ -87,27 +87,22 @@ type GameVisualTemplate = 'discovery' | 'neo-brutal' | 'arcade';
 const visualTemplateOf = (value: unknown): GameVisualTemplate =>
   value === 'neo-brutal' || value === 'arcade' ? value : 'discovery';
 const visualTemplates = [
-  { id: 'discovery', zh: '探索基地', en: 'Discovery', zhDescription: '沉穩、清楚，適合一般課程與較長教材。', enDescription: 'Calm and clear for general courses and longer materials.' },
-  { id: 'neo-brutal', zh: '玩色積木', en: 'Neo Blocks', zhDescription: '粗框、硬陰影與高彩度，適合活潑的闖關活動。', enDescription: 'Bold borders and vivid colors for playful challenges.' },
-  { id: 'arcade', zh: '午夜電玩', en: 'Midnight Arcade', zhDescription: '深色霓虹介面，適合競賽、科技與遊戲化課程。', enDescription: 'A dark neon interface for competitions and game-driven lessons.' },
-] satisfies Array<{ id: GameVisualTemplate; zh: string; en: string; zhDescription: string; enDescription: string }>;
+  { id: 'discovery', zh: '探索基地', en: 'Discovery', zhDescription: '沉穩、清楚，適合一般課程與較長教材。', enDescription: 'Calm and clear for general courses and longer materials.', artwork: '/games/template-art/discovery-hero.webp' },
+  { id: 'neo-brutal', zh: '玩色積木', en: 'Neo Blocks', zhDescription: '粗框、硬陰影與高彩度，適合活潑的闖關活動。', enDescription: 'Bold borders and vivid colors for playful challenges.', artwork: '/games/template-art/neo-blocks-hero.webp' },
+  { id: 'arcade', zh: '午夜電玩', en: 'Midnight Arcade', zhDescription: '深色霓虹介面，適合競賽、科技與遊戲化課程。', enDescription: 'A dark neon interface for competitions and game-driven lessons.', artwork: '/games/template-art/arcade-hero.webp' },
+] satisfies Array<{ id: GameVisualTemplate; zh: string; en: string; zhDescription: string; enDescription: string; artwork: string }>;
 
-function TemplatePreview({ template }: { template: GameVisualTemplate }) {
-  if (template === 'neo-brutal') return <span className="relative block h-24 overflow-hidden rounded-md border-[3px] border-black bg-[#ffde59]" aria-hidden="true">
-    <span className="absolute -left-2 top-4 h-10 w-16 rotate-[-8deg] border-[3px] border-black bg-[#ff6b9d] shadow-[4px_4px_0_#111]" />
-    <span className="absolute left-[38%] top-8 h-12 w-12 rounded-full border-[3px] border-black bg-[#70e1f5] shadow-[4px_4px_0_#111]" />
-    <span className="absolute right-4 top-3 grid h-16 w-16 place-items-center border-[3px] border-black bg-white text-2xl font-black shadow-[5px_5px_0_#111]">GO!</span>
-  </span>;
-  if (template === 'arcade') return <span className="relative block h-24 overflow-hidden rounded-md border-2 border-[#7c5cff] bg-[#100c2f] shadow-[inset_0_0_20px_#7c5cff55]" aria-hidden="true">
-    <span className="absolute inset-0 opacity-30 [background-image:linear-gradient(#49e7ff_1px,transparent_1px),linear-gradient(90deg,#49e7ff_1px,transparent_1px)] [background-size:18px_18px]" />
-    <span className="absolute left-5 top-4 font-mono text-[10px] text-[#49e7ff]">LEVEL 01</span>
-    <span className="absolute left-1/2 top-10 -translate-x-1/2 font-mono text-3xl text-[#ff4fd8] [text-shadow:3px_3px_0_#7c5cff]">◆</span>
-    <span className="absolute bottom-3 left-5 right-5 h-2 border border-[#49e7ff] bg-[#20184b]"><span className="block h-full w-2/3 bg-[#49e7ff]" /></span>
-  </span>;
-  return <span className="relative block h-24 overflow-hidden rounded-lg border-2 border-[#5acddd] bg-[#102e4b]" aria-hidden="true">
-    <span className="absolute left-4 top-4 h-3 w-3 rounded-full bg-[#72e5cd] shadow-[42px_24px_0_#72e5cd,88px_8px_0_#72e5cd]" />
-    <svg className="absolute inset-x-4 bottom-3 h-14 w-[calc(100%-2rem)]" viewBox="0 0 180 60" fill="none"><path d="M5 50 47 27l39 16 44-30 45 20" stroke="#5acddd" strokeWidth="6" strokeLinecap="round" strokeLinejoin="round"/><path d="m126 16 3-13 22 8-22 8z" fill="#72e5cd"/></svg>
-  </span>;
+function TemplatePreview({ template }: { template: (typeof visualTemplates)[number] }) {
+  const surface = template.id === 'neo-brutal'
+    ? 'border-black bg-[#ffde59] shadow-[4px_4px_0_#111]'
+    : template.id === 'arcade'
+      ? 'border-[#7c5cff] bg-[#100c2f] shadow-[inset_0_0_18px_#7c5cff66]'
+      : 'border-[#5acddd] bg-[#102e4b]'
+  return <span className={`block h-28 overflow-hidden rounded-lg border-2 ${surface}`} aria-hidden="true">
+    {/* Generated decorative preview; native img avoids routing it through the admin app image proxy. */}
+    {/* eslint-disable-next-line @next/next/no-img-element */}
+    <img src={template.artwork} alt="" className="h-full w-full object-contain p-1.5" />
+  </span>
 }
 
 export default function DigitalGamesPage() {
@@ -699,7 +694,7 @@ export default function DigitalGamesPage() {
                             const selected = visualTemplate === template.id;
                             return <label key={template.id} className={`cursor-pointer rounded-xl border-2 p-3 transition-colors ${selected ? 'border-primary ring-2 ring-primary/20' : 'border-border hover:border-foreground/30'}`}>
                               <input className="sr-only" type="radio" name="visual-template" value={template.id} checked={selected} onChange={() => setVisualTemplate(template.id)} />
-                              <TemplatePreview template={template.id} />
+                              <TemplatePreview template={template} />
                               <span className="mt-3 block font-semibold">{language === 'zh-TW' ? template.zh : template.en}</span>
                               <span className="mt-1 block text-xs leading-5 text-muted-foreground">{language === 'zh-TW' ? template.zhDescription : template.enDescription}</span>
                               {selected && <Badge className="mt-2">{language === 'zh-TW' ? '已選擇' : 'Selected'}</Badge>}

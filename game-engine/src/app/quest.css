@@ -159,7 +159,6 @@
 
 .quest-shell[data-quest-template="arcade"] { background:#090720; color:#e8e9ff; font-family:ui-monospace,"SFMono-Regular",Consolas,"Noto Sans TC",monospace; }
 .quest-shell[data-quest-template="arcade"] .quest-header { background:#100c2ff2; border-bottom:1px solid #7c5cff; box-shadow:0 0 22px #7c5cff55; }
-.quest-shell[data-quest-template="arcade"] .quest-header-inner > a { color:#102f56; background:#fff; border-radius:5px; padding:5px 9px; box-shadow:3px 3px 0 #7c5cff; }
 .quest-shell[data-quest-template="arcade"] :is(.quest-header-label,.quest-kicker,.quest-small-label,.quest-overview,.quest-caption,.quest-footer) { color:#a9a4d4; }
 .quest-shell[data-quest-template="arcade"] .quest-player-stats span:last-child { color:#fff49b; background:#30234c; border:1px solid #ffdd55; }
 .quest-shell[data-quest-template="arcade"] .quest-hero { background:linear-gradient(135deg,#18113f,#171c4e); border:1px solid #49e7ff; border-radius:4px; box-shadow:0 0 24px #2ad4ff33,7px 7px 0 #7c5cff; }
@@ -185,3 +184,13 @@
 .quest-shell[data-quest-template="arcade"] .quest-workspace [role=tablist] { background:#0f0c28; border-color:#3d3775; border-radius:4px; }
 .quest-shell[data-quest-template="arcade"] .quest-workspace [role=tab] { color:#a9a4d4; }
 .quest-shell[data-quest-template="arcade"] .quest-workspace [role=tab][data-state=active] { color:#090720; background:#49e7ff; border-radius:2px; box-shadow:0 0 13px #49e7ff66; }
+
+/* Recolorable shared brand mark and generated template artwork. */
+.quest-shell { --quest-brand-text:#102f56; --quest-brand-tile:#1764d8; --quest-brand-surface:#e9f5ff; --quest-brand-grid:#8ccef0; --quest-brand-accent:#0f8a91; --quest-brand-flag:#16bce0; --quest-brand-pole:#102f56; }
+.quest-brand { color:var(--quest-brand-text); }
+.quest-brand-excel svg { display:block; width:48px; height:48px; flex:0 0 48px; }
+.quest-hero-art img { display:block; width:100%; height:210px; object-fit:contain; }
+.quest-shell[data-quest-template="neo-brutal"] { --quest-brand-text:#111111; --quest-brand-tile:#ffde59; --quest-brand-surface:#ffffff; --quest-brand-grid:#111111; --quest-brand-accent:#7c5cff; --quest-brand-flag:#70e1f5; --quest-brand-pole:#111111; }
+.quest-shell[data-quest-template="arcade"] { --quest-brand-text:#70efff; --quest-brand-tile:#7c5cff; --quest-brand-surface:#151233; --quest-brand-grid:#49e7ff; --quest-brand-accent:#ff4fd8; --quest-brand-flag:#fff49b; --quest-brand-pole:#d9dcff; }
+.quest-shell[data-quest-template="arcade"] .quest-custom-logo { box-sizing:content-box; padding:4px 7px; background:#fff; border-radius:5px; }
+@media (max-width:760px) { .quest-brand-excel svg { width:40px; height:40px; flex-basis:40px; } }
