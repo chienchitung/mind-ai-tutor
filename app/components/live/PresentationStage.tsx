@@ -28,8 +28,6 @@ import {
   Trash2,
   Minimize,
   Maximize,
-  Pin,
-  PinOff,
   Users,
   MessageSquare,
 } from "lucide-react";
@@ -55,7 +53,6 @@ import { JoinQRCode } from "./JoinQRCode";
 // page changes still leave an already-hidden toolbar undisturbed.
 const CONTROLS_HIDE_DELAY_MS = 2800;
 const ONBOARDING_SEEN_KEY = "live-presentation-onboarding-seen";
-const CONTROLS_PINNED_KEY = "live-presentation-controls-pinned-v1";
 const ONBOARDING_DURATION_MS = 10000;
 const TOOL_ANNOUNCEMENT_DURATION_MS = 1400;
 const TOOLS = [
@@ -300,7 +297,6 @@ export const PresentationStage = forwardRef<HTMLDivElement, Props>(
     const [contextOpen, setContextOpen] = useState(false);
     const [toolsOpen, setToolsOpen] = useState(false);
     const [panelOpen, setPanelOpen] = useState(false);
-    const [pinned, setPinned] = useState(false);
     const [visible, setVisible] = useState(true);
     const [error, setError] = useState(false);
     const [showOnboarding, setShowOnboarding] = useState(false);
@@ -347,11 +343,6 @@ export const PresentationStage = forwardRef<HTMLDivElement, Props>(
       if (open) {
         wake();
         setError(false);
-        try {
-          setPinned(localStorage.getItem(CONTROLS_PINNED_KEY) === "1");
-        } catch {
-          setPinned(false);
-        }
       } else {
         setContextOpen(false);
         setToolsOpen(false);
@@ -403,6 +394,10 @@ export const PresentationStage = forwardRef<HTMLDivElement, Props>(
     );
     const selectTool = (value: PresentationTool) => {
       setTool(value);
+      setContextOpen(false);
+      setToolsOpen(false);
+      setVisible(false);
+      if (hideTimer.current) clearTimeout(hideTimer.current);
       const point = pointerPosition.current;
       setToolAnnouncement({
         tool: value,
@@ -426,16 +421,10 @@ export const PresentationStage = forwardRef<HTMLDivElement, Props>(
       pointerPosition.current = { x: event.clientX, y: event.clientY };
       wake();
     };
-    const togglePinned = () => {
-      setPinned((current) => {
-        const next = !current;
-        try {
-          localStorage.setItem(CONTROLS_PINNED_KEY, next ? "1" : "0");
-        } catch {
-          // Pinning still works for this presentation when storage is unavailable.
-        }
-        return next;
-      });
+    const handleDrawingChange = (active: boolean) => {
+      setDrawing(active);
+      setVisible(false);
+      if (hideTimer.current) clearTimeout(hideTimer.current);
     };
     const undo = () => dispatch({ type: "undo", page });
     const redo = () => dispatch({ type: "redo", page });
@@ -454,7 +443,7 @@ export const PresentationStage = forwardRef<HTMLDivElement, Props>(
       redo,
       clear,
     };
-    const shown = !drawing && (visible || pinned || contextOpen || toolsOpen);
+    const shown = !drawing && (visible || contextOpen || toolsOpen);
     const activeTool = TOOLS.find((item) => item.value === tool)!;
     const ActiveIcon = activeTool.icon;
 
@@ -490,7 +479,6 @@ export const PresentationStage = forwardRef<HTMLDivElement, Props>(
       if (chosen) {
         event.preventDefault();
         selectTool(chosen.value);
-        wake();
         return;
       }
       // Deliberately no wake() here: paging via keyboard or a clicker
@@ -513,7 +501,8 @@ export const PresentationStage = forwardRef<HTMLDivElement, Props>(
     const closedMenuFocus = (event: Event) => {
       event.preventDefault();
       focusSlide();
-      wake();
+      setVisible(false);
+      if (hideTimer.current) clearTimeout(hideTimer.current);
     };
 
     return (
@@ -580,7 +569,7 @@ export const PresentationStage = forwardRef<HTMLDivElement, Props>(
                             onCommit={(strokes) =>
                               dispatch({ type: "commit", page, strokes })
                             }
-                            onDrawingChange={setDrawing}
+                            onDrawingChange={handleDrawingChange}
                             onLiveChange={(live) =>
                               onLiveChange?.({ ...live, tool, color, width })
                             }
@@ -789,24 +778,6 @@ export const PresentationStage = forwardRef<HTMLDivElement, Props>(
                   onClick={redo}
                 >
                   <Redo2 className="h-4 w-4" />
-                </Button>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  className={`${CONTROL} gap-2 px-3`}
-                  title={language === "zh-TW" ? "開啟後工具列持續顯示；關閉則閒置時自動隱藏" : "Keep the toolbar visible instead of hiding when idle"}
-                  aria-label={t(
-                    pinned ? "live_controls_unpin" : "live_controls_pin",
-                  )}
-                  aria-pressed={pinned}
-                  onClick={togglePinned}
-                >
-                  {pinned ? (
-                    <PinOff className="h-4 w-4" />
-                  ) : (
-                    <Pin className="h-4 w-4" />
-                  )}
-                  <span>{language === "zh-TW" ? (pinned ? "工具列已固定" : "固定工具列") : (pinned ? "Toolbar pinned" : "Pin toolbar")}</span>
                 </Button>
                 <span className="mx-1 h-5 w-px bg-white/20" />
                 <Button

@@ -127,6 +127,7 @@ describe("reliable projected display", () => {
     fireEvent.click(screen.getByRole("button",{name:"復原"}));
     const channel=mocks.channels.find(c=>c.name==="live-ink:123456");
     expect(channel.postMessage).toHaveBeenCalledWith({type:"annotation-action",page:1,deckUrl:"/deck.pdf",baseStrokes:strokes,action:{type:"undo",page:1}});
+    expect(screen.queryByText(/正在同步筆跡/)).toBeNull();
   });
   it("opens the fullscreen gate and keeps a re-entry action when fullscreen is unsupported", async () => {
     await mount();
