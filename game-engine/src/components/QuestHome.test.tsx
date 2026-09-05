@@ -64,3 +64,16 @@ describe('QuestHome learning journey guidance', () => {
     expect(html).toContain('先完成「基本入門函數」')
   })
 })
+
+describe('QuestHome template artwork', () => {
+  it.each([
+    ['discovery', '每一步，都是新的發現'],
+    ['neo-brutal', '把挑戰拆成一塊一塊'],
+    ['arcade', 'READY · LEARN · LEVEL UP'],
+  ] as const)('renders distinct %s hero artwork', (template, caption) => {
+    const html = renderToStaticMarkup(
+      <QuestHome {...baseProps} signedIn game={{ id: 'game', title: '測試遊戲', description: '', lessons: [], settings: { theme: { template } } }} />,
+    )
+    expect(html).toContain(caption)
+  })
+})

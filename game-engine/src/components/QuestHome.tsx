@@ -1,6 +1,6 @@
 import Link from 'next/link'
 import { ArrowUpRight, ArrowRight, Check, Compass, Flag, LockKeyhole, RotateCcw, Sparkles, Star, Trophy } from 'lucide-react'
-import type { GameDefinition } from '../types/game'
+import type { GameDefinition, GameVisualTemplate } from '../types/game'
 import type { Lesson } from '../types/lesson'
 import { canEnterLesson, gameThemeStyle, gameVisualTemplate, missionObjective } from '../lib/mission'
 import { GameBrand } from './GameBrand'
@@ -25,6 +25,28 @@ interface QuestHomeProps {
   onLeaderboard: () => void
 }
 
+function HeroArtwork({ template }: { template: GameVisualTemplate }) {
+  if (template === 'neo-brutal') return <div className="quest-hero-art" aria-hidden="true">
+    <svg viewBox="0 0 320 225" fill="none">
+      <path d="M40 54h113v88H40z" fill="#ff6b9d" stroke="#111" strokeWidth="6"/><path d="M55 70h113v88H55z" fill="#fff" stroke="#111" strokeWidth="6"/>
+      <circle cx="221" cy="75" r="39" fill="#70e1f5" stroke="#111" strokeWidth="6"/><path d="m192 145 63-22 27 55-64 21z" fill="#7c5cff" stroke="#111" strokeWidth="6"/>
+      <path d="m89 112 18 18 39-43" stroke="#111" strokeWidth="9" strokeLinecap="square"/><path d="m208 75 13 13 24-27" stroke="#111" strokeWidth="7"/>
+    </svg><span className="quest-art-caption">把挑戰拆成一塊一塊</span>
+  </div>
+  if (template === 'arcade') return <div className="quest-hero-art" aria-hidden="true">
+    <svg viewBox="0 0 320 225" fill="none">
+      <path d="M45 38h230v150H45z" fill="#090720" stroke="#49e7ff" strokeWidth="3"/><path d="M45 70h230M83 38v150m39-150v150m39-150v150m39-150v150m38-150v150M45 108h230M45 148h230" stroke="#7c5cff" opacity=".45"/>
+      <path d="m160 69 22 24-9 8 20 21-33 35-33-35 20-21-9-8z" fill="#ff4fd8" stroke="#d8d3ff" strokeWidth="3"/><path d="M62 169h196" stroke="#49e7ff" strokeWidth="7"/><path d="M62 169h128" stroke="#fff49b" strokeWidth="7"/>
+      <circle cx="83" cy="89" r="5" fill="#49e7ff"/><circle cx="238" cy="119" r="5" fill="#49e7ff"/><path d="m244 55 5 10 10 5-10 5-5 10-5-10-10-5 10-5z" fill="#fff49b"/>
+    </svg><span className="quest-art-caption">READY · LEARN · LEVEL UP</span>
+  </div>
+  return <div className="quest-hero-art" aria-hidden="true">
+    <svg viewBox="0 0 320 225" fill="none">
+      <ellipse cx="160" cy="183" rx="121" ry="24" fill="#071d32" opacity=".35" /><path d="m33 134 106-59 148 58-114 62z" fill="#194665" stroke="#51859c" /><path d="m33 134 140 52 114-53v15l-114 63-140-53z" fill="#102e4b" /><path d="m74 133 62 24 41-24-43-18 52-29" stroke="#5acddd" strokeWidth="7" strokeLinecap="round" strokeLinejoin="round" /><ellipse cx="75" cy="131" rx="13" ry="8" fill="#a0eef4" /><ellipse cx="137" cy="155" rx="13" ry="8" fill="#a0eef4" /><path d="M184 92V31" stroke="#c0ecf4" strokeWidth="5" strokeLinecap="round" /><path d="M187 33c17-13 29 14 48 0v31c-19 14-31-13-48 0z" fill="#53dccf" /><circle cx="73" cy="64" r="3" fill="#a0eef4" /><path d="M254 83v14m-7-7h14M117 34v10m-5-5h10" stroke="#a0eef4" strokeWidth="2" />
+    </svg><span className="quest-art-caption">每一步，都是新的發現</span>
+  </div>
+}
+
 export function QuestHome(props: QuestHomeProps) {
   const { game, gameId, lessons, completedLessons, signedIn } = props
   const completed = lessons.filter(lesson => completedLessons.includes(lesson.lesson_id))
@@ -36,7 +58,8 @@ export function QuestHome(props: QuestHomeProps) {
     .reduce((total, lesson) => total + (Number.parseInt(lesson.duration || '', 10) || 0), 0)
   // No leading /games here - basePath already adds it to every next/link href.
   const href = (id: string) => gameId ? `/${gameId}/lessons/${id}` : `/lessons/${id}`
-  return <div className="quest-shell" data-quest-template={gameVisualTemplate(game?.settings.theme)} style={gameThemeStyle(game?.settings.theme)}>
+  const template = gameVisualTemplate(game?.settings.theme)
+  return <div className="quest-shell" data-quest-template={template} style={gameThemeStyle(game?.settings.theme)}>
     <a className="quest-skip" href="#mission-map">跳至任務地圖</a>
     <header className="quest-header"><div className="quest-header-inner">
       <Link href={gameId ? `/${gameId}` : '/'} aria-label="遊戲首頁"><GameBrand game={game} legacy={!gameId} /></Link>
@@ -58,20 +81,7 @@ export function QuestHome(props: QuestHomeProps) {
           <p>{game?.description || '從一個問題開始，探索資料、練習解題，完成屬於你的學習旅程。'}</p>
           <div className="quest-hero-actions"><button className="quest-button quest-button-light" onClick={props.onStart}>{allDone ? '回顧學習任務' : signedIn ? '繼續我的任務' : '開始學習'}<ArrowRight size={18} /></button><a href="#mission-map" className="quest-hero-link">探索任務地圖 ↓</a></div>
         </div>
-        <div className="quest-hero-art" aria-hidden="true">
-          <svg viewBox="0 0 320 225" fill="none">
-            <ellipse cx="160" cy="183" rx="121" ry="24" fill="#071d32" opacity=".35" />
-            <path d="m33 134 106-59 148 58-114 62z" fill="#194665" stroke="#51859c" />
-            <path d="m33 134 140 52 114-53v15l-114 63-140-53z" fill="#102e4b" />
-            <path d="m74 133 62 24 41-24-43-18 52-29" stroke="#5acddd" strokeWidth="7" strokeLinecap="round" strokeLinejoin="round" />
-            <ellipse cx="75" cy="131" rx="13" ry="8" fill="#a0eef4" />
-            <ellipse cx="137" cy="155" rx="13" ry="8" fill="#a0eef4" />
-            <path d="M184 92V31" stroke="#c0ecf4" strokeWidth="5" strokeLinecap="round" />
-            <path d="M187 33c17-13 29 14 48 0v31c-19 14-31-13-48 0z" fill="#53dccf" />
-            <circle cx="73" cy="64" r="3" fill="#a0eef4" /><path d="M254 83v14m-7-7h14M117 34v10m-5-5h10" stroke="#a0eef4" strokeWidth="2" />
-          </svg>
-          <span className="quest-art-caption">每一步，都是新的發現</span>
-        </div>
+        <HeroArtwork template={template} />
       </section>
 
       <div className="quest-overview"><div><Flag size={18} /><strong>已完成 {completed.length} / {lessons.length}</strong><span>個任務</span></div><div className="quest-progress" role="progressbar" aria-label="任務完成進度" aria-valuemin={0} aria-valuemax={lessons.length || 1} aria-valuenow={completed.length}><span style={{width: `${lessons.length ? completed.length / lessons.length * 100 : 0}%`}} /></div><span className="quest-overview-note">{allDone ? '所有任務都完成了' : remainingMinutes ? `剩餘約 ${remainingMinutes} 分鐘` : '依自己的步調前進'}</span></div>
