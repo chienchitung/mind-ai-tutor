@@ -7,7 +7,7 @@
 ## 帳號與團隊
 
 ### `profiles`
-每個 Supabase Auth 使用者（老師/管理員）對應一筆個人資料。`role`（`admin` / `teacher` / `student`）是全站權限判斷的核心欄位——`is_admin()` 這個 function 就是查這張表，`/admin` 頁面、老師後台的存取控制都靠它。
+每個 Supabase Auth 使用者（老師/管理員）對應一筆個人資料。`role`（`admin` / `teacher` / `student`）是全站權限判斷的核心欄位——`is_admin()` 這個 function 就是查這張表，`/admin` 頁面、老師後台的存取控制都靠它。`plan`（`free` / `pro` / `enterprise`）決定是否享有無限 AI 點數（`has_unlimited_ai_points()` = 管理員或 `plan = 'enterprise'`）。`role`、`plan` 這兩個欄位都由 `profiles_prevent_role_escalation` 觸發器保護，一般使用者無法透過前端直接把自己改成管理員或企業方案。
 
 ### `teams` / `team_members`
 團隊工作區功能。一個 `teams` 有一個 `owner_id`；`team_members` 記錄誰屬於哪個團隊、角色是 `owner` 還是 `member`。`events`、`lessons`、`feedback`、`digital_games` 都有 `team_id` 欄位，讓同團隊成員可以共用這些資料，而不是各自獨立。
@@ -78,7 +78,7 @@ Ellis AI 助教的**每裝置每日提問上限**防濫用計數，用瀏覽器�
 老師使用 AI 生成功能（測驗/練習題/學習分析）的每日次數與冷卻時間計數器，純防爆量閘門，不限制總量。
 
 ### `teacher_ai_points`
-每月 AI 點數帳本（餘額、當期月份），疊加在 `teacher_ai_usage` 之上，讓免費方案老師每月有固定點數額度可用（測驗/練習題/分析/遊戲封面各有不同點數成本）。
+每月 AI 點數帳本（餘額、當期月份），疊加在 `teacher_ai_usage` 之上，讓免費方案老師每月有固定點數額度可用（測驗/練習題/分析/遊戲封面各有不同點數成本）。管理員帳號或 `profiles.plan = 'enterprise'` 的帳號完全不會用到這張表——`deduct_ai_points()`/`get_ai_points_balance()` 會先呼叫 `has_unlimited_ai_points()`，是的話直接跳過扣點，前端顯示「無限」而不是點數進度條。
 
 ### `game_cover_ai_usage`
 AI 生成遊戲封面圖片的每日次數/冷卻限制，並記錄已處理過的 request id 避免重複扣點。
