@@ -30,7 +30,9 @@ export function gameThemeStyle(theme?: GameTheme): Record<string, string> {
 }
 
 export function gameVisualTemplate(theme?: GameTheme): GameVisualTemplate {
-  return theme?.template === 'neo-brutal' || theme?.template === 'arcade' ? theme.template : 'discovery'
+  const templates: GameVisualTemplate[] = ['discovery', 'neo-brutal', 'arcade', 'forest-camp', 'arcane-archive', 'orbital-lab']
+  const template = theme?.template
+  return template && templates.includes(template) ? template : 'discovery'
 }
 
 export function gameBrandKind(label: string, isLegacy: boolean) {

@@ -27,16 +27,20 @@ interface QuestHomeProps {
 }
 
 function HeroArtwork({ template }: { template: GameVisualTemplate }) {
-  const artwork = template === 'neo-brutal'
-    ? { src: '/template-art/neo-blocks-hero.webp', caption: '把挑戰拆成一塊一塊' }
-    : template === 'arcade'
-      ? { src: '/template-art/arcade-hero.webp', caption: 'READY · LEARN · LEVEL UP' }
-      : { src: '/template-art/discovery-hero.webp', caption: '每一步，都是新的發現' }
+  const artwork: Record<GameVisualTemplate, { src: string; caption: string }> = {
+    discovery: { src: '/template-art/discovery-hero.webp', caption: '每一步，都是新的發現' },
+    'neo-brutal': { src: '/template-art/neo-blocks-hero.webp', caption: '把挑戰拆成一塊一塊' },
+    arcade: { src: '/template-art/arcade-hero.webp', caption: 'READY · LEARN · LEVEL UP' },
+    'forest-camp': { src: '/template-art/forest-camp-hero.webp', caption: '慢慢探索，也能走得很遠' },
+    'arcane-archive': { src: '/template-art/arcane-archive-hero.webp', caption: '翻開知識，解鎖新的篇章' },
+    'orbital-lab': { src: '/template-art/orbital-lab-hero.webp', caption: '啟動研究，連結每個新發現' },
+  }
+  const selectedArtwork = artwork[template]
   return <div className="quest-hero-art" aria-hidden="true">
     {/* Local transparent artwork uses the Game Engine base path. */}
     {/* eslint-disable-next-line @next/next/no-img-element */}
-    <img src={gameAssetPath(artwork.src)} alt="" width="720" height="526" />
-    <span className="quest-art-caption">{artwork.caption}</span>
+    <img src={gameAssetPath(selectedArtwork.src)} alt="" width="720" height="526" />
+    <span className="quest-art-caption">{selectedArtwork.caption}</span>
   </div>
 }
 

@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import { Gauge, Timer, Trophy, UsersRound } from "lucide-react"
+import { Trophy } from "lucide-react"
 import { QuestHome } from "@/components/QuestHome"
 import { lessons as legacyLessons } from '@/data/lessons'
 import { getProgress, resetProgress } from '@/lib/progress'
@@ -345,11 +345,14 @@ export default function HomePage({ gameId }: { gameId?: string }) {
   }
 
   const visualTemplate = gameVisualTemplate(gameDefinition?.settings.theme);
-  const leaderboardKicker = visualTemplate === 'arcade'
-    ? 'SCORE BOARD'
-    : visualTemplate === 'neo-brutal'
-      ? 'CHALLENGE RECORDS'
-      : 'EXPLORATION RECORDS';
+  const leaderboardKicker = {
+    discovery: 'EXPLORATION RECORDS',
+    'neo-brutal': 'CHALLENGE RECORDS',
+    arcade: 'SCORE BOARD',
+    'forest-camp': 'TRAIL RECORDS',
+    'arcane-archive': 'ARCHIVE OF ACHIEVEMENTS',
+    'orbital-lab': 'MISSION TELEMETRY',
+  }[visualTemplate];
 
   return (
     <div>
@@ -455,15 +458,12 @@ export default function HomePage({ gameId }: { gameId?: string }) {
             {/* 排行榜統計資訊 */}
             <div className="game-leaderboard-stats grid grid-cols-3 gap-2 sm:gap-4">
               <div className="game-leaderboard-stat is-participants p-3 sm:p-4 text-center">
-                <span className="game-leaderboard-stat-icon"><UsersRound aria-hidden="true" /></span>
                 <div className="game-leaderboard-stat-copy"><div className="game-leaderboard-value text-xl sm:text-2xl font-bold">{leaderboardStats.total_participants}</div><div className="game-leaderboard-label text-xs sm:text-sm">參與人數</div></div>
               </div>
               <div className="game-leaderboard-stat is-fastest p-3 sm:p-4 text-center">
-                <span className="game-leaderboard-stat-icon"><Timer aria-hidden="true" /></span>
                 <div className="game-leaderboard-stat-copy"><div className="game-leaderboard-value text-xl sm:text-2xl font-bold">{leaderboardStats.fastest_time}</div><div className="game-leaderboard-label text-xs sm:text-sm">最快紀錄</div></div>
               </div>
               <div className="game-leaderboard-stat is-average p-3 sm:p-4 text-center">
-                <span className="game-leaderboard-stat-icon"><Gauge aria-hidden="true" /></span>
                 <div className="game-leaderboard-stat-copy"><div className="game-leaderboard-value text-xl sm:text-2xl font-bold">{leaderboardStats.average_time}</div><div className="game-leaderboard-label text-xs sm:text-sm">平均時間</div></div>
               </div>
             </div>

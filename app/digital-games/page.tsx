@@ -83,21 +83,29 @@ interface DigitalGame {
   };
 }
 
-type GameVisualTemplate = 'discovery' | 'neo-brutal' | 'arcade';
+type GameVisualTemplate = 'discovery' | 'neo-brutal' | 'arcade' | 'forest-camp' | 'arcane-archive' | 'orbital-lab';
+const gameVisualTemplates: GameVisualTemplate[] = ['discovery', 'neo-brutal', 'arcade', 'forest-camp', 'arcane-archive', 'orbital-lab'];
 const visualTemplateOf = (value: unknown): GameVisualTemplate =>
-  value === 'neo-brutal' || value === 'arcade' ? value : 'discovery';
+  gameVisualTemplates.includes(value as GameVisualTemplate) ? value as GameVisualTemplate : 'discovery';
 const visualTemplates = [
   { id: 'discovery', zh: '探索基地', en: 'Discovery', zhDescription: '沉穩、清楚，適合一般課程與較長教材。', enDescription: 'Calm and clear for general courses and longer materials.', artwork: '/games/template-art/discovery-hero.webp' },
   { id: 'neo-brutal', zh: '玩色積木', en: 'Neo Blocks', zhDescription: '粗框、硬陰影與高彩度，適合活潑的闖關活動。', enDescription: 'Bold borders and vivid colors for playful challenges.', artwork: '/games/template-art/neo-blocks-hero.webp' },
   { id: 'arcade', zh: '午夜電玩', en: 'Midnight Arcade', zhDescription: '深色霓虹介面，適合競賽、科技與遊戲化課程。', enDescription: 'A dark neon interface for competitions and game-driven lessons.', artwork: '/games/template-art/arcade-hero.webp' },
+  { id: 'forest-camp', zh: '森林營地', en: 'Forest Camp', zhDescription: '溫暖自然與柔和木質感，適合低壓探索及生活化課程。', enDescription: 'Warm, natural surfaces for calm exploration and everyday learning.', artwork: '/games/template-art/forest-camp-hero.webp' },
+  { id: 'arcane-archive', zh: '魔法典藏', en: 'Arcane Archive', zhDescription: '羊皮紙、寶石與章節感，適合故事、語文與知識冒險。', enDescription: 'Parchment and jewel tones for stories, language and knowledge quests.', artwork: '/games/template-art/arcane-archive-hero.webp' },
+  { id: 'orbital-lab', zh: '星際艙室', en: 'Orbital Lab', zhDescription: '明亮科幻儀表介面，適合科學、資料與未來主題課程。', enDescription: 'A bright sci-fi console for science, data and future-focused courses.', artwork: '/games/template-art/orbital-lab-hero.webp' },
 ] satisfies Array<{ id: GameVisualTemplate; zh: string; en: string; zhDescription: string; enDescription: string; artwork: string }>;
 
 function TemplatePreview({ template }: { template: (typeof visualTemplates)[number] }) {
-  const surface = template.id === 'neo-brutal'
-    ? 'border-black bg-[#ffde59] shadow-[4px_4px_0_#111]'
-    : template.id === 'arcade'
-      ? 'border-[#7c5cff] bg-[#100c2f] shadow-[inset_0_0_18px_#7c5cff66]'
-      : 'border-[#5acddd] bg-[#102e4b]'
+  const surfaces: Record<GameVisualTemplate, string> = {
+    discovery: 'border-[#5acddd] bg-[#102e4b]',
+    'neo-brutal': 'border-black bg-[#ffde59] shadow-[4px_4px_0_#111]',
+    arcade: 'border-[#7c5cff] bg-[#100c2f] shadow-[inset_0_0_18px_#7c5cff66]',
+    'forest-camp': 'border-[#78935c] bg-[#eef0d9] shadow-[inset_0_0_20px_#94a86d33]',
+    'arcane-archive': 'border-[#a88143] bg-[#2c1b42] shadow-[inset_0_0_20px_#d5ad6144]',
+    'orbital-lab': 'border-[#5ca8d7] bg-[#eaf7ff] shadow-[inset_0_0_20px_#71cce844]',
+  }
+  const surface = surfaces[template.id]
   return <span className={`block h-28 overflow-hidden rounded-lg border-2 ${surface}`} aria-hidden="true">
     {/* Generated decorative preview; native img avoids routing it through the admin app image proxy. */}
     {/* eslint-disable-next-line @next/next/no-img-element */}
