@@ -133,7 +133,7 @@
 @media (max-width:380px) { .quest-excel-logo { width:158px; } .quest-player-stats > span:first-child { display:none; } .quest-small-label { display:none; } .quest-hero { padding:23px; } .quest-overview { gap:12px; } }
 @media (prefers-reduced-motion:reduce) { .quest-shell *, .quest-shell *:before, .quest-shell *:after { animation:none !important; transition:none !important; scroll-behavior:auto !important; } .quest-shell .chat-bubble { opacity:1; transform:none; } }
 
-/* Visual templates share markup, data and behavior. Only presentation tokens and surfaces change. */
+/* Shared data and behavior, with theme-specific surfaces and structure below. */
 .quest-shell[data-quest-template="neo-brutal"] { background:#fff7d6; color:#111; font-family:"Arial Black",Arial,"Noto Sans TC",sans-serif; }
 .quest-shell[data-quest-template="neo-brutal"] .quest-header { background:#ff6b9d; border-bottom:3px solid #111; backdrop-filter:none; }
 .quest-shell[data-quest-template="neo-brutal"] .quest-kicker,
@@ -368,3 +368,100 @@
 .quest-shell[data-quest-template="arcane-archive"] { --quest-brand-text:#f1dca5; --quest-brand-tile:#704487; --quest-brand-surface:#2e203e; --quest-brand-grid:#d5ad61; --quest-brand-accent:#3e8c75; --quest-brand-flag:#e1bd70; --quest-brand-pole:#f1dca5; }
 .quest-shell[data-quest-template="orbital-lab"] { --quest-brand-text:#155275; --quest-brand-tile:#237fb9; --quest-brand-surface:#f1fbff; --quest-brand-grid:#87d5e9; --quest-brand-accent:#ff775c; --quest-brand-flag:#48c5dc; --quest-brand-pole:#155275; }
 @media (max-width:760px) { .quest-brand-excel svg { width:40px; height:40px; flex-basis:40px; } }
+
+/* Neutral loading shell prevents the discovery theme from flashing before the manifest resolves. */
+.game-loading-shell { min-height:100vh; color:#26394d; background:#eef2f6; }
+.game-loading-shell header { height:80px; display:flex; align-items:center; justify-content:space-between; padding:16px max(28px,calc((100vw - 1240px)/2)); background:#f8fafc; border-bottom:1px solid #dce3ea; }
+.game-loading-shell main { max-width:1240px; margin:auto; padding:32px 28px; }
+.game-loading-shell span,.game-loading-shell section,.game-loading-shell aside { display:block; }
+.game-loading-logo { width:220px; height:42px; border-radius:12px; }
+.game-loading-stat { width:150px; height:34px; border-radius:12px; }
+.game-loading-hero { height:265px; padding:45px; border-radius:24px; }
+.game-loading-hero span:nth-child(1) { width:140px; height:13px; margin-bottom:24px; }
+.game-loading-hero span:nth-child(2) { width:min(460px,70%); height:38px; margin-bottom:19px; }
+.game-loading-hero span:nth-child(3) { width:min(560px,82%); height:16px; }
+.game-loading-grid { display:grid; grid-template-columns:minmax(0,1fr) 310px; gap:28px; margin-top:28px; }
+.game-loading-grid section,.game-loading-grid aside { min-height:360px; padding:28px; border-radius:22px; }
+.game-loading-grid span { height:68px; margin-bottom:20px; border-radius:14px; }
+.game-loading-shell :is(.game-loading-logo,.game-loading-stat,.game-loading-hero,.game-loading-hero span,.game-loading-grid section,.game-loading-grid aside,.game-loading-grid span) { background:linear-gradient(100deg,#dfe5eb 25%,#f5f7f9 42%,#dfe5eb 60%); background-size:300% 100%; animation:game-loading-shimmer 1.35s ease-in-out infinite; }
+@keyframes game-loading-shimmer { to { background-position:-150% 0; } }
+
+/* Each world now has a different home information structure, not only a different skin. */
+.quest-home-grid { grid-template-areas:"journey side"; }
+.quest-map { grid-area:journey; min-width:0; }
+.quest-sidebar { grid-area:side; }
+.quest-sidebar > * { min-width:0; }
+
+.quest-shell[data-experience-layout="build-board"] .quest-home-grid { grid-template-columns:1fr; grid-template-areas:"side" "journey"; }
+.quest-shell[data-experience-layout="build-board"] .quest-sidebar { position:static; grid-template-columns:1.25fr 1fr 1fr; align-items:stretch; }
+.quest-shell[data-experience-layout="build-board"] .quest-secondary-action { grid-column:3; }
+.quest-shell[data-experience-layout="build-board"] .quest-path { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:22px; }
+.quest-shell[data-experience-layout="build-board"] .quest-stop { grid-template-columns:52px minmax(0,1fr); padding:0; }
+.quest-shell[data-experience-layout="build-board"] .quest-stop:before { display:none; }
+.quest-shell[data-experience-layout="build-board"] .quest-node { margin-top:0; align-self:start; }
+.quest-shell[data-experience-layout="build-board"] .quest-stop-card { min-height:100%; }
+
+.quest-shell[data-experience-layout="level-select"] .quest-home-grid { grid-template-columns:1fr; grid-template-areas:"side" "journey"; }
+.quest-shell[data-experience-layout="level-select"] .quest-map { overflow:hidden; }
+.quest-shell[data-experience-layout="level-select"] .quest-sidebar { position:static; grid-template-columns:1.35fr 1fr 1fr; }
+.quest-shell[data-experience-layout="level-select"] .quest-secondary-action { grid-column:1 / -1; border:1px solid #3d3775; }
+.quest-shell[data-experience-layout="level-select"] .quest-path { display:flex; gap:18px; overflow-x:auto; padding:28px 4px 18px; scroll-snap-type:x proximity; scrollbar-color:#7c5cff #171330; }
+.quest-shell[data-experience-layout="level-select"] .quest-stop { flex:0 0 270px; display:block; padding:0; scroll-snap-align:start; }
+.quest-shell[data-experience-layout="level-select"] .quest-stop:before { display:none; }
+.quest-shell[data-experience-layout="level-select"] .quest-node { margin:0 0 -13px 16px; border-radius:3px; }
+.quest-shell[data-experience-layout="level-select"] .quest-stop-card { min-height:225px; padding-top:28px; }
+
+.quest-shell[data-experience-layout="trail"] .quest-map { overflow:hidden; }
+.quest-shell[data-experience-layout="trail"] .quest-path { padding-inline:12px; }
+.quest-shell[data-experience-layout="trail"] .quest-stop { grid-template-columns:64px minmax(0,1fr); }
+.quest-shell[data-experience-layout="trail"] .quest-stop:nth-child(even) { grid-template-columns:minmax(0,1fr) 64px; }
+.quest-shell[data-experience-layout="trail"] .quest-stop:nth-child(even) .quest-node { grid-column:2; grid-row:1; }
+.quest-shell[data-experience-layout="trail"] .quest-stop:nth-child(even) .quest-stop-card { grid-column:1; grid-row:1; }
+.quest-shell[data-experience-layout="trail"] .quest-stop:nth-child(even):before { left:auto; right:31px; }
+.quest-shell[data-experience-layout="trail"] .quest-node { border-radius:50% 50% 42% 42%; }
+
+.quest-shell[data-experience-layout="chapter-index"] .quest-home-grid { grid-template-columns:1fr; grid-template-areas:"journey" "side"; }
+.quest-shell[data-experience-layout="chapter-index"] .quest-map { position:relative; padding:34px 42px; }
+.quest-shell[data-experience-layout="chapter-index"] .quest-map:after { content:""; position:absolute; top:24px; bottom:24px; left:50%; width:1px; background:#c9ad78; box-shadow:7px 0 14px #5b3c6620; }
+.quest-shell[data-experience-layout="chapter-index"] .quest-path { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:18px 40px; }
+.quest-shell[data-experience-layout="chapter-index"] .quest-stop { display:block; padding:0; }
+.quest-shell[data-experience-layout="chapter-index"] .quest-stop:before { display:none; }
+.quest-shell[data-experience-layout="chapter-index"] .quest-node { width:40px; height:40px; margin:0 0 -10px 18px; border-radius:50%; font-size:15px; }
+.quest-shell[data-experience-layout="chapter-index"] .quest-stop-card { padding-top:24px; }
+.quest-shell[data-experience-layout="chapter-index"] .quest-sidebar { position:static; grid-template-columns:1.2fr 1fr 1fr; }
+.quest-shell[data-experience-layout="chapter-index"] .quest-secondary-action { grid-column:1 / -1; }
+
+.quest-shell[data-experience-layout="mission-control"] .quest-home-grid { grid-template-columns:330px minmax(0,1fr); grid-template-areas:"side journey"; }
+.quest-shell[data-experience-layout="mission-control"] .quest-sidebar { position:sticky; }
+.quest-shell[data-experience-layout="mission-control"] .quest-path { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:16px; }
+.quest-shell[data-experience-layout="mission-control"] .quest-stop { display:block; padding:0; }
+.quest-shell[data-experience-layout="mission-control"] .quest-stop:before { display:none; }
+.quest-shell[data-experience-layout="mission-control"] .quest-node { width:42px; height:42px; margin:0 0 -12px 16px; border-radius:50%; font-size:15px; }
+.quest-shell[data-experience-layout="mission-control"] .quest-stop-card { min-height:220px; padding-top:27px; }
+
+@media (max-width:900px) {
+  .quest-shell[data-experience-layout] .quest-home-grid { grid-template-columns:1fr; grid-template-areas:"side" "journey"; }
+  .quest-shell[data-experience-layout] .quest-sidebar { position:static; grid-template-columns:1fr 1fr; }
+  .quest-shell[data-experience-layout] .quest-current { grid-column:1 / -1; }
+  .quest-shell[data-experience-layout] .quest-secondary-action { grid-column:1 / -1; }
+}
+@media (max-width:650px) {
+  .game-loading-shell header { height:68px; padding:12px 16px; }
+  .game-loading-shell main { padding:20px 16px; }
+  .game-loading-logo { width:155px; }
+  .game-loading-stat { width:78px; }
+  .game-loading-grid { grid-template-columns:1fr; }
+  .game-loading-grid aside { display:none; }
+  .quest-shell[data-experience-layout] .quest-sidebar { grid-template-columns:1fr; }
+  .quest-shell[data-experience-layout] .quest-current,.quest-shell[data-experience-layout] .quest-secondary-action { grid-column:auto; }
+  .quest-shell[data-experience-layout="build-board"] .quest-path,
+  .quest-shell[data-experience-layout="chapter-index"] .quest-path,
+  .quest-shell[data-experience-layout="mission-control"] .quest-path { grid-template-columns:1fr; }
+  .quest-shell[data-experience-layout="chapter-index"] .quest-map { padding:22px 16px; }
+  .quest-shell[data-experience-layout="chapter-index"] .quest-map:after { display:none; }
+  .quest-shell[data-experience-layout="trail"] .quest-stop,
+  .quest-shell[data-experience-layout="trail"] .quest-stop:nth-child(even) { grid-template-columns:48px minmax(0,1fr); }
+  .quest-shell[data-experience-layout="trail"] .quest-stop:nth-child(even) .quest-node { grid-column:1; }
+  .quest-shell[data-experience-layout="trail"] .quest-stop:nth-child(even) .quest-stop-card { grid-column:2; }
+  .quest-shell[data-experience-layout="trail"] .quest-stop:nth-child(even):before { left:23px; right:auto; }
+}

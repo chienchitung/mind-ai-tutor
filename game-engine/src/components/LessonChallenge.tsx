@@ -48,7 +48,7 @@ export function LessonAnswer({ answer, submitted, correct, stage, final = false,
   </section>
 }
 
-export function ChallengeHeading({ final = false, stage, stars, xp }: { final?: boolean; stage: LessonStage; stars: number; xp: number }) {
+export function ChallengeHeading({ final = false, stage, stars, xp, kicker, title }: { final?: boolean; stage: LessonStage; stars: number; xp: number; kicker?: string; title?: string }) {
   const label = { working: '等待作答', retry: '再試一次', complete: '本次已完成', review: '已完成 · 複習中' }[stage]
-  return <header className="lesson-challenge-heading"><div><span className="quest-kicker">{final ? 'FINAL MISSION' : 'YOUR CHALLENGE'}</span><h2>{final ? '綜合任務' : '任務挑戰'}</h2></div><div className="lesson-challenge-meta"><span className={`lesson-state is-${stage}`}>{label}</span><span className="lesson-reward-note">首次完成 +{stars} 星星 · +{xp} XP</span></div></header>
+  return <header className="lesson-challenge-heading"><div><span className="quest-kicker">{kicker || (final ? 'FINAL MISSION' : 'YOUR CHALLENGE')}</span><h2>{title || (final ? '綜合任務' : '任務挑戰')}</h2></div><div className="lesson-challenge-meta"><span className={`lesson-state is-${stage}`}>{label}</span><span className="lesson-reward-note">首次完成 +{stars} 星星 · +{xp} XP</span></div></header>
 }

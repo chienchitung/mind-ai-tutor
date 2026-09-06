@@ -15,6 +15,7 @@ import { getLeaderboardStats, getPlayerRank, getLessonOrderMappings, verifyStude
 import { Lesson } from '@/types/lesson'
 import type { GameDefinition } from '@/types/game'
 import { gameVisualTemplate } from '@/lib/mission'
+import { GameLoadingShell } from '@/components/GameLoadingShell'
 
 interface ProgressData {
   completedLessons: string[];
@@ -323,14 +324,7 @@ export default function HomePage({ gameId }: { gameId?: string }) {
   };
 
   if (isLoading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
-          <p className="text-gray-600">載入中...</p>
-        </div>
-      </div>
-    );
+    return <GameLoadingShell />;
   }
 
   if (loadError) {

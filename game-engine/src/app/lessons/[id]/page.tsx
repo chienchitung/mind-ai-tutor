@@ -31,6 +31,8 @@ import { MissionBrief } from '@/components/MissionBrief'
 import { gameThemeStyle, gameVisualTemplate } from '@/lib/mission'
 import { mentorForTemplate } from '@/lib/mentor'
 import type { GameVisualTemplate } from '@/types/game'
+import { experienceForTemplate } from '@/lib/template-experience'
+import { GameLoadingShell } from '@/components/GameLoadingShell'
 
 
 const ChatMessage = ({ message, isUser, imageUrl, template }: { message: string; isUser: boolean; imageUrl?: string; template: GameVisualTemplate }) => {
@@ -340,6 +342,8 @@ export default function ExcelLearningPlatform({
   const [gameDefinition, setGameDefinition] = useState<GameDefinition | null>(null);
   const visualTemplate = gameVisualTemplate(gameDefinition?.settings.theme);
   const mentor = mentorForTemplate(visualTemplate);
+  const experience = experienceForTemplate(visualTemplate);
+  const [gameLoading, setGameLoading] = useState(Boolean(gameId));
   const [gameLessons, setGameLessons] = useState<Lesson[]>(gameId ? [] : legacyLessons);
   const [gameLoadError, setGameLoadError] = useState<string | null>(null);
   const lessons = gameLessons;
@@ -363,7 +367,8 @@ export default function ExcelLearningPlatform({
       .catch(error => {
         console.error('Failed to load game manifest:', error);
         setGameLoadError(error instanceof Error ? error.message : '遊戲載入失敗');
-      });
+      })
+      .finally(() => setGameLoading(false));
   }, [gameId, resolvedParams.id]);
   const [showRewardDialog, setShowRewardDialog] = useState(false);
   const [completionTime, setCompletionTime] = useState<string | null>(null);
@@ -1480,6 +1485,8 @@ export default function ExcelLearningPlatform({
   const xpPerLesson = gameDefinition?.settings.rewards?.xpPerLesson ?? 20;
   const rewardClaimCost = gameDefinition?.settings.rewards?.claimCost ?? 50;
 
+  if (gameLoading) return <GameLoadingShell />;
+
   if (gameLoadError) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gray-50 px-4">
@@ -1492,7 +1499,7 @@ export default function ExcelLearningPlatform({
   }
 
   return (
-    <div className="quest-shell lesson-shell" data-quest-template={visualTemplate} style={gameThemeStyle(gameDefinition?.settings.theme)}>
+    <div className="quest-shell lesson-shell" data-quest-template={visualTemplate} data-experience-layout={experience.home.layout} style={gameThemeStyle(gameDefinition?.settings.theme)}>
       <a className="quest-skip" href="#lesson-workspace">跳至任務工作臺</a>
       <header className="quest-header" inert={lessonState.showChat && (compactChat || isExpanded)}>
         <div className="quest-header-inner">
@@ -1510,11 +1517,11 @@ export default function ExcelLearningPlatform({
                 className="flex items-center gap-2 text-gray-600 hover:text-blue-600 transition-colors"
               >
                 <ChevronLeft className="h-4 w-4 md:h-5 md:w-5" />
-                <span className="text-sm md:text-base">返回任務基地</span>
+                <span className="text-sm md:text-base">{experience.lesson.homeLabel}</span>
               </Link>
               <div className="h-4 w-px bg-gray-200" />
               <Badge variant="outline" className="bg-blue-600 text-white border-0 text-sm md:text-base">
-                {isIntroLesson(lessonState.currentLesson) ? '前導課程' : `第 ${lessonNumber} 關`}
+                {isIntroLesson(lessonState.currentLesson) ? experience.lesson.introLabel : experience.lesson.levelLabel(lessonNumber)}
               </Badge>
               {wasCompletedOnEntry && <span className="lesson-state is-review">已完成 · 複習中</span>}
               <button ref={chatToggleRef} type="button" className="lesson-ask" onClick={toggleChat} aria-controls="mentor-panel" aria-expanded={lessonState.showChat} aria-label={lessonState.showChat ? `關閉${mentor.name} AI 助教` : `開啟${mentor.name} AI 助教`}><MentorAvatar template={visualTemplate} />{mentor.name} 助教</button>
@@ -1523,14 +1530,14 @@ export default function ExcelLearningPlatform({
 
           </div>
 
-          {currentLesson && <MissionBrief lesson={currentLesson} mentorName={mentor.name} />}
+          {currentLesson && <MissionBrief lesson={currentLesson} mentorName={mentor.name} storyLabel={experience.lesson.storyLabel} />}
           <Tabs key={lessonState.currentLesson + (currentLesson?.role || "")} ref={tabsRef} defaultValue={initialLessonTab(isIntroLesson(lessonState.currentLesson), isFinalLesson(lessonState.currentLesson), currentLesson?.learningFlow)} className="lesson-tabs">
             {!isIntroLesson(lessonState.currentLesson) && (
             <TabsList className="lesson-tab-list" style={{ gridTemplateColumns: `repeat(${showTabs.length}, 1fr)` }}>
               {showTabs.map((tab, index) => (
                 <TabsTrigger key={tab} value={tab} className="lesson-tab">
                   <span className="lesson-tab-step" aria-hidden="true">{index + 1}</span>
-                  {tab === 'practice' ? <><Zap className="w-5 h-5" />任務挑戰</> : tab === 'game' ? <><FileSpreadsheet className="w-5 h-5" />互動關卡</> : '學習資料'}
+                  {tab === 'practice' ? <><Zap className="w-5 h-5" />{experience.lesson.practiceTab}</> : tab === 'game' ? <><FileSpreadsheet className="w-5 h-5" />{experience.lesson.interactiveTab}</> : experience.lesson.contentTab}
                 </TabsTrigger>
               ))}
             </TabsList>
@@ -1721,7 +1728,7 @@ export default function ExcelLearningPlatform({
             {showTabs.includes('practice') && (
               <TabsContent value="practice">
                 <Card className="lesson-challenge-card">
-                  <ChallengeHeading stage={stage} stars={starsPerLesson} xp={xpPerLesson} />
+                  <ChallengeHeading stage={stage} stars={starsPerLesson} xp={xpPerLesson} kicker={experience.lesson.challengeKicker} title={experience.lesson.challengeTitle} />
                   <div className="lesson-challenge-body">
                     <section className="lesson-task" aria-label="任務題目">
                       <h3>這次要解決的問題</h3>
@@ -1736,7 +1743,7 @@ export default function ExcelLearningPlatform({
             {showTabs.includes('game') && (
             <TabsContent value="game">
               <Card className="lesson-challenge-card">
-                <ChallengeHeading final stage={stage} stars={starsPerLesson} xp={xpPerLesson} />
+                <ChallengeHeading final stage={stage} stars={starsPerLesson} xp={xpPerLesson} kicker={experience.lesson.finalKicker} title={experience.lesson.finalTitle} />
                 <div className="lesson-challenge-body">
                   <p className="lesson-interactive-note">完成互動教材後，在下方輸入最終答案。觀看教材不會自動通關。</p>
 
@@ -2045,7 +2052,7 @@ export default function ExcelLearningPlatform({
               </div>
             </DialogDescription>
           </DialogHeader>
-          <Link href={gameId ? `/${gameId}` : '/'} className="quest-button">返回任務基地</Link>
+          <Link href={gameId ? `/${gameId}` : '/'} className="quest-button">{experience.lesson.homeLabel}</Link>
           <div className="p-6">
             <div className="space-y-6">
               <div className="flex items-center justify-between p-4 bg-[#FFF5E5] rounded-xl">
