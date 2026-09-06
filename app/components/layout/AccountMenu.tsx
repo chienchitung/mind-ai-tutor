@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import type { User } from '@supabase/supabase-js';
 import { useRouter } from 'next/navigation';
-import { Check, ChevronRight, CreditCard, Globe, LogOut, Settings } from 'lucide-react';
+import { ChevronRight, CreditCard, Globe, LogOut, Settings } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { cn } from '@/lib/utils';
@@ -17,9 +17,6 @@ import {
   DropdownMenuRadioGroup,
   DropdownMenuRadioItem,
   DropdownMenuSeparator,
-  DropdownMenuSub,
-  DropdownMenuSubContent,
-  DropdownMenuSubTrigger,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { useLanguage, type Language } from '@/app/contexts/LanguageContext';
@@ -154,30 +151,30 @@ export function AccountMenu({ user, variant, className }: AccountMenuProps) {
           </>
         )}
         <DropdownMenuGroup>
-          {/* Mobile has its own direct Settings icon in AppTopbar (visible
-              at every width) - shown here only at >=768px so mobile isn't
-              offered the same destination twice in the same topbar. */}
-          <DropdownMenuItem className="hidden md:flex" onClick={() => { if (confirmAppNavigation()) router.push('/settings'); }}>
+          <DropdownMenuItem onClick={() => { if (confirmAppNavigation()) router.push('/settings'); }}>
             <Settings className="mr-2 h-4 w-4" />
             {t('settings')}
           </DropdownMenuItem>
-          <DropdownMenuSub>
-            <DropdownMenuSubTrigger>
-              <Globe className="mr-2 h-4 w-4" />
-              {t('language')}
-            </DropdownMenuSubTrigger>
-            <DropdownMenuSubContent>
-              <DropdownMenuRadioGroup value={language} onValueChange={(value) => changeLanguage(value as Language)}>
-                <DropdownMenuRadioItem value="en">English {language === 'en' && <Check className="ml-auto h-4 w-4" />}</DropdownMenuRadioItem>
-                <DropdownMenuRadioItem value="zh-TW">繁體中文 {language === 'zh-TW' && <Check className="ml-auto h-4 w-4" />}</DropdownMenuRadioItem>
-              </DropdownMenuRadioGroup>
-            </DropdownMenuSubContent>
-          </DropdownMenuSub>
           <DropdownMenuItem onClick={() => { if (confirmAppNavigation()) router.push('/subscription'); }}>
             <CreditCard className="mr-2 h-4 w-4" />
             {t('subscription')}
           </DropdownMenuItem>
         </DropdownMenuGroup>
+        <DropdownMenuSeparator />
+        {/* Flat, not a nested submenu: Radix positions DropdownMenuSub's
+            flyout relative to its trigger with no room to account for a
+            narrow mobile viewport, and with this trigger sitting in the
+            top-right corner the flyout had nowhere sane to open - it ended
+            up rendering detached in a top corner instead of next to
+            "Language". Two options don't need a submenu anyway. */}
+        <DropdownMenuLabel className="flex items-center gap-2 px-2 pb-1 pt-1.5 text-xs font-normal text-muted-foreground">
+          <Globe className="h-3.5 w-3.5" />
+          {t('language')}
+        </DropdownMenuLabel>
+        <DropdownMenuRadioGroup value={language} onValueChange={(value) => changeLanguage(value as Language)}>
+          <DropdownMenuRadioItem value="en">English</DropdownMenuRadioItem>
+          <DropdownMenuRadioItem value="zh-TW">繁體中文</DropdownMenuRadioItem>
+        </DropdownMenuRadioGroup>
         <DropdownMenuSeparator />
         <DropdownMenuItem onClick={handleSignOut}>
           <LogOut className="mr-2 h-4 w-4" />

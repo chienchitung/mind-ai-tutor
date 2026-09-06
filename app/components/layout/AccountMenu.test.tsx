@@ -72,12 +72,26 @@ describe('AccountMenu', () => {
     expect(screen.getByText('使用者')).toBeTruthy();
   });
 
-  it('opens the dropdown with subscription and log-out entries', async () => {
+  it('opens the dropdown with settings, subscription and log-out entries', async () => {
     renderMenu('row');
     fireEvent.pointerDown(screen.getByRole('button', { name: /王老師/ }));
     expect(await screen.findByText('訂閱')).toBeTruthy();
+    expect(screen.getByText('設定')).toBeTruthy();
     expect(screen.getByText('登出')).toBeTruthy();
     expect(screen.getByText('語言')).toBeTruthy();
+  });
+
+  it('shows settings for the "icon" variant too (mobile topbar) - it no longer has its own separate icon there', async () => {
+    renderMenu('icon');
+    fireEvent.pointerDown(screen.getByRole('button', { name: '帳號選單' }));
+    expect(await screen.findByText('設定')).toBeTruthy();
+  });
+
+  it('offers both languages directly, without a nested submenu', async () => {
+    renderMenu('row');
+    fireEvent.pointerDown(screen.getByRole('button', { name: /王老師/ }));
+    expect(await screen.findByRole('menuitemradio', { name: 'English' })).toBeTruthy();
+    expect(screen.getByRole('menuitemradio', { name: '繁體中文' })).toBeTruthy();
   });
 
   it('navigates to /subscription when that item is clicked', async () => {
@@ -95,10 +109,9 @@ describe('AccountMenu', () => {
     expect(mocks.toast).toHaveBeenCalledWith(expect.objectContaining({ title: '成功登出' }));
   });
 
-  it('switches language and shows a confirmation toast', async () => {
+  it('switches language directly (one click, no submenu to open first) and shows a confirmation toast', async () => {
     renderMenu('row');
     fireEvent.pointerDown(screen.getByRole('button', { name: /王老師/ }));
-    fireEvent.click(await screen.findByText('語言'));
     fireEvent.click(await screen.findByText('English'));
     expect(mocks.toast).toHaveBeenCalledWith(expect.objectContaining({ title: 'Language changed' }));
   });
