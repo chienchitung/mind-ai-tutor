@@ -16,7 +16,13 @@ interface PlanFeature {
 
 interface Plan {
   name: string;
-  price: string;
+  /** Omitted (with contactForPricing set) for Enterprise: its pricing
+   * depends on the school/organization's needs, so there is no flat monthly
+   * number to show - the card displays custom_pricing in its place and its
+   * own button opens a sales email instead of the disabled "not available
+   * yet" state the other two plans use. */
+  price?: string;
+  contactForPricing?: boolean;
   description: string;
   features: PlanFeature[];
   buttonText: string;
@@ -85,7 +91,7 @@ export default function SubscriptionPage() {
     },
     {
       name: 'Enterprise',
-      price: '$99',
+      contactForPricing: true,
       description: t('complete_solution'),
       features: [
         { feature: t('unlimited_students'), available: true },
@@ -128,8 +134,14 @@ export default function SubscriptionPage() {
             <CardHeader>
               <CardTitle>{t(plan.name.toLowerCase() as any)}</CardTitle>
               <div className="flex items-baseline mt-2">
-                <span className="text-3xl font-bold">{plan.price}</span>
-                <span className="ml-1 text-muted-foreground">{t('per_month')}</span>
+                {plan.contactForPricing ? (
+                  <span className="text-2xl font-bold">{t('custom_pricing')}</span>
+                ) : (
+                  <>
+                    <span className="text-3xl font-bold">{plan.price}</span>
+                    <span className="ml-1 text-muted-foreground">{t('per_month')}</span>
+                  </>
+                )}
               </div>
               <CardDescription>{plan.description}</CardDescription>
             </CardHeader>
@@ -150,13 +162,22 @@ export default function SubscriptionPage() {
               </ul>
             </CardContent>
             <CardFooter>
-              <Button
-                className="w-full"
-                variant={currentPlan === `${plan.name} plan` ? 'outline' : 'default'}
-                disabled
-              >
-                {isLoading ? t('processing') : currentPlan === `${plan.name} plan` ? t('current_plan') : (language === 'zh-TW' ? '尚未開放' : 'Not available yet')}
-              </Button>
+              {plan.contactForPricing ? (
+                // Contacting sales isn't gated behind the self-service
+                // billing this app doesn't have yet - unlike Free/Pro's
+                // "upgrade" button, this one actually works today.
+                <Button className="w-full" variant="outline" onClick={() => window.open('mailto:sales@mindaitutor.com')}>
+                  {t('contact_sales')}
+                </Button>
+              ) : (
+                <Button
+                  className="w-full"
+                  variant={currentPlan === `${plan.name} plan` ? 'outline' : 'default'}
+                  disabled
+                >
+                  {isLoading ? t('processing') : currentPlan === `${plan.name} plan` ? t('current_plan') : (language === 'zh-TW' ? '尚未開放' : 'Not available yet')}
+                </Button>
+              )}
             </CardFooter>
           </Card>
         ))}
