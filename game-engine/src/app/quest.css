@@ -77,8 +77,11 @@
 .quest-current .quest-button { width:100%; margin-top:21px; }
 .quest-mentor { background:#edf7f4; border-color:#d1e6df; }
 .quest-mentor-heading { display:flex; align-items:center; gap:12px; }
+.quest-mentor-heading > div { min-width:0; }
 .quest-mentor-heading .quest-kicker { font-size:8px; }
-.quest-mentor-icon { padding:10px; background:white; border:1px solid #d1e6df; border-radius:13px; color:#286957; }
+.quest-mentor-heading .quest-mentor-avatar { flex:0 0 58px; width:58px; height:58px; padding:3px; object-fit:contain; background:#fff; border:1px solid #bcdcd5; border-radius:17px; box-shadow:0 4px 10px #173b5c12; }
+.quest-mentor-heading h2 { margin-top:3px; line-height:1.35; }
+.quest-mentor-tagline { display:block; margin-top:3px; color:#477168; font-size:10px; line-height:1.5; }
 .quest-mentor-note { display:block; margin-top:15px; font-size:11px; color:#456b62; }
 .quest-panel-title { display:flex; gap:9px; align-items:center; }
 .quest-panel-title h2 { margin:0; }
@@ -151,7 +154,9 @@
 .quest-shell[data-quest-template="neo-brutal"] .quest-stop.is-done .quest-stop-card,
 .quest-shell[data-quest-template="neo-brutal"] .quest-mentor,
 .quest-shell[data-quest-template="neo-brutal"] .quest-map-finish { background:#b8f2d0; border-color:#111; }
-.quest-shell[data-quest-template="neo-brutal"] :is(.quest-node,.quest-status,.quest-mentor-icon) { border:2px solid #111; border-radius:5px; box-shadow:3px 3px 0 #111; }
+.quest-shell[data-quest-template="neo-brutal"] :is(.quest-node,.quest-status,.quest-mentor-avatar) { border:2px solid #111; border-radius:5px; box-shadow:3px 3px 0 #111; }
+.quest-shell[data-quest-template="neo-brutal"] .quest-mentor-avatar { background:#ffde59; }
+.quest-shell[data-quest-template="neo-brutal"] .quest-mentor-tagline { color:#222; }
 .quest-shell[data-quest-template="neo-brutal"] .quest-stop.is-current .quest-node { background:#7c5cff; box-shadow:3px 3px 0 #111; }
 .quest-shell[data-quest-template="neo-brutal"] .quest-stop.is-done .quest-node { background:#16b87a; box-shadow:3px 3px 0 #111; }
 .quest-shell[data-quest-template="neo-brutal"] :is(.quest-panel p,.quest-stop-summary,.quest-lesson-heading>p,.quest-caption) { color:#333; }
@@ -184,6 +189,8 @@
 .quest-shell[data-quest-template="arcade"] .quest-lesson-heading h1 { color:#fff; text-shadow:2px 2px 0 #7c5cff; }
 .quest-shell[data-quest-template="arcade"] .quest-stop.is-current .quest-node { background:#7c5cff; box-shadow:0 0 15px #7c5cff; }
 .quest-shell[data-quest-template="arcade"] .quest-stop.is-done .quest-node { background:#0e9f8b; box-shadow:0 0 12px #21dbc2; }
+.quest-shell[data-quest-template="arcade"] .quest-mentor-avatar { background:#17133c; border-color:#49e7ff; border-radius:5px; box-shadow:0 0 14px #49e7ff55; }
+.quest-shell[data-quest-template="arcade"] .quest-mentor-tagline { color:#7df2ff; }
 .quest-shell[data-quest-template="arcade"] .quest-workspace [role=tablist] { background:#0f0c28; border-color:#3d3775; border-radius:4px; }
 .quest-shell[data-quest-template="arcade"] .quest-workspace [role=tab] { color:#a9a4d4; }
 .quest-shell[data-quest-template="arcade"] .quest-workspace [role=tab][data-state=active] { color:#090720; background:#49e7ff; border-radius:2px; box-shadow:0 0 13px #49e7ff66; }
@@ -209,6 +216,8 @@
 .quest-shell[data-quest-template="forest-camp"] .quest-stop.is-done .quest-node { background:#bf7137; box-shadow:0 4px 0 #89502c; }
 .quest-shell[data-quest-template="forest-camp"] .quest-stop-link { color:#42652f; }
 .quest-shell[data-quest-template="forest-camp"] .quest-lesson-heading h1 { color:#30432d; }
+.quest-shell[data-quest-template="forest-camp"] .quest-mentor-avatar { background:#fff9e7; border-color:#aabf8e; border-radius:50% 50% 43% 43%; box-shadow:0 4px 0 #d1d9b7; }
+.quest-shell[data-quest-template="forest-camp"] .quest-mentor-tagline { color:#596d4d; }
 
 .quest-shell[data-quest-template="arcane-archive"] { background:#1c1428; color:#f7edcf; font-family:Georgia,"Noto Serif TC","Noto Sans TC",serif; }
 .quest-shell[data-quest-template="arcane-archive"] .quest-header { background:#21152ff2; border-bottom:1px solid #9a7540; box-shadow:0 5px 20px #0d0718aa; }
@@ -235,6 +244,8 @@
 .quest-shell[data-quest-template="arcane-archive"] .quest-stop.is-done .quest-node { background:#3c7a65; box-shadow:0 4px 0 #275345; }
 .quest-shell[data-quest-template="arcane-archive"] .quest-stop-link { color:#684178; }
 .quest-shell[data-quest-template="arcane-archive"] .quest-lesson-heading h1 { color:#fff5dc; }
+.quest-shell[data-quest-template="arcane-archive"] .quest-mentor-avatar { background:#2e1d3c; border:1px solid #b68a49; border-radius:12px; box-shadow:0 4px 0 #5c3d70; }
+.quest-shell[data-quest-template="arcane-archive"] .quest-mentor-tagline { color:#684178; }
 
 .quest-shell[data-quest-template="orbital-lab"] { background:#eaf5fb; color:#153a55; font-family:"Avenir Next",Arial,"Noto Sans TC",sans-serif; }
 .quest-shell[data-quest-template="orbital-lab"] .quest-header { background:#f9fdffed; border-bottom:1px solid #b9dce9; box-shadow:0 4px 18px #39789c10; }
@@ -258,6 +269,8 @@
 .quest-shell[data-quest-template="orbital-lab"] .quest-stop.is-done .quest-node { background:#168a83; box-shadow:0 4px 0 #0f615d; }
 .quest-shell[data-quest-template="orbital-lab"] .quest-stop-link { color:#126797; }
 .quest-shell[data-quest-template="orbital-lab"] .quest-lesson-heading h1 { color:#153a55; }
+.quest-shell[data-quest-template="orbital-lab"] .quest-mentor-avatar { background:#e7f8ff; border-color:#83c7df; border-radius:50%; box-shadow:0 0 0 4px #d5eff8,0 5px 14px #176cab25; }
+.quest-shell[data-quest-template="orbital-lab"] .quest-mentor-tagline { color:#176e9b; }
 
 /* The leaderboard is rendered in a portal, so it carries its own template token. */
 .game-leaderboard { --leader-accent:#1764d8; --leader-accent-soft:#eef5ff; --leader-fast:#a25c00; --leader-fast-soft:#fff4dc; --leader-average:#08745d; --leader-average-soft:#e6f8f1; color:#18314f; background:#fff; border-color:#dce5ef; }

@@ -59,7 +59,7 @@ export function LessonDraftPreview({
             <Target className="mt-0.5 h-4 w-4 shrink-0 text-primary" />
             <div><span className="text-xs font-medium text-muted-foreground">{zh ? "完成目標" : "Outcome"}</span><p className="mt-1 leading-6">{objective || (zh ? "填寫學生完成後能做到的事。" : "Describe what students can do after this lesson.")}</p></div>
           </div>
-          {mentorMessage && <div className="flex gap-3 rounded-lg bg-emerald-50 p-3 text-sm text-emerald-900"><Sparkles className="mt-0.5 h-4 w-4 shrink-0" /><p className="leading-6">Ellis：{mentorMessage}</p></div>}
+          {mentorMessage && <div className="flex gap-3 rounded-lg bg-emerald-50 p-3 text-sm text-emerald-900"><Sparkles className="mt-0.5 h-4 w-4 shrink-0" /><p className="leading-6">AI 助教：{mentorMessage}</p></div>}
         </div>
 
         <div className="rounded-xl border bg-card p-5">

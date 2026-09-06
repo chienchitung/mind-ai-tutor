@@ -71,21 +71,23 @@ describe('lesson UI rendering', () => {
     expect(html).toContain('<details')
     expect(html).not.toContain('open=""')
   })
-  it('uses the redesigned robot avatar in every mentor instance', () => {
-    const html = renderToStaticMarkup(<div><MentorAvatar /><MentorAvatar /></div>)
+  it('uses the template-specific avatar in every mentor instance', () => {
+    const html = renderToStaticMarkup(<div><MentorAvatar /><MentorAvatar template="arcade" /></div>)
     expect(html.match(/<img /g)).toHaveLength(2)
-    expect(html.match(/src="\/games\/avatars\/ellis-robot-v2.svg"/g)).toHaveLength(2)
-    expect(html).not.toContain('ellis-human-v1')
+    expect(html).toContain('src="/games/avatars/mentor-roki.webp"')
+    expect(html).toContain('src="/games/avatars/mentor-nyx.webp"')
+    expect(html).not.toContain('ellis')
     expect(html).toContain('alt=""')
     expect(html).toContain('width="96"')
     expect(html).not.toContain(' id=')
     expect(html).toContain('aria-hidden="true"')
   })
-  it('keeps the vector robot self-contained and free of duplicated effect IDs', () => {
-    const svg = readFileSync(new URL('../../public/avatars/ellis-robot-v2.svg', import.meta.url), 'utf8')
-    expect(svg).toContain('viewBox="0 0 200 200"')
-    expect(svg).toContain('#4DE4E4')
-    expect(svg).not.toMatch(/<script|<image|<foreignObject|\sid=|url\(/)
+  it('ships every template avatar as a compact local asset', () => {
+    for (const name of ['roki', 'bobo', 'nyx', 'mori', 'lyra', 'orbi']) {
+      const avatar = readFileSync(new URL(`../../public/avatars/mentor-${name}.webp`, import.meta.url))
+      expect(avatar.byteLength).toBeGreaterThan(20_000)
+      expect(avatar.byteLength).toBeLessThan(200_000)
+    }
   })
   it('does not duplicate answer IDs when the final panel stays mounted', () => {
     const html = renderToStaticMarkup(<div><LessonAnswer {...actions} answer="" submitted correct stage="complete" /><LessonAnswer {...actions} answer="" submitted correct stage="complete" final /></div>)

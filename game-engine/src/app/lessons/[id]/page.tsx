@@ -28,9 +28,11 @@ import type { GameDefinition } from '@/types/game'
 import { GameBrand } from '@/components/GameBrand'
 import { MissionBrief } from '@/components/MissionBrief'
 import { gameThemeStyle, gameVisualTemplate } from '@/lib/mission'
+import { mentorForTemplate } from '@/lib/mentor'
+import type { GameVisualTemplate } from '@/types/game'
 
 
-const ChatMessage = ({ message, isUser, imageUrl }: { message: string; isUser: boolean; imageUrl?: string }) => {
+const ChatMessage = ({ message, isUser, imageUrl, template }: { message: string; isUser: boolean; imageUrl?: string; template: GameVisualTemplate }) => {
   const [isTyping, setIsTyping] = useState(!isUser);
   const [displayedMessage, setDisplayedMessage] = useState('');
   const [isVisible, setIsVisible] = useState(false);
@@ -72,7 +74,7 @@ const ChatMessage = ({ message, isUser, imageUrl }: { message: string; isUser: b
           <div className="flex w-full gap-3">
             <div className="flex-shrink-0">
               <div className="lesson-avatar-small">
-                <MentorAvatar className="w-full h-full" />
+                <MentorAvatar template={template} className="w-full h-full" />
               </div>
             </div>
             <div className="flex-grow">
@@ -335,6 +337,8 @@ export default function ExcelLearningPlatform({
 }) {
   const resolvedParams = use(params);
   const [gameDefinition, setGameDefinition] = useState<GameDefinition | null>(null);
+  const visualTemplate = gameVisualTemplate(gameDefinition?.settings.theme);
+  const mentor = mentorForTemplate(visualTemplate);
   const [gameLessons, setGameLessons] = useState<Lesson[]>(gameId ? [] : legacyLessons);
   const [gameLoadError, setGameLoadError] = useState<string | null>(null);
   const lessons = gameLessons;
@@ -648,7 +652,7 @@ export default function ExcelLearningPlatform({
   const [chatMessages, setChatMessages] = useState<ChatMessage[]>([
     {
       id: '1',
-      content: mentorGreeting(),
+      content: mentorGreeting(undefined, undefined, mentor.name, mentor.greetingLead),
       isUser: false,
       timestamp: new Date()
     }
@@ -710,7 +714,7 @@ export default function ExcelLearningPlatform({
   const nextLesson = currentLessonIndex >= 0 ? lessons[currentLessonIndex + 1] : undefined;
   const promptOptions = isIntroLesson(lessonState.currentLesson) ? introMentorPrompts : mentorPrompts;
   const stage = lessonStage(wasCompletedOnEntry, lessonState.hasSubmitted, lessonState.isCorrect);
-  const greeting = mentorGreeting(currentLesson?.title, currentLesson?.mission?.mentorMessage);
+  const greeting = mentorGreeting(currentLesson?.title, currentLesson?.mission?.mentorMessage, mentor.name, mentor.greetingLead);
   useEffect(() => {
     setChatMessages(previous => previous.map(message => message.id === '1' ? { ...message, content: greeting } : message));
   }, [greeting]);
@@ -721,7 +725,7 @@ export default function ExcelLearningPlatform({
       try {
         // Add welcome message to pending messages
         setPendingChatMessages([{
-          content: mentorGreeting(currentLesson?.title, currentLesson?.mission?.mentorMessage),
+          content: mentorGreeting(currentLesson?.title, currentLesson?.mission?.mentorMessage, mentor.name, mentor.greetingLead),
           is_user: false,
           timestamp: new Date().toISOString(),
         }]);
@@ -731,7 +735,7 @@ export default function ExcelLearningPlatform({
     };
     
     saveInitialMessage();
-  }, [lessonState.currentLesson, currentLesson?.title, currentLesson?.mission?.mentorMessage]);
+  }, [lessonState.currentLesson, currentLesson?.title, currentLesson?.mission?.mentorMessage, mentor.name, mentor.greetingLead]);
 
   const handleAnswerSubmit = async () => {
     if (!exercisesData || exercisesData.length === 0) return;
@@ -1482,7 +1486,7 @@ export default function ExcelLearningPlatform({
   }
 
   return (
-    <div className="quest-shell lesson-shell" data-quest-template={gameVisualTemplate(gameDefinition?.settings.theme)} style={gameThemeStyle(gameDefinition?.settings.theme)}>
+    <div className="quest-shell lesson-shell" data-quest-template={visualTemplate} style={gameThemeStyle(gameDefinition?.settings.theme)}>
       <a className="quest-skip" href="#lesson-workspace">跳至任務工作臺</a>
       <header className="quest-header" inert={lessonState.showChat && (compactChat || isExpanded)}>
         <div className="quest-header-inner">
@@ -1507,13 +1511,13 @@ export default function ExcelLearningPlatform({
                 {isIntroLesson(lessonState.currentLesson) ? '前導課程' : `第 ${lessonNumber} 關`}
               </Badge>
               {wasCompletedOnEntry && <span className="lesson-state is-review">已完成 · 複習中</span>}
-              <button ref={chatToggleRef} type="button" className="lesson-ask" onClick={toggleChat} aria-controls="ellis-panel" aria-expanded={lessonState.showChat} aria-label={lessonState.showChat ? "關閉 AI 導師" : "開啟 AI 導師"}><MentorAvatar />Ellis 導師</button>
+              <button ref={chatToggleRef} type="button" className="lesson-ask" onClick={toggleChat} aria-controls="mentor-panel" aria-expanded={lessonState.showChat} aria-label={lessonState.showChat ? `關閉${mentor.name} AI 助教` : `開啟${mentor.name} AI 助教`}><MentorAvatar template={visualTemplate} />{mentor.name} 助教</button>
             </div>
             <h1 className="text-xl md:text-2xl font-bold mb-2">{currentLesson?.title}</h1>
 
           </div>
 
-          {currentLesson && <MissionBrief lesson={currentLesson} />}
+          {currentLesson && <MissionBrief lesson={currentLesson} mentorName={mentor.name} />}
           <Tabs key={lessonState.currentLesson + (currentLesson?.role || "")} ref={tabsRef} defaultValue={initialLessonTab(isIntroLesson(lessonState.currentLesson), isFinalLesson(lessonState.currentLesson), currentLesson?.learningFlow)} className="lesson-tabs">
             {!isIntroLesson(lessonState.currentLesson) && (
             <TabsList className="lesson-tab-list" style={{ gridTemplateColumns: `repeat(${showTabs.length}, 1fr)` }}>
@@ -1812,19 +1816,19 @@ export default function ExcelLearningPlatform({
         </main>
 
         {/* Chat stays mounted so closing it preserves the draft and conversation. */}
-        <div ref={chatPanelRef} id="ellis-panel" role={compactChat || isExpanded ? 'dialog' : 'complementary'}
+        <div ref={chatPanelRef} id="mentor-panel" role={compactChat || isExpanded ? 'dialog' : 'complementary'}
           aria-modal={lessonState.showChat && (compactChat || isExpanded) ? true : undefined}
-          aria-label="Ellis AI 導師" inert={!lessonState.showChat} aria-hidden={!lessonState.showChat}
+          aria-label={`${mentor.name} AI 助教`} inert={!lessonState.showChat} aria-hidden={!lessonState.showChat}
           className={`lesson-chat ${lessonState.showChat ? 'is-open' : ''}`}>
           <div className="h-full flex flex-col">
             <div className="lesson-chat-header">
               <div className="flex items-center gap-3">
                 <div className="lesson-avatar-large">
-                  <MentorAvatar className="w-full h-full" />
+                  <MentorAvatar template={visualTemplate} className="w-full h-full" />
                 </div>
                 <div>
-                  <h2 className="font-semibold text-gray-900 text-lg">Ellis</h2>
-                  <p className="text-sm text-gray-500">一起釐清問題，探索你的解法</p>
+                  <h2 className="font-semibold text-gray-900 text-lg">{mentor.name} · {mentor.role}</h2>
+                  <p className="text-sm text-gray-500">{mentor.tagline}</p>
                 </div>
               </div>
               <div className="flex items-center gap-2">
@@ -1832,7 +1836,7 @@ export default function ExcelLearningPlatform({
                   variant="ghost" 
                   size="icon"
                   onClick={toggleExpand}
-                  aria-label={isExpanded ? '縮小 AI 導師面板' : '展開 AI 導師面板'}
+                  aria-label={isExpanded ? '縮小 AI 助教面板' : '展開 AI 助教面板'}
                   className="hover:bg-gray-100 rounded-lg"
                 >
                   {isExpanded ? (
@@ -1849,7 +1853,7 @@ export default function ExcelLearningPlatform({
                   variant="ghost" 
                   size="icon"
                   onClick={toggleChat}
-                  aria-label="關閉 AI 導師"
+                  aria-label="關閉 AI 助教"
                   className="hover:bg-gray-100 rounded-lg"
                 >
                   <X className="h-5 w-5 text-gray-500" />
@@ -1859,13 +1863,14 @@ export default function ExcelLearningPlatform({
 
             <ScrollArea className="lesson-chat-scroll flex-1 min-h-0">
               <div className="space-y-5 max-w-3xl mx-auto">
-                <details className="lesson-chat-help"><summary>如何使用 AI 導師？</summary><p>可以詢問題目條件、解題方向，或上傳截圖。AI 回覆可能有誤，請對照老師教材；最後仍需自行作答。快捷按鈕只填入提問，不會自動發送。</p></details>
+                <details className="lesson-chat-help"><summary>如何使用 AI 助教？</summary><p>可以詢問題目條件、解題方向，或上傳截圖。AI 回覆可能有誤，請對照老師教材；最後仍需自行作答。快捷按鈕只填入提問，不會自動發送。</p></details>
                 {chatMessages.map((message) => (
                   <ChatMessage
                     key={message.id}
                     message={message.content}
                     isUser={message.isUser}
                     imageUrl={message.imageUrl}
+                    template={visualTemplate}
                   />
                 ))}
                 <div ref={chatEndRef} />
@@ -1910,7 +1915,7 @@ export default function ExcelLearningPlatform({
                   className="hidden"
                   id="image-upload"
                 />
-                <button type="button" aria-label="上傳圖片給 AI 導師" onClick={() => fileInputRef.current?.click()} className="lesson-upload-button">
+                <button type="button" aria-label={`上傳圖片給${mentor.name} AI 助教`} onClick={() => fileInputRef.current?.click()} className="lesson-upload-button">
                   <ImageIcon className="h-5 w-5 text-gray-500" />
                 </button>
                 
@@ -1957,8 +1962,8 @@ export default function ExcelLearningPlatform({
                       }
                     }
                   }}
-                  aria-label="給 Ellis 的問題"
-                  placeholder="告訴 Ellis，你卡在哪一步…"
+                  aria-label={`給${mentor.name}的問題`}
+                  placeholder={`告訴${mentor.name}，你卡在哪一步…`}
                   className="lesson-chat-textarea"
                 />
                 
@@ -1976,8 +1981,8 @@ export default function ExcelLearningPlatform({
         </div>
 
         {!lessonState.showChat && (
-          <button type="button" onClick={toggleChat} className="lesson-chat-launcher" aria-label="開啟 Ellis AI 導師" aria-controls="ellis-panel">
-            <MentorAvatar /><span>問問 Ellis</span>
+          <button type="button" onClick={toggleChat} className="lesson-chat-launcher" aria-label={`開啟${mentor.name} AI 助教`} aria-controls="mentor-panel">
+            <MentorAvatar template={visualTemplate} /><span>問問{mentor.name}</span>
           </button>
         )}
       </div>

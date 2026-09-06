@@ -876,7 +876,7 @@ export default function LessonsPage() {
                   <section id="lesson-design" className="scroll-mt-24 lg:scroll-mt-64 space-y-5 rounded-xl border border-border/70 p-4 sm:p-5">
                     <div>
                       <h3 className="font-semibold">{language === 'zh-TW' ? '學習設計' : 'Learning design'}</h3>
-                      <p className="mt-1 text-sm text-muted-foreground">{language === 'zh-TW' ? '設定學生進入關卡後先做什麼，以及 AI 導師如何引導。' : 'Set what students do first and how the AI tutor guides them.'}</p>
+                      <p className="mt-1 text-sm text-muted-foreground">{language === 'zh-TW' ? '設定學生進入關卡後先做什麼，以及 AI 助教如何引導。' : 'Set what students do first and how the AI tutor guides them.'}</p>
                     </div>
 
                     <FormField
@@ -899,9 +899,9 @@ export default function LessonsPage() {
                       name="mentorMessage"
                       render={({ field }: { field: any }) => (
                         <FormItem>
-                          <FormLabel>{language === 'zh-TW' ? 'Ellis 的第一句引導' : 'Ellis opening message'}</FormLabel>
+                          <FormLabel>{language === 'zh-TW' ? 'AI 助教開場引導' : 'AI tutor opening message'}</FormLabel>
                           <FormControl><Textarea className="min-h-20" maxLength={300} placeholder={language === 'zh-TW' ? '例如：先找出判斷條件，再決定條件成立與不成立時要顯示什麼。' : 'Guide the student without giving away the answer.'} {...field} /></FormControl>
-                          <p className="text-xs text-muted-foreground">{language === 'zh-TW' ? '學生打開 Ellis 時會先看到這句話；建議給方向，不要直接寫答案。留白時使用系統預設引導。' : 'Shown when students open Ellis. Give direction without revealing the answer. Leave blank to use the default.'}</p>
+                          <p className="text-xs text-muted-foreground">{language === 'zh-TW' ? '學生打開樣板專屬 AI 助教時會先看到這句話；建議給方向，不要直接寫答案。留白時使用該角色的預設引導。' : 'Shown when students open the template-specific AI tutor. Give direction without revealing the answer. Leave blank to use that character’s default.'}</p>
                           <FormMessage />
                         </FormItem>
                       )}

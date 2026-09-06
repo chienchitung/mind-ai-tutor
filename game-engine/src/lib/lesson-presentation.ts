@@ -10,8 +10,10 @@ export function initialLessonTab(intro: boolean, final: boolean, flow: 'challeng
   return intro ? 'content' : final ? 'game' : flow === 'content_first' ? 'content' : 'practice'
 }
 
-export function mentorGreeting(lessonTitle?: string, greeting?: string) {
-  return greeting?.trim() || (lessonTitle ? `我是 Ellis，你的 AI 學習夥伴。關於「${lessonTitle}」，你想先釐清哪個部分？` : '我是 Ellis，你的 AI 學習夥伴。告訴我你卡在哪一步，我們一起想想。')
+export function mentorGreeting(lessonTitle?: string, greeting?: string, mentorName = '洛奇', greetingLead = '我們先看看已知線索，再決定下一步。') {
+  return greeting?.trim() || (lessonTitle
+    ? `我是${mentorName}，你的 AI 學習夥伴。關於「${lessonTitle}」，${greetingLead}`
+    : `我是${mentorName}，你的 AI 學習夥伴。${greetingLead}`)
 }
 
 export const mentorPrompts = [
