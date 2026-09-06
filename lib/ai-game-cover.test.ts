@@ -28,6 +28,7 @@ describe('AI game cover contract', () => {
     expect(aiCoverError('QUOTA_NOT_CONFIGURED', true)).toContain('add_game_cover_ai_quota.sql');
     expect(aiCoverError('DAILY_LIMIT', true)).toContain('5');
     expect(aiCoverError('COOLDOWN', false)).toContain('60');
+    expect(aiCoverError('INSUFFICIENT_POINTS', true)).toContain('點數');
     expect(aiCoverError('secret provider detail', false)).not.toContain('secret provider detail');
   });
 });

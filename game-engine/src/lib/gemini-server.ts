@@ -91,7 +91,7 @@ const GENERIC_SYSTEM_PROMPT = `
 `;
 
 const apiKey = process.env.GEMINI_API_KEY;
-const MODEL_NAME = process.env.GEMINI_MODEL || 'gemini-3.6-flash';
+const MODEL_NAME = process.env.GEMINI_MODEL || 'gemini-3.8-flash';
 
 if (!apiKey) {
   console.error('Missing Gemini API key. Set GEMINI_API_KEY in this deployment\'s environment variables.');

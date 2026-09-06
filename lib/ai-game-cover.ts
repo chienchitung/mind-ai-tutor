@@ -30,6 +30,7 @@ export function aiCoverError(code: string, chinese: boolean) {
     QUOTA_NOT_CONFIGURED: ['生成額度尚未設定，請管理員執行 add_game_cover_ai_quota.sql。', 'Run add_game_cover_ai_quota.sql to configure generation limits.'],
     DAILY_LIMIT: ['今日已達 5 次生成上限（包含失敗嘗試），請明天再試。', 'Daily limit of 5 attempts reached, including failed attempts. Try tomorrow.'],
     COOLDOWN: ['請稍候再試；每次生成需間隔至少 60 秒。', 'Wait at least 60 seconds between generation attempts.'],
+    INSUFFICIENT_POINTS: ['本月 AI 點數已用完，下個月會自動補滿。', "You've used all your AI points for this month. They'll refresh next month."],
     DUPLICATE: ['這次請求已送出，不會重複生成。請等候或稍後重新生成。', 'This request was already submitted and will not run twice.'],
     INVALID_INPUT: ['請確認課程標題、內容長度及資料傳送同意。', 'Check the title, brief length and consent.'],
     NO_IMAGE: ['AI 未回傳可用圖片，請調整課程摘要後再試。原封面仍保留。', 'AI returned no usable image. Revise the brief and retry. Your cover is safe.'],

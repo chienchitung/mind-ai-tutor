@@ -23,6 +23,7 @@ import {
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { useLanguage } from "@/app/contexts/LanguageContext";
 import { useTranslation } from "@/utils/translations";
+import { AiQuotaError, throwForAiQuotaError } from "@/lib/ai-quota-errors";
 
 // Import text extraction libraries
 import { quizPayloadSchema, parseSavedQuiz, isCorrectQuizAnswer, isCorrectQuizOption, type Quiz, type QuizQuestion, type QuizAttempt } from '@/lib/quiz';
@@ -2020,7 +2021,7 @@ export default function AIQuizPage() {
       });
 
       if (!quizResponse.ok) {
-        throw new Error('Failed to generate quiz');
+        await throwForAiQuotaError(quizResponse, language, 'Failed to generate quiz');
       }
 
       const generatedQuiz = await quizResponse.json();
@@ -2044,7 +2045,7 @@ export default function AIQuizPage() {
       console.error("Quiz generation error:", error);
       toast({
         title: t('error'),
-        description: t('error_generating_quiz'),
+        description: error instanceof AiQuotaError ? error.message : t('error_generating_quiz'),
         variant: "destructive",
       });
     } finally {

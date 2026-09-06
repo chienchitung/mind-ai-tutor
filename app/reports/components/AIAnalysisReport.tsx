@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Sparkles, Loader2, ChevronDown, ChevronUp, Clock, Star, Target, Lightbulb, BarChart2, BookOpen, Award } from 'lucide-react';
 import { useLanguage } from '@/app/contexts/LanguageContext';
 import { useTranslation } from '@/utils/translations';
+import { AiQuotaError, throwForAiQuotaError } from '@/lib/ai-quota-errors';
 
 interface AIAnalysisReportProps {
   learningRecords: any[];
@@ -47,7 +48,7 @@ export function AIAnalysisReport({
         body: JSON.stringify(analysisData),
       });
       if (!response.ok) {
-        throw new Error('Failed to generate learning analysis');
+        await throwForAiQuotaError(response, language, 'Failed to generate learning analysis');
       }
       const { analysis } = await response.json();
       setAnalysisResult(analysis);
@@ -61,7 +62,7 @@ export function AIAnalysisReport({
       setExpandedSections(initialExpandedState);
     } catch (error) {
       console.error('Error generating analysis:', error);
-      setAnalysisResult(t('analysis_generation_error'));
+      setAnalysisResult(error instanceof AiQuotaError ? error.message : t('analysis_generation_error'));
     } finally {
       setIsLoading(false);
     }

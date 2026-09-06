@@ -1,6 +1,12 @@
 import { createHash } from 'node:crypto';
 import { NextResponse } from 'next/server';
 import { getChatResponse, type ChatContext } from '@/lib/gemini-server';
+// Relative, not the @/ alias - vi.mock() in this route's test reliably
+// intercepts a relative specifier under this project's tsconfig-paths-based
+// vitest config, matching the pattern already used by lib/game-manifest.ts.
+import { supabase } from '../../../lib/supabase';
+
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 export const runtime = 'nodejs';
 export const maxDuration = 60;
@@ -78,10 +84,16 @@ async function readBoundedJson(request: Request): Promise<unknown> {
   }
 }
 
-function parsePayload(value: unknown): { message: string; image?: string; context?: ChatContext } | null {
+function parsePayload(value: unknown): { message: string; image?: string; context?: ChatContext; deviceId: string } | null {
   if (!isRecord(value)) return null;
   const message = typeof value.message === 'string' ? value.message.trim() : '';
   if (message.length > 4_000) return null;
+
+  // A client-generated, per-browser id (see src/lib/device-id.ts) - the
+  // anti-abuse daily cap (claim_game_chat_message) is keyed by this, not by
+  // any student identity, since most play is anonymous/not logged in.
+  const deviceId = typeof value.deviceId === 'string' ? value.deviceId : '';
+  if (!UUID_RE.test(deviceId)) return null;
 
   let image: string | undefined;
   if (value.image !== undefined) {
@@ -111,7 +123,7 @@ function parsePayload(value: unknown): { message: string; image?: string; contex
       ...(typeof tutorPrompt === 'string' ? { tutorPrompt } : {}),
     };
   }
-  return { message, image, context };
+  return { message, image, context, deviceId };
 }
 
 export async function POST(request: Request) {
@@ -121,6 +133,13 @@ export async function POST(request: Request) {
     if (!withinRateLimit(request)) return fail('RATE_LIMITED', 429);
     const payload = parsePayload(await readBoundedJson(request));
     if (!payload) return fail('INVALID_INPUT', 400);
+    // Durable, cross-instance daily cap - the in-memory IP+UA limit above
+    // only guards against a fast burst and resets on every deploy/restart.
+    const quota = await supabase.rpc('claim_game_chat_message', { p_device_id: payload.deviceId });
+    if (quota.error) return fail('QUOTA_NOT_CONFIGURED', 503);
+    if (quota.data !== 'OK') {
+      return fail(quota.data === 'DAILY_LIMIT' ? 'DAILY_LIMIT' : 'QUOTA_NOT_CONFIGURED', quota.data === 'DAILY_LIMIT' ? 429 : 503);
+    }
     const response = await getChatResponse(payload.message, payload.context, payload.image);
     return NextResponse.json({ response }, { headers: { 'Cache-Control': 'private, no-store' } });
   } catch (error) {

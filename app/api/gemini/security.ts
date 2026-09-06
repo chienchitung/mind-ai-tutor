@@ -25,6 +25,7 @@ export async function claimTeacherAi(
   const quota = await client.rpc('claim_teacher_ai_generation', { p_kind: kind });
   if (quota.error || quota.data !== 'OK') {
     const limited = quota.data === 'COOLDOWN' || quota.data === 'DAILY_LIMIT';
+    if (quota.data === 'INSUFFICIENT_POINTS') return fail('INSUFFICIENT_POINTS', 402);
     return fail(limited ? quota.data : 'QUOTA_NOT_CONFIGURED', limited ? 429 : 503);
   }
   return null;

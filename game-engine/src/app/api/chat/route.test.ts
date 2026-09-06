@@ -1,19 +1,21 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-const { generateContent } = vi.hoisted(() => {
+const DEVICE_ID = '11111111-1111-4111-8111-111111111111';
+const { generateContent, rpc } = vi.hoisted(() => {
   process.env.GEMINI_API_KEY = 'test-only';
-  return { generateContent: vi.fn() };
+  return { generateContent: vi.fn(), rpc: vi.fn() };
 });
 vi.mock('@google/genai', () => ({
   GoogleGenAI: class {
     models = { generateContent };
   },
 }));
+vi.mock('../../../lib/supabase', () => ({ supabase: { rpc } }));
 import { POST } from './route';
 
 let requestNumber = 0;
 const makeRequest = (
-  body: unknown = { message: '請給我一個提示' },
+  body: unknown = { message: '請給我一個提示', deviceId: DEVICE_ID },
   options: { origin?: string; ip?: string; contentLength?: string; userAgent?: string } = {},
 ) => {
   requestNumber += 1;
@@ -34,6 +36,7 @@ beforeEach(() => {
   vi.clearAllMocks();
   vi.stubEnv('GEMINI_API_KEY', 'test-only');
   generateContent.mockResolvedValue({ text: '提示' });
+  rpc.mockResolvedValue({ data: 'OK', error: null });
 });
 afterEach(() => vi.unstubAllEnvs());
 
@@ -57,11 +60,18 @@ describe('Game AI chat guardrails', () => {
 
   it('bounds body, messages, history, tutor prompt and image types', async () => {
     expect((await POST(makeRequest({}, { contentLength: '3000001' }))).status).toBe(413);
-    expect((await POST(makeRequest({ message: 'x'.repeat(4001) }))).status).toBe(400);
-    expect((await POST(makeRequest({ message: 'ok', context: { context: Array(9).fill({ content: 'x', isUser: true }), lessonInfo: '' } }))).status).toBe(400);
-    expect((await POST(makeRequest({ message: 'ok', context: { context: [], lessonInfo: '', tutorPrompt: 'x'.repeat(16001) } }))).status).toBe(400);
-    expect((await POST(makeRequest({ message: '', image: 'data:image/svg+xml;base64,PHN2Zz4=' }))).status).toBe(400);
+    expect((await POST(makeRequest({ message: 'x'.repeat(4001), deviceId: DEVICE_ID }))).status).toBe(400);
+    expect((await POST(makeRequest({ message: 'ok', deviceId: DEVICE_ID, context: { context: Array(9).fill({ content: 'x', isUser: true }), lessonInfo: '' } }))).status).toBe(400);
+    expect((await POST(makeRequest({ message: 'ok', deviceId: DEVICE_ID, context: { context: [], lessonInfo: '', tutorPrompt: 'x'.repeat(16001) } }))).status).toBe(400);
+    expect((await POST(makeRequest({ message: '', deviceId: DEVICE_ID, image: 'data:image/svg+xml;base64,PHN2Zz4=' }))).status).toBe(400);
     expect(generateContent).not.toHaveBeenCalled();
+  });
+
+  it('rejects a missing or malformed device id', async () => {
+    expect((await POST(makeRequest({ message: 'ok' }))).status).toBe(400);
+    expect((await POST(makeRequest({ message: 'ok', deviceId: 'not-a-uuid' }))).status).toBe(400);
+    expect(generateContent).not.toHaveBeenCalled();
+    expect(rpc).not.toHaveBeenCalled();
   });
 
   it('rate limits repeated calls by client fingerprint', async () => {
@@ -77,14 +87,31 @@ describe('Game AI chat guardrails', () => {
   it('passes a validated request and prevents caching', async () => {
     const response = await POST(makeRequest({
       message: ' 提示 ',
+      deviceId: DEVICE_ID,
       context: { context: [{ content: '我試過 SUM', isUser: true }], lessonInfo: '加總', gameTitle: '試算表' },
     }));
     expect(response.status).toBe(200);
     expect(response.headers.get('cache-control')).toContain('no-store');
+    expect(rpc).toHaveBeenCalledWith('claim_game_chat_message', { p_device_id: DEVICE_ID });
     expect(generateContent).toHaveBeenCalledTimes(1);
     expect(generateContent).toHaveBeenCalledWith(expect.objectContaining({
       model: expect.any(String),
       contents: expect.stringContaining('學生：提示'),
     }));
+  });
+
+  it('blocks generation once the device has hit its daily cap, without ever calling Gemini', async () => {
+    rpc.mockResolvedValue({ data: 'DAILY_LIMIT', error: null });
+    const response = await POST(makeRequest());
+    expect(response.status).toBe(429);
+    expect(await response.json()).toEqual({ error: 'DAILY_LIMIT' });
+    expect(generateContent).not.toHaveBeenCalled();
+  });
+
+  it('fails closed when the device quota migration is missing, rather than generating for free', async () => {
+    rpc.mockResolvedValue({ data: null, error: { message: 'missing function' } });
+    const response = await POST(makeRequest());
+    expect(response.status).toBe(503);
+    expect(generateContent).not.toHaveBeenCalled();
   });
 });
