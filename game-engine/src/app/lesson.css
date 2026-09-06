@@ -168,3 +168,66 @@
 .lesson-shell[data-quest-template="arcade"] .lesson-task > h3,
 .lesson-shell[data-quest-template="arcade"] :is(.lesson-empty,.lesson-interactive-note,.lesson-reward-note) { color:#c4c5e8; }
 .lesson-shell[data-quest-template="arcade"] .lesson-complete-copy :is(strong,p) { color:#f1f2ff; }
+
+.lesson-shell[data-quest-template="forest-camp"] .lesson-breadcrumb a { color:#416130; font-weight:700; }
+.lesson-shell[data-quest-template="forest-camp"] .lesson-breadcrumb .bg-blue-600 { color:#fff; background:#5d7f49; }
+.lesson-shell[data-quest-template="forest-camp"] .lesson-brief { color:#596b51; }
+.lesson-shell[data-quest-template="forest-camp"] .lesson-story summary { color:#4c6b3d; }
+.lesson-shell[data-quest-template="forest-camp"] .lesson-tab-list { background:#e4ead7; border-color:#c7d2b4; }
+.lesson-shell[data-quest-template="forest-camp"] .lesson-tab { color:#53674b; }
+.lesson-shell[data-quest-template="forest-camp"] .lesson-tab[data-state=active] { color:#30432d; background:#fffdf4; }
+.lesson-shell[data-quest-template="forest-camp"] .lesson-tab[data-state=active] .lesson-tab-step { background:#5d7f49; }
+.lesson-shell[data-quest-template="forest-camp"] :is(.lesson-content-card,.lesson-challenge-card,.lesson-navigation.is-intro) { color:#30432d; background:#fffdf4; border:1px solid #cbd5b9; border-radius:22px; box-shadow:0 6px 20px #42553712; }
+.lesson-shell[data-quest-template="forest-camp"] :is(.lesson-content-card,.lesson-challenge-card) > :first-child { color:#30432d; background:linear-gradient(110deg,#eaf1db,#fffdf4); border-bottom:1px solid #cad5b7; border-radius:21px 21px 0 0; }
+.lesson-shell[data-quest-template="forest-camp"] .lesson-content-card .prose { color:#364532; --tw-prose-body:#364532; --tw-prose-headings:#36562f; --tw-prose-links:#426b35; --tw-prose-bold:#263d25; --tw-prose-bullets:#bf7137; }
+.lesson-shell[data-quest-template="forest-camp"] .lesson-content-card .prose :is(h1,h2) { color:#36562f; }
+.lesson-shell[data-quest-template="forest-camp"] .lesson-content-card :is(code,pre) { color:#34472f; background:#f0f2df; border-color:#c7d1b7; }
+.lesson-shell[data-quest-template="forest-camp"] .lesson-content-card :is(blockquote,.bg-blue-50,.bg-gray-50,.bg-amber-50) { color:#364532; background:#edf3df; border-color:#bf7137; }
+.lesson-shell[data-quest-template="forest-camp"] .lesson-table-scroll { background:#fffdf4; border-color:#cbd5b9; }
+.lesson-shell[data-quest-template="forest-camp"] .lesson-table-scroll :is(th,td) { color:#30432d; background:#fffdf4; border-color:#dde3d1; }
+.lesson-shell[data-quest-template="forest-camp"] .lesson-table-scroll th { background:#e7edd8; }
+.lesson-shell[data-quest-template="forest-camp"] .lesson-table-scroll tbody tr:nth-child(even) td { background:#f4f7eb; }
+.lesson-shell[data-quest-template="forest-camp"] :is(.lesson-task>h3,.lesson-empty,.lesson-interactive-note,.lesson-reward-note) { color:#62715a; }
+.lesson-shell[data-quest-template="forest-camp"] .lesson-navigation button { color:#36562f; background:#fffdf4; border-color:#cbd5b9; }
+
+.lesson-shell[data-quest-template="arcane-archive"] .lesson-breadcrumb a { color:#ead39c; font-weight:700; }
+.lesson-shell[data-quest-template="arcane-archive"] .lesson-breadcrumb .bg-blue-600 { color:#fff2d2; background:#704487; border:1px solid #b99a62; }
+.lesson-shell[data-quest-template="arcane-archive"] .lesson-brief { color:#d9cbae; }
+.lesson-shell[data-quest-template="arcane-archive"] .lesson-story summary { color:#e1bd70; }
+.lesson-shell[data-quest-template="arcane-archive"] .lesson-tab-list { background:#30223e; border-color:#8f7044; }
+.lesson-shell[data-quest-template="arcane-archive"] .lesson-tab { color:#d7c9ab; }
+.lesson-shell[data-quest-template="arcane-archive"] .lesson-tab[data-state=active] { color:#3d3042; background:#f8efd8; }
+.lesson-shell[data-quest-template="arcane-archive"] .lesson-tab[data-state=active] .lesson-tab-step { color:#2f1d38; background:#d8b870; }
+.lesson-shell[data-quest-template="arcane-archive"] :is(.lesson-content-card,.lesson-challenge-card,.lesson-navigation.is-intro) { color:#3d3042; background:#f8efd8; border:1px solid #ad8a50; border-radius:15px; box-shadow:0 7px 0 #0d0716aa; }
+.lesson-shell[data-quest-template="arcane-archive"] :is(.lesson-content-card,.lesson-challenge-card) > :first-child { color:#fff2d2; background:linear-gradient(110deg,#3b274a,#593660); border-bottom:1px solid #c39b58; border-radius:14px 14px 0 0; }
+.lesson-shell[data-quest-template="arcane-archive"] .lesson-content-card .prose { color:#433747; --tw-prose-body:#433747; --tw-prose-headings:#51305f; --tw-prose-links:#6b4179; --tw-prose-bold:#302039; --tw-prose-bullets:#9d7138; }
+.lesson-shell[data-quest-template="arcane-archive"] .lesson-content-card .prose :is(h1,h2) { color:#573263; border-bottom:1px solid #d6bd85; padding-bottom:6px; }
+.lesson-shell[data-quest-template="arcane-archive"] .lesson-content-card :is(code,pre) { color:#382a40; background:#eee1bf; border-color:#c8a968; }
+.lesson-shell[data-quest-template="arcane-archive"] .lesson-content-card :is(blockquote,.bg-blue-50,.bg-gray-50,.bg-amber-50) { color:#3d3042; background:#efe2bd; border-color:#704487; }
+.lesson-shell[data-quest-template="arcane-archive"] .lesson-table-scroll { background:#f8efd8; border-color:#b6965d; }
+.lesson-shell[data-quest-template="arcane-archive"] .lesson-table-scroll :is(th,td) { color:#3d3042; background:#f8efd8; border-color:#ddc99c; }
+.lesson-shell[data-quest-template="arcane-archive"] .lesson-table-scroll th { color:#fff2d2; background:#4c3156; }
+.lesson-shell[data-quest-template="arcane-archive"] .lesson-table-scroll tbody tr:nth-child(even) td { background:#f0e2bf; }
+.lesson-shell[data-quest-template="arcane-archive"] :is(.lesson-task>h3,.lesson-empty,.lesson-interactive-note,.lesson-reward-note) { color:#6d5f64; }
+.lesson-shell[data-quest-template="arcane-archive"] .lesson-navigation button { color:#4a3153; background:#f8efd8; border-color:#b99a62; }
+
+.lesson-shell[data-quest-template="orbital-lab"] .lesson-breadcrumb a { color:#126797; font-weight:700; }
+.lesson-shell[data-quest-template="orbital-lab"] .lesson-breadcrumb .bg-blue-600 { color:#fff; background:#1978b8; }
+.lesson-shell[data-quest-template="orbital-lab"] .lesson-brief { color:#54758a; }
+.lesson-shell[data-quest-template="orbital-lab"] .lesson-story summary { color:#1478a6; }
+.lesson-shell[data-quest-template="orbital-lab"] .lesson-tab-list { background:#deeff6; border-color:#b9dce9; }
+.lesson-shell[data-quest-template="orbital-lab"] .lesson-tab { color:#4e7389; }
+.lesson-shell[data-quest-template="orbital-lab"] .lesson-tab[data-state=active] { color:#153a55; background:#fbfeff; }
+.lesson-shell[data-quest-template="orbital-lab"] .lesson-tab[data-state=active] .lesson-tab-step { background:#1978b8; }
+.lesson-shell[data-quest-template="orbital-lab"] :is(.lesson-content-card,.lesson-challenge-card,.lesson-navigation.is-intro) { color:#153a55; background:#fbfeff; border:1px solid #b9dce9; border-radius:17px; box-shadow:0 7px 22px #215f7d12; }
+.lesson-shell[data-quest-template="orbital-lab"] :is(.lesson-content-card,.lesson-challenge-card) > :first-child { color:#153a55; background:linear-gradient(110deg,#e1f4fb,#fafdff); border-bottom:1px solid #9fd2e4; border-radius:16px 16px 0 0; }
+.lesson-shell[data-quest-template="orbital-lab"] .lesson-content-card .prose { color:#23465e; --tw-prose-body:#23465e; --tw-prose-headings:#155e88; --tw-prose-links:#0e73a7; --tw-prose-bold:#153a55; --tw-prose-bullets:#ff775c; }
+.lesson-shell[data-quest-template="orbital-lab"] .lesson-content-card .prose :is(h1,h2) { color:#155e88; }
+.lesson-shell[data-quest-template="orbital-lab"] .lesson-content-card :is(code,pre) { color:#17435f; background:#eaf5fa; border-color:#abd5e4; }
+.lesson-shell[data-quest-template="orbital-lab"] .lesson-content-card :is(blockquote,.bg-blue-50,.bg-gray-50,.bg-amber-50) { color:#1d465f; background:#e8f7fb; border-color:#ff775c; }
+.lesson-shell[data-quest-template="orbital-lab"] .lesson-table-scroll { background:#fbfeff; border-color:#b9dce9; }
+.lesson-shell[data-quest-template="orbital-lab"] .lesson-table-scroll :is(th,td) { color:#153a55; background:#fbfeff; border-color:#d3e8f0; }
+.lesson-shell[data-quest-template="orbital-lab"] .lesson-table-scroll th { color:#155e88; background:#e3f2f8; }
+.lesson-shell[data-quest-template="orbital-lab"] .lesson-table-scroll tbody tr:nth-child(even) td { background:#f0f8fb; }
+.lesson-shell[data-quest-template="orbital-lab"] :is(.lesson-task>h3,.lesson-empty,.lesson-interactive-note,.lesson-reward-note) { color:#58788d; }
+.lesson-shell[data-quest-template="orbital-lab"] .lesson-navigation button { color:#155e88; background:#fbfeff; border-color:#b9dce9; }

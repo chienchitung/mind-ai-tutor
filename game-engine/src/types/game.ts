@@ -1,6 +1,6 @@
 import type { Lesson } from './lesson'
 
-export type GameVisualTemplate = 'discovery' | 'neo-brutal' | 'arcade'
+export type GameVisualTemplate = 'discovery' | 'neo-brutal' | 'arcade' | 'forest-camp' | 'arcane-archive' | 'orbital-lab'
 
 export interface GameTheme {
   /** Visual presentation only; lessons, scoring and progress stay shared. */

@@ -46,6 +46,9 @@ describe('optional mission presentation', () => {
     expect(gameVisualTemplate()).toBe('discovery');
     expect(gameVisualTemplate({ template: 'neo-brutal' })).toBe('neo-brutal');
     expect(gameVisualTemplate({ template: 'arcade' })).toBe('arcade');
+    expect(gameVisualTemplate({ template: 'forest-camp' })).toBe('forest-camp');
+    expect(gameVisualTemplate({ template: 'arcane-archive' })).toBe('arcane-archive');
+    expect(gameVisualTemplate({ template: 'orbital-lab' })).toBe('orbital-lab');
     expect(gameVisualTemplate({ template: 'unknown' as never })).toBe('discovery');
   });
   it('accepts hex accents and rejects arbitrary CSS', () => {

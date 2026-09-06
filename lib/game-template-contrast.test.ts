@@ -17,6 +17,15 @@ describe('game visual-template reading contrast', () => {
     ['Arcade heading', '#70efff', '#151233'],
     ['Arcade breadcrumb', '#d9dcff', '#090720'],
     ['Arcade header label', '#a9a4d4', '#100c2f'],
+    ['Forest lesson body', '#364532', '#fffdf4'],
+    ['Forest heading', '#36562f', '#fffdf4'],
+    ['Forest hero copy', '#526448', '#e8edcf'],
+    ['Arcane lesson body', '#433747', '#f8efd8'],
+    ['Arcane header brand', '#f1dca5', '#21152f'],
+    ['Arcane card heading', '#fff2d2', '#4c3156'],
+    ['Orbital lesson body', '#23465e', '#fbfeff'],
+    ['Orbital heading', '#155e88', '#fbfeff'],
+    ['Orbital hero copy', '#3f687f', '#f7fdff'],
   ])('%s meets WCAG AA for normal text', (_, foreground, background) => {
     expect(contrast(foreground, background)).toBeGreaterThanOrEqual(4.5);
   });
