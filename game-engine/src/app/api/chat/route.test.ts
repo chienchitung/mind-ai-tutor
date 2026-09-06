@@ -1,9 +1,9 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 const DEVICE_ID = '11111111-1111-4111-8111-111111111111';
-const { generateContent, rpc } = vi.hoisted(() => {
+const { generateContent, rpc, isAdminRequest } = vi.hoisted(() => {
   process.env.GEMINI_API_KEY = 'test-only';
-  return { generateContent: vi.fn(), rpc: vi.fn() };
+  return { generateContent: vi.fn(), rpc: vi.fn(), isAdminRequest: vi.fn() };
 });
 vi.mock('@google/genai', () => ({
   GoogleGenAI: class {
@@ -11,6 +11,7 @@ vi.mock('@google/genai', () => ({
   },
 }));
 vi.mock('../../../lib/supabase', () => ({ supabase: { rpc } }));
+vi.mock('../../../lib/supabase-server', () => ({ isAdminRequest }));
 import { POST } from './route';
 
 let requestNumber = 0;
@@ -37,6 +38,7 @@ beforeEach(() => {
   vi.stubEnv('GEMINI_API_KEY', 'test-only');
   generateContent.mockResolvedValue({ text: '提示' });
   rpc.mockResolvedValue({ data: 'OK', error: null });
+  isAdminRequest.mockResolvedValue(false);
 });
 afterEach(() => vi.unstubAllEnvs());
 
@@ -113,5 +115,14 @@ describe('Game AI chat guardrails', () => {
     const response = await POST(makeRequest());
     expect(response.status).toBe(503);
     expect(generateContent).not.toHaveBeenCalled();
+  });
+
+  it('skips the device daily cap entirely for an admin testing in the same browser', async () => {
+    isAdminRequest.mockResolvedValue(true);
+    rpc.mockResolvedValue({ data: 'DAILY_LIMIT', error: null }); // would otherwise block
+    const response = await POST(makeRequest());
+    expect(response.status).toBe(200);
+    expect(rpc).not.toHaveBeenCalled();
+    expect(generateContent).toHaveBeenCalledTimes(1);
   });
 });

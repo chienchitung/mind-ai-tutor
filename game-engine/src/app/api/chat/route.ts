@@ -5,6 +5,7 @@ import { getChatResponse, type ChatContext } from '@/lib/gemini-server';
 // intercepts a relative specifier under this project's tsconfig-paths-based
 // vitest config, matching the pattern already used by lib/game-manifest.ts.
 import { supabase } from '../../../lib/supabase';
+import { isAdminRequest } from '../../../lib/supabase-server';
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -135,10 +136,14 @@ export async function POST(request: Request) {
     if (!payload) return fail('INVALID_INPUT', 400);
     // Durable, cross-instance daily cap - the in-memory IP+UA limit above
     // only guards against a fast burst and resets on every deploy/restart.
-    const quota = await supabase.rpc('claim_game_chat_message', { p_device_id: payload.deviceId });
-    if (quota.error) return fail('QUOTA_NOT_CONFIGURED', 503);
-    if (quota.data !== 'OK') {
-      return fail(quota.data === 'DAILY_LIMIT' ? 'DAILY_LIMIT' : 'QUOTA_NOT_CONFIGURED', quota.data === 'DAILY_LIMIT' ? 429 : 503);
+    // Skipped entirely for an admin testing/demoing here logged into the
+    // main app in the same browser - see isAdminRequest.
+    if (!(await isAdminRequest())) {
+      const quota = await supabase.rpc('claim_game_chat_message', { p_device_id: payload.deviceId });
+      if (quota.error) return fail('QUOTA_NOT_CONFIGURED', 503);
+      if (quota.data !== 'OK') {
+        return fail(quota.data === 'DAILY_LIMIT' ? 'DAILY_LIMIT' : 'QUOTA_NOT_CONFIGURED', quota.data === 'DAILY_LIMIT' ? 429 : 503);
+      }
     }
     const response = await getChatResponse(payload.message, payload.context, payload.image);
     return NextResponse.json({ response }, { headers: { 'Cache-Control': 'private, no-store' } });
