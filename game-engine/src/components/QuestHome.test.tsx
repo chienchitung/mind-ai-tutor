@@ -67,17 +67,19 @@ describe('QuestHome learning journey guidance', () => {
 
 describe('QuestHome template artwork', () => {
   it.each([
-    ['discovery', '每一步，都是新的發現', 'discovery-hero.webp'],
-    ['neo-brutal', '把挑戰拆成一塊一塊', 'neo-blocks-hero.webp'],
-    ['arcade', 'READY · LEARN · LEVEL UP', 'arcade-hero.webp'],
-    ['forest-camp', '慢慢探索，也能走得很遠', 'forest-camp-hero.webp'],
-    ['arcane-archive', '翻開知識，解鎖新的篇章', 'arcane-archive-hero.webp'],
-    ['orbital-lab', '啟動研究，連結每個新發現', 'orbital-lab-hero.webp'],
-  ] as const)('renders distinct %s hero artwork', (template, caption, asset) => {
+    ['discovery', '每一步，都是新的發現', 'discovery-hero.webp', '洛奇', 'mentor-roki.webp'],
+    ['neo-brutal', '把挑戰拆成一塊一塊', 'neo-blocks-hero.webp', '波波', 'mentor-bobo.webp'],
+    ['arcade', 'READY · LEARN · LEVEL UP', 'arcade-hero.webp', '尼克斯', 'mentor-nyx.webp'],
+    ['forest-camp', '慢慢探索，也能走得很遠', 'forest-camp-hero.webp', '莫里', 'mentor-mori.webp'],
+    ['arcane-archive', '翻開知識，解鎖新的篇章', 'arcane-archive-hero.webp', '萊拉', 'mentor-lyra.webp'],
+    ['orbital-lab', '啟動研究，連結每個新發現', 'orbital-lab-hero.webp', '奧比', 'mentor-orbi.webp'],
+  ] as const)('renders distinct %s artwork and mentor', (template, caption, asset, mentor, mentorAsset) => {
     const html = renderToStaticMarkup(
       <QuestHome {...baseProps} signedIn game={{ id: 'game', title: '測試遊戲', description: '', lessons: [], settings: { theme: { template } } }} />,
     )
     expect(html).toContain(caption)
     expect(html).toContain(`/games/template-art/${asset}`)
+    expect(html).toContain(mentor)
+    expect(html).toContain(`/games/avatars/${mentorAsset}`)
   })
 })

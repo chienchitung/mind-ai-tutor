@@ -27,7 +27,7 @@ describe('lesson presentation states', () => {
   it('supports a second game and an unloaded manifest without fixed lesson counts', () => {
     expect(mentorGreeting('攝影任務')).toContain('攝影任務')
     expect(mentorGreeting('攝影任務', ' ')).toContain('攝影任務')
-    expect(mentorGreeting()).toContain('Ellis')
+    expect(mentorGreeting()).toContain('洛奇')
     expect(mentorGreeting()).not.toMatch(/5|Excel|VLOOKUP/)
   })
 

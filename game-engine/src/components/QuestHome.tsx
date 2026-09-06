@@ -1,10 +1,12 @@
 import Link from 'next/link'
-import { ArrowRight, Check, ChevronDown, ChevronRight, Compass, Flag, LockKeyhole, RotateCcw, Sparkles, Star, Trophy } from 'lucide-react'
+import { ArrowRight, Check, ChevronDown, ChevronRight, Compass, Flag, LockKeyhole, RotateCcw, Star, Trophy } from 'lucide-react'
 import type { GameDefinition, GameVisualTemplate } from '../types/game'
 import type { Lesson } from '../types/lesson'
 import { canEnterLesson, gameThemeStyle, gameVisualTemplate, missionObjective } from '../lib/mission'
 import { GameBrand } from './GameBrand'
 import { gameAssetPath } from '../lib/game-asset-path'
+import { MentorAvatar } from './MentorAvatar'
+import { mentorForTemplate } from '../lib/mentor'
 
 interface QuestHomeProps {
   game?: GameDefinition | null
@@ -56,6 +58,7 @@ export function QuestHome(props: QuestHomeProps) {
   // No leading /games here - basePath already adds it to every next/link href.
   const href = (id: string) => gameId ? `/${gameId}/lessons/${id}` : `/lessons/${id}`
   const template = gameVisualTemplate(game?.settings.theme)
+  const mentor = mentorForTemplate(template)
   return <div className="quest-shell" data-quest-template={template} style={gameThemeStyle(game?.settings.theme)}>
     <a className="quest-skip" href="#mission-map">跳至任務地圖</a>
     <header className="quest-header"><div className="quest-header-inner">
@@ -109,7 +112,7 @@ export function QuestHome(props: QuestHomeProps) {
 
         <aside className="quest-sidebar">
           <section className="quest-panel quest-current"><span className="quest-kicker">{allDone ? 'JOURNEY COMPLETE' : 'NEXT MISSION'}</span><h2>{allDone ? '你的學習足跡' : '下一個任務'}</h2><h3>{current?.title || '所有關卡已完成'}</h3><p>{current ? missionObjective(current) : '你已完成本遊戲設定的關卡。這些紀錄代表完成進度，不等同於技能精通評量。'}</p><button className="quest-button" onClick={props.onStart}>{allDone ? '回顧任務' : signedIn ? '繼續任務' : '開始學習'}<ArrowRight className="quest-direction-icon" size={16} aria-hidden="true" /></button></section>
-          <section className="quest-panel quest-mentor"><div className="quest-mentor-heading"><span className="quest-mentor-icon"><Sparkles /></span><div><span className="quest-kicker">LEARNING COMPANION</span><h2>你的 AI 學習夥伴</h2></div></div><p>{current?.mission?.mentorMessage || '卡住了也沒關係。進入關卡後，你可以開啟 AI 導師，一起釐清問題，再試一次。'}</p><span className="quest-mentor-note">先思考，再提問；解法不只靠記憶。</span></section>
+          <section className="quest-panel quest-mentor"><div className="quest-mentor-heading"><MentorAvatar template={template} className="quest-mentor-avatar" /><div><span className="quest-kicker">LEARNING COMPANION</span><h2>{mentor.name} · {mentor.role}</h2><span className="quest-mentor-tagline">{mentor.tagline}</span></div></div><p>{current?.mission?.mentorMessage || mentor.homeMessage}</p><span className="quest-mentor-note">先思考，再提問；解法不只靠記憶。</span></section>
           <section className="quest-panel"><div className="quest-panel-title"><Compass size={19} /><h2>探索紀錄</h2></div>{completed.length ? <ul className="quest-completed-list">{completed.map(lesson => <li key={lesson.lesson_id}><Check size={15} /><span>{lesson.title}</span></li>)}</ul> : <p>完成第一個任務後，你的學習足跡會出現在這裡。</p>}<div className="quest-record-footer"><span><Star size={15} /> {props.stars} 顆星星</span><span>Lv. {props.level}</span></div></section>
           <button className="quest-secondary-action" onClick={props.onLeaderboard}><Trophy size={17} aria-hidden="true" /><span>查看完成時間排行榜</span><ChevronRight className="quest-direction-icon" size={16} aria-hidden="true" /></button>
           {allDone && <><p className="quest-caption">完成時間 {props.completionTime || '--:--'} · 排名 {props.rank || '—'}<br />時間紀錄僅供參考，不代表學習能力。</p><button className="quest-secondary-action" onClick={() => { if (window.confirm('重新挑戰會清除此裝置中這款遊戲的學習進度與登入資料，確定繼續嗎？')) props.onReset() }}><RotateCcw size={16} />重設本機進度</button></>}
