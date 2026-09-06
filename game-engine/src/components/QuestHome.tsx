@@ -7,6 +7,7 @@ import { GameBrand } from './GameBrand'
 import { gameAssetPath } from '../lib/game-asset-path'
 import { MentorAvatar } from './MentorAvatar'
 import { mentorForTemplate } from '../lib/mentor'
+import { experienceForTemplate } from '../lib/template-experience'
 
 interface QuestHomeProps {
   game?: GameDefinition | null
@@ -59,7 +60,8 @@ export function QuestHome(props: QuestHomeProps) {
   const href = (id: string) => gameId ? `/${gameId}/lessons/${id}` : `/lessons/${id}`
   const template = gameVisualTemplate(game?.settings.theme)
   const mentor = mentorForTemplate(template)
-  return <div className="quest-shell" data-quest-template={template} style={gameThemeStyle(game?.settings.theme)}>
+  const experience = experienceForTemplate(template)
+  return <div className="quest-shell" data-quest-template={template} data-experience-layout={experience.home.layout} style={gameThemeStyle(game?.settings.theme)}>
     <a className="quest-skip" href="#mission-map">跳至任務地圖</a>
     <header className="quest-header"><div className="quest-header-inner">
       <Link href={gameId ? `/${gameId}` : '/'} aria-label="遊戲首頁"><GameBrand game={game} legacy={!gameId} /></Link>
@@ -75,19 +77,19 @@ export function QuestHome(props: QuestHomeProps) {
     <main className="quest-container">
       <section className="quest-hero" aria-labelledby="quest-title">
         <div className="quest-hero-copy">
-          <span className="quest-eyebrow"><span className="quest-dot" /> YOUR NEXT DISCOVERY</span>
+          <span className="quest-eyebrow"><span className="quest-dot" /> {experience.home.eyebrow}</span>
           <h1 id="quest-title">{game?.title || 'Excel 大師挑戰'}</h1>
           <p>{game?.description || '從一個問題開始，探索資料、練習解題，完成屬於你的學習旅程。'}</p>
-          <div className="quest-hero-actions"><button className="quest-button quest-button-light" onClick={props.onStart}>{allDone ? '回顧學習任務' : signedIn ? '繼續我的任務' : '開始學習'}<ArrowRight className="quest-direction-icon" size={18} aria-hidden="true" /></button><a href="#mission-map" className="quest-hero-link"><span>探索任務地圖</span><ChevronDown className="quest-direction-icon is-down" size={16} aria-hidden="true" /></a></div>
+          <div className="quest-hero-actions"><button className="quest-button quest-button-light" onClick={props.onStart}>{allDone ? '回顧學習任務' : signedIn ? '繼續我的任務' : '開始學習'}<ArrowRight className="quest-direction-icon" size={18} aria-hidden="true" /></button><a href="#mission-map" className="quest-hero-link"><span>{experience.home.journeyLink}</span><ChevronDown className="quest-direction-icon is-down" size={16} aria-hidden="true" /></a></div>
         </div>
         <HeroArtwork template={template} />
       </section>
 
-      <div className="quest-overview"><div><Flag size={18} /><strong>已完成 {completed.length} / {lessons.length}</strong><span>個任務</span></div><div className="quest-progress" role="progressbar" aria-label="任務完成進度" aria-valuemin={0} aria-valuemax={lessons.length || 1} aria-valuenow={completed.length}><span style={{width: `${lessons.length ? completed.length / lessons.length * 100 : 0}%`}} /></div><span className="quest-overview-note">{allDone ? '所有任務都完成了' : remainingMinutes ? `剩餘約 ${remainingMinutes} 分鐘` : '依自己的步調前進'}</span></div>
+      <div className="quest-overview"><div><Flag size={18} /><strong>已完成 {completed.length} / {lessons.length}</strong><span>{experience.home.journeyUnit}</span></div><div className="quest-progress" role="progressbar" aria-label={`${experience.home.journeyTitle}完成進度`} aria-valuemin={0} aria-valuemax={lessons.length || 1} aria-valuenow={completed.length}><span style={{width: `${lessons.length ? completed.length / lessons.length * 100 : 0}%`}} /></div><span className="quest-overview-note">{allDone ? experience.home.completeTitle : remainingMinutes ? `剩餘約 ${remainingMinutes} 分鐘` : '依自己的步調前進'}</span></div>
 
       <div className="quest-home-grid">
         <section id="mission-map" className="quest-map" aria-labelledby="map-title">
-          <div className="quest-section-heading"><div><span className="quest-kicker">LEARNING JOURNEY</span><h2 id="map-title">學習任務地圖</h2></div><span className="quest-small-label">{!lessons.length ? '尚未設定任務' : allDone ? '旅程已完成' : `目前第 ${Math.max(currentIndex + 1, 1)} / ${lessons.length} 站`}</span></div>
+          <div className="quest-section-heading"><div><span className="quest-kicker">{experience.home.journeyKicker}</span><h2 id="map-title">{experience.home.journeyTitle}</h2></div><span className="quest-small-label">{!lessons.length ? '尚未設定內容' : allDone ? experience.home.completeTitle : `目前第 ${Math.max(currentIndex + 1, 1)} / ${lessons.length} ${experience.home.journeyUnit}`}</span></div>
           {!signedIn && <p className="quest-map-note">先點選「開始學習」登入，再依序進入關卡。</p>}
           <ol className="quest-path">
             {lessons.map((lesson, index) => {
@@ -98,7 +100,7 @@ export function QuestHome(props: QuestHomeProps) {
               return <li key={lesson.lesson_id} className={`quest-stop ${done ? 'is-done' : active ? 'is-current' : 'is-pending'}`} aria-current={active && signedIn ? 'step' : undefined}>
                 <span className="quest-node" aria-hidden="true">{done ? <Check size={23} /> : lesson.number}</span>
                 <div className="quest-stop-card">
-                  <div className="quest-stop-top"><span className="quest-kicker">{lesson.role === 'intro' ? '起點 · 前導課程' : lesson.role === 'final' ? '終點 · 綜合挑戰' : `任務 ${String(lesson.number).padStart(2, '0')}`}</span><span className="quest-status">{done ? '已完成' : active && signedIn ? '你在這裡' : unlocked ? '可開始' : !signedIn ? '登入後開始' : '待解鎖'}</span></div>
+                  <div className="quest-stop-top"><span className="quest-kicker">{experience.home.stopLabel(lesson.role, lesson.number)}</span><span className="quest-status">{done ? '已完成' : active && signedIn ? '你在這裡' : unlocked ? '可開始' : !signedIn ? '登入後開始' : '待解鎖'}</span></div>
                   <h3>{lesson.title}</h3><p className="quest-stop-summary">{lesson.description || '進入關卡查看學習資料與任務指引。'}</p>
                   <div className="quest-stop-footer">{lesson.duration ? <span>約 {lesson.duration} 分鐘</span> : <span>依自己的步調探索</span>}
                     {unlocked ? <Link href={href(lesson.lesson_id)} className="quest-stop-link">{done ? '再看一次' : active ? '開始任務' : '進入任務'}<ChevronRight className="quest-direction-icon" size={16} aria-hidden="true" /></Link> : <span className="quest-lock"><LockKeyhole size={14} />{!signedIn ? '登入後即可開始' : prerequisite ? `先完成「${prerequisite}」` : '尚未解鎖'}</span>}
@@ -107,18 +109,18 @@ export function QuestHome(props: QuestHomeProps) {
               </li>
             })}
           </ol>
-          {allDone && <div className="quest-map-finish"><Flag /><div><strong>這段旅程已完成！</strong><p>回顧曾經解決的問題，試著向別人說明你的方法。</p></div></div>}
+          {allDone && <div className="quest-map-finish"><Flag /><div><strong>{experience.home.completeTitle}</strong><p>{experience.home.completeMessage}</p></div></div>}
         </section>
 
         <aside className="quest-sidebar">
-          <section className="quest-panel quest-current"><span className="quest-kicker">{allDone ? 'JOURNEY COMPLETE' : 'NEXT MISSION'}</span><h2>{allDone ? '你的學習足跡' : '下一個任務'}</h2><h3>{current?.title || '所有關卡已完成'}</h3><p>{current ? missionObjective(current) : '你已完成本遊戲設定的關卡。這些紀錄代表完成進度，不等同於技能精通評量。'}</p><button className="quest-button" onClick={props.onStart}>{allDone ? '回顧任務' : signedIn ? '繼續任務' : '開始學習'}<ArrowRight className="quest-direction-icon" size={16} aria-hidden="true" /></button></section>
+          <section className="quest-panel quest-current"><span className="quest-kicker">{allDone ? 'COMPLETE' : experience.home.currentKicker}</span><h2>{allDone ? experience.home.completeTitle : experience.home.currentTitle}</h2><h3>{current?.title || '所有內容已完成'}</h3><p>{current ? missionObjective(current) : experience.home.completeMessage}</p><button className="quest-button" onClick={props.onStart}>{allDone ? '回顧任務' : signedIn ? '繼續任務' : '開始學習'}<ArrowRight className="quest-direction-icon" size={16} aria-hidden="true" /></button></section>
           <section className="quest-panel quest-mentor"><div className="quest-mentor-heading"><MentorAvatar template={template} className="quest-mentor-avatar" /><div><span className="quest-kicker">LEARNING COMPANION</span><h2>{mentor.name} · {mentor.role}</h2><span className="quest-mentor-tagline">{mentor.tagline}</span></div></div><p>{current?.mission?.mentorMessage || mentor.homeMessage}</p><span className="quest-mentor-note">先思考，再提問；解法不只靠記憶。</span></section>
-          <section className="quest-panel"><div className="quest-panel-title"><Compass size={19} /><h2>探索紀錄</h2></div>{completed.length ? <ul className="quest-completed-list">{completed.map(lesson => <li key={lesson.lesson_id}><Check size={15} /><span>{lesson.title}</span></li>)}</ul> : <p>完成第一個任務後，你的學習足跡會出現在這裡。</p>}<div className="quest-record-footer"><span><Star size={15} /> {props.stars} 顆星星</span><span>Lv. {props.level}</span></div></section>
+          <section className="quest-panel quest-record"><div className="quest-panel-title"><Compass size={19} /><h2>{experience.home.recordTitle}</h2></div>{completed.length ? <ul className="quest-completed-list">{completed.map(lesson => <li key={lesson.lesson_id}><Check size={15} /><span>{lesson.title}</span></li>)}</ul> : <p>{experience.home.emptyRecord}</p>}<div className="quest-record-footer"><span><Star size={15} /> {props.stars} 顆星星</span><span>Lv. {props.level}</span></div></section>
           <button className="quest-secondary-action" onClick={props.onLeaderboard}><Trophy size={17} aria-hidden="true" /><span>查看完成時間排行榜</span><ChevronRight className="quest-direction-icon" size={16} aria-hidden="true" /></button>
           {allDone && <><p className="quest-caption">完成時間 {props.completionTime || '--:--'} · 排名 {props.rank || '—'}<br />時間紀錄僅供參考，不代表學習能力。</p><button className="quest-secondary-action" onClick={() => { if (window.confirm('重新挑戰會清除此裝置中這款遊戲的學習進度與登入資料，確定繼續嗎？')) props.onReset() }}><RotateCcw size={16} />重設本機進度</button></>}
         </aside>
       </div>
-      <footer className="quest-footer">EXPLORE · PRACTICE · DISCOVER<span>一步一步，把知識變成自己的能力。</span></footer>
+      <footer className="quest-footer">{experience.home.footerCode}<span>{experience.home.footerMessage}</span></footer>
     </main>
   </div>
 }

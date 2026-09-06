@@ -236,3 +236,29 @@
 .lesson-shell[data-quest-template="orbital-lab"] .lesson-table-scroll tbody tr:nth-child(even) td { background:#f0f8fb; }
 .lesson-shell[data-quest-template="orbital-lab"] :is(.lesson-task>h3,.lesson-empty,.lesson-interactive-note,.lesson-reward-note) { color:#58788d; }
 .lesson-shell[data-quest-template="orbital-lab"] .lesson-navigation button { color:#155e88; background:#fbfeff; border-color:#b9dce9; }
+
+/* Template-specific workspaces change how students navigate lesson information. */
+@media (min-width:900px) {
+  .lesson-shell[data-experience-layout="build-board"] .lesson-main { max-width:1120px; }
+  .lesson-shell[data-experience-layout="build-board"] .lesson-tabs:has(> .lesson-tab-list) { display:grid; grid-template-columns:190px minmax(0,1fr); gap:22px; align-items:start; }
+  .lesson-shell[data-experience-layout="build-board"] .lesson-tab-list { grid-column:1; grid-row:1; grid-template-columns:1fr !important; position:sticky; top:100px; margin:0; }
+  .lesson-shell[data-experience-layout="build-board"] .lesson-tab { justify-content:flex-start; padding-inline:14px; }
+  .lesson-shell[data-experience-layout="build-board"] .lesson-tabs > [role=tabpanel] { grid-column:2; grid-row:1; margin-top:0; }
+
+  .lesson-shell[data-experience-layout="chapter-index"] .lesson-main { max-width:1080px; }
+  .lesson-shell[data-experience-layout="chapter-index"] .lesson-tabs:has(> .lesson-tab-list) { display:grid; grid-template-columns:minmax(0,1fr) 175px; gap:22px; align-items:start; }
+  .lesson-shell[data-experience-layout="chapter-index"] .lesson-tab-list { grid-column:2; grid-row:1; grid-template-columns:1fr !important; position:sticky; top:100px; margin:0; background:#382644; }
+  .lesson-shell[data-experience-layout="chapter-index"] .lesson-tab { justify-content:flex-start; border-radius:4px 12px 12px 4px; }
+  .lesson-shell[data-experience-layout="chapter-index"] .lesson-tabs > [role=tabpanel] { grid-column:1; grid-row:1; margin-top:0; }
+}
+.lesson-shell[data-experience-layout="level-select"] .lesson-main { max-width:1080px; }
+.lesson-shell[data-experience-layout="level-select"] .lesson-tab-list { border-radius:3px; border-width:1px; }
+.lesson-shell[data-experience-layout="level-select"] .lesson-tab-step { border-radius:2px; }
+.lesson-shell[data-experience-layout="trail"] .lesson-main { max-width:820px; }
+.lesson-shell[data-experience-layout="trail"] .lesson-heading { text-align:center; }
+.lesson-shell[data-experience-layout="trail"] .lesson-breadcrumb { justify-content:center; }
+.lesson-shell[data-experience-layout="trail"] .lesson-brief { padding:18px 24px; border-left:7px solid #bf7137; }
+.lesson-shell[data-experience-layout="mission-control"] .lesson-main { max-width:1120px; }
+.lesson-shell[data-experience-layout="mission-control"] .lesson-tab-list { border-radius:8px; background-image:linear-gradient(90deg,#176cab0c 1px,transparent 1px); background-size:24px 100%; }
+.lesson-shell[data-experience-layout="mission-control"] .lesson-tab { text-transform:uppercase; letter-spacing:.03em; }
+.lesson-shell[data-experience-layout="mission-control"] .lesson-challenge-heading { border-left:5px solid #ff775c; }

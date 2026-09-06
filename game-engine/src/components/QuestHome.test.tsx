@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { renderToStaticMarkup } from 'react-dom/server'
 import { QuestHome } from './QuestHome'
+import { GameLoadingShell } from './GameLoadingShell'
 import type { Lesson } from '../types/lesson'
 
 const baseProps = {
@@ -15,6 +16,15 @@ const baseProps = {
   onReset: () => {},
   onLeaderboard: () => {},
 }
+
+describe('GameLoadingShell', () => {
+  it('stays theme-neutral until the manifest resolves', () => {
+    const html = renderToStaticMarkup(<GameLoadingShell />)
+    expect(html).toContain('正在載入遊戲樣板')
+    expect(html).not.toContain('data-quest-template')
+    expect(html).not.toContain('discovery')
+  })
+})
 
 describe('QuestHome guest notice', () => {
   it('shows a device-local progress notice for a signed-in guest', () => {
@@ -67,13 +77,13 @@ describe('QuestHome learning journey guidance', () => {
 
 describe('QuestHome template artwork', () => {
   it.each([
-    ['discovery', '每一步，都是新的發現', 'discovery-hero.webp', '洛奇', 'mentor-roki.webp'],
-    ['neo-brutal', '把挑戰拆成一塊一塊', 'neo-blocks-hero.webp', '波波', 'mentor-bobo.webp'],
-    ['arcade', 'READY · LEARN · LEVEL UP', 'arcade-hero.webp', '尼克斯', 'mentor-nyx.webp'],
-    ['forest-camp', '慢慢探索，也能走得很遠', 'forest-camp-hero.webp', '莫里', 'mentor-mori.webp'],
-    ['arcane-archive', '翻開知識，解鎖新的篇章', 'arcane-archive-hero.webp', '萊拉', 'mentor-lyra.webp'],
-    ['orbital-lab', '啟動研究，連結每個新發現', 'orbital-lab-hero.webp', '奧比', 'mentor-orbi.webp'],
-  ] as const)('renders distinct %s artwork and mentor', (template, caption, asset, mentor, mentorAsset) => {
+    ['discovery', '每一步，都是新的發現', 'discovery-hero.webp', '洛奇', 'mentor-roki.webp', '學習任務地圖', 'route'],
+    ['neo-brutal', '把挑戰拆成一塊一塊', 'neo-blocks-hero.webp', '波波', 'mentor-bobo.webp', '挑戰拼裝板', 'build-board'],
+    ['arcade', 'READY · LEARN · LEVEL UP', 'arcade-hero.webp', '尼克斯', 'mentor-nyx.webp', '選關畫面', 'level-select'],
+    ['forest-camp', '慢慢探索，也能走得很遠', 'forest-camp-hero.webp', '莫里', 'mentor-mori.webp', '學習步道路線', 'trail'],
+    ['arcane-archive', '翻開知識，解鎖新的篇章', 'arcane-archive-hero.webp', '萊拉', 'mentor-lyra.webp', '典藏章節索引', 'chapter-index'],
+    ['orbital-lab', '啟動研究，連結每個新發現', 'orbital-lab-hero.webp', '奧比', 'mentor-orbi.webp', '任務控制中心', 'mission-control'],
+  ] as const)('renders distinct %s artwork, mentor, and structure', (template, caption, asset, mentor, mentorAsset, journeyTitle, layout) => {
     const html = renderToStaticMarkup(
       <QuestHome {...baseProps} signedIn game={{ id: 'game', title: '測試遊戲', description: '', lessons: [], settings: { theme: { template } } }} />,
     )
@@ -81,5 +91,7 @@ describe('QuestHome template artwork', () => {
     expect(html).toContain(`/games/template-art/${asset}`)
     expect(html).toContain(mentor)
     expect(html).toContain(`/games/avatars/${mentorAsset}`)
+    expect(html).toContain(journeyTitle)
+    expect(html).toContain(`data-experience-layout="${layout}"`)
   })
 })

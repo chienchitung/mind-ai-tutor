@@ -33,6 +33,13 @@ function renderMenu(variant: 'row' | 'icon', who: User | null = user) {
 }
 
 beforeEach(() => {
+  const values = new Map<string, string>();
+  vi.stubGlobal('localStorage', {
+    getItem: (key: string) => values.get(key) ?? null,
+    setItem: (key: string, value: string) => values.set(key, String(value)),
+    removeItem: (key: string) => values.delete(key),
+    clear: () => values.clear(),
+  });
   mocks.push.mockClear();
   mocks.signOut.mockClear();
   mocks.toast.mockClear();
@@ -48,7 +55,10 @@ beforeEach(() => {
   // after it.
   localStorage.clear();
 });
-afterEach(() => cleanup());
+afterEach(() => {
+  cleanup();
+  vi.unstubAllGlobals();
+});
 
 describe('AccountMenu', () => {
   it('shows name and email inline for the "row" variant (desktop sidebar)', () => {
