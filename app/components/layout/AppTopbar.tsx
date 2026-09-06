@@ -2,16 +2,19 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
+import type { User } from '@supabase/supabase-js';
 import { Bell, Menu, Search, Settings } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useLanguage } from '@/app/contexts/LanguageContext';
 import { useTranslation } from '@/utils/translations';
+import { AccountMenu } from './AccountMenu';
 
 interface AppTopbarProps {
   onOpenMenu: () => void;
+  user: User | null;
 }
 
-export function AppTopbar({ onOpenMenu }: AppTopbarProps) {
+export function AppTopbar({ onOpenMenu, user }: AppTopbarProps) {
   const pathname = usePathname();
   const { language } = useLanguage();
   const { t } = useTranslation(language);
@@ -99,6 +102,11 @@ export function AppTopbar({ onOpenMenu }: AppTopbarProps) {
             <Settings className="h-5 w-5" />
           </Link>
         </Button>
+        {/* The account menu itself: on desktop it stays at the bottom of
+            the persistent sidebar; on mobile (where the sidebar is a
+            drawer you have to open first) it lives here instead, always
+            visible in the top-right corner. */}
+        <AccountMenu user={user} variant="icon" className="md:hidden" />
       </div>
     </header>
   );
