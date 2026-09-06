@@ -27,10 +27,10 @@ function renderPage() {
 }
 
 describe('SubscriptionPage', () => {
-  it('shows custom pricing (not a dollar figure) for Enterprise', () => {
+  it('shows custom pricing (not a fixed figure) for Enterprise', () => {
     renderPage();
     expect(screen.getByText('客製化報價')).toBeTruthy();
-    expect(screen.queryByText('$99')).toBeNull();
+    expect(screen.queryByText('NT$99')).toBeNull();
   });
 
   it('lets Enterprise contact sales directly, unlike Free/Pro which stay disabled', async () => {
@@ -51,10 +51,27 @@ describe('SubscriptionPage', () => {
     expect((currentPlanButton as HTMLButtonElement).disabled).toBe(true);
   });
 
-  it('still shows a flat monthly price for Free and Pro', () => {
+  it('shows a flat monthly TWD price for Free and Pro by default', () => {
     renderPage();
-    expect(screen.getByText('$0')).toBeTruthy();
-    expect(screen.getByText('$29')).toBeTruthy();
+    expect(screen.getByText('NT$0')).toBeTruthy();
+    expect(screen.getByText('NT$899')).toBeTruthy();
+  });
+
+  it('switches to annual pricing (with a savings note on Pro only) when that toggle is picked', () => {
+    renderPage();
+    fireEvent.click(screen.getByRole('button', { name: '年繳（送2個月）' }));
+
+    expect(screen.getByText('NT$0')).toBeTruthy();
+    expect(screen.getByText('NT$8,990')).toBeTruthy();
+    expect(screen.queryByText('NT$899')).toBeNull();
+    expect(screen.getByText('相當於買10個月，送2個月')).toBeTruthy();
+    // Enterprise keeps showing custom pricing regardless of the toggle.
+    expect(screen.getByText('客製化報價')).toBeTruthy();
+
+    fireEvent.click(screen.getByRole('button', { name: '月繳' }));
+    expect(screen.getByText('NT$899')).toBeTruthy();
+    expect(screen.queryByText('NT$8,990')).toBeNull();
+    expect(screen.queryByText('相當於買10個月，送2個月')).toBeNull();
   });
 
   it('shows each plan\'s monthly AI point allowance instead of a plain "AI tools" checkmark', () => {

@@ -22,6 +22,14 @@ interface Plan {
    * own button opens a sales email instead of the disabled "not available
    * yet" state the other two plans use. */
   price?: string;
+  /** Total price for one year of the annual billing option, shown instead
+   * of `price` when the annual toggle is selected. Free is NT$0 either way;
+   * Enterprise has no numeric price at all. */
+  annualPrice?: string;
+  /** Only Pro actually saves money by paying annually (Free is free either
+   * way, Enterprise is a custom quote) - gates the savings note under the
+   * price instead of diffing price strings to detect a real discount. */
+  hasAnnualDiscount?: boolean;
   contactForPricing?: boolean;
   description: string;
   features: PlanFeature[];
@@ -32,6 +40,7 @@ interface Plan {
 export default function SubscriptionPage() {
   const [currentPlan, setCurrentPlan] = useState('Free plan');
   const [isLoading, setIsLoading] = useState(true);
+  const [billingCycle, setBillingCycle] = useState<'monthly' | 'annual'>('monthly');
   const { language } = useLanguage();
   const { t } = useTranslation(language);
 
@@ -62,7 +71,8 @@ export default function SubscriptionPage() {
   const plans: Plan[] = [
     {
       name: 'Free',
-      price: '$0',
+      price: 'NT$0',
+      annualPrice: 'NT$0',
       description: t('basic_features'),
       features: [
         { feature: t('track_students'), available: true },
@@ -76,7 +86,9 @@ export default function SubscriptionPage() {
     },
     {
       name: 'Pro',
-      price: '$29',
+      price: 'NT$899',
+      annualPrice: 'NT$8,990',
+      hasAnnualDiscount: true,
       description: t('advanced_features'),
       features: [
         { feature: t('unlimited_students'), available: true },
@@ -120,6 +132,25 @@ export default function SubscriptionPage() {
         <p className="text-sm text-muted-foreground">{language === 'zh-TW' ? '方案與價格僅供預覽，尚未開放線上付款及自助升級。帳號方案標記不代表付款狀態。' : 'Plans and prices are a preview. Online payment and self-service upgrades are not available. The account plan label does not indicate payment status.'}</p>
       </div>
 
+      <div className="flex justify-center">
+        <div className="inline-flex rounded-lg border p-1">
+          <button
+            type="button"
+            onClick={() => setBillingCycle('monthly')}
+            className={`rounded-md px-4 py-1.5 text-sm font-medium transition-colors ${billingCycle === 'monthly' ? 'bg-primary text-primary-foreground' : 'text-muted-foreground'}`}
+          >
+            {t('billing_monthly')}
+          </button>
+          <button
+            type="button"
+            onClick={() => setBillingCycle('annual')}
+            className={`rounded-md px-4 py-1.5 text-sm font-medium transition-colors ${billingCycle === 'annual' ? 'bg-primary text-primary-foreground' : 'text-muted-foreground'}`}
+          >
+            {t('billing_annual')}
+          </button>
+        </div>
+      </div>
+
       <div className="grid grid-cols-1 gap-5 lg:grid-cols-3">
         {plans.map((plan) => (
           <Card
@@ -138,11 +169,14 @@ export default function SubscriptionPage() {
                   <span className="text-2xl font-bold">{t('custom_pricing')}</span>
                 ) : (
                   <>
-                    <span className="text-3xl font-bold">{plan.price}</span>
-                    <span className="ml-1 text-muted-foreground">{t('per_month')}</span>
+                    <span className="text-3xl font-bold">{billingCycle === 'annual' ? plan.annualPrice : plan.price}</span>
+                    <span className="ml-1 text-muted-foreground">{billingCycle === 'annual' ? t('per_year') : t('per_month')}</span>
                   </>
                 )}
               </div>
+              {!plan.contactForPricing && billingCycle === 'annual' && plan.hasAnnualDiscount && (
+                <p className="mt-1 text-xs text-green-600">{t('annual_discount_note')}</p>
+              )}
               <CardDescription>{plan.description}</CardDescription>
             </CardHeader>
             <CardContent className="flex-1">
