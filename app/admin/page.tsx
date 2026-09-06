@@ -128,7 +128,7 @@ export default function AdminPage() {
       <Card className="shadow-none">
         <CardHeader>
           <CardTitle className="flex items-center gap-2"><Bot className="h-5 w-5" />{chinese ? 'AI 助教用量設定' : 'AI tutor usage setting'}</CardTitle>
-          <CardDescription>{chinese ? '控制數位遊戲中 Ellis AI 助教，每個裝置每天可以詢問的次數上限。登入管理員帳號測試時不受此上限影響。' : 'Controls how many questions a single device can ask Ellis, the AI tutor in the digital games, per day. Testing while logged in as an admin is never limited by this cap.'}</CardDescription>
+          <CardDescription>{chinese ? '控制數位遊戲中的 AI 助教，每個裝置每天可以詢問的次數上限。登入管理員帳號測試時不受此上限影響。' : 'Controls how many questions a single device can ask the AI tutor in the digital games, per day. Testing while logged in as an admin is never limited by this cap.'}</CardDescription>
         </CardHeader>
         <CardContent className="flex flex-wrap items-end gap-3">
           <div className="space-y-1.5">

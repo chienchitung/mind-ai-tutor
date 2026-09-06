@@ -153,4 +153,12 @@ describe('AccountMenu', () => {
     expect(mocks.rpc).not.toHaveBeenCalled();
     expect(screen.queryByText(/\/1000/)).toBeNull();
   });
+
+  it('shows "unlimited" instead of a X/Y progress bar for an admin account', async () => {
+    mocks.rpc.mockResolvedValue({ data: { balance: null, monthly_grant: null }, error: null });
+    renderMenu('row');
+    fireEvent.pointerDown(screen.getByRole('button', { name: /王老師/ }));
+    expect(await screen.findByText('無限')).toBeTruthy();
+    expect(screen.queryByText(/\//)).toBeNull();
+  });
 });

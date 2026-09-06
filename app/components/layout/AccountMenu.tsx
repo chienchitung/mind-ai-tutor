@@ -49,7 +49,10 @@ export function AccountMenu({ user, variant, className }: AccountMenuProps) {
   // so fetching eagerly would double a Supabase round trip nobody asked for
   // yet on every navigation (the same reasoning as AppLayout's user/isAdmin
   // fetch being lifted out of Sidebar - see that component's comment).
-  const [points, setPoints] = useState<{ balance: number; monthlyGrant: number } | null>(null);
+  // monthly_grant (and balance) come back null for an admin account - see
+  // scripts/add_admin_unlimited_ai_points.sql - rather than some large fake
+  // balance number that would need explaining next to the free-plan grant.
+  const [points, setPoints] = useState<{ unlimited: true } | { unlimited: false; balance: number; monthlyGrant: number } | null>(null);
   const [pointsLoading, setPointsLoading] = useState(false);
   const loadPoints = async () => {
     if (points || pointsLoading || !user) return;
@@ -58,7 +61,11 @@ export function AccountMenu({ user, variant, className }: AccountMenuProps) {
       const { supabase } = await import('@/lib/supabase');
       const { data, error } = await supabase().rpc('get_ai_points_balance');
       const row = Array.isArray(data) ? data[0] : data;
-      if (!error && row) setPoints({ balance: row.balance, monthlyGrant: row.monthly_grant });
+      if (!error && row) {
+        setPoints(row.monthly_grant === null
+          ? { unlimited: true }
+          : { unlimited: false, balance: row.balance, monthlyGrant: row.monthly_grant });
+      }
     } finally {
       setPointsLoading(false);
     }
@@ -136,16 +143,18 @@ export function AccountMenu({ user, variant, className }: AccountMenuProps) {
         {points && (
           <>
             <div className="px-2 py-1.5">
-              <div className="mb-1.5 flex items-center justify-between text-xs">
+              <div className={points.unlimited ? 'flex items-center justify-between text-xs' : 'mb-1.5 flex items-center justify-between text-xs'}>
                 <span className="text-muted-foreground">{zh ? '本月 AI 點數' : 'AI credits this month'}</span>
-                <span className="font-medium">{points.balance}/{points.monthlyGrant}</span>
+                <span className="font-medium">{points.unlimited ? (zh ? '無限' : 'Unlimited') : `${points.balance}/${points.monthlyGrant}`}</span>
               </div>
-              <div className="h-1.5 overflow-hidden rounded-full bg-muted">
-                <div
-                  className="h-full rounded-full bg-foreground transition-[width]"
-                  style={{ width: `${points.monthlyGrant > 0 ? Math.round((points.balance / points.monthlyGrant) * 100) : 0}%` }}
-                />
-              </div>
+              {!points.unlimited && (
+                <div className="h-1.5 overflow-hidden rounded-full bg-muted">
+                  <div
+                    className="h-full rounded-full bg-foreground transition-[width]"
+                    style={{ width: `${points.monthlyGrant > 0 ? Math.round((points.balance / points.monthlyGrant) * 100) : 0}%` }}
+                  />
+                </div>
+              )}
             </div>
             <DropdownMenuSeparator />
           </>
