@@ -68,7 +68,7 @@ export default function SubscriptionPage() {
         { feature: t('track_students'), available: true },
         { feature: t('basic_analytics'), available: true },
         { feature: t('create_lessons'), available: true },
-        { feature: t('ai_assisted_tools'), available: false },
+        { feature: t('ai_points_free'), available: true },
         { feature: t('advanced_reporting'), available: false },
         { feature: t('priority_support'), available: false },
       ],
@@ -82,7 +82,7 @@ export default function SubscriptionPage() {
         { feature: t('unlimited_students'), available: true },
         { feature: t('advanced_analytics'), available: true },
         { feature: t('unlimited_lessons'), available: true },
-        { feature: t('ai_assisted_tools'), available: true },
+        { feature: t('ai_points_pro'), available: true },
         { feature: t('advanced_reporting'), available: true },
         { feature: t('priority_support'), available: false },
       ],
@@ -97,7 +97,7 @@ export default function SubscriptionPage() {
         { feature: t('unlimited_students'), available: true },
         { feature: t('advanced_analytics'), available: true },
         { feature: t('unlimited_lessons'), available: true },
-        { feature: t('ai_assisted_tools'), available: true },
+        { feature: t('ai_points_unlimited'), available: true },
         { feature: t('advanced_reporting'), available: true },
         { feature: t('priority_support'), available: true },
       ],
@@ -166,7 +166,7 @@ export default function SubscriptionPage() {
                 // Contacting sales isn't gated behind the self-service
                 // billing this app doesn't have yet - unlike Free/Pro's
                 // "upgrade" button, this one actually works today.
-                <Button className="w-full" variant="outline" onClick={() => window.open('mailto:sales@mindaitutor.com')}>
+                <Button className="w-full" variant="outline" onClick={() => window.open('mailto:contact@mindaitutor.com')}>
                   {t('contact_sales')}
                 </Button>
               ) : (
@@ -181,16 +181,6 @@ export default function SubscriptionPage() {
             </CardFooter>
           </Card>
         ))}
-      </div>
-
-      <div className="mt-10 text-center max-w-2xl mx-auto">
-        <h3 className="text-lg font-semibold mb-2">{t('custom_plan')}</h3>
-        <p className="text-muted-foreground mb-4">
-          {t('custom_plan_description')}
-        </p>
-        <Button variant="outline" onClick={() => window.open('mailto:sales@mindaitutor.com')}>
-          {t('contact_sales')}
-        </Button>
       </div>
     </div>
   );
