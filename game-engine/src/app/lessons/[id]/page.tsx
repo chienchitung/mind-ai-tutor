@@ -20,7 +20,7 @@ import remarkGfm from 'remark-gfm'
 import { MentorAvatar } from '@/components/MentorAvatar'
 import { LessonAnswer, LessonMarkdown, ChallengeHeading } from '@/components/LessonChallenge'
 import { initialLessonTab, introMentorPrompts, lessonStage, mentorGreeting, mentorPrompts } from '@/lib/lesson-presentation'
-import { getLearningRecordId, getOrCreateQuestionCount, incrementQuestionCount, saveChatMessage } from '@/lib/supabase'
+import { getLearningRecordId, getOrCreateQuestionCount, incrementQuestionCount, saveChatMessage, saveGuestChatMessage, hasLinkedStudent } from '@/lib/supabase'
 import { getPublicGameManifest } from '@/lib/game-manifest'
 import { gameStorageKey } from '@/lib/game-storage'
 import { getDeviceId } from '@/lib/device-id'
@@ -1199,8 +1199,17 @@ export default function ExcelLearningPlatform({
         learningRecordId = await getLearningRecordId(studentId, lessonState.currentLesson, gameId);
       }
       
-      // 根據是否找到 learning_record_id 決定如何處理消息
-      if (hasCompletedLesson && learningRecordId) {
+      // 根據是否為已連結身份的學生，決定如何處理消息
+      if (gameId && !hasLinkedStudent(gameId)) {
+        // 訪客模式：立即以去識別化方式記錄（不含學生身份），不等待課程完成，
+        // 避免訪客的對話因為沒有 learning_record_id 而完全遺失。
+        await saveGuestChatMessage({
+          game_id: gameId,
+          lesson_id: lessonState.currentLesson,
+          message_content: newMessage.content,
+          is_user: true,
+        });
+      } else if (hasCompletedLesson && learningRecordId) {
         // 已完成課程且存在 learning_record_id，直接儲存到 Supabase
         await saveChatMessage({
           learning_record_id: learningRecordId,
@@ -1211,7 +1220,7 @@ export default function ExcelLearningPlatform({
           timestamp: new Date().toISOString(),
           game_id: gameId ?? null,
         });
-        
+
         // 更新問題計數
         const questionCountRecord = await getOrCreateQuestionCount({
           learning_record_id: learningRecordId,
@@ -1219,7 +1228,7 @@ export default function ExcelLearningPlatform({
           lesson_id: lessonState.currentLesson,
           game_id: gameId ?? null,
         });
-        
+
         if (questionCountRecord) {
           await incrementQuestionCount(questionCountRecord.id, gameId);
         }
@@ -1305,8 +1314,16 @@ export default function ExcelLearningPlatform({
           ? '# 今天先休息一下吧！\n\n> 你今天已經問了很多問題，AI 助教明天會繼續在這裡幫你喔！\n\n可以先跟老師或同學討論看看，或是複習一下課程內容。'
           : '# 系統錯誤\n\n> 抱歉，我現在無法回應。請稍後再試。';
       
-      // 根據是否找到 learning_record_id 決定如何處理AI回應
-      if (hasCompletedLesson && learningRecordId) {
+      // 根據是否為已連結身份的學生，決定如何處理AI回應
+      if (gameId && !hasLinkedStudent(gameId)) {
+        // 訪客模式：立即以去識別化方式記錄
+        await saveGuestChatMessage({
+          game_id: gameId,
+          lesson_id: lessonState.currentLesson,
+          message_content: aiResponse,
+          is_user: false,
+        });
+      } else if (hasCompletedLesson && learningRecordId) {
         // 已完成課程且存在 learning_record_id，直接儲存到 Supabase
         await saveChatMessage({
           learning_record_id: learningRecordId,
@@ -1320,7 +1337,7 @@ export default function ExcelLearningPlatform({
       } else {
         // 未完成課程或沒有 learning_record_id，先暫存
         setPendingChatMessages(prev => [
-          ...prev, 
+          ...prev,
           {
             content: aiResponse,
             is_user: false,

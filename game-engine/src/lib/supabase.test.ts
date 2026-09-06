@@ -8,7 +8,7 @@ vi.mock('@supabase/supabase-js', () => ({
 
 vi.mock('uuid', () => ({ v4: vi.fn(() => 'test-id') }));
 
-import { saveLearningRecord, saveGuestPlayStats, verifyStudentLoginCode } from './supabase';
+import { saveLearningRecord, saveGuestPlayStats, saveGuestChatMessage, verifyStudentLoginCode } from './supabase';
 
 describe('verifyStudentLoginCode', () => {
   beforeEach(() => {
@@ -139,6 +139,68 @@ describe('saveGuestPlayStats', () => {
       completed_at: new Date(1_000).toISOString(),
       time_spent_seconds: 1,
       answer_attempts: 1,
+    });
+
+    expect(insert).not.toHaveBeenCalled();
+    vi.unstubAllGlobals();
+  });
+});
+
+describe('saveGuestChatMessage', () => {
+  beforeEach(() => {
+    from.mockReset();
+  });
+
+  it('records an Ellis exchange with no name or student id', async () => {
+    vi.stubGlobal('localStorage', { getItem: vi.fn(() => null) });
+    const insert = vi.fn().mockResolvedValue({ data: null, error: null });
+    from.mockReturnValue({ insert });
+
+    await saveGuestChatMessage({
+      game_id: 'game-1',
+      lesson_id: 'lesson-1',
+      message_content: '請給我一個提示',
+      is_user: true,
+    });
+
+    expect(from).toHaveBeenCalledWith('guest_chat_messages');
+    const [rows] = insert.mock.calls[0];
+    expect(rows).toEqual([{
+      game_id: 'game-1',
+      lesson_id: 'lesson-1',
+      message_content: '請給我一個提示',
+      is_user: true,
+    }]);
+    vi.unstubAllGlobals();
+  });
+
+  it('does nothing once a teacher login code has linked this browser', async () => {
+    vi.stubGlobal('window', {});
+    vi.stubGlobal('localStorage', { getItem: vi.fn(() => 'linked-ref-id') });
+    const insert = vi.fn();
+    from.mockReturnValue({ insert });
+
+    await saveGuestChatMessage({
+      game_id: 'game-1',
+      lesson_id: 'lesson-1',
+      message_content: '請給我一個提示',
+      is_user: true,
+    });
+
+    expect(insert).not.toHaveBeenCalled();
+    vi.unstubAllGlobals();
+  });
+
+  it('does nothing without a game_id', async () => {
+    vi.stubGlobal('localStorage', { getItem: vi.fn(() => null) });
+    const insert = vi.fn();
+    from.mockReturnValue({ insert });
+
+    await saveGuestChatMessage({
+      game_id: '',
+      lesson_id: 'lesson-1',
+      message_content: '請給我一個提示',
+      is_user: true,
     });
 
     expect(insert).not.toHaveBeenCalled();

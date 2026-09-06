@@ -247,6 +247,40 @@ export async function saveGuestPlayStats(stat: GuestPlayStat) {
   }
 }
 
+export interface GuestChatMessage {
+  game_id: string
+  lesson_id: string
+  message_content: string
+  is_user: boolean
+}
+
+// De-identified Ellis AI tutor transcript for guest (no login-code) play -
+// the same relationship to chat_messages that saveGuestPlayStats has to
+// learning_records (see scripts/add_guest_chat_messages.sql). No student
+// name or id is ever included, only which game/lesson the exchange
+// happened in.
+export async function saveGuestChatMessage(message: GuestChatMessage) {
+  try {
+    if (!message.game_id || hasLinkedStudent(message.game_id)) return null;
+
+    const { error } = await supabase.from('guest_chat_messages').insert([{
+      game_id: message.game_id,
+      lesson_id: message.lesson_id,
+      message_content: message.message_content,
+      is_user: message.is_user,
+    }]);
+
+    if (error) {
+      console.error('Error saving guest chat message:', error.message || JSON.stringify(error));
+      return null;
+    }
+    return true;
+  } catch (error) {
+    console.error('Error in saveGuestChatMessage:', error instanceof Error ? error.message : JSON.stringify(error));
+    return null;
+  }
+}
+
 export async function getLeaderboard(gameId?: string): Promise<LeaderboardEntry[]> {
   const { data, error } = await supabase.rpc('get_public_game_leaderboard', {
     p_game_id: gameId ?? null,
