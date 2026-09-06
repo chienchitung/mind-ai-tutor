@@ -2,25 +2,19 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
-import { usePathname, useRouter } from 'next/navigation';
+import { usePathname } from 'next/navigation';
 import type { User } from '@supabase/supabase-js';
 import {
   BarChart3,
   Bell,
   BookOpen,
   Calendar,
-  Check,
   ChevronLeft,
-  ChevronRight,
-  CreditCard,
   Gamepad2,
-  Globe,
   LayoutDashboard,
-  LogOut,
   MessageSquare,
   PanelLeft,
   Radio,
-  Settings,
   ShieldCheck,
   Users,
   Wand2,
@@ -28,33 +22,19 @@ import {
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { cn } from '@/lib/utils';
-import { useToast } from '@/hooks/use-toast';
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuGroup,
-  DropdownMenuItem,
-  DropdownMenuLabel,
-  DropdownMenuRadioGroup,
-  DropdownMenuRadioItem,
-  DropdownMenuSeparator,
-  DropdownMenuSub,
-  DropdownMenuSubContent,
-  DropdownMenuSubTrigger,
-  DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu';
-import { useLanguage, type Language } from '@/app/contexts/LanguageContext';
-import { useTranslation, translations } from '@/utils/translations';
-import { confirmAppNavigation } from '@/lib/navigation-guard';
+import { useLanguage } from '@/app/contexts/LanguageContext';
+import { useTranslation } from '@/utils/translations';
 import { BrandLogo } from './BrandLogo';
+import { AccountMenu } from './AccountMenu';
 
 interface SidebarProps {
   className?: string;
   onCollapseChange?: (collapsed: boolean) => void;
   isOpen?: boolean;
   onOpenChange?: (open: boolean) => void;
+  user: User | null;
+  isAdmin: boolean;
 }
 
 interface NavItem {
@@ -68,61 +48,26 @@ interface NavGroup {
   items: NavItem[];
 }
 
-// Every top-level route segment (app/students/layout.tsx, app/lessons/layout.tsx, ...)
-// wraps its own <Sidebar>, so navigating between sections remounts this component from
-// scratch. Without this cache, isAdmin/user reset to their initial values on every click
-// and only catch up once the Supabase round-trip resolves - visible as the "系統管理" nav
-// item (and the account name/avatar) flashing away and back on each navigation.
-let cachedUser: User | null = null;
-let cachedIsAdmin = false;
-
+// user/isAdmin are fetched once by AppLayout and passed down as props
+// (see its own module-level cache, which avoids the "系統管理" nav item
+// flashing away and back on every navigation) - shared with AppTopbar's
+// mobile account menu so mounting both doesn't double the Supabase round trip.
 export function Sidebar({
   className,
   onCollapseChange,
   isOpen = false,
   onOpenChange,
+  user,
+  isAdmin,
 }: SidebarProps) {
-  const [user, setUser] = useState<User | null>(cachedUser);
-  const [isAdmin, setIsAdmin] = useState(cachedIsAdmin);
   const [isCollapsed, setIsCollapsed] = useState(false);
-  const { language, setLanguage } = useLanguage();
+  const { language } = useLanguage();
   const { t } = useTranslation(language);
   const pathname = usePathname();
-  const router = useRouter();
-  const { toast } = useToast();
 
   useEffect(() => {
     setIsCollapsed(className?.includes('w-[70px]') ?? false);
   }, [className]);
-
-  useEffect(() => {
-    const loadUser = async () => {
-      try {
-        const { supabase } = await import('../../../lib/supabase');
-        const client = supabase();
-        const { data: { user: currentUser } } = await client.auth.getUser();
-        setUser(currentUser);
-        cachedUser = currentUser;
-        if (currentUser) {
-          const { data: profile } = await client
-            .from('profiles')
-            .select('role')
-            .eq('user_id', currentUser.id)
-            .maybeSingle();
-          const admin = profile?.role === 'admin';
-          setIsAdmin(admin);
-          cachedIsAdmin = admin;
-        } else {
-          setIsAdmin(false);
-          cachedIsAdmin = false;
-        }
-      } catch (error) {
-        console.error('Error fetching user:', error);
-      }
-    };
-
-    loadUser();
-  }, []);
 
   const navigation = useMemo<NavGroup[]>(() => {
     const groups: NavGroup[] = [
@@ -172,40 +117,6 @@ export function Sidebar({
     setIsCollapsed(next);
     onCollapseChange?.(next);
   };
-
-  const handleSignOut = async () => {
-    if (!confirmAppNavigation()) return;
-    try {
-      const { supabase } = await import('../../../lib/supabase');
-      await supabase().auth.signOut();
-      toast({
-        title: t('signed_out_successfully'),
-        description: t('signed_out_description'),
-      });
-      window.location.href = '/login';
-    } catch {
-      toast({
-        title: t('error_signing_out'),
-        description: t('error_signing_out_description'),
-        variant: 'destructive',
-      });
-    }
-  };
-
-  const changeLanguage = (value: Language) => {
-    setLanguage(value);
-    toast({
-      title: translations[value].language_changed,
-      description: translations[value].language_changed_description,
-    });
-  };
-
-  const displayName = user?.user_metadata?.full_name
-    || user?.user_metadata?.name
-    || user?.email?.split('@')[0]
-    || (language === 'zh-TW' ? '使用者' : 'User');
-  const initials = displayName.slice(0, 2).toUpperCase();
-  const avatarUrl = user?.user_metadata?.avatar_url || user?.user_metadata?.picture;
 
   return (
     <>
@@ -294,71 +205,14 @@ export function Sidebar({
           </nav>
         </ScrollArea>
 
-        <div className="border-t border-border/70 p-3">
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button
-                variant="ghost"
-                className={cn('h-auto w-full rounded-xl p-2', isCollapsed ? 'justify-center' : 'justify-start')}
-              >
-                <Avatar className={cn('h-9 w-9 shrink-0', !isCollapsed && 'mr-3')}>
-                  {avatarUrl && <AvatarImage src={avatarUrl} alt={displayName} />}
-                  <AvatarFallback className="bg-muted text-xs font-semibold">{initials}</AvatarFallback>
-                </Avatar>
-                {!isCollapsed && (
-                  <>
-                    <span className="min-w-0 flex-1 text-left">
-                      <span className="block truncate text-sm font-medium">{displayName}</span>
-                      <span className="block truncate text-xs text-muted-foreground">{user?.email || t('free_plan')}</span>
-                    </span>
-                    <ChevronRight className="h-4 w-4 text-muted-foreground" />
-                  </>
-                )}
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent className="w-64" align="end" forceMount>
-              <DropdownMenuLabel className="font-normal">
-                <p className="truncate text-sm font-medium">{displayName}</p>
-                <p className="truncate text-xs text-muted-foreground">{user?.email}</p>
-              </DropdownMenuLabel>
-              <DropdownMenuSeparator />
-              <DropdownMenuGroup>
-                {/* Mobile already has a direct Settings icon in AppTopbar
-                    (independent of this drawer, on purpose - see its own
-                    comment). Keeping this item there too on mobile just
-                    duplicated the same destination twice; hidden here so
-                    this menu stays focused on account-level actions
-                    (language/subscription/logout) on mobile. Desktop has
-                    no topbar Settings icon, so this remains its only path
-                    to Settings. */}
-                <DropdownMenuItem className="hidden md:flex" onClick={() => { if (confirmAppNavigation()) router.push('/settings'); }}>
-                  <Settings className="mr-2 h-4 w-4" />
-                  {t('settings')}
-                </DropdownMenuItem>
-                <DropdownMenuSub>
-                  <DropdownMenuSubTrigger>
-                    <Globe className="mr-2 h-4 w-4" />
-                    {t('language')}
-                  </DropdownMenuSubTrigger>
-                  <DropdownMenuSubContent>
-                    <DropdownMenuRadioGroup value={language} onValueChange={(value) => changeLanguage(value as Language)}>
-                      <DropdownMenuRadioItem value="en">English {language === 'en' && <Check className="ml-auto h-4 w-4" />}</DropdownMenuRadioItem>
-                      <DropdownMenuRadioItem value="zh-TW">繁體中文 {language === 'zh-TW' && <Check className="ml-auto h-4 w-4" />}</DropdownMenuRadioItem>
-                    </DropdownMenuRadioGroup>
-                  </DropdownMenuSubContent>
-                </DropdownMenuSub>
-                <DropdownMenuItem onClick={() => { if (confirmAppNavigation()) router.push('/subscription'); }}>
-                  <CreditCard className="mr-2 h-4 w-4" />
-                  {t('subscription')}
-                </DropdownMenuItem>
-              </DropdownMenuGroup>
-              <DropdownMenuSeparator />
-              <DropdownMenuItem onClick={handleSignOut}>
-                <LogOut className="mr-2 h-4 w-4" />
-                {t('log_out')}
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
+        {/* Hidden on mobile - the account menu lives in AppTopbar's
+            top-right corner there instead (see its own comment). Desktop
+            keeps it here at the bottom of the persistent sidebar. The
+            "icon" variant's trigger isn't full-width like "row"'s is, so
+            centering it when collapsed needs a flex wrapper rather than
+            relying on the (inline-flex) button's own auto margins. */}
+        <div className={cn('hidden border-t border-border/70 p-3 md:block', isCollapsed && 'md:flex md:justify-center')}>
+          <AccountMenu user={user} variant={isCollapsed ? 'icon' : 'row'} />
         </div>
       </aside>
 

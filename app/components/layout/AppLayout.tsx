@@ -2,6 +2,7 @@
 
 import { useState, useEffect, ReactNode } from 'react';
 import { useRouter } from 'next/navigation';
+import type { User } from '@supabase/supabase-js';
 import { Sidebar } from '@/components/layout/Sidebar';
 import { PageTransition } from '@/components/layout/PageTransition';
 import { useToast } from '@/hooks/use-toast';
@@ -15,6 +16,15 @@ interface AppLayoutProps {
 
 const SIDEBAR_COLLAPSED_KEY = 'sidebar-collapsed';
 
+// Every top-level route segment wraps its own AppLayout, so navigating
+// between sections remounts this component from scratch. Without this
+// cache, `user`/`isAdmin` would reset to their initial values on every
+// click and only catch up once the Supabase round-trip resolves - visible
+// as the account name/avatar (Sidebar and AppTopbar both read it) flashing
+// away and back on each navigation.
+let cachedUser: User | null = null;
+let cachedIsAdmin = false;
+
 export function AppLayout({ children }: AppLayoutProps) {
   const router = useRouter();
   const { language } = useLanguage();
@@ -24,7 +34,41 @@ export function AppLayout({ children }: AppLayoutProps) {
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [isMobile, setIsMobile] = useState(false);
+  const [user, setUser] = useState<User | null>(cachedUser);
+  const [isAdmin, setIsAdmin] = useState(cachedIsAdmin);
   const { toast } = useToast();
+
+  // Fetched once here (rather than separately in both Sidebar and
+  // AppTopbar, which both need it for the account menu) so mounting the
+  // account menu in two places doesn't double the Supabase round trip.
+  useEffect(() => {
+    const loadUser = async () => {
+      try {
+        const { supabase } = await import('@/lib/supabase');
+        const client = supabase();
+        const { data: { user: currentUser } } = await client.auth.getUser();
+        setUser(currentUser);
+        cachedUser = currentUser;
+        if (currentUser) {
+          const { data: profile } = await client
+            .from('profiles')
+            .select('role')
+            .eq('user_id', currentUser.id)
+            .maybeSingle();
+          const admin = profile?.role === 'admin';
+          setIsAdmin(admin);
+          cachedIsAdmin = admin;
+        } else {
+          setIsAdmin(false);
+          cachedIsAdmin = false;
+        }
+      } catch (error) {
+        console.error('Error fetching user:', error);
+      }
+    };
+
+    loadUser();
+  }, []);
 
   useEffect(() => {
     // 檢查身份驗證狀態
@@ -129,15 +173,17 @@ export function AppLayout({ children }: AppLayoutProps) {
 
   return (
     <div className="flex h-screen overflow-hidden bg-background">
-      <Sidebar 
+      <Sidebar
         className={!isMobile && isSidebarCollapsed ? 'w-[70px]' : 'w-64'}
         onCollapseChange={handleSidebarCollapse}
         isOpen={isMenuOpen}
         onOpenChange={setIsMenuOpen}
+        user={user}
+        isAdmin={isAdmin}
       />
-      
+
       <main
-        style={{ 
+        style={{
           marginLeft: isMobile ? '0' : `${sidebarWidth}px`,
           transition: 'margin-left 0.3s ease-in-out',
           width: `calc(100% - ${sidebarWidth}px)`
@@ -145,7 +191,7 @@ export function AppLayout({ children }: AppLayoutProps) {
         className="h-full min-w-0"
       >
         <div className="h-full overflow-auto">
-          <AppTopbar onOpenMenu={() => setIsMenuOpen(true)} />
+          <AppTopbar onOpenMenu={() => setIsMenuOpen(true)} user={user} />
           <div className="mx-auto w-full max-w-[1440px] px-4 py-6 pb-10 md:px-8 md:py-8">
             <PageTransition>{children}</PageTransition>
           </div>
