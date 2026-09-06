@@ -40,6 +40,7 @@ export async function POST(request: Request) {
     const quota = await client.rpc('claim_game_cover_generation', { p_request_id: parsed.data.requestId });
     if (quota.error) return fail('QUOTA_NOT_CONFIGURED', 503);
     if (quota.data !== 'OK') {
+      if (quota.data === 'INSUFFICIENT_POINTS') return fail('INSUFFICIENT_POINTS', 402);
       const code = ['DAILY_LIMIT', 'COOLDOWN', 'DUPLICATE'].includes(quota.data) ? quota.data : 'QUOTA_NOT_CONFIGURED';
       return fail(code, code === 'DUPLICATE' ? 409 : code === 'QUOTA_NOT_CONFIGURED' ? 503 : 429);
     }

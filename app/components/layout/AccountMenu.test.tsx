@@ -9,11 +9,12 @@ const mocks = vi.hoisted(() => ({
   push: vi.fn(),
   signOut: vi.fn().mockResolvedValue({ error: null }),
   toast: vi.fn(),
+  rpc: vi.fn().mockResolvedValue({ data: { balance: 730, monthly_grant: 1000 }, error: null }),
 }));
 
 vi.mock('next/navigation', () => ({ useRouter: () => ({ push: mocks.push }) }));
 vi.mock('@/lib/supabase', () => ({
-  supabase: () => ({ auth: { signOut: mocks.signOut } }),
+  supabase: () => ({ auth: { signOut: mocks.signOut }, rpc: mocks.rpc }),
 }));
 vi.mock('@/hooks/use-toast', () => ({ useToast: () => ({ toast: mocks.toast }) }));
 
@@ -35,10 +36,17 @@ beforeEach(() => {
   mocks.push.mockClear();
   mocks.signOut.mockClear();
   mocks.toast.mockClear();
+  mocks.rpc.mockClear();
+  mocks.rpc.mockResolvedValue({ data: { balance: 730, monthly_grant: 1000 }, error: null });
   // navigation-guard's confirmAppNavigation dispatches a real, cancelable
   // window event and returns whether it was cancelled - nothing in this
   // test cancels it, so guarded actions proceed exactly as in the app.
   window.location.href = 'about:blank';
+  // LanguageProvider persists the chosen language to real localStorage,
+  // which jsdom keeps across tests in this file - without clearing it, the
+  // "switches language" test below leaks English into whichever test runs
+  // after it.
+  localStorage.clear();
 });
 afterEach(() => cleanup());
 
@@ -93,5 +101,33 @@ describe('AccountMenu', () => {
     fireEvent.click(await screen.findByText('語言'));
     fireEvent.click(await screen.findByText('English'));
     expect(mocks.toast).toHaveBeenCalledWith(expect.objectContaining({ title: 'Language changed' }));
+  });
+
+  it('loads and shows the monthly AI point balance only once the menu is opened', async () => {
+    renderMenu('row');
+    expect(mocks.rpc).not.toHaveBeenCalled();
+    fireEvent.pointerDown(screen.getByRole('button', { name: /王老師/ }));
+    expect(await screen.findByText('730/1000')).toBeTruthy();
+    expect(mocks.rpc).toHaveBeenCalledWith('get_ai_points_balance');
+  });
+
+  it('does not re-fetch the balance on a second open', async () => {
+    renderMenu('row');
+    const trigger = screen.getByRole('button', { name: /王老師/ });
+    fireEvent.pointerDown(trigger);
+    await screen.findByText('730/1000');
+    fireEvent.keyDown(screen.getByRole('menu'), { key: 'Escape' });
+    await waitFor(() => expect(screen.queryByRole('menu')).toBeNull());
+    fireEvent.pointerDown(trigger);
+    await screen.findByText('730/1000');
+    expect(mocks.rpc).toHaveBeenCalledTimes(1);
+  });
+
+  it('does not show a balance section when the RPC has no data yet (e.g. not authenticated)', async () => {
+    renderMenu('row', null);
+    fireEvent.pointerDown(screen.getByRole('button', { name: /使用者/ }));
+    await screen.findByText('訂閱');
+    expect(mocks.rpc).not.toHaveBeenCalled();
+    expect(screen.queryByText(/\/1000/)).toBeNull();
   });
 });

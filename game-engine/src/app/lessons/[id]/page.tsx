@@ -23,6 +23,7 @@ import { initialLessonTab, introMentorPrompts, lessonStage, mentorGreeting, ment
 import { getLearningRecordId, getOrCreateQuestionCount, incrementQuestionCount, saveChatMessage } from '@/lib/supabase'
 import { getPublicGameManifest } from '@/lib/game-manifest'
 import { gameStorageKey } from '@/lib/game-storage'
+import { getDeviceId } from '@/lib/device-id'
 import type { Lesson } from '@/types/lesson'
 import type { GameDefinition } from '@/types/game'
 import { GameBrand } from '@/components/GameBrand'
@@ -1281,14 +1282,19 @@ export default function ExcelLearningPlatform({
       
       // Gemini now runs server-side (src/app/api/chat) so the API key never
       // reaches the browser - basePath means this must be called as
-      // /games/api/chat, not /api/chat.
+      // /games/api/chat, not /api/chat. deviceId backs the server's daily
+      // anti-abuse cap (see lib/device-id.ts and claim_game_chat_message).
       const chatResponse = await fetch('/games/api/chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ message: chatInput, context: chatContext, image: currentImageUrl || undefined }),
+        body: JSON.stringify({ message: chatInput, context: chatContext, image: currentImageUrl || undefined, deviceId: getDeviceId() }),
       });
-      const chatData = chatResponse.ok ? await chatResponse.json() : null;
-      const aiResponse: string = chatData?.response || '# 系統錯誤\n\n> 抱歉，我現在無法回應。請稍後再試。';
+      const chatData = await chatResponse.json().catch(() => null);
+      const aiResponse: string = chatResponse.ok
+        ? (chatData?.response || '# 系統錯誤\n\n> 抱歉，我現在無法回應。請稍後再試。')
+        : chatData?.error === 'DAILY_LIMIT'
+          ? '# 今天先休息一下吧！\n\n> 你今天已經問了很多問題，AI 助教明天會繼續在這裡幫你喔！\n\n可以先跟老師或同學討論看看，或是複習一下課程內容。'
+          : '# 系統錯誤\n\n> 抱歉，我現在無法回應。請稍後再試。';
       
       // 根據是否找到 learning_record_id 決定如何處理AI回應
       if (hasCompletedLesson && learningRecordId) {

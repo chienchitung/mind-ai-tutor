@@ -20,6 +20,7 @@ import { LessonDraftPreview } from '@/components/lessons/LessonDraftPreview';
 import * as z from 'zod';
 import { useLanguage } from '@/app/contexts/LanguageContext';
 import { useTranslation } from '@/utils/translations';
+import { AiQuotaError, throwForAiQuotaError } from '@/lib/ai-quota-errors';
 import MarkdownEditor from '@/app/components/ui/MarkdownEditor';
 import MarkdownRenderer from '@/app/components/ui/MarkdownRenderer';
 import { EmptyState, PageLoader } from '@/components/ui/page-state';
@@ -1035,7 +1036,7 @@ export default function LessonsPage() {
                             body: JSON.stringify({ content, level }),
                           });
                           if (!response.ok) {
-                            throw new Error('Failed to generate practice exercise');
+                            await throwForAiQuotaError(response, language, 'Failed to generate practice exercise');
                           }
                           const exercise = await response.json();
                           const current = form.getValues('practiceExercises');
@@ -1045,7 +1046,7 @@ export default function LessonsPage() {
                         } catch (error) {
                           toast({
                             title: t('generation_failed'),
-                            description: t('failed_generate_exercise'),
+                            description: error instanceof AiQuotaError ? error.message : t('failed_generate_exercise'),
                             variant: "destructive",
                           });
                         } finally {

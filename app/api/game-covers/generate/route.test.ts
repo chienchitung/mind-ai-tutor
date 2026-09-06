@@ -51,7 +51,7 @@ describe('AI cover API guardrails', () => {
     expect((await POST(makeRequest())).status).toBe(403);
     expect(rpc).not.toHaveBeenCalled(); expect(generateCoverBackground).not.toHaveBeenCalled();
   });
-  it.each([['DAILY_LIMIT', 429], ['COOLDOWN', 429], ['DUPLICATE', 409], ['unexpected', 503]])('blocks %s before provider call', async (code, status) => {
+  it.each([['DAILY_LIMIT', 429], ['COOLDOWN', 429], ['DUPLICATE', 409], ['INSUFFICIENT_POINTS', 402], ['unexpected', 503]])('blocks %s before provider call', async (code, status) => {
     rpc.mockResolvedValue({ data: code, error: null });
     expect((await POST(makeRequest())).status).toBe(status);
     expect(generateCoverBackground).not.toHaveBeenCalled();

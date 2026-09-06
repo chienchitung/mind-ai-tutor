@@ -1,5 +1,6 @@
 'use client';
 
+import { useState } from 'react';
 import type { User } from '@supabase/supabase-js';
 import { useRouter } from 'next/navigation';
 import { Check, ChevronRight, CreditCard, Globe, LogOut, Settings } from 'lucide-react';
@@ -44,6 +45,27 @@ export function AccountMenu({ user, variant, className }: AccountMenuProps) {
   const { t } = useTranslation(language);
   const router = useRouter();
   const { toast } = useToast();
+  const zh = language === 'zh-TW';
+
+  // Fetched lazily on first open rather than on mount - this component
+  // renders in both the sidebar and the topbar on every authenticated page,
+  // so fetching eagerly would double a Supabase round trip nobody asked for
+  // yet on every navigation (the same reasoning as AppLayout's user/isAdmin
+  // fetch being lifted out of Sidebar - see that component's comment).
+  const [points, setPoints] = useState<{ balance: number; monthlyGrant: number } | null>(null);
+  const [pointsLoading, setPointsLoading] = useState(false);
+  const loadPoints = async () => {
+    if (points || pointsLoading || !user) return;
+    setPointsLoading(true);
+    try {
+      const { supabase } = await import('@/lib/supabase');
+      const { data, error } = await supabase().rpc('get_ai_points_balance');
+      const row = Array.isArray(data) ? data[0] : data;
+      if (!error && row) setPoints({ balance: row.balance, monthlyGrant: row.monthly_grant });
+    } finally {
+      setPointsLoading(false);
+    }
+  };
 
   const handleSignOut = async () => {
     if (!confirmAppNavigation()) return;
@@ -80,7 +102,7 @@ export function AccountMenu({ user, variant, className }: AccountMenuProps) {
   const avatarUrl = user?.user_metadata?.avatar_url || user?.user_metadata?.picture;
 
   return (
-    <DropdownMenu>
+    <DropdownMenu onOpenChange={(open) => { if (open) void loadPoints(); }}>
       <DropdownMenuTrigger asChild>
         {variant === 'row' ? (
           <Button variant="ghost" className={cn('h-auto w-full justify-start rounded-xl p-2', className)}>
@@ -114,6 +136,23 @@ export function AccountMenu({ user, variant, className }: AccountMenuProps) {
           <p className="truncate text-xs text-muted-foreground">{user?.email}</p>
         </DropdownMenuLabel>
         <DropdownMenuSeparator />
+        {points && (
+          <>
+            <div className="px-2 py-1.5">
+              <div className="mb-1.5 flex items-center justify-between text-xs">
+                <span className="text-muted-foreground">{zh ? '本月 AI 點數' : 'AI credits this month'}</span>
+                <span className="font-medium">{points.balance}/{points.monthlyGrant}</span>
+              </div>
+              <div className="h-1.5 overflow-hidden rounded-full bg-muted">
+                <div
+                  className="h-full rounded-full bg-foreground transition-[width]"
+                  style={{ width: `${points.monthlyGrant > 0 ? Math.round((points.balance / points.monthlyGrant) * 100) : 0}%` }}
+                />
+              </div>
+            </div>
+            <DropdownMenuSeparator />
+          </>
+        )}
         <DropdownMenuGroup>
           {/* Mobile has its own direct Settings icon in AppTopbar (visible
               at every width) - shown here only at >=768px so mobile isn't

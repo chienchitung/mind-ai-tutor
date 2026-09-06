@@ -50,4 +50,11 @@ describe('teacher AI authorization and quotas', () => {
     rpc.mockResolvedValue({ data: null, error: { message: 'missing function' } });
     expect((await claimTeacherAi(client as never, 'quiz'))?.status).toBe(503);
   });
+
+  it('reports an exhausted monthly point balance distinctly from rate limiting', async () => {
+    rpc.mockResolvedValue({ data: 'INSUFFICIENT_POINTS', error: null });
+    const result = await claimTeacherAi(client as never, 'quiz');
+    expect(result?.status).toBe(402);
+    expect(await result?.json()).toEqual({ error: 'INSUFFICIENT_POINTS' });
+  });
 });

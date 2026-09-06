@@ -9,8 +9,8 @@ export async function generateCoverBackground(input: CoverBrief) {
   const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY!, httpOptions: { timeout: 50000, retryOptions: { attempts: 1 } } });
   const response = await ai.models.generateContent({
     // Image generation is a separate model family ("Nano Banana 2") from the
-    // general gemini-3.6-flash text line used elsewhere in this app - there
-    // is no gemini-3.6-flash-image variant. Do not "keep in sync" with the
+    // general gemini-3.8-flash text line used elsewhere in this app - there
+    // is no gemini-3.8-flash-image variant. Do not "keep in sync" with the
     // text model's version number.
     model: process.env.GEMINI_IMAGE_MODEL || 'gemini-3.1-flash-image',
     contents: createCoverPrompt(input),
