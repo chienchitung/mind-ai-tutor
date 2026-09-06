@@ -49,9 +49,10 @@ export function AccountMenu({ user, variant, className }: AccountMenuProps) {
   // so fetching eagerly would double a Supabase round trip nobody asked for
   // yet on every navigation (the same reasoning as AppLayout's user/isAdmin
   // fetch being lifted out of Sidebar - see that component's comment).
-  // monthly_grant (and balance) come back null for an admin account - see
-  // scripts/add_admin_unlimited_ai_points.sql - rather than some large fake
-  // balance number that would need explaining next to the free-plan grant.
+  // monthly_grant (and balance) come back null for an admin (or Enterprise
+  // plan) account - see scripts/add_plan_unlimited_ai_points.sql - rather
+  // than some large fake balance number that would need explaining next to
+  // the free-plan grant.
   const [points, setPoints] = useState<{ unlimited: true } | { unlimited: false; balance: number; monthlyGrant: number } | null>(null);
   const [pointsLoading, setPointsLoading] = useState(false);
   const loadPoints = async () => {
