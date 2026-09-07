@@ -14,6 +14,7 @@ import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { ModernDateRangePicker } from "@/components/ui/modern-date-range-picker";
 import { DateRange } from "react-day-picker";
+import { subDays, startOfMonth, endOfMonth } from "date-fns";
 import { useToast } from "@/components/ui/use-toast";
 import {
   BookOpen,
@@ -32,6 +33,7 @@ function ActivitiesPageContent() {
   const { t } = useTranslation(language);
   const router = useRouter();
   const [selectedDateRange, setSelectedDateRange] = useState<DateRange | undefined>();
+  const [datePreset, setDatePreset] = useState("all");
   const [searchQuery, setSearchQuery] = useState("");
   const [filterType, setFilterType] = useState("all");
   const [sortOrder, setSortOrder] = useState("newest");
@@ -211,6 +213,29 @@ function ActivitiesPageContent() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedDateRange]);
 
+  const computePresetRange = (preset: string): DateRange | undefined => {
+    const now = new Date();
+    switch (preset) {
+      case "today":
+        return { from: now, to: now };
+      case "last7":
+        return { from: subDays(now, 6), to: now };
+      case "last30":
+        return { from: subDays(now, 29), to: now };
+      case "thisMonth":
+        return { from: startOfMonth(now), to: endOfMonth(now) };
+      default:
+        return undefined;
+    }
+  };
+
+  const handleDatePresetChange = (preset: string) => {
+    setDatePreset(preset);
+    if (preset !== "custom") {
+      setSelectedDateRange(computePresetRange(preset));
+    }
+  };
+
   const handleSearch = (e: React.ChangeEvent<HTMLInputElement>) => {
     setSearchQuery(e.target.value);
   };
@@ -308,13 +333,28 @@ function ActivitiesPageContent() {
       />
 
       <div className="app-panel grid grid-cols-1 gap-3 p-4 md:grid-cols-2 lg:grid-cols-3">
-        <div className="col-span-1">
-          <ModernDateRangePicker
-            value={selectedDateRange}
-            onChange={setSelectedDateRange}
-            className="w-full"
-            placeholder={t('select_date_range')}
-          />
+        <div className="col-span-1 space-y-2">
+          <Select value={datePreset} onValueChange={handleDatePresetChange}>
+            <SelectTrigger className="w-full">
+              <SelectValue placeholder={t('select_date_range')} />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">{t('date_preset_all_time')}</SelectItem>
+              <SelectItem value="today">{t('date_preset_today')}</SelectItem>
+              <SelectItem value="last7">{t('date_preset_last_7_days')}</SelectItem>
+              <SelectItem value="last30">{t('date_preset_last_30_days')}</SelectItem>
+              <SelectItem value="thisMonth">{t('date_preset_this_month')}</SelectItem>
+              <SelectItem value="custom">{t('date_preset_custom_range')}</SelectItem>
+            </SelectContent>
+          </Select>
+          {datePreset === "custom" && (
+            <ModernDateRangePicker
+              value={selectedDateRange}
+              onChange={setSelectedDateRange}
+              className="w-full"
+              placeholder={t('select_date_range')}
+            />
+          )}
         </div>
         <div className="col-span-1 md:col-span-2">
           <div className="relative">
@@ -373,6 +413,7 @@ function ActivitiesPageContent() {
                 setSortOrder("newest");
                 setSelectedActivityType("all");
                 setSelectedDateRange(undefined);
+                setDatePreset("all");
               }}
               className="px-2 sm:px-3 h-9 w-full sm:w-auto"
             >

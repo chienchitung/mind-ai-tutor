@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, forwardRef, useRef } from 'react';
+import React, { useState, useEffect, forwardRef, useRef } from 'react';
 import DatePicker from 'react-datepicker';
 import "react-datepicker/dist/react-datepicker.css";
 import { DateRange } from 'react-day-picker';
@@ -33,6 +33,18 @@ export function ModernDateRangePicker({
 
   // Create a ref for the DatePicker component
   const datePickerRef = useRef<any>(null);
+
+  // Show a single month on narrow viewports so the two-month calendar
+  // doesn't overflow small screens. Starts at false (matching SSR) and
+  // updates on mount/resize to avoid a hydration mismatch.
+  const [isNarrowViewport, setIsNarrowViewport] = useState(false);
+  useEffect(() => {
+    const updateViewport = () => setIsNarrowViewport(window.innerWidth < 640);
+    updateViewport();
+    window.addEventListener('resize', updateViewport);
+    return () => window.removeEventListener('resize', updateViewport);
+  }, []);
+  const monthsShown = isNarrowViewport ? 1 : 2;
 
   // Update local state when props change
   React.useEffect(() => {
@@ -196,10 +208,16 @@ export function ModernDateRangePicker({
         startDate={tempStartDate}
         endDate={tempEndDate}
         selectsRange
-        monthsShown={2}
+        monthsShown={monthsShown}
         openToDate={startDate || undefined}
         customInput={<CustomInput value={formatDateRange()} />}
         showPopperArrow={false}
+        // Without an explicit placement, react-datepicker's floating-ui
+        // positioning defaults to "bottom" (centered on the trigger), which
+        // centers a wide two-month calendar over a much narrower trigger
+        // button and pushes half of it off-screen to the left. Left-aligning
+        // it to the trigger keeps it on-screen on both desktop and mobile.
+        popperPlacement="bottom-start"
         calendarClassName="custom-datepicker"
         wrapperClassName="w-full"
         popperClassName="z-50"
@@ -212,15 +230,19 @@ export function ModernDateRangePicker({
         onClickOutside={() => setIsOpen(false)}
         dayClassName={getDayClassNames}
         renderCustomHeader={({ decreaseMonth, increaseMonth, prevMonthButtonDisabled, nextMonthButtonDisabled, monthDate, customHeaderCount }) => {
-          // Only show prev button for first month and next button for second month
+          // Only show the prev button on the leftmost month and the next
+          // button on the rightmost one, so scrolling advances the whole
+          // window rather than each month independently. Derived from
+          // monthsShown rather than hardcoded indices so this still works
+          // when only one month is shown on narrow viewports.
           const isFirstMonth = customHeaderCount === 0;
-          const isSecondMonth = customHeaderCount === 1;
-          
+          const isLastMonth = customHeaderCount === monthsShown - 1;
+
           return (
             <div className="custom-header-container">
               {isFirstMonth && (
-                <button 
-                  onClick={decreaseMonth} 
+                <button
+                  onClick={decreaseMonth}
                   disabled={prevMonthButtonDisabled}
                   className="custom-prev-button"
                   type="button"
@@ -229,14 +251,14 @@ export function ModernDateRangePicker({
                 </button>
               )}
               {!isFirstMonth && <div className="w-8"></div>}
-              
+
               <div className="custom-month-year">
                 {format(monthDate, "MMMM yyyy")}
               </div>
-              
-              {isSecondMonth && (
-                <button 
-                  onClick={increaseMonth} 
+
+              {isLastMonth && (
+                <button
+                  onClick={increaseMonth}
                   disabled={nextMonthButtonDisabled}
                   className="custom-next-button"
                   type="button"
@@ -244,7 +266,7 @@ export function ModernDateRangePicker({
                   {">"}
                 </button>
               )}
-              {!isSecondMonth && <div className="w-8"></div>}
+              {!isLastMonth && <div className="w-8"></div>}
             </div>
           );
         }}
