@@ -43,11 +43,26 @@ function ActivitiesPageContent() {
 
   // Fetch activities from Supabase
   useEffect(() => {
+    // Pushes the selected range into each query's WHERE clause instead of
+    // fetching a flat "latest 20" per source and filtering client-side -
+    // otherwise a range older than what those 20 rows cover would show "no
+    // activities" even when matching rows exist further back, since they
+    // were never fetched at all.
+    const dateRangeBounds = () => {
+      if (!selectedDateRange?.from) return null;
+      const from = new Date(selectedDateRange.from);
+      from.setHours(0, 0, 0, 0);
+      const to = new Date(selectedDateRange.to ?? selectedDateRange.from);
+      to.setHours(23, 59, 59, 999);
+      return { fromIso: from.toISOString(), toIso: to.toISOString() };
+    };
+
     const fetchActivities = async () => {
       try {
         setIsLoading(true);
         console.log("Fetching activities from database...");
         let allActivities: Activity[] = [];
+        const bounds = dateRangeBounds();
 
         // 動態導入 supabase 函數
         const { supabase } = await import('@/lib/supabase');
@@ -58,11 +73,15 @@ function ActivitiesPageContent() {
 
         // 1. Fetch lessons data and convert to activities
         try {
-          const { data: lessonsData, error: lessonsError } = await supabaseWithTypes
+          let lessonsQuery = supabaseWithTypes
             .from('lessons')
             .select('id, title, description, updated_at')
             .order('updated_at', { ascending: false })
             .limit(20);
+          if (bounds) {
+            lessonsQuery = lessonsQuery.gte('updated_at', bounds.fromIso).lte('updated_at', bounds.toIso);
+          }
+          const { data: lessonsData, error: lessonsError } = await lessonsQuery;
 
           if (lessonsError) {
             console.error('Error fetching lessons:', lessonsError);
@@ -92,11 +111,15 @@ function ActivitiesPageContent() {
 
         // 2. Fetch events data (reminders)
         try {
-          const { data: eventsData, error: eventsError } = await supabaseWithTypes
+          let eventsQuery = supabaseWithTypes
             .from('events')
             .select('id, title, description, created_at, type')
             .order('created_at', { ascending: false })
             .limit(20);
+          if (bounds) {
+            eventsQuery = eventsQuery.gte('created_at', bounds.fromIso).lte('created_at', bounds.toIso);
+          }
+          const { data: eventsData, error: eventsError } = await eventsQuery;
 
           if (eventsError) {
             console.error('Error fetching events:', eventsError);
@@ -126,11 +149,15 @@ function ActivitiesPageContent() {
 
         // 3. Fetch feedback data
         try {
-          const { data: feedbackData, error: feedbackError } = await supabaseWithTypes
+          let feedbackQuery = supabaseWithTypes
             .from('feedback')
             .select('id, content, student_name, course, created_at, status')
             .order('created_at', { ascending: false })
             .limit(20);
+          if (bounds) {
+            feedbackQuery = feedbackQuery.gte('created_at', bounds.fromIso).lte('created_at', bounds.toIso);
+          }
+          const { data: feedbackData, error: feedbackError } = await feedbackQuery;
 
           if (feedbackError) {
             console.error('Error fetching feedback:', feedbackError);
@@ -178,7 +205,11 @@ function ActivitiesPageContent() {
     };
 
     fetchActivities();
-  }, []);
+    // Refetch whenever the applied date range changes, now that it's part
+    // of the query rather than a client-side filter on an already-fetched
+    // batch.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedDateRange]);
 
   const handleSearch = (e: React.ChangeEvent<HTMLInputElement>) => {
     setSearchQuery(e.target.value);
@@ -236,25 +267,9 @@ function ActivitiesPageContent() {
       (filterType === "read" && activity.read) ||
       (filterType === "unread" && !activity.read);
 
-    // Filter by date range
-    let matchesDateRange = true;
-    if (selectedDateRange?.from) {
-      const activityDate = new Date(activity.timestamp);
-      const fromDate = new Date(selectedDateRange.from);
-      fromDate.setHours(0, 0, 0, 0);
+    // Date range is applied server-side in the fetch query above, not here.
 
-      if (selectedDateRange.to) {
-        const toDate = new Date(selectedDateRange.to);
-        toDate.setHours(23, 59, 59, 999);
-        matchesDateRange = activityDate >= fromDate && activityDate <= toDate;
-      } else {
-        matchesDateRange = activityDate.getDate() === fromDate.getDate() &&
-                           activityDate.getMonth() === fromDate.getMonth() &&
-                           activityDate.getFullYear() === fromDate.getFullYear();
-      }
-    }
-
-    return matchesSearch && matchesType && matchesReadStatus && matchesDateRange;
+    return matchesSearch && matchesType && matchesReadStatus;
   }).sort((a, b) => {
     // Sort by timestamp (newest or oldest)
     const dateA = new Date(a.timestamp).getTime();
