@@ -31,6 +31,16 @@ export function ModernDateRangePicker({
   const [tempStartDate, setTempStartDate] = useState<Date | null>(value?.from || null);
   const [tempEndDate, setTempEndDate] = useState<Date | null>(value?.to || null);
 
+  // Anchors which month react-datepicker's left-hand pane shows (the
+  // right-hand pane always follows one month ahead). react-datepicker
+  // internally re-anchors both panes to whichever day was just clicked -
+  // fine for a single month, but with two months shown it means clicking an
+  // end date in the right-hand pane slides the whole view forward a month,
+  // hiding the start month the user just picked. Bumping remountKey forces
+  // a fresh DatePicker instance (which re-reads openToDate) to correct that.
+  const [viewAnchor, setViewAnchor] = useState<Date>(value?.from || new Date());
+  const [remountKey, setRemountKey] = useState(0);
+
   // Create a ref for the DatePicker component
   const datePickerRef = useRef<any>(null);
 
@@ -77,8 +87,21 @@ export function ModernDateRangePicker({
   // Handle temporary date changes
   const handleTempDateChange = (dates: [Date | null, Date | null]) => {
     const [start, end] = dates;
+    const wasCompletingRange = tempEndDate === null && end !== null;
     setTempStartDate(start);
     setTempEndDate(end);
+
+    if (wasCompletingRange && start) {
+      // The end date was just picked, possibly in a later pane than the
+      // start date - react-datepicker re-anchors the whole two-month view
+      // to whichever day was just clicked, which would otherwise slide the
+      // start month out of view. Snap the view back to the start month.
+      setViewAnchor(start);
+      setRemountKey((k) => k + 1);
+    }
+    // A start-date click (first click, or restarting after a completed
+    // range) is left alone: react-datepicker already brings the clicked
+    // month into the first pane on its own, which is the behavior we want.
   };
 
   // Apply the date changes
@@ -202,6 +225,7 @@ export function ModernDateRangePicker({
   return (
     <div className={className}>
       <DatePicker
+        key={remountKey}
         ref={datePickerRef}
         selected={tempStartDate}
         onChange={handleTempDateChange}
@@ -209,7 +233,7 @@ export function ModernDateRangePicker({
         endDate={tempEndDate}
         selectsRange
         monthsShown={monthsShown}
-        openToDate={startDate || undefined}
+        openToDate={viewAnchor}
         customInput={<CustomInput value={formatDateRange()} />}
         showPopperArrow={false}
         // Without an explicit placement, react-datepicker's floating-ui
@@ -221,7 +245,11 @@ export function ModernDateRangePicker({
         calendarClassName="custom-datepicker"
         wrapperClassName="w-full"
         popperClassName="z-50"
-        onCalendarOpen={() => setIsOpen(true)}
+        onCalendarOpen={() => {
+          setIsOpen(true);
+          setViewAnchor(tempStartDate || startDate || new Date());
+          setRemountKey((k) => k + 1);
+        }}
         onCalendarClose={() => setIsOpen(false)}
         dateFormat="MMM d, yyyy"
         showMonthDropdown={false}
