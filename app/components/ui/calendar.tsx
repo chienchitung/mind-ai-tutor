@@ -41,8 +41,10 @@ function Calendar({
         ),
         month_grid: "w-full border-collapse space-y-1",
         weekdays: "flex",
-        weekday:
-          "text-muted-foreground rounded-md w-9 font-medium text-[0.7rem] uppercase tracking-wider",
+        // Matches ModernDateRangePicker's .react-datepicker__day-name
+        // styling (used on the Activity Log's date-range filter), so the
+        // two calendar widgets in the app read as one consistent design.
+        weekday: "text-muted-foreground rounded-md w-9 font-medium text-[0.75rem]",
         week: "flex w-full mt-2",
         // react-day-picker puts the selected/today/outside/range_middle
         // modifier classes on this cell (a <td>), not on the day_button
