@@ -26,13 +26,18 @@ function Calendar({
           "flex justify-center items-center pb-3 mb-2 border-b border-border/60",
         caption_label: "text-sm font-semibold tracking-tight",
         nav: "absolute inset-x-0 top-0 flex items-center justify-between",
+        // Inset from the edge (rather than flush) and a tighter focus ring:
+        // these are small circular buttons right at the card boundary, and
+        // buttonVariants' default keyboard focus ring (ring-2 + a 2px
+        // offset) has no room to render within a flush 0px inset - it
+        // visibly blows past the card's edge instead.
         button_previous: cn(
           buttonVariants({ variant: "outline" }),
-          "h-8 w-8 rounded-full bg-transparent p-0 text-muted-foreground border-border/60 transition-colors hover:bg-accent hover:text-foreground hover:border-border absolute left-0"
+          "h-8 w-8 rounded-full bg-transparent p-0 text-muted-foreground border-border/60 transition-colors hover:bg-accent hover:text-foreground hover:border-border focus-visible:ring-1 focus-visible:ring-offset-1 absolute left-1"
         ),
         button_next: cn(
           buttonVariants({ variant: "outline" }),
-          "h-8 w-8 rounded-full bg-transparent p-0 text-muted-foreground border-border/60 transition-colors hover:bg-accent hover:text-foreground hover:border-border absolute right-0"
+          "h-8 w-8 rounded-full bg-transparent p-0 text-muted-foreground border-border/60 transition-colors hover:bg-accent hover:text-foreground hover:border-border focus-visible:ring-1 focus-visible:ring-offset-1 absolute right-1"
         ),
         month_grid: "w-full border-collapse space-y-1",
         weekdays: "flex",
