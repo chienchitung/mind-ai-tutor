@@ -38,18 +38,27 @@ function Calendar({
         weekday:
           "text-muted-foreground rounded-md w-9 font-normal text-[0.8rem]",
         week: "flex w-full mt-2",
-        day: "h-9 w-9 text-center text-sm p-0 relative [&:has([aria-selected])]:bg-accent first:[&:has([aria-selected])]:rounded-l-md last:[&:has([aria-selected])]:rounded-r-md focus-within:relative focus-within:z-20",
+        // react-day-picker puts the selected/today/outside/range_middle
+        // modifier classes on this cell (a <td>), not on the day_button
+        // inside it - and the ghost button variant sets its own explicit
+        // text-foreground, which shadows whatever color this cell would
+        // otherwise pass down by inheritance. So each state below is
+        // pushed onto the button via the cell's own data attribute
+        // (data-selected/data-today/data-outside, set by react-day-picker)
+        // or, for range_middle - which gets no data attribute, only a
+        // plain class - via that class name directly.
+        day: cn(
+          "relative h-9 w-9 p-0 text-center text-sm first:[&:has([aria-selected])]:rounded-l-md last:[&:has([aria-selected])]:rounded-r-md focus-within:relative focus-within:z-20",
+          "[&[data-selected=true]>button]:bg-primary [&[data-selected=true]>button]:text-primary-foreground [&[data-selected=true]>button]:hover:bg-primary [&[data-selected=true]>button]:hover:text-primary-foreground [&[data-selected=true]>button]:focus:bg-primary [&[data-selected=true]>button]:focus:text-primary-foreground",
+          "[&[data-today=true]>button]:bg-accent [&[data-today=true]>button]:text-accent-foreground",
+          "[&[data-outside=true]>button]:text-muted-foreground [&[data-outside=true]>button]:opacity-50",
+          "[&.day-range-middle>button]:bg-accent [&.day-range-middle>button]:text-accent-foreground"
+        ),
         day_button: cn(
           buttonVariants({ variant: "ghost" }),
-          "h-9 w-9 p-0 font-normal aria-selected:opacity-100"
+          "h-9 w-9 p-0 font-normal"
         ),
-        selected:
-          "bg-primary text-primary-foreground hover:bg-primary hover:text-primary-foreground focus:bg-primary focus:text-primary-foreground",
-        today: "bg-accent text-accent-foreground",
-        outside: "text-muted-foreground opacity-50",
-        disabled: "text-muted-foreground opacity-50",
-        range_middle:
-          "aria-selected:bg-accent aria-selected:text-accent-foreground",
+        range_middle: "day-range-middle",
         hidden: "invisible",
         ...classNames,
       }}
