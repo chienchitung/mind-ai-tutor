@@ -15,6 +15,7 @@ import { StudentProgressChart } from '@/components/charts/StudentProgressChart';
 import { getStudentProgress } from '@/lib/analytics';
 import { useLanguage } from '@/app/contexts/LanguageContext';
 import { useTranslation } from '@/utils/translations';
+import { Activity, BookOpen, TrendingUp } from 'lucide-react';
 
 interface Progress {
   id: string;
@@ -51,6 +52,8 @@ export function ProgressHistory({ studentId }: ProgressHistoryProps) {
   }, [studentId]);
 
   const subjects = Array.from(new Set(progress.map((p) => p.subject)));
+  const averageScore = Math.round(progress.reduce((total, entry) => total + entry.score, 0) / progress.length);
+  const latestEntry = [...progress].sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())[0];
 
   if (loading) {
     return (
@@ -83,9 +86,15 @@ export function ProgressHistory({ studentId }: ProgressHistoryProps) {
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center gap-4">
+      <div className="grid gap-3 sm:grid-cols-3">
+        <Card className="shadow-none"><CardContent className="flex items-center gap-3 p-4"><span className="rounded-lg bg-primary/10 p-2 text-primary"><TrendingUp className="h-4 w-4" /></span><div><p className="text-2xl font-semibold">{averageScore}%</p><p className="text-xs text-muted-foreground">{language === 'zh-TW' ? '平均分數' : 'Average score'}</p></div></CardContent></Card>
+        <Card className="shadow-none"><CardContent className="flex items-center gap-3 p-4"><span className="rounded-lg bg-primary/10 p-2 text-primary"><Activity className="h-4 w-4" /></span><div><p className="text-2xl font-semibold">{latestEntry.score}%</p><p className="text-xs text-muted-foreground">{language === 'zh-TW' ? '最近一次' : 'Latest result'}</p></div></CardContent></Card>
+        <Card className="shadow-none"><CardContent className="flex items-center gap-3 p-4"><span className="rounded-lg bg-primary/10 p-2 text-primary"><BookOpen className="h-4 w-4" /></span><div><p className="text-2xl font-semibold">{subjects.length}</p><p className="text-xs text-muted-foreground">{language === 'zh-TW' ? '學習主題' : 'Subjects'}</p></div></CardContent></Card>
+      </div>
+      <div className="flex items-center justify-between gap-4">
+        <h2 className="font-semibold">{language === 'zh-TW' ? '學習趨勢' : 'Learning trend'}</h2>
         <select
-          className="rounded-md border p-2"
+          className="rounded-md border bg-background px-3 py-2 text-sm"
           value={selectedSubject || ''}
           onChange={(e) =>
             setSelectedSubject(e.target.value || undefined)
@@ -145,4 +154,4 @@ export function ProgressHistory({ studentId }: ProgressHistoryProps) {
       </Card>
     </div>
   );
-} 
+}

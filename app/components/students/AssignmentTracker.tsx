@@ -21,6 +21,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { useToast } from '@/hooks/use-toast';
 import { useLanguage } from '@/app/contexts/LanguageContext';
 import { useTranslation } from '@/utils/translations';
+import { CheckCircle2, ClipboardList, Clock3 } from 'lucide-react';
 
 interface Assignment {
   id: string;
@@ -183,10 +184,26 @@ export function AssignmentTracker({ studentId }: AssignmentTrackerProps) {
     }
   };
 
+  const completedCount = assignments.filter((assignment) => assignment.status === 'completed').length;
+  const pendingCount = assignments.filter((assignment) => assignment.status === 'pending').length;
+  const overdueCount = assignments.filter((assignment) => assignment.status === 'overdue').length;
+  const statusLabel = (status: Assignment['status']) => ({
+    completed: language === 'zh-TW' ? '已完成' : 'Completed',
+    pending: language === 'zh-TW' ? '待處理' : 'Pending',
+    overdue: language === 'zh-TW' ? '已逾期' : 'Overdue',
+  })[status];
+
   return (
     <div className="space-y-4">
-      <div className="flex justify-between">
-        <h2 className="text-2xl font-bold">{t('assignments')}</h2>
+      <div className="grid gap-3 sm:grid-cols-3">
+        {[
+          { label: language === 'zh-TW' ? '全部作業' : 'All assignments', value: assignments.length, icon: ClipboardList, tone: 'bg-primary/10 text-primary' },
+          { label: language === 'zh-TW' ? '已完成' : 'Completed', value: completedCount, icon: CheckCircle2, tone: 'bg-emerald-50 text-emerald-700' },
+          { label: language === 'zh-TW' ? '待處理／逾期' : 'Pending / overdue', value: `${pendingCount} / ${overdueCount}`, icon: Clock3, tone: 'bg-amber-50 text-amber-700' },
+        ].map((item) => <Card key={item.label} className="shadow-none"><CardContent className="flex items-center gap-3 p-4"><span className={`rounded-lg p-2 ${item.tone}`}><item.icon className="h-4 w-4" /></span><div><p className="text-2xl font-semibold">{item.value}</p><p className="text-xs text-muted-foreground">{item.label}</p></div></CardContent></Card>)}
+      </div>
+      <div className="flex items-center justify-between gap-4">
+        <div><h2 className="font-semibold">{t('assignments')}</h2><p className="mt-1 text-sm text-muted-foreground">{language === 'zh-TW' ? '依到期日查看與更新學生作業。' : 'Review and update work by due date.'}</p></div>
         <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
           <DialogTrigger asChild>
             <Button>{t('add_assignment')}</Button>
@@ -283,10 +300,10 @@ export function AssignmentTracker({ studentId }: AssignmentTrackerProps) {
           </CardContent>
         </Card>
       ) : (
-        <div className="grid gap-4">
+        <div className="grid gap-3 lg:grid-cols-2">
           {assignments.map((assignment) => (
-            <Card key={assignment.id}>
-              <CardHeader>
+            <Card key={assignment.id} className="shadow-none">
+              <CardHeader className="pb-3">
                 <div className="flex items-center justify-between">
                   <CardTitle>{assignment.title}</CardTitle>
                   <div
@@ -294,27 +311,14 @@ export function AssignmentTracker({ studentId }: AssignmentTrackerProps) {
                       assignment.status
                     )}`}
                   >
-                    {assignment.status.charAt(0).toUpperCase() +
-                      assignment.status.slice(1)}
+                    {statusLabel(assignment.status)}
                   </div>
                 </div>
               </CardHeader>
               <CardContent>
-                <div className="space-y-4">
-                  <div>
-                    <p className="text-sm font-medium text-gray-500">{t('subject_label')}</p>
-                    <p>{assignment.subject}</p>
-                  </div>
-                  <div>
-                    <p className="text-sm font-medium text-gray-500">
-                      {t('description')}
-                    </p>
-                    <p>{assignment.description}</p>
-                  </div>
-                  <div>
-                    <p className="text-sm font-medium text-gray-500">{t('assignment_due_date')}</p>
-                    <p>{format(new Date(assignment.due_date), 'PPP')}</p>
-                  </div>
+                <div className="space-y-3">
+                  <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-muted-foreground"><span>{assignment.subject}</span><span>{t('assignment_due_date')}：{format(new Date(assignment.due_date), 'PPP')}</span></div>
+                  {assignment.description && <p className="line-clamp-3 text-sm">{assignment.description}</p>}
                   {assignment.status === 'completed' && (
                     <>
                       {assignment.score && (
@@ -364,4 +368,4 @@ export function AssignmentTracker({ studentId }: AssignmentTrackerProps) {
       )}
     </div>
   );
-} 
+}
