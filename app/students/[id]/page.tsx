@@ -4,7 +4,6 @@ import { useEffect, useState } from 'react';
 import { supabase as getSupabaseClient } from '@/lib/supabase';
 import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
-import { ScrollArea } from '@/components/ui/scroll-area';
 import { PageHeader } from '@/components/layout/PageHeader';
 import { EmptyState, PageLoader } from '@/components/ui/page-state';
 import {
@@ -23,7 +22,7 @@ import { ProgressHistory } from '@/components/students/ProgressHistory';
 import { AttendanceTracker } from '@/components/students/AttendanceTracker';
 import { AssignmentTracker } from '@/components/students/AssignmentTracker';
 import { useToast } from '@/hooks/use-toast';
-import { KeyRound, RefreshCw, Copy } from 'lucide-react';
+import { BookOpen, Copy, GraduationCap, KeyRound, Mail, RefreshCw, UserRound } from 'lucide-react';
 import { useLanguage } from '@/app/contexts/LanguageContext';
 import { useTranslation } from '@/utils/translations';
 import type { Database } from '@/types/supabase';
@@ -207,9 +206,18 @@ export default function StudentPage({ params: paramsPromise }: { params: Promise
     );
   }
 
+  const subjects = Array.isArray(student.subjects) ? student.subjects : [];
+  const initials = student.name
+    .split(/\s+/)
+    .filter(Boolean)
+    .map((part) => part[0])
+    .join('')
+    .slice(0, 2)
+    .toUpperCase() || 'ST';
+
   return (
-    <div className="space-y-6">
-      <PageHeader heading={student.name} text={language === 'zh-TW' ? '查看學生資料、登入碼與學習紀錄。' : 'Review the student profile, login code and learning history.'}
+    <div className="space-y-5">
+      <PageHeader heading={student.name} text={language === 'zh-TW' ? '集中查看學習表現、出席與作業狀態。' : 'Review learning progress, attendance, and assignments in one place.'}
         actions={<div className="flex flex-wrap gap-2">
           <Button onClick={handleEdit}>{t('edit_student')}</Button>
           <AlertDialog>
@@ -242,61 +250,46 @@ export default function StudentPage({ params: paramsPromise }: { params: Promise
           </AlertDialog>
         </div>}
       />
-      <div className="space-y-6">
-        <div className="grid gap-6 md:grid-cols-2">
-          <div className="app-panel min-w-0 space-y-5 p-5 sm:p-6">
-            <div>
-              <h2 className="text-lg font-semibold">{t('basic_information')}</h2>
-              <div className="mt-2 space-y-2">
-                <p className="break-words">
-                  <span className="font-medium">{t('email')}:</span> {student.email}
-                </p>
-                <p>
-                  <span className="font-medium">{t('grade')}:</span> {student.grade}
-                </p>
-                <p>
-                  <span className="font-medium">{t('status')}:</span>{' '}
-                  <span
-                    className={`inline-block rounded-full px-2 py-1 text-xs font-semibold ${
-                      student.status === 'active'
-                        ? 'bg-green-100 text-green-800'
-                        : 'bg-red-100 text-red-800'
-                    }`}
-                  >
+      <section className="app-panel overflow-hidden" aria-labelledby="student-overview-title">
+        <h2 id="student-overview-title" className="sr-only">{t('basic_information')}</h2>
+        <div className="grid gap-0 lg:grid-cols-[minmax(0,1fr)_360px]">
+          <div className="min-w-0 p-5 sm:p-6">
+            <div className="flex flex-col gap-5 sm:flex-row sm:items-start">
+              <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl bg-primary/10 text-lg font-semibold text-primary" aria-hidden="true">
+                {initials}
+              </div>
+              <div className="min-w-0 flex-1">
+                <div className="flex flex-wrap items-center gap-2">
+                  <p className="text-lg font-semibold">{student.name}</p>
+                  <span className={`rounded-full px-2.5 py-1 text-xs font-semibold ${student.status === 'active' ? 'bg-emerald-50 text-emerald-700' : 'bg-muted text-muted-foreground'}`}>
                     {student.status === 'active' ? t('active') : t('inactive')}
                   </span>
-                </p>
+                </div>
+                <div className="mt-3 grid gap-2 text-sm text-muted-foreground sm:grid-cols-2">
+                  <p className="flex min-w-0 items-center gap-2"><Mail className="h-4 w-4 shrink-0" /><span className="truncate">{student.email}</span></p>
+                  <p className="flex items-center gap-2"><GraduationCap className="h-4 w-4 shrink-0" />{t('grade')}：{student.grade || t('not_available')}</p>
+                </div>
+                <div className="mt-4 flex items-start gap-2">
+                  <BookOpen className="mt-1 h-4 w-4 shrink-0 text-muted-foreground" />
+                  <div className="flex flex-wrap gap-2">
+                    {subjects.length > 0 ? subjects.map((subject) => (
+                      <span key={subject} className="rounded-full bg-secondary px-3 py-1 text-sm">{subject}</span>
+                    )) : <span className="text-sm text-muted-foreground">{language === 'zh-TW' ? '尚未設定學習主題' : 'No subjects assigned'}</span>}
+                  </div>
+                </div>
               </div>
             </div>
-            <div>
-              <h2 className="text-lg font-semibold">{t('topics')}</h2>
-              <ScrollArea className="mt-2 h-[200px] rounded-md border p-4">
-                <div className="space-y-2">
-                  {student.subjects.map((subject) => (
-                    <div
-                      key={subject}
-                      className="rounded-lg bg-secondary/50 px-3 py-2"
-                    >
-                      {subject}
-                    </div>
-                  ))}
-                </div>
-              </ScrollArea>
-            </div>
           </div>
-          <div className="app-panel min-w-0 space-y-4 p-5 sm:p-6">
-            <div>
-              <h2 className="text-lg font-semibold flex items-center gap-2">
-                <KeyRound className="h-4 w-4" />
-                {t('game_login_code')}
-              </h2>
-              <p className="mt-1 text-sm text-muted-foreground">
-                {t('game_login_code_desc')}
-              </p>
-              <div className="mt-3">
+
+          <div className="border-t bg-muted/20 p-5 sm:p-6 lg:border-l lg:border-t-0">
+            <h2 className="flex items-center gap-2 text-sm font-semibold">
+              <KeyRound className="h-4 w-4" />{t('game_login_code')}
+            </h2>
+            <p className="mt-1 text-xs leading-5 text-muted-foreground">{t('game_login_code_desc')}</p>
+            <div className="mt-3">
                 {student.login_code ? (
                   <div className="flex flex-wrap items-center gap-2">
-                    <code className="rounded-md border bg-secondary/50 px-3 py-2 text-lg font-mono tracking-widest">
+                    <code className="rounded-lg border bg-background px-3 py-2 font-mono text-base font-semibold tracking-[0.16em]">
                       {student.login_code}
                     </code>
                     <Button variant="outline" size="icon" onClick={handleCopyLoginCode} title={t('copy_login_code')} aria-label={t('copy_login_code')}>
@@ -318,30 +311,29 @@ export default function StudentPage({ params: paramsPromise }: { params: Promise
                     {generatingCode ? t('generating') : t('generate_login_code')}
                   </Button>
                 )}
-              </div>
             </div>
           </div>
         </div>
+      </section>
 
-        <Tabs defaultValue="progress" className="mt-6">
+        <Tabs defaultValue="progress" className="space-y-4">
           <div className="overflow-x-auto pb-1">
-          <TabsList className="w-max min-w-full sm:min-w-0">
-            <TabsTrigger value="progress">{t('progress')}</TabsTrigger>
-            <TabsTrigger value="attendance">{t('attendance')}</TabsTrigger>
-            <TabsTrigger value="assignments">{t('assignments')}</TabsTrigger>
+          <TabsList className="h-auto w-max min-w-full justify-start gap-1 rounded-xl bg-muted/60 p-1 sm:min-w-0">
+            <TabsTrigger value="progress" className="gap-2 px-4 py-2.5"><UserRound className="h-4 w-4" />{t('progress')}</TabsTrigger>
+            <TabsTrigger value="attendance" className="gap-2 px-4 py-2.5"><GraduationCap className="h-4 w-4" />{t('attendance')}</TabsTrigger>
+            <TabsTrigger value="assignments" className="gap-2 px-4 py-2.5"><BookOpen className="h-4 w-4" />{t('assignments')}</TabsTrigger>
           </TabsList>
           </div>
-          <TabsContent value="progress" className="mt-6">
+          <TabsContent value="progress" className="mt-0">
             <ProgressHistory studentId={student.id} />
           </TabsContent>
-          <TabsContent value="attendance" className="mt-6">
+          <TabsContent value="attendance" className="mt-0">
             <AttendanceTracker studentId={student.id} />
           </TabsContent>
-          <TabsContent value="assignments" className="mt-6">
+          <TabsContent value="assignments" className="mt-0">
             <AssignmentTracker studentId={student.id} />
           </TabsContent>
         </Tabs>
-      </div>
     </div>
   );
 }

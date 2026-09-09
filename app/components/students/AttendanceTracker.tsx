@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { format, startOfMonth, endOfMonth, eachDayOfInterval } from 'date-fns';
+import { format, startOfMonth, endOfMonth } from 'date-fns';
 import { supabase as getSupabaseClient } from '@/lib/supabase';
 import { Button } from '@/components/ui/button';
 import { Calendar } from '@/components/ui/calendar';
@@ -9,6 +9,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { useToast } from '@/hooks/use-toast';
 import { useLanguage } from '@/app/contexts/LanguageContext';
 import { useTranslation } from '@/utils/translations';
+import { CalendarCheck, CheckCircle2, Clock3, XCircle } from 'lucide-react';
 
 interface Attendance {
   id: string;
@@ -112,15 +113,13 @@ export function AttendanceTracker({ studentId }: AttendanceTrackerProps) {
 
     const start = startOfMonth(selectedDate);
     const end = endOfMonth(selectedDate);
-    const days = eachDayOfInterval({ start, end });
-
     const monthAttendance = attendance.filter((a) => {
       const date = new Date(a.date);
       return date >= start && date <= end;
     });
 
     return {
-      total: days.length,
+      total: monthAttendance.length,
       present: monthAttendance.filter((a) => a.status === 'present').length,
       absent: monthAttendance.filter((a) => a.status === 'absent').length,
       late: monthAttendance.filter((a) => a.status === 'late').length,
@@ -128,22 +127,38 @@ export function AttendanceTracker({ studentId }: AttendanceTrackerProps) {
   };
 
   const monthStats = getMonthStats();
+  const attendanceRate = monthStats && monthStats.total > 0
+    ? Math.round((monthStats.present / monthStats.total) * 100)
+    : 0;
+  const statusLabel = (status: Attendance['status']) => ({
+    present: t('attendance_present'),
+    absent: t('attendance_absent'),
+    late: t('attendance_late'),
+  })[status];
 
   return (
     <div className="space-y-4">
-      <div className="grid gap-4 md:grid-cols-2">
-        <Card>
-          <CardHeader>
-            <CardTitle>{t('add_attendance')}</CardTitle>
-          </CardHeader>
+      {monthStats && <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+        {[
+          { label: language === 'zh-TW' ? '本月出席率' : 'Attendance rate', value: `${attendanceRate}%`, icon: CalendarCheck, tone: 'text-primary bg-primary/10' },
+          { label: t('attendance_present'), value: monthStats.present, icon: CheckCircle2, tone: 'text-emerald-700 bg-emerald-50' },
+          { label: t('attendance_absent'), value: monthStats.absent, icon: XCircle, tone: 'text-red-700 bg-red-50' },
+          { label: t('attendance_late'), value: monthStats.late, icon: Clock3, tone: 'text-amber-700 bg-amber-50' },
+        ].map((item) => <Card key={item.label} className="shadow-none"><CardContent className="flex items-center gap-3 p-4"><span className={`rounded-lg p-2 ${item.tone}`}><item.icon className="h-4 w-4" /></span><div><p className="text-2xl font-semibold">{item.value}</p><p className="text-xs text-muted-foreground">{item.label}</p></div></CardContent></Card>)}
+      </div>}
+
+      <div className="grid items-start gap-4 xl:grid-cols-[minmax(0,1fr)_minmax(320px,0.72fr)]">
+        <Card className="shadow-none">
+          <CardHeader className="pb-3"><CardTitle className="text-base">{t('add_attendance')}</CardTitle></CardHeader>
           <CardContent>
-            <div className="space-y-4">
+            <div className="grid gap-5 lg:grid-cols-[auto_minmax(220px,1fr)]">
               <Calendar
                 mode="single"
                 selected={selectedDate}
                 onSelect={setSelectedDate}
                 className="rounded-md border"
               />
+              <div className="space-y-4">
               <div className="flex gap-2">
                 <Button
                   variant={selectedStatus === 'present' ? 'default' : 'outline'}
@@ -165,7 +180,7 @@ export function AttendanceTracker({ studentId }: AttendanceTrackerProps) {
                 </Button>
               </div>
               <textarea
-                className="w-full rounded-md border p-2"
+                className="min-h-24 w-full rounded-md border bg-background p-3 text-sm"
                 placeholder={t('add_notes_optional')}
                 value={notes}
                 onChange={(e) => setNotes(e.target.value)}
@@ -176,52 +191,14 @@ export function AttendanceTracker({ studentId }: AttendanceTrackerProps) {
               >
                 {submitting ? t('adding') : t('add_attendance')}
               </Button>
+              </div>
             </div>
           </CardContent>
         </Card>
-
-        {monthStats && (
-          <Card>
-            <CardHeader>
-              <CardTitle>
-                {t('monthly_overview')} -{' '}
-                {selectedDate ? format(selectedDate, 'MMMM yyyy') : ''}
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="grid gap-4">
-                <div className="grid grid-cols-2 gap-2">
-                  <div>{t('total_days')}:</div>
-                  <div>{monthStats.total}</div>
-                  <div>{t('attendance_present')}:</div>
-                  <div>{monthStats.present}</div>
-                  <div>{t('attendance_absent')}:</div>
-                  <div>{monthStats.absent}</div>
-                  <div>{t('attendance_late')}:</div>
-                  <div>{monthStats.late}</div>
-                </div>
-                <div className="h-2 rounded-full bg-gray-200">
-                  <div
-                    className="h-full rounded-full bg-green-500"
-                    style={{
-                      width: `${
-                        (monthStats.present / monthStats.total) * 100
-                      }%`,
-                    }}
-                  />
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-        )}
-      </div>
-
-      <Card>
-        <CardHeader>
-          <CardTitle>{t('attendance_history')}</CardTitle>
-        </CardHeader>
+      <Card className="shadow-none">
+        <CardHeader className="pb-3"><CardTitle className="text-base">{t('attendance_history')}</CardTitle><p className="text-xs text-muted-foreground">{selectedDate ? format(selectedDate, 'MMMM yyyy') : ''}</p></CardHeader>
         <CardContent>
-          <div className="space-y-4">
+          <div className="max-h-[430px] space-y-2 overflow-y-auto pr-1">
             {loading ? (
               <p>{t('loading_attendance_records')}</p>
             ) : attendance.length === 0 ? (
@@ -231,7 +208,7 @@ export function AttendanceTracker({ studentId }: AttendanceTrackerProps) {
                 {attendance.map((record) => (
                   <div
                     key={record.id}
-                    className="flex items-center justify-between rounded-lg border p-4"
+                    className="flex items-center justify-between gap-3 rounded-lg border p-3"
                   >
                     <div>
                       <div className="font-medium">
@@ -252,8 +229,7 @@ export function AttendanceTracker({ studentId }: AttendanceTrackerProps) {
                           : 'bg-yellow-100 text-yellow-800'
                       }`}
                     >
-                      {record.status.charAt(0).toUpperCase() +
-                        record.status.slice(1)}
+                      {statusLabel(record.status)}
                     </div>
                   </div>
                 ))}
@@ -262,6 +238,7 @@ export function AttendanceTracker({ studentId }: AttendanceTrackerProps) {
           </div>
         </CardContent>
       </Card>
+      </div>
     </div>
   );
-} 
+}
