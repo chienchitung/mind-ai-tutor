@@ -200,7 +200,7 @@ export function AssignmentTracker({ studentId }: AssignmentTrackerProps) {
           { label: language === 'zh-TW' ? '全部作業' : 'All assignments', value: assignments.length, icon: ClipboardList, tone: 'bg-primary/10 text-primary' },
           { label: language === 'zh-TW' ? '已完成' : 'Completed', value: completedCount, icon: CheckCircle2, tone: 'bg-emerald-50 text-emerald-700' },
           { label: language === 'zh-TW' ? '待處理／逾期' : 'Pending / overdue', value: `${pendingCount} / ${overdueCount}`, icon: Clock3, tone: 'bg-amber-50 text-amber-700' },
-        ].map((item) => <Card key={item.label} className="shadow-none"><CardContent className="flex items-center gap-3 p-4"><span className={`rounded-lg p-2 ${item.tone}`}><item.icon className="h-4 w-4" /></span><div><p className="text-2xl font-semibold">{item.value}</p><p className="text-xs text-muted-foreground">{item.label}</p></div></CardContent></Card>)}
+        ].map((item) => <Card key={item.label} className="shadow-none"><CardContent className="flex min-h-[76px] items-center gap-3 p-4 pt-4 md:p-4 md:pt-4"><span className={`rounded-lg p-2 ${item.tone}`}><item.icon className="h-4 w-4" /></span><div><p className="text-2xl font-semibold leading-tight">{item.value}</p><p className="text-xs leading-5 text-muted-foreground">{item.label}</p></div></CardContent></Card>)}
       </div>
       <div className="flex items-center justify-between gap-4">
         <div><h2 className="font-semibold">{t('assignments')}</h2><p className="mt-1 text-sm text-muted-foreground">{language === 'zh-TW' ? '依到期日查看與更新學生作業。' : 'Review and update work by due date.'}</p></div>

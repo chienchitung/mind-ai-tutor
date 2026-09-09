@@ -160,9 +160,9 @@ export function AttendanceTracker({ studentId }: AttendanceTrackerProps) {
       <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
         {metrics.map((item) => (
           <Card key={item.label} className="min-w-0 shadow-none">
-            <CardContent className="flex min-w-0 items-center gap-3 p-4">
+            <CardContent className="flex min-h-[76px] min-w-0 items-center gap-3 p-4 pt-4 md:p-4 md:pt-4">
               <span className={`shrink-0 rounded-lg p-2 ${item.tone}`}><item.icon className="h-4 w-4" /></span>
-              <div className="min-w-0"><p className="text-2xl font-semibold leading-none">{item.value}</p><p className="mt-1 truncate text-xs text-muted-foreground">{item.label}</p></div>
+              <div className="min-w-0"><p className="text-2xl font-semibold leading-tight">{item.value}</p><p className="truncate text-xs leading-5 text-muted-foreground">{item.label}</p></div>
             </CardContent>
           </Card>
         ))}
@@ -177,7 +177,7 @@ export function AttendanceTracker({ studentId }: AttendanceTrackerProps) {
             </CardTitle>
             <p className="text-sm text-muted-foreground">{language === 'zh-TW' ? '選擇日期後設定學生當天的出席狀態。' : 'Choose a date, then set the student’s attendance status.'}</p>
           </CardHeader>
-          <CardContent className="p-4 sm:p-5">
+          <CardContent className="p-4 pt-4 sm:p-5 sm:pt-5 md:pt-5">
             <div className="grid min-w-0 gap-6 lg:grid-cols-[minmax(280px,340px)_minmax(0,1fr)]">
               <div className="min-w-0">
                 <Label className="mb-2 block text-xs font-semibold uppercase tracking-wide text-muted-foreground">{language === 'zh-TW' ? '選擇日期' : 'Select date'}</Label>
@@ -239,7 +239,7 @@ export function AttendanceTracker({ studentId }: AttendanceTrackerProps) {
               <span className="shrink-0 rounded-full bg-muted px-2.5 py-1 text-xs text-muted-foreground">{language === 'zh-TW' ? `${monthRecords.length} 筆` : `${monthRecords.length} records`}</span>
             </div>
           </CardHeader>
-          <CardContent className="p-4">
+          <CardContent className="p-4 pt-4 md:pt-4">
             {loading ? (
               <p className="py-8 text-center text-sm text-muted-foreground">{t('loading_attendance_records')}</p>
             ) : monthRecords.length === 0 ? (
