@@ -1,5 +1,5 @@
 import Link from 'next/link'
-import { ArrowRight, Check, ChevronDown, ChevronRight, Compass, Flag, LockKeyhole, RotateCcw, Star, Trophy } from 'lucide-react'
+import { Activity, ArrowRight, Check, ChevronDown, ChevronRight, Compass, Flag, LockKeyhole, Orbit, Radio, RotateCcw, Star, Trophy } from 'lucide-react'
 import type { GameDefinition, GameVisualTemplate } from '../types/game'
 import type { Lesson } from '../types/lesson'
 import { canEnterLesson, gameThemeStyle, gameVisualTemplate, missionObjective } from '../lib/mission'
@@ -53,6 +53,8 @@ export function QuestHome(props: QuestHomeProps) {
   const current = lessons.find(lesson => !completedLessons.includes(lesson.lesson_id))
   const currentIndex = current ? lessons.findIndex(lesson => lesson.lesson_id === current.lesson_id) : lessons.length - 1
   const allDone = lessons.length > 0 && completed.length === lessons.length
+  const progressPercent = lessons.length ? Math.round(completed.length / lessons.length * 100) : 0
+  const pendingModules = Math.max(lessons.length - completed.length, 0)
   const remainingMinutes = lessons
     .filter(lesson => !completedLessons.includes(lesson.lesson_id))
     .reduce((total, lesson) => total + (Number.parseInt(lesson.duration || '', 10) || 0), 0)
@@ -81,6 +83,11 @@ export function QuestHome(props: QuestHomeProps) {
           <h1 id="quest-title">{game?.title || 'Excel 大師挑戰'}</h1>
           <p>{game?.description || '從一個問題開始，探索資料、練習解題，完成屬於你的學習旅程。'}</p>
           <div className="quest-hero-actions"><button className="quest-button quest-button-light" onClick={props.onStart}>{allDone ? '回顧學習任務' : signedIn ? '繼續我的任務' : '開始學習'}<ArrowRight className="quest-direction-icon" size={18} aria-hidden="true" /></button><a href="#mission-map" className="quest-hero-link"><span>{experience.home.journeyLink}</span><ChevronDown className="quest-direction-icon is-down" size={16} aria-hidden="true" /></a></div>
+          {template === 'orbital-lab' && <div className="quest-flight-telemetry" aria-label="航程遙測摘要">
+            <div><Activity aria-hidden="true" /><span>航程同步<strong>{progressPercent}%</strong></span></div>
+            <div><Orbit aria-hidden="true" /><span>待執行模組<strong>{pendingModules}</strong></span></div>
+            <div><Radio aria-hidden="true" /><span>艙室連線<strong>{allDone ? '航程完成' : 'ONLINE'}</strong></span></div>
+          </div>}
         </div>
         <HeroArtwork template={template} />
       </section>
@@ -89,7 +96,7 @@ export function QuestHome(props: QuestHomeProps) {
 
       <div className="quest-home-grid">
         <section id="mission-map" className="quest-map" aria-labelledby="map-title">
-          <div className="quest-section-heading"><div><span className="quest-kicker">{experience.home.journeyKicker}</span><h2 id="map-title">{experience.home.journeyTitle}</h2></div><span className="quest-small-label">{!lessons.length ? '尚未設定內容' : allDone ? experience.home.completeTitle : `目前第 ${Math.max(currentIndex + 1, 1)} / ${lessons.length} ${experience.home.journeyUnit}`}</span></div>
+          <div className="quest-section-heading"><div><span className="quest-kicker">{experience.home.journeyKicker}</span><h2 id="map-title">{experience.home.journeyTitle}</h2></div><span className="quest-small-label">{template === 'orbital-lab' && <i className="quest-live-signal" aria-hidden="true" />}{!lessons.length ? '尚未設定內容' : allDone ? experience.home.completeTitle : `目前第 ${Math.max(currentIndex + 1, 1)} / ${lessons.length} ${experience.home.journeyUnit}`}</span></div>
           {!signedIn && <p className="quest-map-note">先點選「開始學習」登入，再依序進入關卡。</p>}
           <ol className="quest-path">
             {lessons.map((lesson, index) => {
@@ -97,9 +104,10 @@ export function QuestHome(props: QuestHomeProps) {
               const unlocked = canEnterLesson(lessons, index, completedLessons, signedIn)
               const active = current?.lesson_id === lesson.lesson_id
               const prerequisite = index > 0 ? lessons[index - 1]?.title : undefined
-              return <li key={lesson.lesson_id} className={`quest-stop ${done ? 'is-done' : active ? 'is-current' : 'is-pending'}`} aria-current={active && signedIn ? 'step' : undefined}>
+              return <li key={lesson.lesson_id} className={`quest-stop ${lesson.role === 'final' ? 'is-final' : ''} ${done ? 'is-done' : active ? 'is-current' : 'is-pending'}`} aria-current={active && signedIn ? 'step' : undefined}>
                 <span className="quest-node" aria-hidden="true"><span>{done ? <Check size={23} /> : lesson.number}</span></span>
                 <div className="quest-stop-card">
+                  {template === 'orbital-lab' && <span className="quest-module-channel" aria-hidden="true">CH {String(index + 1).padStart(2, '0')}</span>}
                   <div className="quest-stop-top"><span className="quest-kicker">{experience.home.stopLabel(lesson.role, lesson.number)}</span><span className="quest-status">{done ? '已完成' : active && signedIn ? '你在這裡' : unlocked ? '可開始' : !signedIn ? '登入後開始' : '待解鎖'}</span></div>
                   <h3>{lesson.title}</h3><p className="quest-stop-summary">{lesson.description || '進入關卡查看學習資料與任務指引。'}</p>
                   <div className="quest-stop-footer">{lesson.duration ? <span>約 {lesson.duration} 分鐘</span> : <span>依自己的步調探索</span>}

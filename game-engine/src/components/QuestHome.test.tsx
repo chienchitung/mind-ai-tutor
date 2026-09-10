@@ -94,4 +94,19 @@ describe('QuestHome template artwork', () => {
     expect(html).toContain(journeyTitle)
     expect(html).toContain(`data-experience-layout="${layout}"`)
   })
+
+  it('renders orbital telemetry and module channels as a mission console', () => {
+    const lessons: Lesson[] = [
+      { lesson_id: 'intro', title: '系統檢查', content: '', number: 0, role: 'intro' },
+      { lesson_id: 'module-1', title: '資料掃描', content: '', number: 1 },
+    ]
+    const html = renderToStaticMarkup(
+      <QuestHome {...baseProps} lessons={lessons} completedLessons={['intro']} signedIn game={{ id: 'game', title: '軌道任務', description: '', lessons: [], settings: { theme: { template: 'orbital-lab' } } }} />,
+    )
+    expect(html).toContain('航程遙測摘要')
+    expect(html).toContain('航程同步')
+    expect(html).toContain('50%')
+    expect(html).toContain('待執行模組')
+    expect(html).toContain('CH 02')
+  })
 })

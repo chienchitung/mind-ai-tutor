@@ -277,27 +277,59 @@
 .lesson-shell[data-quest-template="arcane-archive"] .lesson-navigation button { color:#4a3153; background:#f8efd8; border-color:#b99a62; }
 .lesson-shell[data-quest-template="arcane-archive"] { --mentor-control-bg:#3b274a; --mentor-control-color:#fff2d2; --mentor-control-border:#b99a62; --mentor-control-hover:#593660; --mentor-focus:#704487; --mentor-action:#593660; --mentor-action-text:#fff2d2; }
 
-.lesson-shell[data-quest-template="orbital-lab"] .lesson-breadcrumb a { color:#126797; font-weight:700; }
-.lesson-shell[data-quest-template="orbital-lab"] .lesson-breadcrumb .bg-blue-600 { color:#fff; background:#1978b8; }
-.lesson-shell[data-quest-template="orbital-lab"] .lesson-brief { color:#54758a; }
-.lesson-shell[data-quest-template="orbital-lab"] .lesson-story summary { color:#1478a6; }
-.lesson-shell[data-quest-template="orbital-lab"] .lesson-tab-list { background:#deeff6; border-color:#b9dce9; }
-.lesson-shell[data-quest-template="orbital-lab"] .lesson-tab { color:#4e7389; }
-.lesson-shell[data-quest-template="orbital-lab"] .lesson-tab[data-state=active] { color:#153a55; background:#fbfeff; }
-.lesson-shell[data-quest-template="orbital-lab"] .lesson-tab[data-state=active] .lesson-tab-step { background:#1978b8; }
-.lesson-shell[data-quest-template="orbital-lab"] :is(.lesson-content-card,.lesson-challenge-card,.lesson-navigation.is-intro) { color:#153a55; background:#fbfeff; border:1px solid #b9dce9; border-radius:17px; box-shadow:0 7px 22px #215f7d12; }
-.lesson-shell[data-quest-template="orbital-lab"] :is(.lesson-content-card,.lesson-challenge-card) > :first-child { color:#153a55; background:linear-gradient(110deg,#e1f4fb,#fafdff); border-bottom:1px solid #9fd2e4; border-radius:16px 16px 0 0; }
-.lesson-shell[data-quest-template="orbital-lab"] .lesson-content-card .prose { color:#23465e; --tw-prose-body:#23465e; --tw-prose-headings:#155e88; --tw-prose-links:#0e73a7; --tw-prose-bold:#153a55; --tw-prose-bullets:#ff775c; }
-.lesson-shell[data-quest-template="orbital-lab"] .lesson-content-card .prose :is(h1,h2) { color:#155e88; }
-.lesson-shell[data-quest-template="orbital-lab"] .lesson-content-card :is(code,pre) { color:#17435f; background:#eaf5fa; border-color:#abd5e4; }
-.lesson-shell[data-quest-template="orbital-lab"] .lesson-content-card :is(blockquote,.bg-blue-50,.bg-gray-50,.bg-amber-50) { color:#1d465f; background:#e8f7fb; border-color:#ff775c; }
-.lesson-shell[data-quest-template="orbital-lab"] .lesson-table-scroll { background:#fbfeff; border-color:#b9dce9; }
-.lesson-shell[data-quest-template="orbital-lab"] .lesson-table-scroll :is(th,td) { color:#153a55; background:#fbfeff; border-color:#d3e8f0; }
-.lesson-shell[data-quest-template="orbital-lab"] .lesson-table-scroll th { color:#155e88; background:#e3f2f8; }
-.lesson-shell[data-quest-template="orbital-lab"] .lesson-table-scroll tbody tr:nth-child(even) td { background:#f0f8fb; }
-.lesson-shell[data-quest-template="orbital-lab"] :is(.lesson-task>h3,.lesson-empty,.lesson-interactive-note,.lesson-reward-note) { color:#58788d; }
-.lesson-shell[data-quest-template="orbital-lab"] .lesson-navigation button { color:#155e88; background:#fbfeff; border-color:#b9dce9; }
-.lesson-shell[data-quest-template="orbital-lab"] { --mentor-control-bg:#e3f2f8; --mentor-control-color:#155e88; --mentor-control-border:#8ec8dc; --mentor-control-hover:#cfeaf4; --mentor-focus:#1978b8; --mentor-action:#1978b8; }
+.lesson-shell[data-quest-template="orbital-lab"] { background-color:#061521; background-image:radial-gradient(circle at 12% 0,#176b8b33,transparent 28%),linear-gradient(#66dfff09 1px,transparent 1px),linear-gradient(90deg,#66dfff09 1px,transparent 1px); background-size:auto,48px 48px,48px 48px; }
+.lesson-shell[data-quest-template="orbital-lab"] .lesson-breadcrumb a { color:#86ddf1; font-weight:700; }
+.lesson-shell[data-quest-template="orbital-lab"] .lesson-breadcrumb .bg-blue-600 { color:#04131d; background:#56e0c1; border-radius:5px; }
+.lesson-shell[data-quest-template="orbital-lab"] .lesson-heading h1 { color:#effbff; text-shadow:0 0 20px #4fd7ff2e; }
+.lesson-shell[data-quest-template="orbital-lab"] .lesson-ask { color:#b9edfa; background:#0b2636; border-color:#2b647a; border-radius:7px; }
+.lesson-shell[data-quest-template="orbital-lab"] .lesson-brief { padding:16px 18px; color:#a9c7d5; background:#081d2b; border:1px solid #285b70; border-left:4px solid #4fd7ff; border-radius:7px; }
+.lesson-shell[data-quest-template="orbital-lab"] .lesson-objective svg { color:#56e0c1; }
+.lesson-shell[data-quest-template="orbital-lab"] .lesson-story { border-left-color:#31768d; }
+.lesson-shell[data-quest-template="orbital-lab"] .lesson-story summary { color:#64d9f4; }
+.lesson-shell[data-quest-template="orbital-lab"] .lesson-tab-list { padding:6px; background:#081c2a; border-color:#28566a; border-radius:8px; }
+.lesson-shell[data-quest-template="orbital-lab"] .lesson-tab { color:#8eb1c0; border-radius:5px; }
+.lesson-shell[data-quest-template="orbital-lab"] .lesson-tab[data-state=active] { color:#eaffff; background:#103348; box-shadow:inset 0 -2px #4fd7ff; }
+.lesson-shell[data-quest-template="orbital-lab"] .lesson-tab-step { color:#86a7b6; background:#153344; border-radius:5px; }
+.lesson-shell[data-quest-template="orbital-lab"] .lesson-tab[data-state=active] .lesson-tab-step { color:#061721; background:#56e0c1; }
+.lesson-shell[data-quest-template="orbital-lab"] :is(.lesson-content-card,.lesson-challenge-card,.lesson-navigation.is-intro) { color:#e8f7ff; background:#091d2b; border:1px solid #285b70; border-radius:9px; box-shadow:inset 0 0 0 1px #8aeaff08,0 14px 34px #0004; }
+.lesson-shell[data-quest-template="orbital-lab"] :is(.lesson-content-card,.lesson-challenge-card) > :first-child { color:#effbff; background:linear-gradient(110deg,#0d3145,#0a2232); border-bottom:1px solid #39809a; border-radius:8px 8px 0 0; box-shadow:inset 4px 0 #4fd7ff; }
+.lesson-shell[data-quest-template="orbital-lab"] .lesson-content-card .prose { color:#c6dae4; --tw-prose-body:#c6dae4; --tw-prose-headings:#eafaff; --tw-prose-lead:#a9c4d1; --tw-prose-links:#66ddf7; --tw-prose-bold:#fff; --tw-prose-counters:#94b7c6; --tw-prose-bullets:#56e0c1; --tw-prose-hr:#315b6d; --tw-prose-quotes:#dff7ff; --tw-prose-quote-borders:#ff8268; --tw-prose-code:#9feaff; --tw-prose-th-borders:#35677b; --tw-prose-td-borders:#264b5d; }
+.lesson-shell[data-quest-template="orbital-lab"] .lesson-content-card .prose :is(h1,h2) { color:#eafaff; border-left:3px solid #4fd7ff; padding-left:12px; }
+.lesson-shell[data-quest-template="orbital-lab"] .lesson-content-card .prose :is(h3,h4,strong,p,li) { color:inherit; }
+.lesson-shell[data-quest-template="orbital-lab"] .lesson-content-card :is(code,pre) { color:#9feaff; background:#061521; border-color:#2e667b; }
+.lesson-shell[data-quest-template="orbital-lab"] .lesson-content-card :is(blockquote,.bg-blue-50,.bg-gray-50,.bg-amber-50) { color:#d9eef6; background:#0e2a39; border-color:#ff8268; }
+.lesson-shell[data-quest-template="orbital-lab"] .lesson-challenge-body { color:#c6dae4; }
+.lesson-shell[data-quest-template="orbital-lab"] .lesson-markdown { color:#c6dae4; }
+.lesson-shell[data-quest-template="orbital-lab"] .lesson-markdown :is(h1,h2,h3,h4,strong) { color:#f0fbff; }
+.lesson-shell[data-quest-template="orbital-lab"] .lesson-markdown :is(code,pre) { color:#9feaff; background:#061521; }
+.lesson-shell[data-quest-template="orbital-lab"] .lesson-table-scroll { background:#081a27; border-color:#356579; }
+.lesson-shell[data-quest-template="orbital-lab"] .lesson-table-scroll :is(th,td) { color:#d3e8f1; background:#0a202e; border-color:#284b5c; }
+.lesson-shell[data-quest-template="orbital-lab"] .lesson-table-scroll th { color:#9ceaff; background:#103247; }
+.lesson-shell[data-quest-template="orbital-lab"] .lesson-table-scroll tbody tr:nth-child(even) td { background:#0d2938; }
+.lesson-shell[data-quest-template="orbital-lab"] :is(.lesson-task>h3,.lesson-empty,.lesson-interactive-note,.lesson-reward-note,.lesson-answer-heading span) { color:#8fadbC; }
+.lesson-shell[data-quest-template="orbital-lab"] .lesson-answer { border-top-color:#31586a; }
+.lesson-shell[data-quest-template="orbital-lab"] .lesson-answer-input { color:#e8f7ff; background:#071824; border-color:#376c81; border-radius:6px; }
+.lesson-shell[data-quest-template="orbital-lab"] .lesson-explanation { color:#c9dce5; background:#0b2433; border-color:#315f73; }
+.lesson-shell[data-quest-template="orbital-lab"] .lesson-navigation button { color:#9ceaff; background:#0a2232; border-color:#306379; }
+.lesson-shell[data-quest-template="orbital-lab"] .lesson-complete-copy :is(strong,p) { color:#e8f7ff; }
+.lesson-shell[data-quest-template="orbital-lab"] .lesson-complete-copy > span { color:#56e0c1; }
+.lesson-shell[data-quest-template="orbital-lab"] .lesson-chat { color:#dceef6; background:#071a27; border-color:#2c6075; border-radius:9px; }
+.lesson-shell[data-quest-template="orbital-lab"] .lesson-chat-header { background:#0b2838; border-bottom-color:#2d657b; }
+.lesson-shell[data-quest-template="orbital-lab"] .lesson-chat-header h2 { color:#effbff; }
+.lesson-shell[data-quest-template="orbital-lab"] .lesson-chat-header p { color:#8fb1c0; }
+.lesson-shell[data-quest-template="orbital-lab"] .chat-bubble.bot { color:#d7eaf2; background:#0e2b3b; border:1px solid #2e6175; }
+.lesson-shell[data-quest-template="orbital-lab"] .lesson-chat-help,
+.lesson-shell[data-quest-template="orbital-lab"] .lesson-chat-help summary { color:#9bc8d8; }
+.lesson-shell[data-quest-template="orbital-lab"] .lesson-chat-composer { background:#081c29; border-top-color:#2a5b70; }
+.lesson-shell[data-quest-template="orbital-lab"] .lesson-prompt-buttons button { color:#9edbed; background:#0c2939; border-color:#2c5f74; }
+.lesson-shell[data-quest-template="orbital-lab"] .lesson-message-input { background:#061722; border-color:#356b80; }
+.lesson-shell[data-quest-template="orbital-lab"] .lesson-chat-textarea { color:#e8f7ff; }
+.lesson-shell[data-quest-template="orbital-lab"] .lesson-chat-textarea::placeholder { color:#7193a3; }
+.lesson-shell[data-quest-template="orbital-lab"] .lesson-upload-button { color:#9edbed; background:#102f40; }
+.lesson-shell[data-quest-template="orbital-lab"] .lesson-composer-hint { color:#7695a3; }
+.lesson-shell[data-quest-template="orbital-lab"] .lesson-chat:fullscreen,
+.lesson-shell[data-quest-template="orbital-lab"] .chat-expanded .lesson-chat { background-color:#061521; background-image:linear-gradient(#66dfff09 1px,transparent 1px),linear-gradient(90deg,#66dfff09 1px,transparent 1px); background-size:48px 48px; }
+.lesson-shell[data-quest-template="orbital-lab"] { --mentor-control-bg:#102f40; --mentor-control-color:#9ceaff; --mentor-control-border:#36758b; --mentor-control-hover:#174158; --mentor-focus:#4fd7ff; --mentor-action:#4fd7ff; --mentor-action-text:#04131d; }
 
 /* Template-specific workspaces change how students navigate lesson information. */
 @media (min-width:900px) {
