@@ -412,13 +412,19 @@
 .game-leaderboard[data-game-template="arcane-archive"] .game-leaderboard-row.is-current-player { color:#fff5dd; background:#493158; border-color:#d6b269; box-shadow:inset 4px 0 #d6b269; }
 .game-leaderboard[data-game-template="arcane-archive"] .game-leaderboard-row.is-current-player .game-leaderboard-time { color:#ead9bd; }
 
-.game-leaderboard[data-game-template="orbital-lab"] { --leader-accent:#176fa6; --leader-accent-soft:#e4f5fc; --leader-fast:#b6553d; --leader-fast-soft:#fff0eb; --leader-average:#087b78; --leader-average-soft:#e3f7f4; color:#153a55; background-color:#fafdff; background-image:linear-gradient(#3e9acb0b 1px,transparent 1px),linear-gradient(90deg,#3e9acb0b 1px,transparent 1px); background-size:24px 24px; border:1px solid #8ec9df; border-radius:17px; box-shadow:0 24px 70px #12567a24; font-family:"Avenir Next",Arial,"Noto Sans TC",sans-serif; }
-.game-leaderboard[data-game-template="orbital-lab"] :is(.game-leaderboard-description,.game-leaderboard-label,.game-leaderboard-empty,.game-leaderboard-time) { color:#56798e; }
-.game-leaderboard[data-game-template="orbital-lab"] .game-leaderboard-icon { color:#1376a9; background:#e3f6fc; border:1px solid #a4d8e8; border-radius:9px; }
-.game-leaderboard[data-game-template="orbital-lab"] .game-leaderboard-stat { border-color:#c6e2ec; border-radius:10px; }
-.game-leaderboard[data-game-template="orbital-lab"] .game-leaderboard-head { color:#215d7d; background:#e7f3f8; border:1px solid #c6e0ea; border-radius:8px; }
-.game-leaderboard[data-game-template="orbital-lab"] .game-leaderboard-row { background:#ffffffed; border-color:#d2e5ed; border-radius:8px; }
-.game-leaderboard[data-game-template="orbital-lab"] .game-leaderboard-row.is-current-player { background:#e4f5fc; border-color:#5aaad0; box-shadow:inset 4px 0 #177cb1; }
+.game-leaderboard[data-game-template="orbital-lab"] { --leader-accent:#5adfff; --leader-accent-soft:#10374a; --leader-fast:#ff9b82; --leader-fast-soft:#402a2c; --leader-average:#62e3c5; --leader-average-soft:#103a35; color:#e8f7ff; background-color:#071a27; background-image:radial-gradient(circle at 90% 4%,#176b8b3d,transparent 210px),linear-gradient(#55d9f60b 1px,transparent 1px),linear-gradient(90deg,#55d9f60b 1px,transparent 1px); background-size:auto,26px 26px,26px 26px; border:1px solid #36758b; border-radius:9px; box-shadow:inset 0 0 0 1px #8aeaff0a,0 26px 80px #000a,0 0 30px #4fd7ff1c; font-family:"Avenir Next",Arial,"Noto Sans TC",sans-serif; }
+.game-leaderboard[data-game-template="orbital-lab"] :is(.game-leaderboard-description,.game-leaderboard-label,.game-leaderboard-empty,.game-leaderboard-time) { color:#9dbac9; }
+.game-leaderboard[data-game-template="orbital-lab"] .game-leaderboard-kicker { color:#65ddfa; }
+.game-leaderboard[data-game-template="orbital-lab"] .game-leaderboard-icon { color:#061721; background:#5adfff; border:1px solid #a8f1ff; border-radius:6px; box-shadow:0 0 16px #4fd7ff45; }
+.game-leaderboard[data-game-template="orbital-lab"] .game-leaderboard-stat { border-color:#315f72; border-radius:6px; box-shadow:inset 0 0 18px #4fd7ff08; }
+.game-leaderboard[data-game-template="orbital-lab"] .game-leaderboard-head { color:#9ceaff; background:#103247; border:1px solid #35677b; border-radius:5px; }
+.game-leaderboard[data-game-template="orbital-lab"] .game-leaderboard-row { color:#dceef6; background:#0b2433; border-color:#2d596b; border-radius:5px; box-shadow:inset 3px 0 #24546b; }
+.game-leaderboard[data-game-template="orbital-lab"] .game-leaderboard-row.is-current-player { color:#f0fcff; background:#10384a; border-color:#4bcff0; box-shadow:inset 4px 0 #4fd7ff,0 0 14px #27bfe624; }
+.game-leaderboard[data-game-template="orbital-lab"] .game-leaderboard-rank { border-radius:5px; }
+.game-leaderboard[data-game-template="orbital-lab"] .game-leaderboard-rank.is-standard { color:#9fc2d0; background:#173849; border:1px solid #356478; }
+.game-leaderboard[data-game-template="orbital-lab"] > button { color:#9ceaff; background:#102f40; border:1px solid #36758b; border-radius:6px; padding:4px; opacity:1; }
+.game-leaderboard[data-game-template="orbital-lab"] > button:hover { color:#061721; background:#5adfff; }
+.game-leaderboard[data-game-template="orbital-lab"] [class*="overflow-y-auto"] { scrollbar-color:#36758b #081b28; }
 
 @media (max-width:520px) {
   .game-leaderboard .game-leaderboard-stats { grid-template-columns:1fr; gap:8px; }
