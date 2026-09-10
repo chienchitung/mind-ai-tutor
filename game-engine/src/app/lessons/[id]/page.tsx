@@ -7,7 +7,7 @@ import { Badge } from "@/components/ui/badge"
 import { Card } from "@/components/ui/card"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { ScrollArea } from "@/components/ui/scroll-area"
-import { Star, ChevronRight, ChevronLeft, FileSpreadsheet, Trophy, X, Gift, CheckCircle, Image as ImageIcon, Zap } from 'lucide-react'
+import { Star, ChevronRight, ChevronLeft, FileSpreadsheet, Trophy, X, Gift, CheckCircle, Image as ImageIcon, Send, Zap } from 'lucide-react'
 import { lessons as legacyLessons } from '@/data/lessons'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
@@ -33,6 +33,7 @@ import { mentorForTemplate } from '@/lib/mentor'
 import type { GameVisualTemplate } from '@/types/game'
 import { experienceForTemplate } from '@/lib/template-experience'
 import { GameLoadingShell } from '@/components/GameLoadingShell'
+import { remarkTutorLooseStrong } from '@/lib/tutor-markdown'
 
 
 const ChatMessage = ({ message, isUser, imageUrl, template }: { message: string; isUser: boolean; imageUrl?: string; template: GameVisualTemplate }) => {
@@ -108,7 +109,7 @@ const ChatMessage = ({ message, isUser, imageUrl, template }: { message: string;
                       <span className="text-gray-300">圖片</span>
                     ) : (
                       <ReactMarkdown 
-                        remarkPlugins={[remarkGfm]}
+                        remarkPlugins={[remarkGfm, remarkTutorLooseStrong]}
                         // eslint-disable-next-line @typescript-eslint/no-explicit-any
                         components={{
                           h1: ({children}: any) => <h1 className="text-xl font-bold mb-4 text-blue-600">{children}</h1>,
@@ -1203,7 +1204,7 @@ export default function ExcelLearningPlatform({
     // 重置輸入框高度為固定值
     const textarea = chatInputRef.current;
     if (textarea) {
-      textarea.style.height = '4rem';
+      textarea.style.height = 'auto';
     }
     
     // 保存圖片URL，然後清空圖片預覽
@@ -1971,10 +1972,6 @@ export default function ExcelLearningPlatform({
                   className="hidden"
                   id="image-upload"
                 />
-                <button type="button" aria-label={`上傳圖片給${mentor.name} AI 助教`} onClick={() => fileInputRef.current?.click()} className="lesson-upload-button">
-                  <ImageIcon className="h-5 w-5 text-gray-500" />
-                </button>
-                
                 {/* 文字輸入框 */}
                 <textarea
                   value={chatInput}
@@ -2022,15 +2019,23 @@ export default function ExcelLearningPlatform({
                   placeholder={`告訴${mentor.name}，你卡在哪一步…`}
                   className="lesson-chat-textarea"
                 />
-                
-                {/* 發送按鈕 */}
-                <Button 
-                  onClick={handleSendMessage}
-                  className="lesson-send-button"
-                  disabled={!chatInput.trim() && !imagePreview}
-                >
-                  發送
-                </Button>
+
+                <div className="lesson-composer-actions">
+                  <button type="button" aria-label={`上傳圖片給${mentor.name} AI 助教`} onClick={() => fileInputRef.current?.click()} className="lesson-upload-button">
+                    <ImageIcon className="h-4 w-4" />
+                    <span>加入圖片</span>
+                  </button>
+                  <span className="lesson-composer-hint">Enter 發送 · Shift + Enter 換行</span>
+                  <Button
+                    type="button"
+                    onClick={handleSendMessage}
+                    className="lesson-send-button"
+                    disabled={!chatInput.trim() && !imagePreview}
+                  >
+                    <Send className="h-4 w-4" aria-hidden="true" />
+                    <span>發送</span>
+                  </Button>
+                </div>
               </div>
             </div>
           </div>
