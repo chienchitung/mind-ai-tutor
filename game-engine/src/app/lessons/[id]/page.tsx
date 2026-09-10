@@ -7,7 +7,7 @@ import { Badge } from "@/components/ui/badge"
 import { Card } from "@/components/ui/card"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { ScrollArea } from "@/components/ui/scroll-area"
-import { Star, ChevronRight, ChevronLeft, FileSpreadsheet, Trophy, X, Gift, CheckCircle, Image as ImageIcon, Send, Zap } from 'lucide-react'
+import { Star, ChevronRight, ChevronLeft, FileSpreadsheet, Trophy, X, Gift, CheckCircle, Image as ImageIcon, Maximize2, Minimize2, Send, Zap } from 'lucide-react'
 import { lessons as legacyLessons } from '@/data/lessons'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
@@ -1888,32 +1888,30 @@ export default function ExcelLearningPlatform({
                   <p className="text-sm text-gray-500">{mentor.tagline}</p>
                 </div>
               </div>
-              <div className="flex items-center gap-2">
+              <div className="lesson-chat-header-actions">
                 <Button 
                   variant="ghost" 
-                  size="icon"
                   onClick={toggleExpand}
                   aria-label={isExpanded ? '縮小 AI 助教面板' : '展開 AI 助教面板'}
-                  className="hover:bg-gray-100 rounded-lg"
+                  title={isExpanded ? '縮小 AI 助教面板' : '展開 AI 助教面板'}
+                  className="lesson-chat-control lesson-chat-expand-button"
                 >
                   {isExpanded ? (
-                    <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                      <path d="M8 3v3a2 2 0 0 1-2 2H3m18 0h-3a2 2 0 0 1-2-2V3m0 18v-3a2 2 0 0 1 2-2h3M3 16h3a2 2 0 0 1 2 2v3"/>
-                    </svg>
+                    <Minimize2 className="h-4 w-4" aria-hidden="true" />
                   ) : (
-                    <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                      <path d="M15 3h6v6M14 10l6.1-6.1M9 21H3v-6M10 14l-6.1 6.1"/>
-                    </svg>
+                    <Maximize2 className="h-4 w-4" aria-hidden="true" />
                   )}
+                  <span>{isExpanded ? '縮小' : '展開'}</span>
                 </Button>
                 <Button 
                   variant="ghost" 
                   size="icon"
                   onClick={toggleChat}
                   aria-label="關閉 AI 助教"
-                  className="hover:bg-gray-100 rounded-lg"
+                  title="關閉 AI 助教"
+                  className="lesson-chat-control lesson-chat-close-button"
                 >
-                  <X className="h-5 w-5 text-gray-500" />
+                  <X className="h-5 w-5" aria-hidden="true" />
                 </Button>
               </div>
             </div>
