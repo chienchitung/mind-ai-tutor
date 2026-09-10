@@ -98,7 +98,7 @@ export function QuestHome(props: QuestHomeProps) {
               const active = current?.lesson_id === lesson.lesson_id
               const prerequisite = index > 0 ? lessons[index - 1]?.title : undefined
               return <li key={lesson.lesson_id} className={`quest-stop ${done ? 'is-done' : active ? 'is-current' : 'is-pending'}`} aria-current={active && signedIn ? 'step' : undefined}>
-                <span className="quest-node" aria-hidden="true">{done ? <Check size={23} /> : lesson.number}</span>
+                <span className="quest-node" aria-hidden="true"><span>{done ? <Check size={23} /> : lesson.number}</span></span>
                 <div className="quest-stop-card">
                   <div className="quest-stop-top"><span className="quest-kicker">{experience.home.stopLabel(lesson.role, lesson.number)}</span><span className="quest-status">{done ? '已完成' : active && signedIn ? '你在這裡' : unlocked ? '可開始' : !signedIn ? '登入後開始' : '待解鎖'}</span></div>
                   <h3>{lesson.title}</h3><p className="quest-stop-summary">{lesson.description || '進入關卡查看學習資料與任務指引。'}</p>

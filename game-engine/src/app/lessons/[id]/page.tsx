@@ -689,6 +689,18 @@ export default function ExcelLearningPlatform({
     return () => { document.body.style.overflow = previousOverflow; };
   }, [lessonState.showChat, compactChat, isExpanded]);
   useEffect(() => {
+    const syncFullscreenState = () => {
+      if (!document.fullscreenElement) setIsExpanded(false);
+    };
+    document.addEventListener('fullscreenchange', syncFullscreenState);
+    return () => document.removeEventListener('fullscreenchange', syncFullscreenState);
+  }, []);
+  useEffect(() => {
+    if (!lessonState.showChat && document.fullscreenElement === chatPanelRef.current) {
+      void document.exitFullscreen().catch(() => undefined);
+    }
+  }, [lessonState.showChat]);
+  useEffect(() => {
     if (!lessonState.showChat) return;
     const previousFocus = document.activeElement as HTMLElement | null;
     const fallbackFocus = chatToggleRef.current;
@@ -1112,8 +1124,22 @@ export default function ExcelLearningPlatform({
     }));
   };
 
-  const toggleExpand = () => {
-    setIsExpanded(!isExpanded);
+  const toggleExpand = async () => {
+    if (isExpanded) {
+      if (document.fullscreenElement === chatPanelRef.current) {
+        await document.exitFullscreen().catch(() => undefined);
+      }
+      setIsExpanded(false);
+      return;
+    }
+
+    setIsExpanded(true);
+    try {
+      await chatPanelRef.current?.requestFullscreen();
+    } catch {
+      // Keep the viewport-filling layout as a fallback when native fullscreen
+      // is unavailable or blocked by the browser.
+    }
   };
 
   // 前導課程（編號 0）僅顯示內容；第 5 關顯示遊戲；其他顯示內容+挑戰
@@ -1892,7 +1918,7 @@ export default function ExcelLearningPlatform({
             </div>
 
             <ScrollArea className="lesson-chat-scroll flex-1 min-h-0">
-              <div className="space-y-5 max-w-3xl mx-auto">
+              <div className="lesson-chat-thread mx-auto space-y-5">
                 <details className="lesson-chat-help"><summary>如何使用 AI 助教？</summary><p>可以詢問題目條件、解題方向，或上傳截圖。AI 回覆可能有誤，請對照老師教材；最後仍需自行作答。快捷按鈕只填入提問，不會自動發送。</p></details>
                 {chatMessages.map((message) => (
                   <ChatMessage

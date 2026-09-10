@@ -133,6 +133,43 @@
 @media (max-width:380px) { .quest-excel-logo { width:158px; } .quest-player-stats > span:first-child { display:none; } .quest-small-label { display:none; } .quest-hero { padding:23px; } .quest-overview { gap:12px; } }
 @media (prefers-reduced-motion:reduce) { .quest-shell *, .quest-shell *:before, .quest-shell *:after { animation:none !important; transition:none !important; scroll-behavior:auto !important; } .quest-shell .chat-bubble { opacity:1; transform:none; } }
 
+/* Discovery is an expedition command base: map paper, field notes and navigation markers. */
+.quest-shell[data-quest-template="discovery"] {
+  --quest-primary:#126a82;
+  --quest-accent:#168878;
+  background-color:#edf4f3;
+  background-image:linear-gradient(#24677a0a 1px,transparent 1px),linear-gradient(90deg,#24677a0a 1px,transparent 1px),radial-gradient(circle at 88% 12%,#d2ece8 0,transparent 300px);
+  background-size:34px 34px,34px 34px,auto;
+}
+.quest-shell[data-quest-template="discovery"] .quest-header { background:#f8fbf8f2; border-bottom-color:#b9d3d1; box-shadow:0 5px 20px #173b5c0b; }
+.quest-shell[data-quest-template="discovery"] .quest-hero { background:linear-gradient(135deg,#0c3248 0%,#124d5a 58%,#176d68 100%); border:1px solid #2e797b; border-radius:18px; box-shadow:0 8px 0 #c4d8d6,0 18px 40px #173b5c18; }
+.quest-shell[data-quest-template="discovery"] .quest-hero:before { opacity:.16; background-image:linear-gradient(#a5e2d8 1px,transparent 1px),linear-gradient(90deg,#a5e2d8 1px,transparent 1px); background-size:32px 32px; }
+.quest-shell[data-quest-template="discovery"] .quest-hero:after { content:""; position:absolute; z-index:-1; right:72px; width:210px; height:210px; border:1px solid #b7eee03d; border-radius:50%; box-shadow:0 0 0 28px #b7eee00b,0 0 0 58px #b7eee00b; }
+.quest-shell[data-quest-template="discovery"] .quest-hero-art { position:relative; z-index:1; }
+.quest-shell[data-quest-template="discovery"] .quest-button { background:#12576d; border-color:#0a4053; box-shadow:0 3px 0 #082f3e; }
+.quest-shell[data-quest-template="discovery"] .quest-button:hover { background:#176e7c; }
+.quest-shell[data-quest-template="discovery"] .quest-button-light { color:#123f49; background:#dff8ed; border-color:#9fd8ca; box-shadow:0 3px 0 #6ca99e; }
+.quest-shell[data-quest-template="discovery"] .quest-overview { margin:18px 0; padding:15px 18px; background:#f8fbf9cc; border:1px solid #cbdedc; border-radius:12px; box-shadow:0 6px 18px #173b5c0a; }
+.quest-shell[data-quest-template="discovery"] .quest-map { position:relative; background-color:#fbfdf9; background-image:linear-gradient(#1c6b8408 1px,transparent 1px),linear-gradient(90deg,#1c6b8408 1px,transparent 1px),radial-gradient(circle at 88% 8%,#dff3e9 0,transparent 210px); background-size:28px 28px,28px 28px,auto; border-color:#bcd4cf; border-radius:16px; box-shadow:0 10px 28px #173b5c10; }
+.quest-shell[data-quest-template="discovery"] .quest-section-heading { border-bottom:2px solid #c7dbd7; }
+.quest-shell[data-quest-template="discovery"] .quest-section-heading h2 { color:#153f50; }
+.quest-shell[data-quest-template="discovery"] .quest-stop:not(:last-child):before { border-color:#83b9b1; border-left-style:dashed; }
+.quest-shell[data-quest-template="discovery"] .quest-node { border-radius:50% 50% 50% 12px; transform:rotate(-45deg); background:#e1ebe9; border-color:#fff; box-shadow:0 4px 0 #a9c2bf; }
+.quest-shell[data-quest-template="discovery"] .quest-node > * { transform:rotate(45deg); }
+.quest-shell[data-quest-template="discovery"] .quest-stop:not(.is-done) .quest-node { color:#4d6d72; }
+.quest-shell[data-quest-template="discovery"] .quest-stop.is-current .quest-node { background:#126a82; box-shadow:0 4px 0 #17495b,0 0 0 5px #dcecea; }
+.quest-shell[data-quest-template="discovery"] .quest-stop.is-done .quest-node { background:#168878; box-shadow:0 4px 0 #226256; }
+.quest-shell[data-quest-template="discovery"] .quest-stop-card { background:#ffffffed; border-color:#cbdcda; border-radius:12px; box-shadow:0 5px 13px #173b5c0a; }
+.quest-shell[data-quest-template="discovery"] .quest-stop.is-current .quest-stop-card { background:#eef9f7; border-color:#62a9a2; box-shadow:inset 4px 0 #168878,0 5px 16px #173b5c10; }
+.quest-shell[data-quest-template="discovery"] .quest-stop.is-done .quest-stop-card { background:#f4faf7; }
+.quest-shell[data-quest-template="discovery"] .quest-panel { border-color:#c6d9d6; border-radius:14px; box-shadow:0 8px 22px #173b5c0d; }
+.quest-shell[data-quest-template="discovery"] .quest-current { background:#f8fcfb; border-top:0; border-left:5px solid #126a82; }
+.quest-shell[data-quest-template="discovery"] .quest-mentor { background:#e8f5ef; border-color:#b9dcd2; }
+.quest-shell[data-quest-template="discovery"] .quest-record { background:#fbfcf8; }
+.quest-shell[data-quest-template="discovery"] .quest-mentor-heading .quest-mentor-avatar { width:68px; height:68px; flex-basis:68px; padding:5px; background:#fffdf4; border:2px solid #9bcfc3; box-shadow:0 4px 0 #b9d7d1; }
+.quest-shell[data-quest-template="discovery"] .quest-secondary-action { border:1px solid #c2d8d4; background:#f7fbf9; color:#245d67; }
+.quest-shell[data-quest-template="discovery"] .quest-secondary-action:hover { background:#e2f2ed; }
+
 /* Shared data and behavior, with theme-specific surfaces and structure below. */
 .quest-shell[data-quest-template="neo-brutal"] { background:#fff7d6; color:#111; font-family:"Arial Black",Arial,"Noto Sans TC",sans-serif; }
 .quest-shell[data-quest-template="neo-brutal"] .quest-header { background:#ff6b9d; border-bottom:3px solid #111; backdrop-filter:none; }
@@ -189,7 +226,7 @@
 .quest-shell[data-quest-template="arcade"] .quest-lesson-heading h1 { color:#fff; text-shadow:2px 2px 0 #7c5cff; }
 .quest-shell[data-quest-template="arcade"] .quest-stop.is-current .quest-node { background:#7c5cff; box-shadow:0 0 15px #7c5cff; }
 .quest-shell[data-quest-template="arcade"] .quest-stop.is-done .quest-node { background:#0e9f8b; box-shadow:0 0 12px #21dbc2; }
-.quest-shell[data-quest-template="arcade"] .quest-mentor-avatar { background:#17133c; border-color:#49e7ff; border-radius:5px; box-shadow:0 0 14px #49e7ff55; }
+.quest-shell[data-quest-template="arcade"] .quest-mentor-avatar { background:#f1fbff; border-color:#49e7ff; border-radius:5px; box-shadow:0 0 14px #49e7ff55; }
 .quest-shell[data-quest-template="arcade"] .quest-mentor-tagline { color:#7df2ff; }
 .quest-shell[data-quest-template="arcade"] .quest-workspace [role=tablist] { background:#0f0c28; border-color:#3d3775; border-radius:4px; }
 .quest-shell[data-quest-template="arcade"] .quest-workspace [role=tab] { color:#a9a4d4; }
@@ -244,7 +281,7 @@
 .quest-shell[data-quest-template="arcane-archive"] .quest-stop.is-done .quest-node { background:#3c7a65; box-shadow:0 4px 0 #275345; }
 .quest-shell[data-quest-template="arcane-archive"] .quest-stop-link { color:#684178; }
 .quest-shell[data-quest-template="arcane-archive"] .quest-lesson-heading h1 { color:#fff5dc; }
-.quest-shell[data-quest-template="arcane-archive"] .quest-mentor-avatar { background:#2e1d3c; border:1px solid #b68a49; border-radius:12px; box-shadow:0 4px 0 #5c3d70; }
+.quest-shell[data-quest-template="arcane-archive"] .quest-mentor-avatar { background:#fff4d8; border:1px solid #b68a49; border-radius:12px; box-shadow:0 4px 0 #5c3d70; }
 .quest-shell[data-quest-template="arcane-archive"] .quest-mentor-tagline { color:#684178; }
 
 .quest-shell[data-quest-template="orbital-lab"] { background:#eaf5fb; color:#153a55; font-family:"Avenir Next",Arial,"Noto Sans TC",sans-serif; }
