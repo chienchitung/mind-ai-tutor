@@ -103,6 +103,14 @@ AI 生成遊戲封面圖片的每日次數/冷卻限制，並記錄已處理過�
 ### `live_question_votes`
 對某則即時提問的按讚紀錄。
 
+## 外部串接（Integrations）
+
+### `systeme_integrations`
+每位老師一筆，儲存 Systeme.io 課程串接用的 `webhook_token`（放在 webhook 網址裡，識別是哪位老師）與 `webhook_secret`（驗證 `x-systeme-signature` HMAC 簽章）。老師在 `/settings` 的「串接」分頁取得自己的網址與金鑰，貼到 Systeme.io 的 Workflow「Send Webhook」動作裡。
+
+### `systeme_course_events`
+Systeme.io 課程事件的原始紀錄（學生註冊課程／完成一堂課／完成模組／完成整門課程），由 `app/api/webhooks/systeme/[token]/route.ts` 寫入，一律用 service role key（略過 RLS，因為外部 webhook 沒有登入 session）。`student_id` 是用事件裡的 email 去比對該老師的 `students.email`，比對不到就先留 null（之後老師把學生加進名冊，也不會回頭補連過去的紀錄，跟 `login_code` 的設計是同一個原則）。`raw_payload` 存完整原始 JSON，方便之後需要更細的欄位時回頭解析。
+
 ---
 
 ## 附錄：關於 AI 助教對話未被記錄、以及樣板切換是否影響資料追蹤的調查結果
