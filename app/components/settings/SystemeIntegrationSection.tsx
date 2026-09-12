@@ -118,8 +118,8 @@ export function SystemeIntegrationSection() {
         <h3 className="text-lg font-medium">{zh ? 'Systeme.io 課程串接' : 'Systeme.io course integration'}</h3>
         <p className="mt-1 text-sm text-muted-foreground">
           {zh
-            ? '在 Systeme.io 後台的 Automations → Workflows 建立下面 4 個觸發條件，動作都選「Send Webhook」，把對應的網址貼進去，並在 Secret key 欄位貼上下方的簽章金鑰。學生的完課紀錄就會依 email 對上你在「學生」頁面建立的名單。'
-            : 'In systeme.io, go to Automations → Workflows and create one workflow per trigger below, each with a "Send Webhook" action pointing at the matching URL. Paste the signing secret below into that action\'s secret key field. Events are matched to your roster in the Students page by contact email.'}
+            ? '在 Systeme.io 後台的 Automations → Workflows 建立下面 4 個觸發條件，動作都選「Send Webhook」，把對應的網址貼進去。如果該動作有 Secret key 欄位，貼上下方的簽章金鑰；沒有的話可以跳過——網址本身就帶有你專屬的識別碼，不需要簽章也能安全運作。學生的完課紀錄會依 email 對上你在「學生」頁面建立的名單。'
+            : 'In systeme.io, go to Automations → Workflows and create one workflow per trigger below, each with a "Send Webhook" action pointing at the matching URL. If that action has a secret key field, paste the signing secret below into it; if not, that\'s fine to skip - the URL itself carries your own unique identifier and works securely without a signature. Events are matched to your roster in the Students page by contact email.'}
         </p>
       </div>
 

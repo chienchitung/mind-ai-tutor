@@ -4,9 +4,13 @@
 -- teachers, each with their own student roster). So each teacher gets an
 -- opaque webhook token that goes in their own webhook URL - that token is
 -- what tells the receiver (app/api/webhooks/systeme/[token]/route.ts)
--- which teacher's roster a given delivery belongs to. webhook_secret signs
--- deliveries (systeme.io's `x-systeme-signature` HMAC-SHA256 header) so a
--- guessed/leaked token alone can't be used to inject fake events.
+-- which teacher's roster a given delivery belongs to, and is itself the
+-- main access control (unguessable, same trade-off as a Slack/Discord
+-- incoming webhook URL). webhook_secret verifies systeme.io's
+-- `x-systeme-signature` HMAC-SHA256 header when a delivery carries one -
+-- the Workflow "Send Webhook" action (the only path with lecture/module/
+-- course-completed granularity) does not appear to offer a secret field,
+-- so this is best-effort, not a hard requirement.
 --
 -- Safe to re-run.
 
