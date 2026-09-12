@@ -25,13 +25,24 @@ function getAdminClient() {
   return createClient(SUPABASE_URL, serviceRoleKey, { auth: { autoRefreshToken: false, persistSession: false } });
 }
 
-// systeme.io signs deliveries with `x-systeme-signature: sha256=<hex hmac>`
-// (some senders omit the "sha256=" prefix) computed over the exact raw
-// request body - so the body must be verified as raw bytes before any
-// JSON.parse/re-stringify, which could produce a different byte sequence
-// than what was actually signed.
+// systeme.io's standalone Settings -> Webhooks service signs deliveries
+// with `x-systeme-signature: sha256=<hex hmac>` (some senders omit the
+// "sha256=" prefix), computed over the exact raw request body - so the
+// body must be verified as raw bytes before any JSON.parse/re-stringify,
+// which could produce a different byte sequence than what was signed.
+//
+// The Workflow "Send Webhook" action - the only path that carries
+// lecture/module/course-completed granularity, see EVENT_TYPES above -
+// does not appear to offer a secret/signing field at all (confirmed by a
+// teacher's own screenshot of that action's settings, and no third-party
+// integration guide mentions a secret for that specific action, only for
+// the plain Webhooks service). So a missing header is accepted rather
+// than rejected outright: the per-teacher `token` in the URL (an
+// unguessable random UUID) is the real access control here, the same
+// trade-off Slack/Discord incoming webhooks make. A *present* header is
+// still verified strictly, in case a delivery ever does carry one.
 function verifySignature(rawBody: string, secret: string, header: string | null): boolean {
-  if (!header) return false;
+  if (!header) return true;
   const provided = header.trim().replace(/^sha256=/i, '');
   const expected = createHmac('sha256', secret).update(rawBody).digest('hex');
   const a = Buffer.from(expected, 'utf8');
