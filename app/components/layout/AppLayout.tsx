@@ -1,7 +1,7 @@
 'use client';
 
-import { useState, useEffect, ReactNode } from 'react';
-import { useRouter } from 'next/navigation';
+import { useState, useEffect, useRef, ReactNode } from 'react';
+import { usePathname, useRouter } from 'next/navigation';
 import type { User } from '@supabase/supabase-js';
 import { Sidebar } from '@/components/layout/Sidebar';
 import { PageTransition } from '@/components/layout/PageTransition';
@@ -16,17 +16,16 @@ interface AppLayoutProps {
 
 const SIDEBAR_COLLAPSED_KEY = 'sidebar-collapsed';
 
-// Every top-level route segment wraps its own AppLayout, so navigating
-// between sections remounts this component from scratch. Without this
-// cache, `user`/`isAdmin` would reset to their initial values on every
-// click and only catch up once the Supabase round-trip resolves - visible
-// as the account name/avatar (Sidebar and AppTopbar both read it) flashing
-// away and back on each navigation.
+// Keep the last account snapshot for the uncommon transition from a public
+// route back into the protected shell. Navigation inside the admin area keeps
+// this component mounted, so it does not need another Supabase round trip.
 let cachedUser: User | null = null;
 let cachedIsAdmin = false;
 
 export function AppLayout({ children }: AppLayoutProps) {
   const router = useRouter();
+  const pathname = usePathname();
+  const contentScrollRef = useRef<HTMLDivElement>(null);
   const { language } = useLanguage();
   const { t } = useTranslation(language);
   const [isLoading, setIsLoading] = useState(true);
@@ -130,15 +129,8 @@ export function AppLayout({ children }: AppLayoutProps) {
     return () => window.removeEventListener('resize', checkMobile);
   }, []);
 
-  // AppLayout isn't a persistent Next.js layout - every top-level sidebar
-  // section (dashboard, students, lessons, ...) has its own route-segment
-  // layout.tsx that wraps this component separately, so clicking between
-  // them unmounts and remounts AppLayout from scratch each time. Without
-  // this, isSidebarCollapsed's useState(false) default would win on every
-  // click, making a collapsed sidebar pop back open. Restoring the stored
-  // preference in an effect (rather than the useState initializer) avoids
-  // an SSR/client hydration mismatch; the loading spinner above already
-  // covers the brief window before this runs.
+  // Restore the preference after hydration so the server and first client
+  // render match. The persistent shell then preserves it between sections.
   useEffect(() => {
     try {
       if (window.localStorage.getItem(SIDEBAR_COLLAPSED_KEY) === '1') setIsSidebarCollapsed(true);
@@ -146,6 +138,10 @@ export function AppLayout({ children }: AppLayoutProps) {
       // Best-effort - localStorage can be unavailable (private browsing, disabled).
     }
   }, []);
+
+  useEffect(() => {
+    contentScrollRef.current?.scrollTo({ top: 0 });
+  }, [pathname]);
 
   const handleSidebarCollapse = (collapsed: boolean) => {
     setIsSidebarCollapsed(collapsed);
@@ -190,7 +186,7 @@ export function AppLayout({ children }: AppLayoutProps) {
         }}
         className="h-full min-w-0"
       >
-        <div className="h-full overflow-auto">
+        <div ref={contentScrollRef} className="h-full overflow-auto">
           <AppTopbar onOpenMenu={() => setIsMenuOpen(true)} user={user} />
           <div className="mx-auto w-full max-w-[1440px] px-4 py-6 pb-10 md:px-8 md:py-8">
             <PageTransition>{children}</PageTransition>

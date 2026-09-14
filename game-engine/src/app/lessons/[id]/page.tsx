@@ -7,7 +7,7 @@ import { Badge } from "@/components/ui/badge"
 import { Card } from "@/components/ui/card"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { ScrollArea } from "@/components/ui/scroll-area"
-import { Star, ChevronRight, ChevronLeft, FileSpreadsheet, Trophy, X, Gift, CheckCircle, Image as ImageIcon, Zap } from 'lucide-react'
+import { Star, ChevronRight, ChevronLeft, FileSpreadsheet, Trophy, X, Gift, CheckCircle, Image as ImageIcon, Maximize2, Minimize2, Send, Zap } from 'lucide-react'
 import { lessons as legacyLessons } from '@/data/lessons'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
@@ -33,6 +33,7 @@ import { mentorForTemplate } from '@/lib/mentor'
 import type { GameVisualTemplate } from '@/types/game'
 import { experienceForTemplate } from '@/lib/template-experience'
 import { GameLoadingShell } from '@/components/GameLoadingShell'
+import { remarkTutorLooseStrong } from '@/lib/tutor-markdown'
 
 
 const ChatMessage = ({ message, isUser, imageUrl, template }: { message: string; isUser: boolean; imageUrl?: string; template: GameVisualTemplate }) => {
@@ -108,7 +109,7 @@ const ChatMessage = ({ message, isUser, imageUrl, template }: { message: string;
                       <span className="text-gray-300">圖片</span>
                     ) : (
                       <ReactMarkdown 
-                        remarkPlugins={[remarkGfm]}
+                        remarkPlugins={[remarkGfm, remarkTutorLooseStrong]}
                         // eslint-disable-next-line @typescript-eslint/no-explicit-any
                         components={{
                           h1: ({children}: any) => <h1 className="text-xl font-bold mb-4 text-blue-600">{children}</h1>,
@@ -689,6 +690,18 @@ export default function ExcelLearningPlatform({
     return () => { document.body.style.overflow = previousOverflow; };
   }, [lessonState.showChat, compactChat, isExpanded]);
   useEffect(() => {
+    const syncFullscreenState = () => {
+      if (!document.fullscreenElement) setIsExpanded(false);
+    };
+    document.addEventListener('fullscreenchange', syncFullscreenState);
+    return () => document.removeEventListener('fullscreenchange', syncFullscreenState);
+  }, []);
+  useEffect(() => {
+    if (!lessonState.showChat && document.fullscreenElement === chatPanelRef.current) {
+      void document.exitFullscreen().catch(() => undefined);
+    }
+  }, [lessonState.showChat]);
+  useEffect(() => {
     if (!lessonState.showChat) return;
     const previousFocus = document.activeElement as HTMLElement | null;
     const fallbackFocus = chatToggleRef.current;
@@ -1112,8 +1125,22 @@ export default function ExcelLearningPlatform({
     }));
   };
 
-  const toggleExpand = () => {
-    setIsExpanded(!isExpanded);
+  const toggleExpand = async () => {
+    if (isExpanded) {
+      if (document.fullscreenElement === chatPanelRef.current) {
+        await document.exitFullscreen().catch(() => undefined);
+      }
+      setIsExpanded(false);
+      return;
+    }
+
+    setIsExpanded(true);
+    try {
+      await chatPanelRef.current?.requestFullscreen();
+    } catch {
+      // Keep the viewport-filling layout as a fallback when native fullscreen
+      // is unavailable or blocked by the browser.
+    }
   };
 
   // 前導課程（編號 0）僅顯示內容；第 5 關顯示遊戲；其他顯示內容+挑戰
@@ -1177,7 +1204,7 @@ export default function ExcelLearningPlatform({
     // 重置輸入框高度為固定值
     const textarea = chatInputRef.current;
     if (textarea) {
-      textarea.style.height = '4rem';
+      textarea.style.height = 'auto';
     }
     
     // 保存圖片URL，然後清空圖片預覽
@@ -1861,38 +1888,36 @@ export default function ExcelLearningPlatform({
                   <p className="text-sm text-gray-500">{mentor.tagline}</p>
                 </div>
               </div>
-              <div className="flex items-center gap-2">
+              <div className="lesson-chat-header-actions">
                 <Button 
                   variant="ghost" 
-                  size="icon"
                   onClick={toggleExpand}
                   aria-label={isExpanded ? '縮小 AI 助教面板' : '展開 AI 助教面板'}
-                  className="hover:bg-gray-100 rounded-lg"
+                  title={isExpanded ? '縮小 AI 助教面板' : '展開 AI 助教面板'}
+                  className="lesson-chat-control lesson-chat-expand-button"
                 >
                   {isExpanded ? (
-                    <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                      <path d="M8 3v3a2 2 0 0 1-2 2H3m18 0h-3a2 2 0 0 1-2-2V3m0 18v-3a2 2 0 0 1 2-2h3M3 16h3a2 2 0 0 1 2 2v3"/>
-                    </svg>
+                    <Minimize2 className="h-4 w-4" aria-hidden="true" />
                   ) : (
-                    <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                      <path d="M15 3h6v6M14 10l6.1-6.1M9 21H3v-6M10 14l-6.1 6.1"/>
-                    </svg>
+                    <Maximize2 className="h-4 w-4" aria-hidden="true" />
                   )}
+                  <span>{isExpanded ? '縮小' : '展開'}</span>
                 </Button>
                 <Button 
                   variant="ghost" 
                   size="icon"
                   onClick={toggleChat}
                   aria-label="關閉 AI 助教"
-                  className="hover:bg-gray-100 rounded-lg"
+                  title="關閉 AI 助教"
+                  className="lesson-chat-control lesson-chat-close-button"
                 >
-                  <X className="h-5 w-5 text-gray-500" />
+                  <X className="h-5 w-5" aria-hidden="true" />
                 </Button>
               </div>
             </div>
 
             <ScrollArea className="lesson-chat-scroll flex-1 min-h-0">
-              <div className="space-y-5 max-w-3xl mx-auto">
+              <div className="lesson-chat-thread mx-auto space-y-5">
                 <details className="lesson-chat-help"><summary>如何使用 AI 助教？</summary><p>可以詢問題目條件、解題方向，或上傳截圖。AI 回覆可能有誤，請對照老師教材；最後仍需自行作答。快捷按鈕只填入提問，不會自動發送。</p></details>
                 {chatMessages.map((message) => (
                   <ChatMessage
@@ -1945,10 +1970,6 @@ export default function ExcelLearningPlatform({
                   className="hidden"
                   id="image-upload"
                 />
-                <button type="button" aria-label={`上傳圖片給${mentor.name} AI 助教`} onClick={() => fileInputRef.current?.click()} className="lesson-upload-button">
-                  <ImageIcon className="h-5 w-5 text-gray-500" />
-                </button>
-                
                 {/* 文字輸入框 */}
                 <textarea
                   value={chatInput}
@@ -1996,15 +2017,23 @@ export default function ExcelLearningPlatform({
                   placeholder={`告訴${mentor.name}，你卡在哪一步…`}
                   className="lesson-chat-textarea"
                 />
-                
-                {/* 發送按鈕 */}
-                <Button 
-                  onClick={handleSendMessage}
-                  className="lesson-send-button"
-                  disabled={!chatInput.trim() && !imagePreview}
-                >
-                  發送
-                </Button>
+
+                <div className="lesson-composer-actions">
+                  <button type="button" aria-label={`上傳圖片給${mentor.name} AI 助教`} onClick={() => fileInputRef.current?.click()} className="lesson-upload-button">
+                    <ImageIcon className="h-4 w-4" />
+                    <span>加入圖片</span>
+                  </button>
+                  <span className="lesson-composer-hint">Enter 發送 · Shift + Enter 換行</span>
+                  <Button
+                    type="button"
+                    onClick={handleSendMessage}
+                    className="lesson-send-button"
+                    disabled={!chatInput.trim() && !imagePreview}
+                  >
+                    <Send className="h-4 w-4" aria-hidden="true" />
+                    <span>發送</span>
+                  </Button>
+                </div>
               </div>
             </div>
           </div>

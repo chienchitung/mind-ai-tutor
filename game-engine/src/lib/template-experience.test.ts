@@ -19,4 +19,14 @@ describe('template information architecture', () => {
     expect(experienceForTemplate('arcane-archive').home.stopLabel('standard', 4)).toBe('第 04 章')
     expect(experienceForTemplate('orbital-lab').lesson.interactiveTab).toBe('模擬艙')
   })
+
+  it('provides themed leaderboard copy for every world', () => {
+    const titles = templates.map(template => experienceForTemplate(template).home.leaderboardTitle)
+    expect(new Set(titles).size).toBe(templates.length)
+    templates.forEach(template => {
+      const home = experienceForTemplate(template).home
+      expect(home.leaderboardKicker.length).toBeGreaterThan(0)
+      expect(home.leaderboardDescription.length).toBeGreaterThan(0)
+    })
+  })
 })

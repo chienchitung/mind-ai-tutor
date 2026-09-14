@@ -12,7 +12,6 @@ import {
   CalendarDays,
   Trash2,
 } from 'lucide-react';
-import { AppLayout } from '@/components/layout/AppLayout';
 import { PageHeader } from '@/components/layout/PageHeader';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
@@ -295,9 +294,5 @@ function LiveSessionsList() {
 }
 
 export default function LiveSessionsPage() {
-  return (
-    <AppLayout>
-      <LiveSessionsList />
-    </AppLayout>
-  );
+  return <LiveSessionsList />;
 }

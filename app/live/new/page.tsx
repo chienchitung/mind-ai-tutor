@@ -12,7 +12,6 @@ import {
   ArrowLeft,
   MessageSquare,
 } from 'lucide-react';
-import { AppLayout } from '@/components/layout/AppLayout';
 import { PageHeader } from '@/components/layout/PageHeader';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -364,9 +363,5 @@ function NewLiveSessionForm() {
 }
 
 export default function NewLiveSessionPage() {
-  return (
-    <AppLayout>
-      <NewLiveSessionForm />
-    </AppLayout>
-  );
+  return <NewLiveSessionForm />;
 }

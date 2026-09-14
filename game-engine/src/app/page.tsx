@@ -16,6 +16,7 @@ import { Lesson } from '@/types/lesson'
 import type { GameDefinition } from '@/types/game'
 import { gameVisualTemplate } from '@/lib/mission'
 import { GameLoadingShell } from '@/components/GameLoadingShell'
+import { experienceForTemplate } from '@/lib/template-experience'
 
 interface ProgressData {
   completedLessons: string[];
@@ -339,14 +340,7 @@ export default function HomePage({ gameId }: { gameId?: string }) {
   }
 
   const visualTemplate = gameVisualTemplate(gameDefinition?.settings.theme);
-  const leaderboardKicker = {
-    discovery: 'EXPLORATION RECORDS',
-    'neo-brutal': 'CHALLENGE RECORDS',
-    arcade: 'SCORE BOARD',
-    'forest-camp': 'TRAIL RECORDS',
-    'arcane-archive': 'ARCHIVE OF ACHIEVEMENTS',
-    'orbital-lab': 'MISSION TELEMETRY',
-  }[visualTemplate];
+  const leaderboardCopy = experienceForTemplate(visualTemplate).home;
 
   return (
     <div>
@@ -438,13 +432,13 @@ export default function HomePage({ gameId }: { gameId?: string }) {
           className="game-leaderboard sm:max-w-[640px] w-[95vw] max-h-[90vh] overflow-hidden"
         >
           <DialogHeader className="game-leaderboard-header">
-            <span className="game-leaderboard-kicker">{leaderboardKicker}</span>
+            <span className="game-leaderboard-kicker">{leaderboardCopy.leaderboardKicker}</span>
             <DialogTitle className="game-leaderboard-title flex items-center gap-2 text-lg sm:text-xl mb-2">
               <span className="game-leaderboard-icon"><Trophy className="h-5 w-5 sm:h-6 sm:w-6" aria-hidden="true" /></span>
-              完成時間排行榜
+              {leaderboardCopy.leaderboardTitle}
             </DialogTitle>
             <DialogDescription className="game-leaderboard-description text-sm sm:text-base">
-              查看所有學習者的完成時間排名
+              {leaderboardCopy.leaderboardDescription}
             </DialogDescription>
           </DialogHeader>
           

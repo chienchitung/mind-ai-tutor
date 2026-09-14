@@ -10,12 +10,13 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
-import { User, Mail, CreditCard, Users } from 'lucide-react';
+import { User, Mail, CreditCard, Users, Webhook } from 'lucide-react';
 import { useLanguage } from '@/app/contexts/LanguageContext';
 import { useTranslation } from '@/utils/translations';
 import { PageLoader } from '@/components/ui/page-state';
 import { ChangePasswordForm } from '@/components/settings/ChangePasswordForm';
 import { TeamWorkspaceSection } from '@/components/settings/TeamWorkspaceSection';
+import { SystemeIntegrationSection } from '@/components/settings/SystemeIntegrationSection';
 import type { User as AuthUser } from '@supabase/supabase-js';
 
 export default function SettingsPage() {
@@ -184,7 +185,7 @@ export default function SettingsPage() {
             overrides TabsList's own fixed h-10: without it, the 2-row grid
             got squeezed into a single 40px-tall box instead of growing to
             fit both rows, which is what made this look cramped/broken. */}
-        <TabsList className="grid h-auto w-full grid-cols-2 gap-1.5 sm:h-10 sm:grid-cols-4 sm:gap-1">
+        <TabsList className="grid h-auto w-full grid-cols-2 gap-1.5 sm:h-10 sm:grid-cols-5 sm:gap-1">
           <TabsTrigger value="profile" className="flex min-w-0 items-center justify-center gap-1.5 py-2 sm:gap-2 sm:py-1.5">
             <User className="h-4 w-4 shrink-0" />
             <span className="truncate">{t('profile')}</span>
@@ -196,6 +197,10 @@ export default function SettingsPage() {
           <TabsTrigger value="team" className="flex min-w-0 items-center justify-center gap-1.5 py-2 sm:gap-2 sm:py-1.5">
             <Users className="h-4 w-4 shrink-0" />
             <span className="truncate">{t('team_workspace')}</span>
+          </TabsTrigger>
+          <TabsTrigger value="integrations" className="flex min-w-0 items-center justify-center gap-1.5 py-2 sm:gap-2 sm:py-1.5">
+            <Webhook className="h-4 w-4 shrink-0" />
+            <span className="truncate">{language === 'zh-TW' ? '串接' : 'Integrations'}</span>
           </TabsTrigger>
           <TabsTrigger value="billing" className="flex min-w-0 items-center justify-center gap-1.5 py-2 sm:gap-2 sm:py-1.5">
             <CreditCard className="h-4 w-4 shrink-0" />
@@ -280,6 +285,20 @@ export default function SettingsPage() {
             </CardHeader>
             <CardContent className="space-y-6">
               <TeamWorkspaceSection />
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="integrations" className="space-y-6">
+          <Card className="shadow-none">
+            <CardHeader>
+              <CardTitle>{language === 'zh-TW' ? '串接' : 'Integrations'}</CardTitle>
+              <CardDescription>
+                {language === 'zh-TW' ? '把外部平台的學習資料接進來，一起顯示在學生的紀錄裡。' : 'Bring learning data from external platforms into your students’ records.'}
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-6">
+              <SystemeIntegrationSection />
             </CardContent>
           </Card>
         </TabsContent>

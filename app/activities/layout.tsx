@@ -1,6 +1,5 @@
 import { Metadata } from "next";
 import type { ReactNode } from "react";
-import ClientLayout from "./client-layout";
 
 export const metadata: Metadata = {
   title: "Activities",
@@ -12,5 +11,5 @@ interface LayoutProps {
 }
 
 export default function ActivitiesLayout({ children }: LayoutProps) {
-  return <ClientLayout>{children}</ClientLayout>;
-} 
+  return children;
+}

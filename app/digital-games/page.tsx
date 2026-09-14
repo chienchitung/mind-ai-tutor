@@ -93,7 +93,7 @@ const visualTemplates = [
   { id: 'arcade', zh: '午夜電玩', en: 'Midnight Arcade', zhDescription: '深色霓虹介面，適合競賽、科技與遊戲化課程。', enDescription: 'A dark neon interface for competitions and game-driven lessons.', artwork: '/games/template-art/arcade-hero.webp' },
   { id: 'forest-camp', zh: '森林營地', en: 'Forest Camp', zhDescription: '溫暖自然與柔和木質感，適合低壓探索及生活化課程。', enDescription: 'Warm, natural surfaces for calm exploration and everyday learning.', artwork: '/games/template-art/forest-camp-hero.webp' },
   { id: 'arcane-archive', zh: '魔法典藏', en: 'Arcane Archive', zhDescription: '羊皮紙、寶石與章節感，適合故事、語文與知識冒險。', enDescription: 'Parchment and jewel tones for stories, language and knowledge quests.', artwork: '/games/template-art/arcane-archive-hero.webp' },
-  { id: 'orbital-lab', zh: '星際艙室', en: 'Orbital Lab', zhDescription: '明亮科幻儀表介面，適合科學、資料與未來主題課程。', enDescription: 'A bright sci-fi console for science, data and future-focused courses.', artwork: '/games/template-art/orbital-lab-hero.webp' },
+  { id: 'orbital-lab', zh: '星際艙室', en: 'Orbital Lab', zhDescription: '深色星艦控制艙與任務遙測介面，適合科學、資料與未來主題課程。', enDescription: 'A dark starship console with mission telemetry for science, data and future-focused courses.', artwork: '/games/template-art/orbital-lab-hero.webp' },
 ] satisfies Array<{ id: GameVisualTemplate; zh: string; en: string; zhDescription: string; enDescription: string; artwork: string }>;
 
 function TemplatePreview({ template }: { template: (typeof visualTemplates)[number] }) {

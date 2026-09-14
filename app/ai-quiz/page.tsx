@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useRef, useEffect, useCallback } from "react";
+import React, { useState, useRef, useEffect, useCallback, useMemo } from "react";
 import { Sparkles, Loader2, Lightbulb, Wand2, ArrowLeft, Download, Edit, ArrowRight, FileDown, Printer, Save, GripVertical, ArrowUp, ArrowDown, Plus, PlayCircle, Search, Trash2, Share2, Link as LinkIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
@@ -1839,7 +1839,8 @@ export default function AIQuizPage() {
   const [isLibraryLoading, setIsLibraryLoading] = useState(true);
   const [libraryError, setLibraryError] = useState<string | null>(null);
   const [quizSearch, setQuizSearch] = useState('');
-  const [showAllQuizzes, setShowAllQuizzes] = useState(false);
+  const [quizFilter, setQuizFilter] = useState<'all' | 'saved' | 'draft'>('all');
+  const [quizSort, setQuizSort] = useState<'newest' | 'oldest' | 'title'>('newest');
   const [quizToDelete, setQuizToDelete] = useState<Quiz | null>(null);
   const [isDeletingQuiz, setIsDeletingQuiz] = useState(false);
   const [sharePending, setSharePending] = useState<string | null>(null);
@@ -2148,9 +2149,14 @@ export default function AIQuizPage() {
 
   const attemptsQuiz = quizzes.find(quiz => quiz.id === attemptsQuizId) ?? null;
 
-  const QUIZ_PREVIEW_COUNT = 6;
-  const filteredQuizzes = quizzes.filter(quiz => quiz.title.toLowerCase().includes(quizSearch.trim().toLowerCase()));
-  const visibleQuizzes = showAllQuizzes || quizSearch.trim() ? filteredQuizzes : filteredQuizzes.slice(0, QUIZ_PREVIEW_COUNT);
+  const filteredQuizzes = useMemo(() => quizzes
+    .filter((quiz) => quiz.title.toLowerCase().includes(quizSearch.trim().toLowerCase()))
+    .filter((quiz) => quizFilter === 'all' || (quizFilter === 'saved' ? quiz.persisted : !quiz.persisted))
+    .sort((a, b) => {
+      if (quizSort === 'title') return a.title.localeCompare(b.title, language === 'zh-TW' ? 'zh-Hant' : 'en');
+      const difference = (a.createdAt?.getTime() ?? 0) - (b.createdAt?.getTime() ?? 0);
+      return quizSort === 'oldest' ? difference : -difference;
+    }), [language, quizFilter, quizSearch, quizzes, quizSort]);
 
   // If we're viewing a specific quiz
   if (currentQuiz) {
@@ -2168,11 +2174,10 @@ export default function AIQuizPage() {
   return (
     <div className="space-y-6">
       <PageHeader heading={t('ai_quiz_generator')} text={t('create_custom_quizzes')} />
-      {libraryError && <div role="alert" className="app-panel mx-auto flex max-w-3xl flex-wrap items-center gap-3 border-destructive/30 p-4 text-sm">
+      {libraryError && <div role="alert" className="app-panel flex flex-wrap items-center gap-3 border-destructive/30 p-4 text-sm">
         <p className="flex-1">{libraryError}</p>
         <Button variant="outline" size="sm" onClick={() => void loadSavedQuizzes()}>{language === 'zh-TW' ? '重試' : 'Retry'}</Button>
       </div>}
-      {isLibraryLoading && <p role="status" className="text-center text-sm text-muted-foreground">{language === 'zh-TW' ? '正在載入已儲存測驗…' : 'Loading saved quizzes…'}</p>}
           {isGenerating && (
             <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" role="status" aria-live="polite">
               <div className="flex w-full max-w-md flex-col items-center rounded-2xl bg-card p-8 shadow-xl">
@@ -2189,53 +2194,84 @@ export default function AIQuizPage() {
             </div>
           )}
           
-          {!isLibraryLoading && (
-            <section className="mx-auto max-w-3xl space-y-4" aria-labelledby="my-quizzes-title">
-              <h2 id="my-quizzes-title" className="text-xl font-semibold">
-                {t('recent_quizzes')}{quizzes.length > 0 ? ` (${quizzes.length})` : ''}
-              </h2>
+          <div className="grid items-start gap-6 xl:grid-cols-[minmax(0,1fr)_400px]">
+          <div id="quiz-creator" className="min-w-0">
+          <QuizCreator
+            inputContent={inputContent}
+            setInputContent={setInputContent}
+            questionType={questionType}
+            setQuestionType={setQuestionType}
+            numQuestions={numQuestions}
+            setNumQuestions={setNumQuestions}
+            additionalInstructions={additionalInstructions}
+            setAdditionalInstructions={setAdditionalInstructions}
+            outputLanguage={outputLanguage}
+            setOutputLanguage={setOutputLanguage}
+            level={level}
+            setLevel={setLevel}
+            isGenerating={isGenerating}
+            onGenerateQuiz={handleGenerateQuiz}
+            selectedFiles={selectedFiles}
+            setSelectedFiles={setSelectedFiles}
+          />
+          </div>
 
-              {quizzes.length === 0 ? (
-                <p className="rounded-xl border border-dashed border-border p-6 text-center text-sm text-muted-foreground">
-                  {t('no_saved_quizzes_yet')}
-                </p>
-              ) : (
-                <>
-                  {quizzes.length > QUIZ_PREVIEW_COUNT && (
-                    <div className="relative">
-                      <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-                      <Input
-                        value={quizSearch}
-                        onChange={(event) => setQuizSearch(event.target.value)}
-                        placeholder={t('quiz_search_placeholder')}
-                        aria-label={t('quiz_search_placeholder')}
-                        className="pl-9"
-                      />
-                    </div>
-                  )}
+          <section className="app-panel min-w-0 space-y-4 p-4 xl:sticky xl:top-6" aria-labelledby="my-quizzes-title">
+            <div className="flex items-center justify-between gap-3">
+              <div>
+                <h2 id="my-quizzes-title" className="font-semibold">{language === 'zh-TW' ? '測驗資料庫' : 'Quiz library'}</h2>
+                <p className="mt-0.5 text-xs text-muted-foreground">{language === 'zh-TW' ? `共 ${quizzes.length} 份測驗` : `${quizzes.length} quizzes`}</p>
+              </div>
+              <Button asChild size="sm" className="xl:hidden"><a href="#quiz-creator"><Plus className="mr-1 h-4 w-4" />{language === 'zh-TW' ? '建立' : 'Create'}</a></Button>
+            </div>
 
-                  {filteredQuizzes.length === 0 ? (
-                    <p className="rounded-xl border border-dashed border-border p-6 text-center text-sm text-muted-foreground">
-                      {t('no_quizzes_match_search')}
-                    </p>
-                  ) : (
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                      {visibleQuizzes.map((quiz) => (
+            <div className="relative">
+              <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+              <Input value={quizSearch} onChange={(event) => setQuizSearch(event.target.value)} placeholder={t('quiz_search_placeholder')} aria-label={t('quiz_search_placeholder')} className="pl-9" />
+            </div>
+            <div className="grid grid-cols-2 gap-2">
+              <Select value={quizFilter} onValueChange={(value) => setQuizFilter(value as typeof quizFilter)}>
+                <SelectTrigger aria-label={language === 'zh-TW' ? '篩選測驗' : 'Filter quizzes'}><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">{language === 'zh-TW' ? '全部狀態' : 'All statuses'}</SelectItem>
+                  <SelectItem value="saved">{language === 'zh-TW' ? '已儲存' : 'Saved'}</SelectItem>
+                  <SelectItem value="draft">{language === 'zh-TW' ? '未儲存' : 'Unsaved'}</SelectItem>
+                </SelectContent>
+              </Select>
+              <Select value={quizSort} onValueChange={(value) => setQuizSort(value as typeof quizSort)}>
+                <SelectTrigger aria-label={language === 'zh-TW' ? '排序測驗' : 'Sort quizzes'}><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="newest">{language === 'zh-TW' ? '最新建立' : 'Newest'}</SelectItem>
+                  <SelectItem value="oldest">{language === 'zh-TW' ? '最早建立' : 'Oldest'}</SelectItem>
+                  <SelectItem value="title">{language === 'zh-TW' ? '依名稱' : 'By title'}</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            {isLibraryLoading ? (
+              <p role="status" className="rounded-xl border border-dashed p-6 text-center text-sm text-muted-foreground">{language === 'zh-TW' ? '正在載入已儲存測驗…' : 'Loading saved quizzes…'}</p>
+            ) : quizzes.length === 0 ? (
+              <p className="rounded-xl border border-dashed border-border p-6 text-center text-sm text-muted-foreground">{t('no_saved_quizzes_yet')}</p>
+            ) : filteredQuizzes.length === 0 ? (
+              <p className="rounded-xl border border-dashed border-border p-6 text-center text-sm text-muted-foreground">{t('no_quizzes_match_search')}</p>
+            ) : (
+              <div className="max-h-[620px] space-y-3 overflow-y-auto pr-1" aria-label={language === 'zh-TW' ? '測驗清單' : 'Quiz list'}>
+                      {filteredQuizzes.map((quiz) => (
                         <div key={quiz.id} className="overflow-hidden rounded-xl border border-border bg-card transition-colors hover:border-foreground/30">
                           <button
                             type="button"
                             className="group block w-full text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset"
                             onClick={() => setCurrentQuiz(quiz)}
                           >
-                            <div className="bg-gradient-to-r from-indigo-600 to-purple-600 text-white p-4">
-                              <h3 className="font-semibold text-lg">{quiz.title}</h3>
+                            <div className="bg-gradient-to-r from-indigo-600 to-purple-600 p-3.5 text-white">
+                              <h3 className="line-clamp-2 font-semibold">{quiz.title}</h3>
                               <p className="text-sm text-white/80">{t('questions_count', { count: quiz.questions.length })} · {quiz.persisted ? (language === 'zh-TW' ? '已儲存' : 'Saved') : (language === 'zh-TW' ? '未儲存' : 'Unsaved')}</p>
                             </div>
-                            <div className="p-4 flex justify-between items-center">
-                              <p className="text-gray-600">
+                            <div className="flex items-center justify-between gap-3 p-3">
+                              <p className="text-xs text-muted-foreground">
                                 {t('created_on', { date: quiz.createdAt?.toLocaleDateString() || '-' })}
                               </p>
-                              <span className="flex items-center font-medium text-primary transition-transform group-hover:translate-x-1">
+                              <span className="flex shrink-0 items-center text-sm font-medium text-primary transition-transform group-hover:translate-x-1">
                                 {t('view_quiz')} <ArrowRight className="ml-1 h-4 w-4" />
                               </span>
                             </div>
@@ -2267,38 +2303,9 @@ export default function AIQuizPage() {
                         </div>
                       ))}
                     </div>
-                  )}
-
-                  {!quizSearch.trim() && filteredQuizzes.length > QUIZ_PREVIEW_COUNT && (
-                    <div className="text-center">
-                      <Button type="button" variant="outline" size="sm" onClick={() => setShowAllQuizzes(previous => !previous)}>
-                        {showAllQuizzes ? t('show_fewer_quizzes') : t('show_all_quizzes', { count: filteredQuizzes.length })}
-                      </Button>
-                    </div>
-                  )}
-                </>
-              )}
-            </section>
-          )}
-
-          <QuizCreator
-            inputContent={inputContent}
-            setInputContent={setInputContent}
-            questionType={questionType}
-            setQuestionType={setQuestionType}
-            numQuestions={numQuestions}
-            setNumQuestions={setNumQuestions}
-            additionalInstructions={additionalInstructions}
-            setAdditionalInstructions={setAdditionalInstructions}
-            outputLanguage={outputLanguage}
-            setOutputLanguage={setOutputLanguage}
-            level={level}
-            setLevel={setLevel}
-            isGenerating={isGenerating}
-            onGenerateQuiz={handleGenerateQuiz}
-            selectedFiles={selectedFiles} // Pass state down
-            setSelectedFiles={setSelectedFiles} // Pass setter down
-          />
+            )}
+          </section>
+          </div>
 
           <DeleteConfirmation
             name={quizToDelete?.title ?? null}
