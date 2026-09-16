@@ -71,7 +71,7 @@
     "docx": "^9.3.0",
     "exceljs": "^4.4.0",
     "file-saver": "^2.0.5",
-    "framer-motion": "^12.6.2",
+    "framer-motion": "^13.2.0",
     "html2pdf.js": "^0.14.0",
     "jspdf": "^4.2.1",
     "jszip": "^3.10.2",
