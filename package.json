@@ -85,7 +85,7 @@
     "react-beautiful-dnd": "^13.1.1",
     "react-chartjs-2": "^5.3.0",
     "react-datepicker": "^8.3.0",
-    "react-day-picker": "^9.6.4",
+    "react-day-picker": "^10.0.1",
     "react-dom": "^18",
     "react-hook-form": "^7.48.2",
     "react-markdown": "^10.1.0",
