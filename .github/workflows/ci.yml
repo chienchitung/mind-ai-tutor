@@ -1,0 +1,79 @@
+name: CI
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+
+jobs:
+  main-app:
+    name: Main app
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+          cache: "npm"
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Type check
+        run: npx tsc --noEmit -p tsconfig.json
+
+      - name: Test
+        run: npm test
+
+      - name: Build
+        run: npm run build
+
+      # Reports known vulnerabilities without failing the job, since this
+      # project can carry a pre-existing advisory (see the security-review
+      # skill / manual `npm audit` for the current state) that isn't
+      # necessarily fixable same-day. Dependabot (see dependabot.yml) is
+      # what actually opens PRs to fix these; this step just makes sure
+      # every run surfaces the current audit output in the log.
+      - name: Audit dependencies (report only)
+        if: always()
+        run: npm audit --audit-level=high || true
+
+  game-engine:
+    name: game-engine
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: game-engine
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+          cache: "npm"
+          cache-dependency-path: game-engine/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Type check
+        run: npx tsc --noEmit -p tsconfig.json
+
+      - name: Test
+        run: npx vitest run
+
+      # game-engine's Supabase client is created eagerly at module load, so
+      # `next build`'s static analysis needs *some* well-formed values here
+      # even though nothing is actually called - these are placeholders,
+      # not real credentials, and are not used against a live project.
+      - name: Build
+        env:
+          NEXT_PUBLIC_SUPABASE_URL: "https://placeholder.supabase.co"
+          NEXT_PUBLIC_SUPABASE_ANON_KEY: "placeholder-anon-key"
+          GEMINI_API_KEY: "placeholder-key"
+        run: npm run build
+
+      - name: Audit dependencies (report only)
+        if: always()
+        run: npm audit --audit-level=high || true
