@@ -79,7 +79,7 @@ const nextConfig: NextConfig = {
   // Override GAME_ENGINE_ORIGIN per environment if a Preview deployment of
   // game-engine should be proxied instead of production.
   async rewrites() {
-    const gameEngineOrigin = process.env.GAME_ENGINE_ORIGIN || 'https://mindaitutor-game.vercel.app';
+    const gameEngineOrigin = process.env.GAME_ENGINE_ORIGIN || 'https://mindaitutor.vercel.app';
     return [
       // Keep the base route slashless. Expanding an empty `:path*` adds a
       // trailing slash upstream, which game-engine redirects back to /games;
