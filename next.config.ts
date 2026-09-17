@@ -67,9 +67,8 @@ const nextConfig: NextConfig = {
   images: {
     domains: ['avatars.githubusercontent.com'],
   },
-  eslint: {
-    ignoreDuringBuilds: true,
-  },
+  // next build no longer runs ESLint itself in Next.js 16 (next lint is
+  // removed) - use `next build --no-lint` if that ever changes back.
 
   // Multi-Zones: proxy the digital-games sub-app under this domain so
   // students see mindaitutor.com/games/... instead of its own vercel.app

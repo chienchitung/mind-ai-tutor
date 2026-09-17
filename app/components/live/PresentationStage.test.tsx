@@ -392,10 +392,15 @@ describe('projection tools', () => {
     const menu = await screen.findByRole('menu');
     fireEvent.click(within(menu).getByRole('menuitemradio', { name: /畫筆/ }));
     await waitFor(() => expect(screen.queryByRole('menu')).toBeNull());
-    const toolbars = Array.from(document.querySelectorAll('[data-presentation-ui]'))
-      .filter((element) => element.className.includes('transition-opacity'));
-    expect(toolbars).toHaveLength(2);
-    toolbars.forEach((toolbar) => expect(toolbar.className).toContain('opacity-0'));
+    // Radix's onCloseAutoFocus (which drives the toolbar's hide-on-select)
+    // can land a tick after the menu node itself is removed, so wait for it
+    // rather than asserting in the same tick the menu disappears.
+    await waitFor(() => {
+      const toolbars = Array.from(document.querySelectorAll('[data-presentation-ui]'))
+        .filter((element) => element.className.includes('transition-opacity'));
+      expect(toolbars).toHaveLength(2);
+      toolbars.forEach((toolbar) => expect(toolbar.className).toContain('opacity-0'));
+    });
     expect(screen.queryByRole('button', { name: '固定顯示控制列' })).toBeNull();
   });
   it('keeps the toolbar hidden after a pen stroke until the pointer moves again', async () => {
