@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import Link from 'next/link';
 import { ColumnDef } from "@tanstack/react-table";
-import { DataTable } from "@/components/ui/data-table";
+import { DataTable, type DataTableFeatures } from "@/components/ui/data-table";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import {
@@ -69,7 +69,7 @@ export function StudentsTable({ students, selectedTab, onSelectedTabChange, onSt
     }
   };
 
-  const columns: ColumnDef<Student>[] = [
+  const columns: ColumnDef<DataTableFeatures, Student>[] = [
     {
       accessorKey: "name",
       header: t('name'),

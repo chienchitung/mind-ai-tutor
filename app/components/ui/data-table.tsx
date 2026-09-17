@@ -4,13 +4,20 @@ import * as React from 'react';
 import {
   ColumnDef,
   ColumnFiltersState,
+  RowData,
   SortingState,
+  columnFilteringFeature,
+  createFilteredRowModel,
+  createPaginatedRowModel,
+  createSortedRowModel,
+  filterFns,
   flexRender,
-  getCoreRowModel,
-  getFilteredRowModel,
-  getPaginationRowModel,
-  getSortedRowModel,
-  useReactTable,
+  rowPaginationFeature,
+  rowSelectionFeature,
+  rowSortingFeature,
+  sortFns,
+  tableFeatures,
+  useTable,
 } from '@tanstack/react-table';
 import { Input } from '@/components/ui/input';
 import {
@@ -26,8 +33,29 @@ import { ArrowDown, ArrowUp, ArrowUpDown, ChevronLeft, ChevronRight, Search } fr
 import { useLanguage } from '@/app/contexts/LanguageContext';
 import { useTranslation } from '@/utils/translations';
 
-interface DataTableProps<TData, TValue> {
-  columns: ColumnDef<TData, TValue>[];
+// The row selection/sorting/filtering/pagination features this table
+// registers - shared here so column defs (declared by callers) and the
+// table instance agree on the same TFeatures type.
+export const dataTableFeatures = tableFeatures({
+  columnFilteringFeature,
+  rowSortingFeature,
+  rowPaginationFeature,
+  rowSelectionFeature,
+  filteredRowModel: createFilteredRowModel(),
+  sortedRowModel: createSortedRowModel(),
+  paginatedRowModel: createPaginatedRowModel(),
+  // Columns never set an explicit filterFn/sortFn, so they resolve via
+  // "auto" - that lookup only finds functions registered here, so the full
+  // built-in registries are needed (not just the one type this app happens
+  // to use today) or filtering/sorting silently no-ops.
+  filterFns,
+  sortFns,
+});
+
+export type DataTableFeatures = typeof dataTableFeatures;
+
+interface DataTableProps<TData extends RowData> {
+  columns: ColumnDef<DataTableFeatures, TData>[];
   data: TData[];
   searchColumn?: string;
   searchPlaceholder?: string;
@@ -35,28 +63,25 @@ interface DataTableProps<TData, TValue> {
   emptyMessage?: string;
 }
 
-export function DataTable<TData, TValue>({
+export function DataTable<TData extends RowData>({
   columns,
   data,
   searchColumn,
   searchPlaceholder = 'Search...',
   toolbar,
   emptyMessage,
-}: DataTableProps<TData, TValue>) {
+}: DataTableProps<TData>) {
   const { language } = useLanguage();
   const { t } = useTranslation(language);
   const [sorting, setSorting] = React.useState<SortingState>([]);
   const [columnFilters, setColumnFilters] = React.useState<ColumnFiltersState>([]);
   
-  const table = useReactTable({
+  const table = useTable({
+    features: dataTableFeatures,
     data,
     columns,
-    getCoreRowModel: getCoreRowModel(),
-    getPaginationRowModel: getPaginationRowModel(),
     onSortingChange: setSorting,
-    getSortedRowModel: getSortedRowModel(),
     onColumnFiltersChange: setColumnFilters,
-    getFilteredRowModel: getFilteredRowModel(),
     state: {
       sorting,
       columnFilters,
@@ -64,7 +89,7 @@ export function DataTable<TData, TValue>({
   });
 
   const filteredCount = table.getFilteredRowModel().rows.length;
-  const currentPage = table.getState().pagination.pageIndex + 1;
+  const currentPage = table.state.pagination.pageIndex + 1;
   const totalPages = Math.max(table.getPageCount(), 1);
 
   return (
@@ -133,7 +158,7 @@ export function DataTable<TData, TValue>({
                   data-state={row.getIsSelected() && "selected"}
                   className="hover:bg-muted/30"
                 >
-                  {row.getVisibleCells().map((cell) => (
+                  {row.getAllCells().map((cell) => (
                     <TableCell key={cell.id}>
                       {flexRender(cell.column.columnDef.cell, cell.getContext())}
                     </TableCell>
