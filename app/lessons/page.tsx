@@ -31,13 +31,13 @@ import { DeleteConfirmation } from '@/components/ui/delete-confirmation';
 // A .min(1, message) alone only covers the "too short" Zod issue, which
 // requires the value to already BE a string. A genuinely missing/wrong-typed
 // value hits "invalid_type" first and falls back to Zod's own built-in
-// (English, untranslated) "Required" message instead - passing required_error
+// (English, untranslated) "Required" message instead - passing `error`
 // covers that path too, so the translated message is used either way.
 function requiredString(message: string) {
-  return z.string({ required_error: message }).min(1, message);
+  return z.string({ error: message }).min(1, message);
 }
 function requiredNumber(message: string) {
-  return z.number({ required_error: message, invalid_type_error: message }).min(1, message);
+  return z.number({ error: message }).min(1, message);
 }
 
 // Heuristic-only: catches a "<name> <number>" token (e.g. "iPhone 16",
