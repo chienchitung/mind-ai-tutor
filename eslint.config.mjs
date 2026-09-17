@@ -11,6 +11,11 @@ export default [
       'out/**',
       'public/**',
       '.git/**',
+      // game-engine is a separate app with its own eslint.config.mjs and
+      // its own `npm run lint` - without this, ESLint's flat config picks
+      // up both configs while scanning from the repo root and throws
+      // "Cannot redefine plugin" on the ones they both register.
+      'game-engine/**',
     ],
   },
   {
