@@ -22,8 +22,8 @@ const nextConfig: NextConfig = {
   // it sees mind-ai-tutor's package-lock.json above this directory; if that
   // disagrees with turbopack.root, Next.js resolves the conflict in favor of
   // outputFileTracingRoot, which drags Turbopack's workspace root (and its
-  // root-file resolution, e.g. middleware.ts) up to the monorepo root and
-  // pulls in mind-ai-tutor's own middleware.ts. Pin both explicitly to this
+  // root-file resolution, e.g. proxy.ts) up to the monorepo root and
+  // pulls in mind-ai-tutor's own proxy.ts. Pin both explicitly to this
   // directory so neither gets silently widened.
   outputFileTracingRoot: path.join(__dirname),
   turbopack: {
