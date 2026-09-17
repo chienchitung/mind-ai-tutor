@@ -65,7 +65,9 @@ const nextConfig: NextConfig = {
   // server rather than asking webpack to infer the transport module.
   serverExternalPackages: ['@supabase/supabase-js'],
   images: {
-    domains: ['avatars.githubusercontent.com'],
+    remotePatterns: [
+      { protocol: 'https', hostname: 'avatars.githubusercontent.com' },
+    ],
   },
   // next build no longer runs ESLint itself in Next.js 16 (next lint is
   // removed) - use `next build --no-lint` if that ever changes back.

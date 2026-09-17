@@ -1,7 +1,7 @@
 import { createServerClient } from '@supabase/ssr';
 import { NextResponse, type NextRequest } from 'next/server';
 
-export async function middleware(request: NextRequest) {
+export async function proxy(request: NextRequest) {
   // 創建初始的響應對象
   let response = NextResponse.next({
     request: {
@@ -52,7 +52,7 @@ export async function middleware(request: NextRequest) {
   // 需要登入才能進入的頁面。這份清單以外的路徑（/live、/live/[id] 加入頁、
   // /quiz/[id] 公開測驗頁、/login 等驗證頁）刻意不受身份驗證保護，本來就是
   // 匿名使用者要能進去的頁面。以後新增需要登入的頁面，只要加進這份清單，
-  // 同時把對應路徑加進下方 config.matcher，否則 middleware 根本不會被叫到。
+  // 同時把對應路徑加進下方 config.matcher，否則 proxy 根本不會被叫到。
   const PROTECTED_PATHS = [
     '/dashboard',
     '/students',
