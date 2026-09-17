@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, type ReactElement } from 'react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Sparkles, Loader2, ChevronDown, ChevronUp, Clock, Star, Target, Lightbulb, BarChart2, BookOpen, Award } from 'lucide-react';
@@ -152,7 +152,7 @@ export function AIAnalysisReport({
     const lines = content.split('\n');
     
     // Process lines and group them by bullet points
-    const processedContent: JSX.Element[] = [];
+    const processedContent: ReactElement[] = [];
     let bulletPoints: string[] = [];
     let currentParagraph: string[] = [];
     let inBulletList = false;
@@ -270,7 +270,7 @@ export function AIAnalysisReport({
     // Process the text to convert markdown to JSX
     // First, find all instances of bold text (**text**)
     const boldRegex = /\*\*(.*?)\*\*/g;
-    const parts: Array<string | JSX.Element> = [];
+    const parts: Array<string | ReactElement> = [];
     let lastIndex = 0;
     let match;
     

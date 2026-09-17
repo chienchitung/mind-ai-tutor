@@ -14,12 +14,12 @@ import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
 import { PageHeader } from "@/components/layout/PageHeader";
 import { 
-  DragDropContext, 
-  Draggable, 
+  DragDropContext,
+  Draggable,
   Droppable,
   DroppableProvided,
   DraggableProvided
-} from 'react-beautiful-dnd';
+} from '@hello-pangea/dnd';
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { useLanguage } from "@/app/contexts/LanguageContext";
 import { useTranslation } from "@/utils/translations";
