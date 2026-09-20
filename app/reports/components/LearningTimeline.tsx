@@ -12,7 +12,6 @@ interface LearningRecord {
   started_at?: string;
   completed_at?: string | null;
   time_spent_seconds?: number;
-  category?: string | null;
   // Add taipei fields
   started_at_taipei?: string;
   completed_at_taipei?: string;
