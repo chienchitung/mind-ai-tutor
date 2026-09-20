@@ -10,7 +10,6 @@ interface LearningStats {
   averageTimePerLesson: number;
   completedLessons: number;
   completionRate: number;
-  categoryCounts: Record<string, number>;
   lastActive: string | null;
 }
 

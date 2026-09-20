@@ -10,7 +10,6 @@ import { GameSelector, ALL_GAMES, UNCLASSIFIED_GAME } from './components/GameSel
 import { TimeSpentChart } from './components/TimeSpentChart';
 import { CompletionRateChart } from './components/CompletionRateChart';
 import { LearningTimeline } from './components/LearningTimeline';
-import { CategoryDistribution } from './components/CategoryDistribution';
 import { ExportButton } from './components/ExportButton';
 import { useLanguage } from '@/app/contexts/LanguageContext';
 import { useTranslation } from '@/utils/translations';
@@ -28,7 +27,6 @@ interface LearningRecord {
   started_at?: string;
   completed_at?: string | null;
   time_spent_seconds?: number;
-  category?: string | null;
   // Add field names from the database view
   started_at_taipei?: string;
   completed_at_taipei?: string;
@@ -48,7 +46,6 @@ interface LearningStats {
   averageTimePerLesson: number;
   completedLessons: number;
   completionRate: number;
-  categoryCounts: Record<string, number>;
   lastActive: string | null;
   totalQuestionCount: number;
   averageQuestionsPerLesson: number;
@@ -288,13 +285,6 @@ export default function ReportsPage() {
     const completedLessons = records.filter(record => getCompletionField(record)).length;
     const completionRate = (completedLessons / totalRecords) * 100;
 
-    // Category distribution
-    const categoryCounts: Record<string, number> = {};
-    records.forEach(record => {
-      const category = record.category || 'Uncategorized';
-      categoryCounts[category] = (categoryCounts[category] || 0) + 1;
-    });
-
     // Find most recent activity
     let lastActive = null;
     if (records.length > 0) {
@@ -330,7 +320,6 @@ export default function ReportsPage() {
       averageTimePerLesson: totalTimeSpent / totalRecords,
       completedLessons,
       completionRate,
-      categoryCounts,
       lastActive,
       totalQuestionCount,
       averageQuestionsPerLesson
@@ -625,7 +614,6 @@ export default function ReportsPage() {
                   <SelectItem value="time-spent">{t('time_distribution')}</SelectItem>
                   <SelectItem value="completion">{t('completion_rates')}</SelectItem>
                   <SelectItem value="timeline">{t('learning_timeline')}</SelectItem>
-                  <SelectItem value="categories">{t('categories')}</SelectItem>
                   <SelectItem value="ai-interactions">{t('ai_interaction_distribution')}</SelectItem>
                 </SelectContent>
               </Select>
@@ -635,7 +623,6 @@ export default function ReportsPage() {
               <TabsTrigger value="time-spent">{t('time_distribution')}</TabsTrigger>
               <TabsTrigger value="completion">{t('completion_rates')}</TabsTrigger>
               <TabsTrigger value="timeline">{t('learning_timeline')}</TabsTrigger>
-              <TabsTrigger value="categories">{t('categories')}</TabsTrigger>
               <TabsTrigger value="ai-interactions">{t('ai_interaction_distribution')}</TabsTrigger>
             </TabsList>
             </div>
@@ -690,20 +677,6 @@ export default function ReportsPage() {
               </Card>
             </TabsContent>
 
-            <TabsContent value="categories" className="mt-0">
-              <Card className="shadow-none">
-                <CardHeader>
-                  <CardTitle>{t('category_distribution')}</CardTitle>
-                  <CardDescription>
-                    {t('lessons_by_category')}
-                  </CardDescription>
-                </CardHeader>
-                <CardContent className="h-96">
-                  <CategoryDistribution stats={learningStats} />
-                </CardContent>
-              </Card>
-            </TabsContent>
-
             <TabsContent value="ai-interactions" className="mt-0">
               <Card className="shadow-none">
                 <CardHeader>
@@ -741,7 +714,6 @@ export default function ReportsPage() {
                       <th className="p-2 text-sm font-medium text-muted-foreground">{t('started')}</th>
                       <th className="p-2 text-sm font-medium text-muted-foreground">{t('completed')}</th>
                       <th className="p-2 text-sm font-medium text-muted-foreground">{t('time_spent')}</th>
-                      <th className="p-2 text-sm font-medium text-muted-foreground">{t('category')}</th>
                       <th className="p-2 text-sm font-medium text-muted-foreground">{t('status')}</th>
                     </tr>
                   </thead>
@@ -757,7 +729,6 @@ export default function ReportsPage() {
                           {getEndTime(record) ? formatDate(getEndTime(record)) : '-'}
                         </td>
                         <td className="p-2 text-sm">{formatTime(getDuration(record))}</td>
-                        <td className="p-2 text-sm">{record.category || t('uncategorized')}</td>
                         <td className="p-2 text-sm">
                           {getEndTime(record) ? (
                             <div className="flex items-center">
