@@ -1,12 +1,13 @@
 'use client';
 
-import { useState, type ReactElement } from 'react';
+import { useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Sparkles, Loader2, ChevronDown, ChevronUp, Clock, Star, Target, Lightbulb, BarChart2, BookOpen, Award } from 'lucide-react';
 import { useLanguage } from '@/app/contexts/LanguageContext';
 import { useTranslation } from '@/utils/translations';
 import { AiQuotaError, throwForAiQuotaError } from '@/lib/ai-quota-errors';
+import MarkdownRenderer from '@/app/components/ui/MarkdownRenderer';
 
 interface AIAnalysisReportProps {
   learningRecords: any[];
@@ -146,159 +147,6 @@ export function AIAnalysisReport({
     return sections;
   };
 
-  // Transform the content into properly formatted HTML with real bullet points
-  const formatContent = (content: string) => {
-    // First we'll split the content into lines
-    const lines = content.split('\n');
-    
-    // Process lines and group them by bullet points
-    const processedContent: ReactElement[] = [];
-    let bulletPoints: string[] = [];
-    let currentParagraph: string[] = [];
-    let inBulletList = false;
-    
-    // Process each line
-    for (let i = 0; i < lines.length; i++) {
-      let line = lines[i].trim();
-      
-      // Skip empty lines but add breaks between paragraphs
-      if (!line) {
-        if (currentParagraph.length > 0) {
-          processedContent.push(
-            <p key={`p-${i}`} className="text-muted-foreground mb-2">
-              {formatInlineMarkdown(currentParagraph.join(' '))}
-            </p>
-          );
-          currentParagraph = [];
-        }
-        
-        // If we were in a bullet list, finish it
-        if (inBulletList && bulletPoints.length > 0) {
-          processedContent.push(
-            <ul key={`ul-${i}`} className="list-disc pl-5 space-y-1 mb-3">
-              {bulletPoints.map((point, idx) => (
-                <li key={idx} className="text-muted-foreground">
-                  {formatInlineMarkdown(point)}
-                </li>
-              ))}
-            </ul>
-          );
-          bulletPoints = [];
-          inBulletList = false;
-        }
-        continue;
-      }
-      
-      // Check if the line is a bullet point (starts with * or similar)
-      const bulletMatch = line.match(/^\s*\*+\s*(.*)/);
-      if (bulletMatch) {
-        // If we were building a paragraph, add it before starting bullets
-        if (currentParagraph.length > 0) {
-          processedContent.push(
-            <p key={`p-${i}`} className="text-muted-foreground mb-2">
-              {formatInlineMarkdown(currentParagraph.join(' '))}
-            </p>
-          );
-          currentParagraph = [];
-        }
-        
-        // Extract the bullet point content (without the * marker)
-        const pointContent = bulletMatch[1].trim();
-        
-        // Special handling for bullet points with ** patterns
-        if (pointContent.startsWith('**') || pointContent.includes(':**')) {
-          // This is a heading-like bullet point
-          const cleanedContent = pointContent
-            .replace(/^\*\*/, '')  // Remove starting **
-            .replace(/\*\*:?$/, '') // Remove ending ** or **:
-            .trim();
-          
-          bulletPoints.push(cleanedContent);
-        } else {
-          bulletPoints.push(pointContent);
-        }
-        
-        inBulletList = true;
-      } else {
-        // If we were in a bullet list, close it before continuing with paragraph
-        if (inBulletList && bulletPoints.length > 0) {
-          processedContent.push(
-            <ul key={`ul-${i}`} className="list-disc pl-5 space-y-1 mb-3">
-              {bulletPoints.map((point, idx) => (
-                <li key={idx} className="text-muted-foreground">
-                  {formatInlineMarkdown(point)}
-                </li>
-              ))}
-            </ul>
-          );
-          bulletPoints = [];
-          inBulletList = false;
-        }
-        
-        // Add to the current paragraph
-        currentParagraph.push(line);
-      }
-    }
-    
-    // Don't forget to add any remaining content
-    if (currentParagraph.length > 0) {
-      processedContent.push(
-        <p key="final-p" className="text-muted-foreground mb-2">
-          {formatInlineMarkdown(currentParagraph.join(' '))}
-        </p>
-      );
-    }
-    
-    // And any remaining bullet points
-    if (bulletPoints.length > 0) {
-      processedContent.push(
-        <ul key="final-ul" className="list-disc pl-5 space-y-1 mb-3">
-          {bulletPoints.map((point, idx) => (
-            <li key={idx} className="text-muted-foreground">
-              {formatInlineMarkdown(point)}
-            </li>
-          ))}
-        </ul>
-      );
-    }
-    
-    return processedContent;
-  };
-
-  // Format inline markdown elements like bold and italic
-  const formatInlineMarkdown = (text: string) => {
-    // Process the text to convert markdown to JSX
-    // First, find all instances of bold text (**text**)
-    const boldRegex = /\*\*(.*?)\*\*/g;
-    const parts: Array<string | ReactElement> = [];
-    let lastIndex = 0;
-    let match;
-    
-    while ((match = boldRegex.exec(text)) !== null) {
-      // Add any text before the match
-      if (match.index > lastIndex) {
-        parts.push(text.substring(lastIndex, match.index));
-      }
-      
-      // Add the bold text
-      parts.push(<strong key={match.index}>{match[1]}</strong>);
-      
-      lastIndex = match.index + match[0].length;
-    }
-    
-    // Add any remaining text
-    if (lastIndex < text.length) {
-      parts.push(text.substring(lastIndex));
-    }
-    
-    // If we didn't find any bold text, just return the original
-    if (parts.length === 0) {
-      return text;
-    }
-    
-    return <>{parts}</>;
-  };
-
   return (
     <Card className="mt-6">
       <CardHeader>
@@ -359,8 +207,8 @@ export function AIAnalysisReport({
                   </button>
                   
                   {expandedSections[section.title] && (
-                    <div className="mt-3 pl-10 pr-4 pb-2 text-sm">
-                      {formatContent(section.content)}
+                    <div className="mt-3 pl-10 pr-4 pb-2 text-sm text-muted-foreground">
+                      <MarkdownRenderer content={section.content} />
                     </div>
                   )}
                 </div>
