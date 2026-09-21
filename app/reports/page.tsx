@@ -1,9 +1,11 @@
 'use client';
 
 import { useState, useEffect, useMemo } from 'react';
+import type { ColumnDef } from '@tanstack/react-table';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { DataTable, type DataTableFeatures } from '@/components/ui/data-table';
 import { BarChart2, Clock, Calendar, MessageSquare } from 'lucide-react';
 import { StudentSelector } from './components/StudentSelector';
 import { GameSelector, ALL_GAMES, UNCLASSIFIED_GAME } from './components/GameSelector';
@@ -362,6 +364,22 @@ export default function ReportsPage() {
     })).sort((a, b) => b.count - a.count);
   }, [learningRecords, gameTitleById, t]);
 
+  // Recent Learning Activities table, newest first - the underlying view
+  // has no guaranteed order, so this sorts explicitly rather than assuming
+  // fetch order already puts the most recent record first.
+  const activityRecords = useMemo(() => {
+    const getSortDate = (record: LearningRecord) =>
+      record.started_at_taipei || record.started_at || record.start_time;
+
+    return [...filteredRecords].sort((a, b) => {
+      const dateA = getSortDate(a);
+      const dateB = getSortDate(b);
+      if (!dateA) return 1;
+      if (!dateB) return -1;
+      return new Date(dateB).getTime() - new Date(dateA).getTime();
+    });
+  }, [filteredRecords]);
+
   // Format time (seconds) to human readable format
   const formatTime = (seconds: number) => {
     const hours = Math.floor(seconds / 3600);
@@ -441,6 +459,79 @@ export default function ReportsPage() {
   const getDuration = (record: LearningRecord) =>
     record.time_spent_seconds || record.duration || 0;
 
+  const gameBreakdownColumns: ColumnDef<DataTableFeatures, (typeof gameBreakdown)[number]>[] = [
+    { accessorKey: 'title', header: t('game') },
+    { accessorKey: 'count', header: t('total_sessions') },
+    {
+      accessorKey: 'totalTime',
+      header: t('total_learning_time'),
+      cell: ({ row }) => formatTime(row.original.totalTime),
+    },
+    {
+      accessorKey: 'completionRate',
+      header: t('completion_rate'),
+      cell: ({ row }) => `${row.original.completionRate.toFixed(1)}%`,
+    },
+  ];
+
+  const activityColumns: ColumnDef<DataTableFeatures, LearningRecord>[] = [
+    {
+      id: 'lessonTitle',
+      accessorFn: (record) => String(getLessonTitle(record.lesson_id)),
+      header: t('lesson_title'),
+    },
+    {
+      id: 'game',
+      accessorFn: (record) =>
+        record.game_id ? (gameTitleById.get(record.game_id) ?? t('unknown_game')) : t('unclassified_game'),
+      header: t('game'),
+    },
+    {
+      id: 'started',
+      accessorFn: (record) => {
+        const value = getStartTime(record);
+        return value ? new Date(value).getTime() : 0;
+      },
+      header: t('started'),
+      cell: ({ row }) => formatDate(getStartTime(row.original)),
+    },
+    {
+      id: 'completed',
+      accessorFn: (record) => {
+        const value = getEndTime(record);
+        return value ? new Date(value).getTime() : 0;
+      },
+      header: t('completed'),
+      cell: ({ row }) => {
+        const value = getEndTime(row.original);
+        return value ? formatDate(value) : '-';
+      },
+    },
+    {
+      id: 'timeSpent',
+      accessorFn: (record) => getDuration(record),
+      header: t('time_spent'),
+      cell: ({ row }) => formatTime(getDuration(row.original)),
+    },
+    {
+      id: 'status',
+      accessorFn: (record) => (getEndTime(record) ? 'completed' : 'in_progress'),
+      header: t('status'),
+      cell: ({ row }) =>
+        getEndTime(row.original) ? (
+          <div className="flex items-center">
+            <div className="w-2 h-2 rounded-full bg-green-500 mr-2"></div>
+            <span className="text-green-700 font-medium">{t('completed')}</span>
+          </div>
+        ) : (
+          <div className="flex items-center">
+            <div className="w-2 h-2 rounded-full bg-amber-500 mr-2"></div>
+            <span className="text-amber-700 font-medium">{t('in_progress')}</span>
+          </div>
+        ),
+    },
+  ];
+
   return (
     <div className="w-full space-y-7 pb-8">
       <PageHeader
@@ -485,28 +576,7 @@ export default function ReportsPage() {
             <CardDescription>{t('games_comparison_desc')}</CardDescription>
           </CardHeader>
           <CardContent>
-            <div className="overflow-x-auto">
-              <table className="w-full">
-                <thead>
-                  <tr className="text-left border-b">
-                    <th className="p-2 text-sm font-medium text-muted-foreground">{t('game')}</th>
-                    <th className="p-2 text-sm font-medium text-muted-foreground">{t('total_sessions')}</th>
-                    <th className="p-2 text-sm font-medium text-muted-foreground">{t('total_learning_time')}</th>
-                    <th className="p-2 text-sm font-medium text-muted-foreground">{t('completion_rate')}</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {gameBreakdown.map(row => (
-                    <tr key={row.key} className="border-b last:border-b-0">
-                      <td className="p-2 text-sm font-medium">{row.title}</td>
-                      <td className="p-2 text-sm">{row.count}</td>
-                      <td className="p-2 text-sm">{formatTime(row.totalTime)}</td>
-                      <td className="p-2 text-sm">{row.completionRate.toFixed(1)}%</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+            <DataTable columns={gameBreakdownColumns} data={gameBreakdown} />
           </CardContent>
         </Card>
       )}
@@ -595,6 +665,15 @@ export default function ReportsPage() {
               </CardContent>
             </Card>
           </div>
+
+          {/* AI Analysis Report sits right after the headline stats, ahead of
+              the detail charts/table below - it's the synthesized takeaway,
+              not a footnote at the bottom of a long page. */}
+          <AIAnalysisReport
+            learningRecords={filteredRecords}
+            learningStats={learningStats}
+            selectedStudentName={selectedStudentName}
+          />
 
           {/* Data Visualization Tabs. These 5 labels (up to "AI Interaction
               Distribution" in English) never fit a single mobile-width row -
@@ -700,66 +779,16 @@ export default function ReportsPage() {
           <Card className="shadow-none">
             <CardHeader>
               <CardTitle>{t('recent_learning')}</CardTitle>
-              <CardDescription>
-                {t('latest_sessions', { count: Math.min(5, filteredRecords.length) })}
-              </CardDescription>
             </CardHeader>
             <CardContent>
-              <div className="overflow-x-auto">
-                <table className="w-full">
-                  <thead>
-                    <tr className="text-left border-b">
-                      <th className="p-2 text-sm font-medium text-muted-foreground">{t('lesson_title')}</th>
-                      <th className="p-2 text-sm font-medium text-muted-foreground">{t('game')}</th>
-                      <th className="p-2 text-sm font-medium text-muted-foreground">{t('started')}</th>
-                      <th className="p-2 text-sm font-medium text-muted-foreground">{t('completed')}</th>
-                      <th className="p-2 text-sm font-medium text-muted-foreground">{t('time_spent')}</th>
-                      <th className="p-2 text-sm font-medium text-muted-foreground">{t('status')}</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {filteredRecords.slice(0, 5).map((record) => (
-                      <tr key={record.id} className="border-b last:border-b-0">
-                        <td className="p-2 text-sm">{getLessonTitle(record.lesson_id)}</td>
-                        <td className="p-2 text-sm">
-                          {record.game_id ? (gameTitleById.get(record.game_id) ?? t('unknown_game')) : t('unclassified_game')}
-                        </td>
-                        <td className="p-2 text-sm">{formatDate(getStartTime(record))}</td>
-                        <td className="p-2 text-sm">
-                          {getEndTime(record) ? formatDate(getEndTime(record)) : '-'}
-                        </td>
-                        <td className="p-2 text-sm">{formatTime(getDuration(record))}</td>
-                        <td className="p-2 text-sm">
-                          {getEndTime(record) ? (
-                            <div className="flex items-center">
-                              <div className="w-2 h-2 rounded-full bg-green-500 mr-2"></div>
-                              <span className="text-green-700 font-medium">
-                                {t('completed')}
-                              </span>
-                            </div>
-                          ) : (
-                            <div className="flex items-center">
-                              <div className="w-2 h-2 rounded-full bg-amber-500 mr-2"></div>
-                              <span className="text-amber-700 font-medium">
-                                {t('in_progress')}
-                              </span>
-                            </div>
-                          )}
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
+              <DataTable
+                columns={activityColumns}
+                data={activityRecords}
+                searchColumn="lessonTitle"
+                searchPlaceholder={t('search_by_lesson')}
+              />
             </CardContent>
           </Card>
-
-          {/* AI Analysis Report - Add this new section */}
-          <AIAnalysisReport
-            learningRecords={filteredRecords}
-            learningStats={learningStats}
-            selectedStudentName={selectedStudentName}
-          />
         </>
       )}
     </div>
