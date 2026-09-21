@@ -4,8 +4,8 @@ import { useState, useEffect, useMemo } from 'react';
 import type { ColumnDef } from '@tanstack/react-table';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { DataTable, type DataTableFeatures } from '@/components/ui/data-table';
+import { Badge } from '@/components/ui/badge';
 import { BarChart2, Clock, Calendar, MessageSquare } from 'lucide-react';
 import { StudentSelector } from './components/StudentSelector';
 import { GameSelector, ALL_GAMES, UNCLASSIFIED_GAME } from './components/GameSelector';
@@ -519,15 +519,13 @@ export default function ReportsPage() {
       header: t('status'),
       cell: ({ row }) =>
         getEndTime(row.original) ? (
-          <div className="flex items-center">
-            <div className="w-2 h-2 rounded-full bg-green-500 mr-2"></div>
-            <span className="text-green-700 font-medium">{t('completed')}</span>
-          </div>
+          <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200">
+            {t('completed')}
+          </Badge>
         ) : (
-          <div className="flex items-center">
-            <div className="w-2 h-2 rounded-full bg-amber-500 mr-2"></div>
-            <span className="text-amber-700 font-medium">{t('in_progress')}</span>
-          </div>
+          <Badge variant="outline" className="bg-amber-50 text-amber-700 border-amber-200">
+            {t('in_progress')}
+          </Badge>
         ),
     },
   ];
@@ -675,36 +673,17 @@ export default function ReportsPage() {
             selectedStudentName={selectedStudentName}
           />
 
-          {/* Data Visualization Tabs. These 5 labels (up to "AI Interaction
-              Distribution" in English) never fit a single mobile-width row -
-              a horizontally-scrolling TabsList just pushed most of them
-              off-screen with no visible hint there was more to swipe to.
-              A Select dropdown is the standard mobile pattern for exactly
-              this ("switch between several views, one label too long to
-              tab-bar") - both are bound to the same chartView state so
-              they stay in sync with each other and with TabsContent. */}
+          {/* Data Visualization Tabs. flex-wrap lets all 4 labels stay
+              visible and one tap away at any width, in both languages
+              (verified down to a 320px viewport) - no off-screen content
+              to hint at, so no separate mobile Select is needed. */}
           <Tabs value={chartView} onValueChange={setChartView} className="w-full">
-            <div className="mb-4 sm:hidden">
-              <Select value={chartView} onValueChange={setChartView}>
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="time-spent">{t('time_distribution')}</SelectItem>
-                  <SelectItem value="completion">{t('completion_rates')}</SelectItem>
-                  <SelectItem value="timeline">{t('learning_timeline')}</SelectItem>
-                  <SelectItem value="ai-interactions">{t('ai_interaction_distribution')}</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="mb-4 hidden overflow-x-auto pb-1 sm:block">
-            <TabsList className="w-max">
+            <TabsList className="mb-4 h-auto w-full flex-wrap justify-start gap-1">
               <TabsTrigger value="time-spent">{t('time_distribution')}</TabsTrigger>
               <TabsTrigger value="completion">{t('completion_rates')}</TabsTrigger>
               <TabsTrigger value="timeline">{t('learning_timeline')}</TabsTrigger>
               <TabsTrigger value="ai-interactions">{t('ai_interaction_distribution')}</TabsTrigger>
             </TabsList>
-            </div>
 
             <TabsContent value="time-spent" className="mt-0">
               <Card className="shadow-none">
