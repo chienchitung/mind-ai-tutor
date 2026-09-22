@@ -108,8 +108,16 @@ export function AIAnalysisReport({
     };
 
     for (const line of lines) {
-      // Check if line is a section header (expanded pattern matching)
-      const headerMatch = line.match(/^\s*\**\s*\d+\.\s*(.*?)\s*\**\s*$/) || 
+      // Check if line is a section header (expanded pattern matching).
+      // The model doesn't always follow the "N. Title" / "**Title**" format
+      // the other patterns expect - it sometimes uses real Markdown ATX
+      // headers (#/##/###) instead. Without this pattern those lines fall
+      // through as body content, merging separate sections into one and
+      // getting rendered as literal <h2>/<h3> (blue, bordered - styling
+      // meant for lesson content, not an AI-analysis card) once they reach
+      // MarkdownRenderer downstream.
+      const headerMatch = line.match(/^\s*#{1,6}\s*\**\s*(?:\d+\.\s*)?(.*?)\s*\**\s*$/) ||
+                         line.match(/^\s*\**\s*\d+\.\s*(.*?)\s*\**\s*$/) ||
                          line.match(/^\s*\**\s*(.*?)\s*:\s*\**\s*$/) ||
                          line.match(/^\s*\**\s*(.*?)：\s*\**\s*$/) ||
                          line.match(/^\s*\*\s*\*\*(.*?)\*\*\s*$/) ||
