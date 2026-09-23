@@ -237,6 +237,12 @@ export default function ReportsPage() {
     return map;
   }, [games]);
 
+  const lessonTitleById = useMemo(() => {
+    const map = new Map<string, string>();
+    lessons.forEach(lesson => map.set(String(lesson.id), lesson.title));
+    return map;
+  }, [lessons]);
+
   // Records for the selected game filter. ALL_GAMES keeps everything,
   // UNCLASSIFIED_GAME shows records whose lesson_id didn't resolve to any
   // known game, otherwise show only that game's records.
@@ -251,6 +257,17 @@ export default function ReportsPage() {
     if (selectedGame === UNCLASSIFIED_GAME) return questionCounts.filter(q => !q.game_id);
     return questionCounts.filter(q => q.game_id === selectedGame);
   }, [questionCounts, selectedGame]);
+
+  // Give the analysis model teacher-facing lesson names alongside database
+  // identifiers. Reports should discuss recognizable units, not expose UUIDs
+  // that a teacher cannot act on.
+  const analysisRecords = useMemo(
+    () => filteredRecords.map(record => ({
+      ...record,
+      lesson_title: lessonTitleById.get(String(record.lesson_id)) ?? String(record.lesson_id),
+    })),
+    [filteredRecords, lessonTitleById],
+  );
 
   // Calculate statistics from learning records
   const computeStats = (records: LearningRecord[], questionData: QuestionCount[]): LearningStats | null => {
@@ -668,7 +685,7 @@ export default function ReportsPage() {
               the detail charts/table below - it's the synthesized takeaway,
               not a footnote at the bottom of a long page. */}
           <AIAnalysisReport
-            learningRecords={filteredRecords}
+            learningRecords={analysisRecords}
             learningStats={learningStats}
             selectedStudentName={selectedStudentName}
           />
