@@ -28,7 +28,7 @@ interface ProgressData {
   dailyProgress: number;
 }
 
-export default function HomePage({ gameId }: { gameId?: string }) {
+export default function HomePage({ gameId, assignmentId }: { gameId?: string; assignmentId?: string | null }) {
   const [progress, setProgress] = useState<ProgressData>({
     completedLessons: [],
     stars: 0,
@@ -81,7 +81,9 @@ export default function HomePage({ gameId }: { gameId?: string }) {
   // No leading /games here - basePath already adds it to every next/link href
   // and router.push() call.
   const lessonHref = (lessonId: string) =>
-    gameId ? `/${gameId}/lessons/${lessonId}` : `/lessons/${lessonId}`;
+    gameId
+      ? `/${gameId}/lessons/${lessonId}${assignmentId ? `?assignment=${encodeURIComponent(assignmentId)}` : ''}`
+      : `/lessons/${lessonId}`;
   
   useEffect(() => {
     const fetchProgressAndMappings = async () => {
@@ -90,6 +92,11 @@ export default function HomePage({ gameId }: { gameId?: string }) {
         let activeLessons: Lesson[] = [];
 
         if (gameId) {
+          if (assignmentId) {
+            localStorage.setItem(storageKey('game_assignment_id'), assignmentId);
+          } else {
+            localStorage.removeItem(storageKey('game_assignment_id'));
+          }
           const manifest = await getPublicGameManifest(gameId);
           if (manifest.lessons.length === 0) {
             throw new Error('這款遊戲尚未設定任何關卡');
@@ -160,7 +167,7 @@ export default function HomePage({ gameId }: { gameId?: string }) {
 
         // 如果有學號且完成時間，獲取排名
         if (savedStudentId && savedCompletionTime && localStorage.getItem(storageKey('student_ref_id'))) {
-          getPlayerRank(savedStudentId, gameId)
+          getPlayerRank(savedStudentId, gameId, assignmentId)
             .then(rank => {
               setPlayerRank(rank);
             })
@@ -188,11 +195,11 @@ export default function HomePage({ gameId }: { gameId?: string }) {
     return () => {
       window.removeEventListener('storage', handleStorageChange);
     };
-  }, [gameId]);
+  }, [gameId, assignmentId]);
   
   useEffect(() => {
     if (showLeaderboardDialog) {
-      getLeaderboardStats(gameId)
+      getLeaderboardStats(gameId, assignmentId)
         .then(stats => {
           setLeaderboardStats(stats);
         })
@@ -200,7 +207,7 @@ export default function HomePage({ gameId }: { gameId?: string }) {
           console.error('Failed to fetch leaderboard stats:', error);
         });
     }
-  }, [showLeaderboardDialog, gameId]);
+  }, [showLeaderboardDialog, gameId, assignmentId]);
 
   const handleReset = () => {
     // 清除所有追蹤資料
@@ -305,7 +312,7 @@ export default function HomePage({ gameId }: { gameId?: string }) {
     setVerifyingCode(true);
     setLoginCodeError(null);
     try {
-      const verified = await verifyStudentLoginCode(loginCode);
+      const verified = await verifyStudentLoginCode(loginCode, gameId, assignmentId);
       if (!verified) {
         setLoginCodeError("代碼錯誤，請確認後再試一次");
         return;
@@ -344,7 +351,7 @@ export default function HomePage({ gameId }: { gameId?: string }) {
 
   return (
     <div>
-      <QuestHome game={gameDefinition} gameId={gameId} lessons={mappedLessons}
+      <QuestHome game={gameDefinition} gameId={gameId} assignmentId={assignmentId} lessons={mappedLessons}
         completedLessons={progress.completedLessons} stars={progress.stars} level={progress.level} exp={progress.exp}
         signedIn={hasStudentId} isGuest={isGuest} guestName={activeStudentName} completionTime={completionTime} rank={playerRank}
         onStart={handleStartLearning} onReset={handleReset} onLeaderboard={() => setShowLeaderboardDialog(true)} />

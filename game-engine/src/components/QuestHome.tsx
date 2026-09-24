@@ -12,6 +12,7 @@ import { experienceForTemplate } from '../lib/template-experience'
 interface QuestHomeProps {
   game?: GameDefinition | null
   gameId?: string
+  assignmentId?: string | null
   lessons: Lesson[]
   completedLessons: string[]
   stars: number
@@ -48,7 +49,7 @@ function HeroArtwork({ template }: { template: GameVisualTemplate }) {
 }
 
 export function QuestHome(props: QuestHomeProps) {
-  const { game, gameId, lessons, completedLessons, signedIn } = props
+  const { game, gameId, assignmentId, lessons, completedLessons, signedIn } = props
   const completed = lessons.filter(lesson => completedLessons.includes(lesson.lesson_id))
   const current = lessons.find(lesson => !completedLessons.includes(lesson.lesson_id))
   const currentIndex = current ? lessons.findIndex(lesson => lesson.lesson_id === current.lesson_id) : lessons.length - 1
@@ -59,14 +60,16 @@ export function QuestHome(props: QuestHomeProps) {
     .filter(lesson => !completedLessons.includes(lesson.lesson_id))
     .reduce((total, lesson) => total + (Number.parseInt(lesson.duration || '', 10) || 0), 0)
   // No leading /games here - basePath already adds it to every next/link href.
-  const href = (id: string) => gameId ? `/${gameId}/lessons/${id}` : `/lessons/${id}`
+  const assignmentQuery = assignmentId ? `?assignment=${encodeURIComponent(assignmentId)}` : ''
+  const href = (id: string) => gameId ? `/${gameId}/lessons/${id}${assignmentQuery}` : `/lessons/${id}`
+  const homeHref = gameId ? `/${gameId}${assignmentQuery}` : '/'
   const template = gameVisualTemplate(game?.settings.theme)
   const mentor = mentorForTemplate(template)
   const experience = experienceForTemplate(template)
   return <div className="quest-shell" data-quest-template={template} data-experience-layout={experience.home.layout} style={gameThemeStyle(game?.settings.theme)}>
     <a className="quest-skip" href="#mission-map">跳至任務地圖</a>
     <header className="quest-header"><div className="quest-header-inner">
-      <Link href={gameId ? `/${gameId}` : '/'} aria-label="遊戲首頁"><GameBrand game={game} legacy={!gameId} /></Link>
+      <Link href={homeHref} aria-label="遊戲首頁"><GameBrand game={game} legacy={!gameId} /></Link>
       <div className="quest-player-stats"><span>Lv. {props.level}</span><span title="經驗值">{props.exp} XP</span><span><Star size={16} aria-hidden="true" />{props.stars}</span></div>
     </div></header>
     {signedIn && props.isGuest && (

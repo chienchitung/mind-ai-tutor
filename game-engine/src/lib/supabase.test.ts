@@ -36,6 +36,25 @@ describe('verifyStudentLoginCode', () => {
     expect(rpc).not.toHaveBeenCalled();
   });
 
+  it('uses the classroom-scoped verifier for an assignment link', async () => {
+    rpc.mockResolvedValue({
+      data: [{ student_id: 'student-uuid', student_name: '小明', grade: 5, classroom_name: '六年甲班' }],
+      error: null,
+    });
+
+    await expect(verifyStudentLoginCode('HPGZR92P', 'game-1', 'assignment-1')).resolves.toEqual({
+      student_id: 'student-uuid',
+      student_name: '小明',
+      grade: 5,
+      classroom_name: '六年甲班',
+    });
+    expect(rpc).toHaveBeenCalledWith('verify_student_assignment_login_code', {
+      p_code: 'HPGZR92P',
+      p_assignment_id: 'assignment-1',
+      p_game_id: 'game-1',
+    });
+  });
+
   it.each([
     { data: [], error: null },
     { data: [{ student_id: null, student_name: null, grade: null }], error: null },
@@ -65,6 +84,37 @@ describe('guest data minimization', () => {
       answer_attempts: 1,
       game_id: 'game-1',
     })).resolves.toEqual([]);
+    vi.unstubAllGlobals();
+  });
+
+  it('persists the assignment context for a linked student', async () => {
+    const storage = {
+      getItem: vi.fn((key: string) => {
+        if (key === 'game:game-1:game_assignment_id') return 'assignment-1';
+        if (key === 'game:game-1:assignment:assignment-1:student_ref_id') return 'student-uuid';
+        return null;
+      }),
+    };
+    vi.stubGlobal('window', { localStorage: storage });
+    vi.stubGlobal('localStorage', storage);
+    const insert = vi.fn().mockResolvedValue({ data: null, error: null });
+    from.mockReturnValue({ insert });
+
+    await saveLearningRecord({
+      student_id: 'student-uuid',
+      student_name: '小明',
+      lesson_id: 'lesson-1',
+      started_at: new Date(0).toISOString(),
+      completed_at: new Date(1_000).toISOString(),
+      time_spent_seconds: 1,
+      answer_attempts: 1,
+      game_id: 'game-1',
+    });
+
+    expect(insert).toHaveBeenCalledWith([expect.objectContaining({
+      student_ref_id: 'student-uuid',
+      game_assignment_id: 'assignment-1',
+    })]);
     vi.unstubAllGlobals();
   });
 });

@@ -91,6 +91,40 @@ export interface Database {
           notes?: string | null;
         };
       };
+      classrooms: {
+        Row: {
+          id: string;
+          user_id: string;
+          name: string;
+          academic_year: string | null;
+          term: string | null;
+          description: string | null;
+          study_label: string | null;
+          study_arm: string | null;
+          status: 'active' | 'archived';
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          user_id?: string;
+          name: string;
+          academic_year?: string | null;
+          term?: string | null;
+          description?: string | null;
+          study_label?: string | null;
+          study_arm?: string | null;
+          status?: 'active' | 'archived';
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: Partial<Database['public']['Tables']['classrooms']['Insert']>;
+      };
+      classroom_students: {
+        Row: { classroom_id: string; student_id: string; user_id: string; joined_at: string; left_at: string | null };
+        Insert: { classroom_id: string; student_id: string; user_id?: string; joined_at?: string; left_at?: string | null };
+        Update: { joined_at?: string; left_at?: string | null };
+      };
       chat_messages: {
         Row: {
           id: string;
@@ -99,6 +133,7 @@ export interface Database {
           student_ref_id: string | null;
           lesson_id: string;
           game_id: string | null;
+          game_assignment_id: string | null;
           message_content: string;
           is_user: boolean;
           timestamp: string;
@@ -111,6 +146,7 @@ export interface Database {
           student_ref_id?: string | null;
           lesson_id: string;
           game_id?: string | null;
+          game_assignment_id?: string | null;
           message_content: string;
           is_user: boolean;
           timestamp?: string;
@@ -123,6 +159,7 @@ export interface Database {
           student_ref_id?: string | null;
           lesson_id?: string;
           game_id?: string | null;
+          game_assignment_id?: string | null;
           message_content?: string;
           is_user?: boolean;
           timestamp?: string;
@@ -169,6 +206,33 @@ export interface Database {
           lesson_ids?: string[] | null;
           settings?: Json;
         };
+      };
+      game_assignments: {
+        Row: {
+          id: string;
+          user_id: string;
+          classroom_id: string;
+          game_id: string;
+          title: string | null;
+          status: 'draft' | 'active' | 'closed' | 'archived';
+          assigned_at: string;
+          due_at: string | null;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          user_id?: string;
+          classroom_id: string;
+          game_id: string;
+          title?: string | null;
+          status?: 'draft' | 'active' | 'closed' | 'archived';
+          assigned_at?: string;
+          due_at?: string | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: Partial<Database['public']['Tables']['game_assignments']['Insert']>;
       };
       events: {
         Row: {
@@ -259,6 +323,7 @@ export interface Database {
           student_name: string;
           student_ref_id: string | null;
           game_id: string | null;
+          game_assignment_id: string | null;
           completion_time_seconds: number;
           completion_time_string: string;
           started_at: string;
@@ -271,6 +336,7 @@ export interface Database {
           student_name: string;
           student_ref_id?: string | null;
           game_id?: string | null;
+          game_assignment_id?: string | null;
           completion_time_seconds: number;
           completion_time_string: string;
           started_at?: string;
@@ -283,6 +349,7 @@ export interface Database {
           student_name?: string;
           student_ref_id?: string | null;
           game_id?: string | null;
+          game_assignment_id?: string | null;
           completion_time_seconds?: number;
           completion_time_string?: string;
           started_at?: string;
@@ -298,6 +365,7 @@ export interface Database {
           student_ref_id: string | null;
           lesson_id: string;
           game_id: string | null;
+          game_assignment_id: string | null;
           started_at: string;
           completed_at: string;
           time_spent_seconds: number;
@@ -310,6 +378,7 @@ export interface Database {
           student_ref_id?: string | null;
           lesson_id: string;
           game_id?: string | null;
+          game_assignment_id?: string | null;
           started_at: string;
           completed_at: string;
           time_spent_seconds: number;
@@ -322,6 +391,7 @@ export interface Database {
           student_ref_id?: string | null;
           lesson_id?: string;
           game_id?: string | null;
+          game_assignment_id?: string | null;
           started_at?: string;
           completed_at?: string;
           time_spent_seconds?: number;
@@ -464,6 +534,7 @@ export interface Database {
           student_ref_id: string | null;
           lesson_id: string;
           game_id: string | null;
+          game_assignment_id: string | null;
           question_count: number;
           created_at: string;
           updated_at: string;
@@ -475,6 +546,7 @@ export interface Database {
           student_ref_id?: string | null;
           lesson_id: string;
           game_id?: string | null;
+          game_assignment_id?: string | null;
           question_count?: number;
           created_at?: string;
           updated_at?: string;
@@ -486,6 +558,7 @@ export interface Database {
           student_ref_id?: string | null;
           lesson_id?: string;
           game_id?: string | null;
+          game_assignment_id?: string | null;
           question_count?: number;
           created_at?: string;
           updated_at?: string;
