@@ -9,6 +9,7 @@ import { Badge } from '@/components/ui/badge';
 import { BarChart2, Clock, Calendar, MessageSquare } from 'lucide-react';
 import { StudentSelector } from './components/StudentSelector';
 import { GameSelector, ALL_GAMES, UNCLASSIFIED_GAME } from './components/GameSelector';
+import { ClassroomSelector, ALL_CLASSROOMS, UNGROUPED_STUDENTS } from './components/ClassroomSelector';
 import { TimeSpentChart } from './components/TimeSpentChart';
 import { CompletionRateChart } from './components/CompletionRateChart';
 import { LearningTimeline } from './components/LearningTimeline';
@@ -70,7 +71,10 @@ export default function ReportsPage() {
   const [chartView, setChartView] = useState('time-spent');
   const [selectedStudent, setSelectedStudent] = useState<string | null>(null);
   const [selectedGame, setSelectedGame] = useState<string>(ALL_GAMES);
+  const [selectedClassroom, setSelectedClassroom] = useState<string>(ALL_CLASSROOMS);
   const [students, setStudents] = useState<{ id: string; name: string }[]>([]);
+  const [classrooms, setClassrooms] = useState<{ id: string; name: string; studyArm?: string | null }[]>([]);
+  const [classMemberships, setClassMemberships] = useState<{ classroomId: string; studentId: string }[]>([]);
   const [games, setGames] = useState<{ id: string; title: string }[]>([]);
   const [learningRecords, setLearningRecords] = useState<LearningRecord[]>([]);
   const [loading, setLoading] = useState(false);
@@ -106,6 +110,53 @@ export default function ReportsPage() {
 
     fetchGames();
   }, []);
+
+  useEffect(() => {
+    const fetchClassrooms = async () => {
+      try {
+        const { supabase } = await import('../../lib/supabase');
+        const client = supabase() as any;
+        const [classesResult, membersResult] = await Promise.all([
+          client.from('classrooms').select('id, name, study_arm').eq('status', 'active').order('name'),
+          // Keep former members in historical class reports. Excluding students
+          // after they leave would bias experiment results through attrition.
+          client.from('classroom_students').select('classroom_id, student_id, left_at'),
+        ]);
+        if (classesResult.error) throw classesResult.error;
+        if (membersResult.error) throw membersResult.error;
+        setClassrooms((classesResult.data || []).map((item: any) => ({
+          id: item.id,
+          name: item.name,
+          studyArm: item.study_arm,
+        })));
+        setClassMemberships((membersResult.data || []).map((item: any) => ({
+          classroomId: item.classroom_id,
+          studentId: item.student_id,
+        })));
+      } catch (error) {
+        console.error('Error fetching classrooms:', error);
+      }
+    };
+    void fetchClassrooms();
+  }, []);
+
+  const scopedStudents = useMemo(() => {
+    if (selectedClassroom === ALL_CLASSROOMS) return students;
+    const groupedStudentIds = new Set(classMemberships.map(item => item.studentId));
+    if (selectedClassroom === UNGROUPED_STUDENTS) {
+      return students.filter(student => !groupedStudentIds.has(student.id));
+    }
+    const memberIds = new Set(classMemberships
+      .filter(item => item.classroomId === selectedClassroom)
+      .map(item => item.studentId));
+    return students.filter(student => memberIds.has(student.id));
+  }, [students, classMemberships, selectedClassroom]);
+
+  useEffect(() => {
+    if (!scopedStudents.some(student => student.id === selectedStudent)) {
+      setSelectedStudent(scopedStudents[0]?.id ?? null);
+    }
+  }, [scopedStudents, selectedStudent]);
 
   // Fetch students list
   useEffect(() => {
@@ -179,7 +230,11 @@ export default function ReportsPage() {
 
   // Fetch learning records when student is selected
   useEffect(() => {
-    if (!selectedStudent) return;
+    if (!selectedStudent) {
+      setLearningRecords([]);
+      setQuestionCounts([]);
+      return;
+    }
 
     const fetchLearningRecords = async () => {
       setLoading(true);
@@ -565,12 +620,18 @@ export default function ReportsPage() {
         <div className="mr-auto">
           <p className="app-kicker">{language === 'zh-TW' ? '報表範圍' : 'Report scope'}</p>
           <p className="mt-1 text-sm text-muted-foreground">
-            {language === 'zh-TW' ? '選擇學生與遊戲，所有數據會同步更新' : 'Choose a student and game to update every metric'}
+            {language === 'zh-TW' ? '先選擇班級，再查看學生與遊戲；所有數據會同步更新' : 'Choose a class, student and game to update every metric'}
           </p>
         </div>
         <div className="flex flex-col gap-2 sm:flex-row">
+          <ClassroomSelector
+            classrooms={classrooms}
+            selectedClassroom={selectedClassroom}
+            onSelectClassroom={setSelectedClassroom}
+            chinese={language === 'zh-TW'}
+          />
           <StudentSelector
-            students={students}
+            students={scopedStudents}
             selectedStudent={selectedStudent}
             onSelectStudent={setSelectedStudent}
           />

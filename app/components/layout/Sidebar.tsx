@@ -11,6 +11,7 @@ import {
   Calendar,
   ChevronLeft,
   Gamepad2,
+  GraduationCap,
   LayoutDashboard,
   MessageSquare,
   PanelLeft,
@@ -78,6 +79,7 @@ export function Sidebar({
         label: language === 'zh-TW' ? '教學管理' : 'Teaching',
         items: [
           { name: t('students'), href: '/students', icon: Users },
+          { name: language === 'zh-TW' ? '班級管理' : 'Classes', href: '/classrooms', icon: GraduationCap },
           { name: t('lessons'), href: '/lessons', icon: BookOpen },
           { name: t('digital_games'), href: '/digital-games', icon: Gamepad2 },
           { name: t('ai_quiz'), href: '/ai-quiz', icon: Wand2 },

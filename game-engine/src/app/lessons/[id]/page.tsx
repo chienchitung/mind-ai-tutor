@@ -335,9 +335,11 @@ const REVEAL_EXPLANATION_AFTER_ATTEMPTS = 3;
 export default function ExcelLearningPlatform({
   params,
   gameId,
+  assignmentId,
 }: {
   params: Promise<{ id: string }>
   gameId?: string
+  assignmentId?: string | null
 }) {
   const resolvedParams = use(params);
   const [gameDefinition, setGameDefinition] = useState<GameDefinition | null>(null);
@@ -352,10 +354,20 @@ export default function ExcelLearningPlatform({
   // No leading /games here - basePath already adds it to every next/link href
   // and router.push() call.
   const lessonHref = (lessonId: string) =>
-    gameId ? `/${gameId}/lessons/${lessonId}` : `/lessons/${lessonId}`;
+    gameId
+      ? `/${gameId}/lessons/${lessonId}${assignmentId ? `?assignment=${encodeURIComponent(assignmentId)}` : ''}`
+      : `/lessons/${lessonId}`;
+  const homeHref = gameId
+    ? `/${gameId}${assignmentId ? `?assignment=${encodeURIComponent(assignmentId)}` : ''}`
+    : '/';
 
   useEffect(() => {
     if (!gameId) return;
+    if (assignmentId) {
+      localStorage.setItem(storageKey('game_assignment_id'), assignmentId);
+    } else {
+      localStorage.removeItem(storageKey('game_assignment_id'));
+    }
     getPublicGameManifest(gameId)
       .then(manifest => {
         if (!manifest.lessons.some(lesson => lesson.lesson_id === resolvedParams.id)) {
@@ -370,7 +382,7 @@ export default function ExcelLearningPlatform({
         setGameLoadError(error instanceof Error ? error.message : '遊戲載入失敗');
       })
       .finally(() => setGameLoading(false));
-  }, [gameId, resolvedParams.id]);
+  }, [gameId, assignmentId, resolvedParams.id]);
   const [showRewardDialog, setShowRewardDialog] = useState(false);
   const [completionTime, setCompletionTime] = useState<string | null>(null);
   const [playerRank, setPlayerRank] = useState<number | null>(null);
@@ -544,7 +556,7 @@ export default function ExcelLearningPlatform({
         // 獲取玩家排名
         const studentId = localStorage.getItem(storageKey('student_id')) || 'guest';
         if (localStorage.getItem(storageKey('student_ref_id'))) {
-          getPlayerRank(studentId, gameId)
+          getPlayerRank(studentId, gameId, assignmentId)
             .then(rank => setPlayerRank(rank))
             .catch(error => console.error('Failed to fetch player rank:', error));
         } else {
@@ -552,7 +564,7 @@ export default function ExcelLearningPlatform({
         }
 
         // 獲取排行榜統計數據
-        getLeaderboardStats(gameId)
+        getLeaderboardStats(gameId, assignmentId)
           .then(stats => {
             setLeaderboardStats(stats);
           })
@@ -564,7 +576,7 @@ export default function ExcelLearningPlatform({
     } catch (error) {
       console.error('Error in fetchExercisesAndProgress:', error instanceof Error ? error.message : JSON.stringify(error));
     }
-  }, [showRewardDialog, gameId, lessons]);
+  }, [showRewardDialog, gameId, assignmentId, lessons]);
 
   useEffect(() => {
     // Initialize student ID and name if not already set
@@ -583,7 +595,7 @@ export default function ExcelLearningPlatform({
     // Call the fetchExercisesAndProgress function
     fetchExercisesAndProgress(currentLessonId);
     
-  }, [resolvedParams.id, showRewardDialog, fetchExercisesAndProgress, gameId]);
+  }, [resolvedParams.id, showRewardDialog, fetchExercisesAndProgress, gameId, assignmentId]);
 
   // Add an extra effect to update explanation when exercises data changes
   useEffect(() => {
@@ -1547,7 +1559,7 @@ export default function ExcelLearningPlatform({
       <a className="quest-skip" href="#lesson-workspace">跳至任務工作臺</a>
       <header className="quest-header" inert={lessonState.showChat && (compactChat || isExpanded)}>
         <div className="quest-header-inner">
-          <Link href={gameId ? `/${gameId}` : "/"} aria-label="返回任務基地"><GameBrand game={gameDefinition} legacy={!gameId} /></Link>
+          <Link href={homeHref} aria-label="返回任務基地"><GameBrand game={gameDefinition} legacy={!gameId} /></Link>
           <div className="quest-player-stats"><span>Lv. {lessonState.level}</span><span>{lessonState.exp} XP</span><span><Star size={16} aria-hidden="true" />{lessonState.stars}</span></div>
         </div>
       </header>
@@ -1557,7 +1569,7 @@ export default function ExcelLearningPlatform({
           <div className="lesson-heading">
             <div className="lesson-breadcrumb">
               <Link 
-                href={gameId ? `/${gameId}` : "/"}
+                href={homeHref}
                 className="flex items-center gap-2 text-gray-600 hover:text-blue-600 transition-colors"
               >
                 <ChevronLeft className="h-4 w-4 md:h-5 md:w-5" />
@@ -2098,7 +2110,7 @@ export default function ExcelLearningPlatform({
               </div>
             </DialogDescription>
           </DialogHeader>
-          <Link href={gameId ? `/${gameId}` : '/'} className="quest-button">{experience.lesson.homeLabel}</Link>
+          <Link href={homeHref} className="quest-button">{experience.lesson.homeLabel}</Link>
           <div className="p-6">
             <div className="space-y-6">
               <div className="flex items-center justify-between p-4 bg-[#FFF5E5] rounded-xl">

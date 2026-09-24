@@ -18,6 +18,7 @@ export interface LearningRecord {
   time_spent_seconds: number
   answer_attempts: number
   game_id?: string | null
+  game_assignment_id?: string | null
 }
 
 export interface LeaderboardEntry {
@@ -32,25 +33,35 @@ export interface LeaderboardEntry {
   stars_earned: number
   rank?: number
   game_id?: string | null
+  game_assignment_id?: string | null
 }
 
 export interface VerifiedStudent {
   student_id: string
   student_name: string
   grade: number | null
+  classroom_name?: string | null
 }
 
 // Verifies a teacher-issued login code against public.students via a
 // SECURITY DEFINER RPC, so the anon key can never read the roster table
 // directly (RLS on students only allows the owning teacher). Returns null
 // for an invalid/unknown code.
-export async function verifyStudentLoginCode(code: string): Promise<VerifiedStudent | null> {
+export async function verifyStudentLoginCode(
+  code: string,
+  gameId?: string,
+  assignmentId?: string | null,
+): Promise<VerifiedStudent | null> {
   const trimmed = code.trim();
   if (!trimmed) return null;
 
-  const { data, error } = await supabase.rpc('verify_student_login_code', {
-    p_code: trimmed,
-  });
+  const { data, error } = assignmentId && gameId
+    ? await supabase.rpc('verify_student_assignment_login_code', {
+        p_code: trimmed,
+        p_assignment_id: assignmentId,
+        p_game_id: gameId,
+      })
+    : await supabase.rpc('verify_student_login_code', { p_code: trimmed });
 
   if (error) {
     console.error('Error verifying student login code:', error.message || JSON.stringify(error));
@@ -72,6 +83,7 @@ export async function verifyStudentLoginCode(code: string): Promise<VerifiedStud
     student_id: row.student_id,
     student_name: row.student_name,
     grade: row.grade ?? null,
+    ...(typeof row.classroom_name === 'string' ? { classroom_name: row.classroom_name } : {}),
   };
 }
 
@@ -81,6 +93,11 @@ export async function verifyStudentLoginCode(code: string): Promise<VerifiedStud
 function getStoredStudentRefId(gameId?: string | null): string | null {
   if (typeof window === 'undefined') return null;
   return localStorage.getItem(gameStorageKey(gameId ?? undefined, 'student_ref_id'));
+}
+
+export function getStoredGameAssignmentId(gameId?: string | null): string | null {
+  if (typeof window === 'undefined' || !gameId) return null;
+  return localStorage.getItem(gameStorageKey(gameId, 'game_assignment_id'));
 }
 
 // Cloud learning data is only written after a teacher-issued code has linked
@@ -118,6 +135,7 @@ export interface ChatMessageRecord {
   is_user: boolean
   timestamp: string
   game_id?: string | null
+  game_assignment_id?: string | null
 }
 
 export interface QuestionCountRecord {
@@ -128,6 +146,7 @@ export interface QuestionCountRecord {
   lesson_id: string
   question_count: number
   game_id?: string | null
+  game_assignment_id?: string | null
 }
 
 export async function saveLearningRecord(record: Omit<LearningRecord, 'id'>) {
@@ -143,6 +162,7 @@ export async function saveLearningRecord(record: Omit<LearningRecord, 'id'>) {
     const recordWithId = {
       ...record,
       student_ref_id: record.student_ref_id ?? getStoredStudentRefId(record.game_id),
+      game_assignment_id: record.game_assignment_id ?? getStoredGameAssignmentId(record.game_id),
       id: uuidv4()
     };
 
@@ -192,6 +212,7 @@ export async function saveLeaderboardEntry(entry: Omit<LeaderboardEntry, 'id' | 
       .insert([{
         ...entry,
         student_ref_id: entry.student_ref_id ?? getStoredStudentRefId(entry.game_id),
+        game_assignment_id: entry.game_assignment_id ?? getStoredGameAssignmentId(entry.game_id),
         started_at: startTime,
         id: uuidv4()
       }]);
@@ -281,10 +302,13 @@ export async function saveGuestChatMessage(message: GuestChatMessage) {
   }
 }
 
-export async function getLeaderboard(gameId?: string): Promise<LeaderboardEntry[]> {
-  const { data, error } = await supabase.rpc('get_public_game_leaderboard', {
-    p_game_id: gameId ?? null,
-  });
+export async function getLeaderboard(gameId?: string, assignmentId?: string | null): Promise<LeaderboardEntry[]> {
+  const { data, error } = gameId
+    ? await supabase.rpc('get_public_assignment_leaderboard', {
+        p_game_id: gameId,
+        p_game_assignment_id: assignmentId ?? getStoredGameAssignmentId(gameId),
+      })
+    : await supabase.rpc('get_public_game_leaderboard', { p_game_id: null });
 
   if (error) {
     console.error('Error fetching leaderboard:', error)
@@ -299,12 +323,15 @@ interface ScoreRecord {
   completion_time_seconds: number;
 }
 
-export async function getPlayerRank(student_id: string, gameId?: string): Promise<number> {
+export async function getPlayerRank(student_id: string, gameId?: string, assignmentId?: string | null): Promise<number> {
   if (!hasLinkedStudent(gameId)) return 0;
-  const { data, error } = await supabase.rpc('get_game_player_rank', {
-    p_student_ref_id: student_id,
-    p_game_id: gameId ?? null,
-  });
+  const { data, error } = gameId
+    ? await supabase.rpc('get_assignment_player_rank', {
+        p_student_ref_id: student_id,
+        p_game_id: gameId,
+        p_game_assignment_id: assignmentId ?? getStoredGameAssignmentId(gameId),
+      })
+    : await supabase.rpc('get_game_player_rank', { p_student_ref_id: student_id, p_game_id: null });
   if (error) throw error;
   return typeof data === 'number' ? data : 0;
 }
@@ -316,10 +343,13 @@ interface LeaderboardRecord {
   completion_time_string: string;
 }
 
-export async function getLeaderboardStats(gameId?: string): Promise<LeaderboardStats> {
-  const { data, error } = await supabase.rpc('get_public_game_leaderboard', {
-    p_game_id: gameId ?? null,
-  });
+export async function getLeaderboardStats(gameId?: string, assignmentId?: string | null): Promise<LeaderboardStats> {
+  const { data, error } = gameId
+    ? await supabase.rpc('get_public_assignment_leaderboard', {
+        p_game_id: gameId,
+        p_game_assignment_id: assignmentId ?? getStoredGameAssignmentId(gameId),
+      })
+    : await supabase.rpc('get_public_game_leaderboard', { p_game_id: null });
 
   if (error) {
     console.error('Error fetching leaderboard stats:', error);
@@ -442,6 +472,7 @@ export async function saveChatMessage(message: Omit<ChatMessageRecord, 'id'>) {
     const messageWithId = {
       ...message,
       student_ref_id: message.student_ref_id ?? getStoredStudentRefId(message.game_id),
+      game_assignment_id: message.game_assignment_id ?? getStoredGameAssignmentId(message.game_id),
       id: uuidv4()
     };
 
@@ -490,11 +521,18 @@ export async function incrementQuestionCount(id: string, gameId?: string | null)
 export async function getLearningRecordId(studentId: string, lessonId: string, gameId?: string): Promise<string | null> {
   try {
     if (!hasLinkedStudent(gameId)) return null;
-    const { data, error } = await supabase.rpc('get_latest_learning_record_id', {
-      p_student_ref_id: studentId,
-      p_lesson_id: lessonId,
-      p_game_id: gameId ?? null,
-    });
+    const { data, error } = gameId
+      ? await supabase.rpc('get_latest_assignment_learning_record_id', {
+          p_student_ref_id: studentId,
+          p_lesson_id: lessonId,
+          p_game_id: gameId,
+          p_game_assignment_id: getStoredGameAssignmentId(gameId),
+        })
+      : await supabase.rpc('get_latest_learning_record_id', {
+          p_student_ref_id: studentId,
+          p_lesson_id: lessonId,
+          p_game_id: null,
+        });
 
     if (error) {
       console.error('Error getting learning record ID:', error.message || JSON.stringify(error));
