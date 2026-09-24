@@ -11,7 +11,7 @@ import { useLanguage } from '@/app/contexts/LanguageContext';
 import { useTranslation } from '@/utils/translations';
 import { AiQuotaError, throwForAiQuotaError } from '@/lib/ai-quota-errors';
 import MarkdownRenderer from '@/app/components/ui/MarkdownRenderer';
-import { parseAnalysisReport, type AnalysisSectionKind } from '../lib/analysis-sections';
+import { parseAnalysisReport, type AnalysisSection, type AnalysisSectionKind } from '../lib/analysis-sections';
 
 interface AIAnalysisReportProps {
   learningRecords: object[];
@@ -35,6 +35,63 @@ function iconForSection(kind: AnalysisSectionKind) {
   }
 }
 
+function sectionPreview(content: string) {
+  const plainText = content
+    .replace(/```[\s\S]*?```/g, '')
+    .replace(/[#*_`>\[\]]/g, '')
+    .replace(/^\s*[-+\d.)]+\s*/gm, '')
+    .replace(/\s+/g, ' ')
+    .trim();
+  return plainText.length > 72 ? `${plainText.slice(0, 72)}…` : plainText;
+}
+
+function AnalysisSectionCard({
+  section,
+  expanded,
+  onToggle,
+  evidenceLabel,
+  actionLabel,
+}: {
+  section: AnalysisSection;
+  expanded: boolean;
+  onToggle: () => void;
+  evidenceLabel: string;
+  actionLabel: string;
+}) {
+  const actionSection = section.kind === 'recommendations' || section.kind === 'improvements';
+
+  return (
+    <section className={`overflow-hidden rounded-xl border transition-colors ${actionSection ? 'border-amber-200/80 bg-amber-50/30' : 'bg-card'}`}>
+      <button
+        type="button"
+        onClick={onToggle}
+        aria-expanded={expanded}
+        aria-controls={`analysis-section-${section.id}`}
+        className="flex w-full items-center gap-3 px-4 py-3.5 text-left hover:bg-muted/35 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset sm:px-5"
+      >
+        <span className={`rounded-lg p-2 ${actionSection ? 'bg-amber-100 text-amber-800' : 'bg-muted text-foreground/75'}`}>
+          {iconForSection(section.kind)}
+        </span>
+        <span className="min-w-0 flex-1">
+          <span className="block text-sm font-semibold text-foreground sm:text-base">{section.title}</span>
+          <span className={`mt-0.5 block text-xs ${expanded ? 'text-muted-foreground' : 'truncate text-foreground/60'}`}>
+            {expanded ? (actionSection ? actionLabel : evidenceLabel) : sectionPreview(section.content)}
+          </span>
+        </span>
+        <ChevronDown className={`h-5 w-5 shrink-0 text-muted-foreground transition-transform ${expanded ? 'rotate-180' : ''}`} aria-hidden="true" />
+      </button>
+
+      {expanded && (
+        <div id={`analysis-section-${section.id}`} className="border-t bg-background/75 px-4 py-4 text-sm leading-7 text-foreground/80 sm:px-5">
+          <div className="[&_.markdown-content>p]:mb-3 [&_.markdown-content>p:last-child]:mb-0 [&_.markdown-content>ul]:mb-0 [&_.markdown-content>ol]:mb-0 [&_.markdown-content_li]:mb-1.5">
+            <MarkdownRenderer content={section.content} />
+          </div>
+        </div>
+      )}
+    </section>
+  );
+}
+
 export function AIAnalysisReport({ learningRecords, learningStats, selectedStudentName }: AIAnalysisReportProps) {
   const [analysisResult, setAnalysisResult] = useState<string | null>(null);
   const [analysisError, setAnalysisError] = useState<string | null>(null);
@@ -45,17 +102,37 @@ export function AIAnalysisReport({ learningRecords, learningStats, selectedStude
 
   const labels = language === 'zh-TW' ? {
     brief: '教師重點摘要', records: `${learningRecords.length} 筆學習紀錄`, evidence: '數據解讀',
-    action: '建議行動', expandAll: '展開全部', collapseAll: '收合全部', regenerate: '重新分析',
+    action: '建議行動', keyTakeaways: '核心結論與教學行動', evidenceGroup: '分析依據',
+    evidenceHint: '需要追查原因時再展開，避免核心建議被大量細節淹沒。',
+    viewEvidence: (count: number) => `查看 ${count} 項分析依據`, collapseEvidence: '收合分析依據', regenerate: '重新分析',
     disclaimer: 'AI 分析提供教學參考，請搭配原始學習紀錄與課堂觀察判讀。',
   } : {
     brief: 'Teacher brief', records: `${learningRecords.length} learning records`, evidence: 'Evidence and interpretation',
-    action: 'Suggested action', expandAll: 'Expand all', collapseAll: 'Collapse all', regenerate: 'Run analysis again',
+    action: 'Suggested action', keyTakeaways: 'Key takeaways and teaching actions', evidenceGroup: 'Supporting analysis',
+    evidenceHint: 'Open supporting evidence only when you need to investigate the cause.',
+    viewEvidence: (count: number) => `View ${count} supporting analyses`, collapseEvidence: 'Collapse supporting analysis', regenerate: 'Run analysis again',
     disclaimer: 'AI analysis is a teaching aid. Review it alongside source records and classroom observations.',
   };
 
   const parsedReport = useMemo(
     () => parseAnalysisReport(analysisResult, language),
     [analysisResult, language],
+  );
+
+  const prioritySections = useMemo(() => {
+    const rank: Partial<Record<AnalysisSectionKind, number>> = {
+      summary: 0,
+      improvements: 1,
+      recommendations: 2,
+    };
+    return parsedReport.sections
+      .filter(section => section.kind in rank)
+      .toSorted((a, b) => (rank[a.kind] ?? 99) - (rank[b.kind] ?? 99));
+  }, [parsedReport.sections]);
+
+  const evidenceSections = useMemo(
+    () => parsedReport.sections.filter(section => !prioritySections.some(priority => priority.id === section.id)),
+    [parsedReport.sections, prioritySections],
   );
 
   const generateAnalysis = async () => {
@@ -96,12 +173,15 @@ export function AIAnalysisReport({ learningRecords, learningStats, selectedStude
     setExpandedSections(previous => ({ ...previous, [sectionId]: !previous[sectionId] }));
   };
 
-  const setAllSections = (expanded: boolean) => {
-    setExpandedSections(Object.fromEntries(parsedReport.sections.map(section => [section.id, expanded])));
+  const setEvidenceSections = (expanded: boolean) => {
+    setExpandedSections(previous => ({
+      ...previous,
+      ...Object.fromEntries(evidenceSections.map(section => [section.id, expanded])),
+    }));
   };
 
-  const allExpanded = parsedReport.sections.length > 0
-    && parsedReport.sections.every(section => expandedSections[section.id]);
+  const allEvidenceExpanded = evidenceSections.length > 0
+    && evidenceSections.every(section => expandedSections[section.id]);
 
   return (
     <Card className="mt-6 overflow-hidden shadow-none">
@@ -155,9 +235,6 @@ export function AIAnalysisReport({ learningRecords, learningStats, selectedStude
                   <p className="truncate text-xs text-muted-foreground">{selectedStudentName} · {labels.records}</p>
                 </div>
               </div>
-              <Button type="button" variant="ghost" size="sm" onClick={() => setAllSections(!allExpanded)} className="justify-start sm:justify-center">
-                {allExpanded ? labels.collapseAll : labels.expandAll}
-              </Button>
             </div>
 
             {parsedReport.preamble && (
@@ -166,40 +243,47 @@ export function AIAnalysisReport({ learningRecords, learningStats, selectedStude
               </p>
             )}
 
-            <div className="grid gap-3">
-              {parsedReport.sections.map(section => {
-                const expanded = Boolean(expandedSections[section.id]);
-                const actionSection = section.kind === 'recommendations' || section.kind === 'improvements';
-                return (
-                  <section key={section.id} className={`overflow-hidden rounded-xl border transition-colors ${actionSection ? 'border-amber-200/80 bg-amber-50/30' : 'bg-card'}`}>
-                    <button
-                      type="button"
-                      onClick={() => toggleSection(section.id)}
-                      aria-expanded={expanded}
-                      aria-controls={`analysis-section-${section.id}`}
-                      className="flex w-full items-center gap-3 px-4 py-3.5 text-left hover:bg-muted/35 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset sm:px-5"
-                    >
-                      <span className={`rounded-lg p-2 ${actionSection ? 'bg-amber-100 text-amber-800' : 'bg-muted text-foreground/75'}`}>
-                        {iconForSection(section.kind)}
-                      </span>
-                      <span className="min-w-0 flex-1">
-                        <span className="block text-sm font-semibold text-foreground sm:text-base">{section.title}</span>
-                        <span className="mt-0.5 block text-xs text-muted-foreground">{actionSection ? labels.action : labels.evidence}</span>
-                      </span>
-                      <ChevronDown className={`h-5 w-5 shrink-0 text-muted-foreground transition-transform ${expanded ? 'rotate-180' : ''}`} aria-hidden="true" />
-                    </button>
+            {prioritySections.length > 0 && (
+              <div className="space-y-3">
+                <p className="app-kicker px-1">{labels.keyTakeaways}</p>
+                {prioritySections.map(section => (
+                  <AnalysisSectionCard
+                    key={section.id}
+                    section={section}
+                    expanded={Boolean(expandedSections[section.id])}
+                    onToggle={() => toggleSection(section.id)}
+                    evidenceLabel={labels.evidence}
+                    actionLabel={labels.action}
+                  />
+                ))}
+              </div>
+            )}
 
-                    {expanded && (
-                      <div id={`analysis-section-${section.id}`} className="border-t bg-background/75 px-4 py-4 text-sm leading-7 text-foreground/80 sm:px-5">
-                        <div className="[&_.markdown-content>p]:mb-3 [&_.markdown-content>p:last-child]:mb-0 [&_.markdown-content>ul]:mb-0 [&_.markdown-content>ol]:mb-0 [&_.markdown-content_li]:mb-1.5">
-                          <MarkdownRenderer content={section.content} />
-                        </div>
-                      </div>
-                    )}
-                  </section>
-                );
-              })}
-            </div>
+            {evidenceSections.length > 0 && (
+              <div className="space-y-3 border-t pt-5">
+                <div className="flex flex-col gap-3 px-1 sm:flex-row sm:items-center">
+                  <div className="mr-auto">
+                    <p className="text-sm font-semibold">{labels.evidenceGroup}</p>
+                    <p className="mt-1 max-w-2xl text-xs leading-5 text-muted-foreground">{labels.evidenceHint}</p>
+                  </div>
+                  <Button type="button" variant="outline" size="sm" onClick={() => setEvidenceSections(!allEvidenceExpanded)} className="w-full sm:w-auto">
+                    {allEvidenceExpanded ? labels.collapseEvidence : labels.viewEvidence(evidenceSections.length)}
+                  </Button>
+                </div>
+                <div className="grid gap-3">
+                  {evidenceSections.map(section => (
+                    <AnalysisSectionCard
+                      key={section.id}
+                      section={section}
+                      expanded={Boolean(expandedSections[section.id])}
+                      onToggle={() => toggleSection(section.id)}
+                      evidenceLabel={labels.evidence}
+                      actionLabel={labels.action}
+                    />
+                  ))}
+                </div>
+              </div>
+            )}
 
             <p className="pt-1 text-xs leading-5 text-muted-foreground">{labels.disclaimer}</p>
           </div>

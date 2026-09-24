@@ -39,6 +39,11 @@ describe('AIAnalysisReport', () => {
     expect(screen.queryByText(/\*\*/)).toBeNull();
     expect(screen.getByText('學習行為觀察')).toBeTruthy();
     expect(screen.getByText('教師下一步建議')).toBeTruthy();
+    expect(screen.getByRole('button', { name: '查看 1 項分析依據' })).toBeTruthy();
+
+    const buttonLabels = screen.getAllByRole('button').map(button => button.textContent ?? '');
+    expect(buttonLabels.findIndex(label => label.includes('教師下一步建議')))
+      .toBeLessThan(buttonLabels.findIndex(label => label.includes('學習行為觀察')));
 
     await waitFor(() => {
       expect(screen.getByRole('button', { name: /教師下一步建議/ }).getAttribute('aria-expanded')).toBe('true');
