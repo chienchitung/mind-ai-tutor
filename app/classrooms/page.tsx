@@ -1,22 +1,43 @@
 'use client';
 
+import Link from 'next/link';
 import { useEffect, useMemo, useState } from 'react';
 import {
   Archive,
-  Beaker,
   Check,
   ClipboardCopy,
   Gamepad2,
   GraduationCap,
   Plus,
+  UserPlus,
   Users,
 } from 'lucide-react';
 import { PageHeader } from '@/components/layout/PageHeader';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Badge } from '@/components/ui/badge';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from '@/components/ui/alert-dialog';
 import { PageLoader } from '@/components/ui/page-state';
 import { useToast } from '@/hooks/use-toast';
 import { useLanguage } from '@/app/contexts/LanguageContext';
@@ -72,6 +93,7 @@ export default function ClassroomsPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [showCreate, setShowCreate] = useState(false);
+  const [showArchived, setShowArchived] = useState(false);
   const [className, setClassName] = useState('');
   const [academicYear, setAcademicYear] = useState('');
   const [term, setTerm] = useState('');
@@ -135,6 +157,14 @@ export default function ClassroomsPage() {
     [memberships, selectedClassroomId],
   );
   const classAssignments = assignments.filter(item => item.classroom_id === selectedClassroomId);
+  const activeClassCount = classrooms.filter(item => item.status === 'active').length;
+  const activeClassIds = new Set(classrooms.filter(item => item.status === 'active').map(item => item.id));
+  const assignedStudentCount = new Set(memberships
+    .filter(item => !item.left_at && activeClassIds.has(item.classroom_id))
+    .map(item => item.student_id)).size;
+  const activeAssignmentCount = assignments.filter(item => item.status === 'active' && activeClassIds.has(item.classroom_id)).length;
+  const archivedClassCount = classrooms.length - activeClassCount;
+  const visibleClassrooms = showArchived ? classrooms : classrooms.filter(item => item.status === 'active');
 
   async function createClassroom() {
     if (!className.trim() || isSaving) return;
@@ -224,6 +254,7 @@ export default function ClassroomsPage() {
 
   async function archiveClassroom() {
     if (!selectedClassroom || isSaving) return;
+    const wasActive = selectedClassroom.status === 'active';
     setIsSaving(true);
     try {
       const { supabase } = await import('@/lib/supabase');
@@ -233,6 +264,9 @@ export default function ClassroomsPage() {
         .eq('id', selectedClassroom.id);
       if (error) throw error;
       await loadData();
+      if (wasActive && !showArchived) {
+        setSelectedClassroomId(classrooms.find(item => item.id !== selectedClassroom.id && item.status === 'active')?.id ?? null);
+      }
     } catch (error: any) {
       toast({ title: zh ? '更新失敗' : 'Update failed', description: error?.message, variant: 'destructive' });
     } finally {
@@ -265,71 +299,128 @@ export default function ClassroomsPage() {
   if (isLoading) return <PageLoader />;
 
   return (
-    <div className="w-full space-y-7 pb-10">
+    <div className="mx-auto w-full max-w-[1180px] min-w-0 space-y-6 pb-10">
       <PageHeader
-        heading={zh ? '班級與實驗分組' : 'Classes & experiment groups'}
+        heading={zh ? '班級管理' : 'Class management'}
         text={zh
-          ? '建立固定學生群組，將同一款遊戲分別指派給不同班級，保留可比較的學習資料。'
-          : 'Create stable cohorts and assign the same game separately so learning data remains comparable.'}
+          ? '整理學生名單並指派學習遊戲；同一款遊戲可分別追蹤不同班級的表現。'
+          : 'Organize rosters, assign learning games, and track each class separately.'}
         actions={
-          <Button onClick={() => setShowCreate(value => !value)}>
+          <Button onClick={() => setShowCreate(true)}>
             <Plus className="mr-2 h-4 w-4" />
             {zh ? '新增班級' : 'New class'}
           </Button>
         }
       />
 
-      {showCreate && (
-        <Card className="border-primary/30">
-          <CardHeader>
-            <CardTitle>{zh ? '建立班級' : 'Create class'}</CardTitle>
-            <CardDescription>
-              {zh ? '實驗名稱相同、實驗組別不同，即可建立實驗組與對照組。' : 'Use the same study name with different arms for control and intervention groups.'}
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
-            <label className="space-y-1.5 text-sm font-medium">
-              {zh ? '班級名稱' : 'Class name'}
-              <Input value={className} onChange={event => setClassName(event.target.value)} placeholder={zh ? '例如：六年甲班' : 'e.g. Grade 6A'} />
-            </label>
-            <label className="space-y-1.5 text-sm font-medium">
-              {zh ? '學年度' : 'Academic year'}
-              <Input value={academicYear} onChange={event => setAcademicYear(event.target.value)} placeholder="2026" />
-            </label>
-            <label className="space-y-1.5 text-sm font-medium">
-              {zh ? '學期' : 'Term'}
-              <Input value={term} onChange={event => setTerm(event.target.value)} placeholder={zh ? '第一學期' : 'Term 1'} />
-            </label>
-            <label className="space-y-1.5 text-sm font-medium">
-              {zh ? '實驗名稱（選填）' : 'Study name (optional)'}
-              <Input value={studyLabel} onChange={event => setStudyLabel(event.target.value)} placeholder={zh ? 'AI 助教成效研究' : 'AI tutor study'} />
-            </label>
-            <label className="space-y-1.5 text-sm font-medium">
-              {zh ? '實驗組別（選填）' : 'Study arm (optional)'}
-              <Input value={studyArm} onChange={event => setStudyArm(event.target.value)} placeholder={zh ? '實驗組／對照組' : 'Intervention / Control'} />
-            </label>
-            <div className="flex gap-2 md:col-span-2 xl:col-span-5">
-              <Button onClick={createClassroom} disabled={!className.trim() || isSaving}>{zh ? '建立班級' : 'Create class'}</Button>
-              <Button variant="ghost" onClick={() => setShowCreate(false)}>{zh ? '取消' : 'Cancel'}</Button>
+      <Dialog open={showCreate} onOpenChange={setShowCreate}>
+        <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-xl">
+          <DialogHeader>
+            <DialogTitle>{zh ? '建立班級' : 'Create class'}</DialogTitle>
+            <DialogDescription>
+              {zh ? '先填寫基本資料，建立後再加入學生與指派遊戲。' : 'Enter the basics first, then add students and assign games.'}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-5 py-1">
+            <div className="space-y-2">
+              <Label htmlFor="class-name">{zh ? '班級名稱' : 'Class name'} <span className="text-destructive">*</span></Label>
+              <Input id="class-name" autoFocus value={className} onChange={event => setClassName(event.target.value)} placeholder={zh ? '例如：六年甲班' : 'e.g. Grade 6A'} />
+            </div>
+            <div className="grid gap-4 sm:grid-cols-2">
+              <div className="space-y-2">
+                <Label htmlFor="academic-year">{zh ? '學年度（選填）' : 'Academic year (optional)'}</Label>
+                <Input id="academic-year" value={academicYear} onChange={event => setAcademicYear(event.target.value)} placeholder="2026" />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="term">{zh ? '學期（選填）' : 'Term (optional)'}</Label>
+                <Input id="term" value={term} onChange={event => setTerm(event.target.value)} placeholder={zh ? '第一學期' : 'Term 1'} />
+              </div>
+            </div>
+            <details className="rounded-xl border bg-muted/20 px-4 py-3">
+              <summary className="cursor-pointer text-sm font-medium">{zh ? '進階標記（選填）' : 'Advanced labels (optional)'}</summary>
+              <p className="mt-2 text-xs leading-5 text-muted-foreground">
+                {zh ? '只有需要標記研究或比較組別時才需填寫，日常班級可略過。' : 'Only use these fields when labeling a study or comparison group.'}
+              </p>
+              <div className="mt-4 grid gap-4 sm:grid-cols-2">
+                <div className="space-y-2">
+                  <Label htmlFor="study-label">{zh ? '比較名稱' : 'Comparison name'}</Label>
+                  <Input id="study-label" value={studyLabel} onChange={event => setStudyLabel(event.target.value)} placeholder={zh ? '例如：六年級學習比較' : 'e.g. Grade 6 comparison'} />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="study-arm">{zh ? '組別標記' : 'Group label'}</Label>
+                  <Input id="study-arm" value={studyArm} onChange={event => setStudyArm(event.target.value)} placeholder={zh ? '例如：甲班／乙班' : 'e.g. Class A / Class B'} />
+                </div>
+              </div>
+            </details>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowCreate(false)} disabled={isSaving}>{zh ? '取消' : 'Cancel'}</Button>
+            <Button onClick={createClassroom} disabled={!className.trim() || isSaving}>
+              {isSaving ? (zh ? '建立中…' : 'Creating…') : (zh ? '建立班級' : 'Create class')}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {classrooms.length === 0 ? (
+        <Card className="overflow-hidden">
+          <CardContent className="grid p-0 lg:grid-cols-[minmax(0,1fr)_420px]">
+            <div className="flex flex-col justify-center px-6 py-10 sm:px-10 lg:py-12">
+              <div className="mb-5 flex h-12 w-12 items-center justify-center rounded-2xl bg-primary/10 text-primary">
+                <GraduationCap className="h-6 w-6" />
+              </div>
+              <h2 className="text-xl font-semibold tracking-tight">{zh ? '建立第一個班級' : 'Create your first class'}</h2>
+              <p className="mt-2 max-w-xl text-sm leading-6 text-muted-foreground">
+                {zh ? '將學生、遊戲活動與學習紀錄整理在一起，之後比較不同班級時，資料也不會混合。' : 'Keep rosters, game activities, and learning records together so class data stays separate.'}
+              </p>
+              <div className="mt-6 flex flex-wrap gap-3">
+                <Button onClick={() => setShowCreate(true)}><Plus className="mr-2 h-4 w-4" />{zh ? '建立班級' : 'Create class'}</Button>
+                {students.length === 0 && (
+                  <Button variant="outline" asChild><Link href="/students/new"><UserPlus className="mr-2 h-4 w-4" />{zh ? '先新增學生' : 'Add students first'}</Link></Button>
+                )}
+              </div>
+            </div>
+            <div className="border-t bg-muted/25 px-6 py-8 sm:px-8 lg:border-l lg:border-t-0">
+              <p className="text-sm font-semibold">{zh ? '開始使用只要三步' : 'Get started in three steps'}</p>
+              <ol className="mt-5 space-y-5">
+                {[
+                  zh ? '建立班級與學期資料' : 'Create the class and term',
+                  zh ? '從學生名單勾選班級成員' : 'Select students for the roster',
+                  zh ? '指派遊戲並分享班級連結' : 'Assign a game and share its link',
+                ].map((step, index) => (
+                  <li key={step} className="flex items-center gap-3 text-sm">
+                    <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full border bg-background text-xs font-semibold">{index + 1}</span>
+                    <span>{step}</span>
+                  </li>
+                ))}
+              </ol>
             </div>
           </CardContent>
         </Card>
-      )}
-
-      {classrooms.length === 0 ? (
-        <Card>
-          <CardContent className="flex min-h-72 flex-col items-center justify-center text-center">
-            <GraduationCap className="mb-4 h-12 w-12 text-muted-foreground" />
-            <h2 className="text-lg font-semibold">{zh ? '尚未建立班級' : 'No classes yet'}</h2>
-            <p className="mt-2 max-w-md text-sm text-muted-foreground">
-              {zh ? '先建立班級，再加入學生並指派遊戲。' : 'Create a class, add students, then assign a game.'}
-            </p>
-          </CardContent>
-        </Card>
       ) : (
-        <div className="grid gap-6 xl:grid-cols-[320px_minmax(0,1fr)]">
+        <div className="space-y-5">
+          <section aria-label={zh ? '班級摘要' : 'Class summary'} className="grid gap-3 sm:grid-cols-3">
+            {[
+              { label: zh ? '進行中班級' : 'Active classes', value: activeClassCount, icon: GraduationCap, tone: 'bg-blue-50 text-blue-700' },
+              { label: zh ? '已分班學生' : 'Students assigned', value: assignedStudentCount, icon: Users, tone: 'bg-emerald-50 text-emerald-700' },
+              { label: zh ? '進行中活動' : 'Active activities', value: activeAssignmentCount, icon: Gamepad2, tone: 'bg-violet-50 text-violet-700' },
+            ].map(item => (
+              <Card key={item.label}>
+                <CardContent className="flex items-center gap-4 p-4">
+                  <span className={cn('flex h-10 w-10 shrink-0 items-center justify-center rounded-xl', item.tone)}>
+                    <item.icon className="h-5 w-5" />
+                  </span>
+                  <span>
+                    <span className="block text-2xl font-semibold leading-none">{item.value}</span>
+                    <span className="mt-1.5 block text-xs text-muted-foreground">{item.label}</span>
+                  </span>
+                </CardContent>
+              </Card>
+            ))}
+          </section>
+          <div className="grid gap-5 lg:grid-cols-[280px_minmax(0,1fr)]">
           <div className="space-y-3">
-            {classrooms.map(classroom => {
+            {visibleClassrooms.map(classroom => {
               const memberCount = memberships.filter(item => item.classroom_id === classroom.id && !item.left_at).length;
               const assignmentCount = assignments.filter(item => item.classroom_id === classroom.id && item.status === 'active').length;
               return (
@@ -352,10 +443,7 @@ export default function ClassroomsPage() {
                     {classroom.status === 'archived' && <Badge variant="secondary">{zh ? '已封存' : 'Archived'}</Badge>}
                   </div>
                   {classroom.study_arm && (
-                    <div className="mt-3 flex items-center gap-2 text-xs text-primary">
-                      <Beaker className="h-3.5 w-3.5" />
-                      <span className="truncate">{classroom.study_arm}</span>
-                    </div>
+                    <Badge variant="outline" className="mt-3 max-w-full truncate font-normal">{classroom.study_arm}</Badge>
                   )}
                   <div className="mt-4 flex gap-4 text-xs text-muted-foreground">
                     <span>{memberCount} {zh ? '位學生' : 'students'}</span>
@@ -364,6 +452,17 @@ export default function ClassroomsPage() {
                 </button>
               );
             })}
+            {archivedClassCount > 0 && (
+              <button
+                type="button"
+                onClick={() => setShowArchived(value => !value)}
+                className="w-full rounded-xl px-3 py-2 text-left text-xs font-medium text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+              >
+                {showArchived
+                  ? (zh ? '隱藏已封存班級' : 'Hide archived classes')
+                  : (zh ? `查看已封存班級（${archivedClassCount}）` : `View archived classes (${archivedClassCount})`)}
+              </button>
+            )}
           </div>
 
           {selectedClassroom && (
@@ -378,17 +477,38 @@ export default function ClassroomsPage() {
                         : (zh ? '一般教學班級' : 'Standard teaching class')}
                     </CardDescription>
                   </div>
-                  <Button variant="outline" size="sm" onClick={archiveClassroom} disabled={isSaving}>
-                    <Archive className="mr-2 h-4 w-4" />
-                    {selectedClassroom.status === 'active' ? (zh ? '封存' : 'Archive') : (zh ? '重新啟用' : 'Reactivate')}
-                  </Button>
+                  {selectedClassroom.status === 'active' ? (
+                    <AlertDialog>
+                      <AlertDialogTrigger asChild>
+                        <Button variant="outline" size="sm" disabled={isSaving}>
+                          <Archive className="mr-2 h-4 w-4" />{zh ? '封存班級' : 'Archive class'}
+                        </Button>
+                      </AlertDialogTrigger>
+                      <AlertDialogContent>
+                        <AlertDialogHeader>
+                          <AlertDialogTitle>{zh ? `封存「${selectedClassroom.name}」？` : `Archive “${selectedClassroom.name}”?`}</AlertDialogTitle>
+                          <AlertDialogDescription>
+                            {zh ? '班級會從日常清單中收起，但學生名單、遊戲活動與歷史學習紀錄都會保留，之後也可以重新啟用。' : 'The class leaves the active list, while its roster, assignments, and learning history remain available for reactivation.'}
+                          </AlertDialogDescription>
+                        </AlertDialogHeader>
+                        <AlertDialogFooter>
+                          <AlertDialogCancel>{zh ? '取消' : 'Cancel'}</AlertDialogCancel>
+                          <AlertDialogAction onClick={archiveClassroom}>{zh ? '確認封存' : 'Archive class'}</AlertDialogAction>
+                        </AlertDialogFooter>
+                      </AlertDialogContent>
+                    </AlertDialog>
+                  ) : (
+                    <Button variant="outline" size="sm" onClick={archiveClassroom} disabled={isSaving}>
+                      {zh ? '重新啟用班級' : 'Reactivate class'}
+                    </Button>
+                  )}
                 </CardHeader>
               </Card>
 
               <Card>
                 <CardHeader>
-                  <CardTitle className="flex items-center gap-2"><Users className="h-5 w-5" />{zh ? '班級學生' : 'Class roster'}</CardTitle>
-                  <CardDescription>{zh ? '勾選學生即可加入此班級；同一學生可以加入多個班級。' : 'Select students to add them. A student may belong to more than one class.'}</CardDescription>
+                  <CardTitle className="flex items-center gap-2"><Users className="h-5 w-5" />{zh ? '學生名單' : 'Class roster'}</CardTitle>
+                  <CardDescription>{zh ? `勾選要加入的學生，目前共 ${activeMemberIds.size} 位；移出班級仍會保留過去紀錄。` : `Select students to add. ${activeMemberIds.size} enrolled; removing one keeps their history.`}</CardDescription>
                 </CardHeader>
                 <CardContent>
                   {students.length === 0 ? (
@@ -432,7 +552,7 @@ export default function ClassroomsPage() {
                       {games.map(game => <option key={game.id} value={game.id}>{game.title}</option>)}
                     </select>
                     <Button onClick={assignGame} disabled={!selectedGameId || isSaving}>
-                      <Plus className="mr-2 h-4 w-4" />{zh ? '建立活動' : 'Create assignment'}
+                      <Plus className="mr-2 h-4 w-4" />{zh ? '指派遊戲' : 'Assign game'}
                     </Button>
                   </div>
 
@@ -453,7 +573,7 @@ export default function ClassroomsPage() {
                         </div>
                         <Button variant="outline" size="sm" onClick={() => void copyAssignmentLink(assignment)}>
                           {copiedAssignmentId === assignment.id ? <Check className="mr-2 h-4 w-4" /> : <ClipboardCopy className="mr-2 h-4 w-4" />}
-                          {copiedAssignmentId === assignment.id ? (zh ? '已複製' : 'Copied') : (zh ? '複製班級連結' : 'Copy class link')}
+                          {copiedAssignmentId === assignment.id ? (zh ? '已複製' : 'Copied') : (zh ? '複製學生連結' : 'Copy student link')}
                         </Button>
                       </div>
                     );
@@ -462,6 +582,7 @@ export default function ClassroomsPage() {
               </Card>
             </div>
           )}
+          </div>
         </div>
       )}
     </div>
