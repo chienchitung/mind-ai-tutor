@@ -6,6 +6,8 @@ describe('usesAppShell', () => {
     '/dashboard',
     '/students',
     '/students/student-id',
+    '/classrooms',
+    '/classrooms/classroom-id',
     '/lessons/lesson-id/edit',
     '/live/new',
     '/live/sessions',

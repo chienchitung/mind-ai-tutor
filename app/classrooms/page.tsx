@@ -27,6 +27,17 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from '@/components/ui/alert-dialog';
 import { PageLoader } from '@/components/ui/page-state';
 import { useToast } from '@/hooks/use-toast';
 import { useLanguage } from '@/app/contexts/LanguageContext';
@@ -82,6 +93,7 @@ export default function ClassroomsPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [showCreate, setShowCreate] = useState(false);
+  const [showArchived, setShowArchived] = useState(false);
   const [className, setClassName] = useState('');
   const [academicYear, setAcademicYear] = useState('');
   const [term, setTerm] = useState('');
@@ -146,8 +158,13 @@ export default function ClassroomsPage() {
   );
   const classAssignments = assignments.filter(item => item.classroom_id === selectedClassroomId);
   const activeClassCount = classrooms.filter(item => item.status === 'active').length;
-  const assignedStudentCount = new Set(memberships.filter(item => !item.left_at).map(item => item.student_id)).size;
-  const activeAssignmentCount = assignments.filter(item => item.status === 'active').length;
+  const activeClassIds = new Set(classrooms.filter(item => item.status === 'active').map(item => item.id));
+  const assignedStudentCount = new Set(memberships
+    .filter(item => !item.left_at && activeClassIds.has(item.classroom_id))
+    .map(item => item.student_id)).size;
+  const activeAssignmentCount = assignments.filter(item => item.status === 'active' && activeClassIds.has(item.classroom_id)).length;
+  const archivedClassCount = classrooms.length - activeClassCount;
+  const visibleClassrooms = showArchived ? classrooms : classrooms.filter(item => item.status === 'active');
 
   async function createClassroom() {
     if (!className.trim() || isSaving) return;
@@ -237,6 +254,7 @@ export default function ClassroomsPage() {
 
   async function archiveClassroom() {
     if (!selectedClassroom || isSaving) return;
+    const wasActive = selectedClassroom.status === 'active';
     setIsSaving(true);
     try {
       const { supabase } = await import('@/lib/supabase');
@@ -246,6 +264,9 @@ export default function ClassroomsPage() {
         .eq('id', selectedClassroom.id);
       if (error) throw error;
       await loadData();
+      if (wasActive && !showArchived) {
+        setSelectedClassroomId(classrooms.find(item => item.id !== selectedClassroom.id && item.status === 'active')?.id ?? null);
+      }
     } catch (error: any) {
       toast({ title: zh ? '更新失敗' : 'Update failed', description: error?.message, variant: 'destructive' });
     } finally {
@@ -278,7 +299,7 @@ export default function ClassroomsPage() {
   if (isLoading) return <PageLoader />;
 
   return (
-    <div className="w-full min-w-0 space-y-6 pb-10">
+    <div className="mx-auto w-full max-w-[1180px] min-w-0 space-y-6 pb-10">
       <PageHeader
         heading={zh ? '班級管理' : 'Class management'}
         text={zh
@@ -397,9 +418,9 @@ export default function ClassroomsPage() {
               </Card>
             ))}
           </section>
-          <div className="grid gap-6 xl:grid-cols-[320px_minmax(0,1fr)]">
+          <div className="grid gap-5 lg:grid-cols-[280px_minmax(0,1fr)]">
           <div className="space-y-3">
-            {classrooms.map(classroom => {
+            {visibleClassrooms.map(classroom => {
               const memberCount = memberships.filter(item => item.classroom_id === classroom.id && !item.left_at).length;
               const assignmentCount = assignments.filter(item => item.classroom_id === classroom.id && item.status === 'active').length;
               return (
@@ -431,6 +452,17 @@ export default function ClassroomsPage() {
                 </button>
               );
             })}
+            {archivedClassCount > 0 && (
+              <button
+                type="button"
+                onClick={() => setShowArchived(value => !value)}
+                className="w-full rounded-xl px-3 py-2 text-left text-xs font-medium text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+              >
+                {showArchived
+                  ? (zh ? '隱藏已封存班級' : 'Hide archived classes')
+                  : (zh ? `查看已封存班級（${archivedClassCount}）` : `View archived classes (${archivedClassCount})`)}
+              </button>
+            )}
           </div>
 
           {selectedClassroom && (
@@ -445,10 +477,31 @@ export default function ClassroomsPage() {
                         : (zh ? '一般教學班級' : 'Standard teaching class')}
                     </CardDescription>
                   </div>
-                  <Button variant="outline" size="sm" onClick={archiveClassroom} disabled={isSaving}>
-                    <Archive className="mr-2 h-4 w-4" />
-                    {selectedClassroom.status === 'active' ? (zh ? '封存' : 'Archive') : (zh ? '重新啟用' : 'Reactivate')}
-                  </Button>
+                  {selectedClassroom.status === 'active' ? (
+                    <AlertDialog>
+                      <AlertDialogTrigger asChild>
+                        <Button variant="outline" size="sm" disabled={isSaving}>
+                          <Archive className="mr-2 h-4 w-4" />{zh ? '封存班級' : 'Archive class'}
+                        </Button>
+                      </AlertDialogTrigger>
+                      <AlertDialogContent>
+                        <AlertDialogHeader>
+                          <AlertDialogTitle>{zh ? `封存「${selectedClassroom.name}」？` : `Archive “${selectedClassroom.name}”?`}</AlertDialogTitle>
+                          <AlertDialogDescription>
+                            {zh ? '班級會從日常清單中收起，但學生名單、遊戲活動與歷史學習紀錄都會保留，之後也可以重新啟用。' : 'The class leaves the active list, while its roster, assignments, and learning history remain available for reactivation.'}
+                          </AlertDialogDescription>
+                        </AlertDialogHeader>
+                        <AlertDialogFooter>
+                          <AlertDialogCancel>{zh ? '取消' : 'Cancel'}</AlertDialogCancel>
+                          <AlertDialogAction onClick={archiveClassroom}>{zh ? '確認封存' : 'Archive class'}</AlertDialogAction>
+                        </AlertDialogFooter>
+                      </AlertDialogContent>
+                    </AlertDialog>
+                  ) : (
+                    <Button variant="outline" size="sm" onClick={archiveClassroom} disabled={isSaving}>
+                      {zh ? '重新啟用班級' : 'Reactivate class'}
+                    </Button>
+                  )}
                 </CardHeader>
               </Card>
 

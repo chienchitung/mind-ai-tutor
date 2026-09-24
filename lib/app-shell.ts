@@ -1,6 +1,7 @@
 const APP_SHELL_ROUTES = [
   '/dashboard',
   '/students',
+  '/classrooms',
   '/lessons',
   '/digital-games',
   '/ai-quiz',
