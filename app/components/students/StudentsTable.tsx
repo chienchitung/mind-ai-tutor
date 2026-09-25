@@ -29,6 +29,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
+import { studentSubjectLabel } from '@/lib/student-subjects';
 
 type Student = Database['public']['Tables']['students']['Row'];
 
@@ -104,7 +105,9 @@ export function StudentsTable({ students, selectedTab, onSelectedTabChange, onSt
       header: t('topics'),
       cell: ({ row }) => {
         const subjects = row.original.subjects;
-        return subjects && subjects.length > 0 ? subjects.join(', ') : t('not_available');
+        return subjects && subjects.length > 0
+          ? subjects.map(subject => studentSubjectLabel(subject, language)).join(', ')
+          : t('not_available');
       },
     },
     {

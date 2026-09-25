@@ -5,32 +5,12 @@ import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select';
 import { useToast } from '@/hooks/use-toast';
 import { useLanguage } from '@/app/contexts/LanguageContext';
 import { useTranslation } from '@/utils/translations';
 import type { Database } from '@/types/supabase';
 import { PageHeader } from '@/components/layout/PageHeader';
-
-const subjects = [
-  'Mathematics',
-  'English',
-  'Science',
-  'History',
-  'Geography',
-  'Physics',
-  'Chemistry',
-  'Biology',
-  'Computer Science',
-  'Art',
-  'Music',
-];
+import { SubjectPicker } from '@/app/components/students/SubjectPicker';
 
 export default function NewStudentPage() {
   const [loading, setLoading] = useState(false);
@@ -84,15 +64,6 @@ export default function NewStudentPage() {
     } finally {
       setLoading(false);
     }
-  };
-
-  const handleSubjectToggle = (subject: string) => {
-    setFormData((prev) => ({
-      ...prev,
-      subjects: prev.subjects.includes(subject)
-        ? prev.subjects.filter((s) => s !== subject)
-        : [...prev.subjects, subject],
-    }));
   };
 
   return (
@@ -152,22 +123,11 @@ export default function NewStudentPage() {
         </div>
         <div className="space-y-2">
           <Label>{t('topics')}</Label>
-          <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
-            {subjects.map((subject) => (
-              <Button
-                key={subject}
-                type="button"
-                variant={
-                  formData.subjects.includes(subject) ? 'default' : 'outline'
-                }
-                className="h-auto min-h-10 justify-start whitespace-normal text-left"
-                aria-pressed={formData.subjects.includes(subject)}
-                onClick={() => handleSubjectToggle(subject)}
-              >
-                {subject}
-              </Button>
-            ))}
-          </div>
+          <SubjectPicker
+            language={language}
+            value={formData.subjects}
+            onChange={subjects => setFormData(prev => ({ ...prev, subjects }))}
+          />
         </div>
         <div className="flex flex-wrap justify-end gap-2 border-t border-border/70 pt-5">
           <Button type="button" variant="outline" disabled={loading} onClick={() => router.push('/students')}>

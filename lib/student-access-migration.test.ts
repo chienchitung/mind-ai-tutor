@@ -113,4 +113,15 @@ describe('account-free classroom access migration', () => {
     );
     expect(result.rows).toEqual([{ student_id: studentId, assignment_count: 1 }]);
   });
+
+  it('blocks student-ID access as soon as the classroom is archived', async () => {
+    await db.exec('reset role');
+    await db.query(`update public.classrooms set status = 'archived' where id = $1`, [classroomId]);
+    await db.exec('set role anon');
+    const result = await db.query(
+      'select * from public.verify_student_game_login_code($1, $2::uuid, $3::uuid)',
+      ['A001', gameId, assignmentId],
+    );
+    expect(result.rows).toHaveLength(0);
+  });
 });
