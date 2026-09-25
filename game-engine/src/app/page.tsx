@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import { Trophy } from "lucide-react"
+import { Check, KeyRound, Trophy, UserRound } from "lucide-react"
 import { QuestHome } from "@/components/QuestHome"
 import { lessons as legacyLessons } from '@/data/lessons'
 import { getProgress, resetProgress } from '@/lib/progress'
@@ -375,19 +375,58 @@ export default function HomePage({ gameId, assignmentId }: { gameId?: string; as
 
       {/* 學號輸入對話框 */}
       <Dialog open={showStudentIdDialog} onOpenChange={setShowStudentIdDialog}>
-        <DialogContent className="sm:max-w-[425px]">
+        <DialogContent className="sm:max-w-[500px]">
           <DialogHeader>
-            <DialogTitle className="text-xl font-bold">開始學習</DialogTitle>
-            <DialogDescription className="text-base">
+            <DialogTitle className="text-2xl font-bold">開始學習</DialogTitle>
+            <DialogDescription className="text-base text-gray-600">
               選擇你要用哪種方式開始
             </DialogDescription>
           </DialogHeader>
-          <Tabs defaultValue="code">
-            <TabsList className="grid w-full grid-cols-2">
-              <TabsTrigger value="code">老師提供的代碼</TabsTrigger>
-              <TabsTrigger value="guest">訪客體驗</TabsTrigger>
+          <Tabs defaultValue="code" className="mt-2">
+            <TabsList
+              aria-label="選擇學習登入方式"
+              className="grid h-auto w-full grid-cols-1 gap-3 bg-transparent p-0 sm:grid-cols-2"
+            >
+              <TabsTrigger
+                value="code"
+                className="group relative min-h-[108px] items-start justify-start whitespace-normal rounded-xl border-2 border-gray-200 bg-white p-4 text-left shadow-none transition-colors hover:border-blue-300 hover:bg-blue-50/50 data-[state=active]:border-blue-600 data-[state=active]:bg-blue-50 data-[state=active]:text-blue-950 data-[state=active]:shadow-none"
+              >
+                <span className="flex w-full items-start gap-3">
+                  <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-blue-100 text-blue-700">
+                    <KeyRound size={20} aria-hidden="true" />
+                  </span>
+                  <span className="min-w-0 flex-1">
+                    <span className="block text-base font-bold">使用學習代碼</span>
+                    <span className="mt-1 block text-xs font-normal leading-5 text-gray-600">
+                      老師提供，保存進度與學習紀錄
+                    </span>
+                  </span>
+                  <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full border-2 border-gray-300 text-transparent group-data-[state=active]:border-blue-600 group-data-[state=active]:bg-blue-600 group-data-[state=active]:text-white">
+                    <Check size={12} strokeWidth={3} aria-hidden="true" />
+                  </span>
+                </span>
+              </TabsTrigger>
+              <TabsTrigger
+                value="guest"
+                className="group relative min-h-[108px] items-start justify-start whitespace-normal rounded-xl border-2 border-gray-200 bg-white p-4 text-left shadow-none transition-colors hover:border-blue-300 hover:bg-blue-50/50 data-[state=active]:border-blue-600 data-[state=active]:bg-blue-50 data-[state=active]:text-blue-950 data-[state=active]:shadow-none"
+              >
+                <span className="flex w-full items-start gap-3">
+                  <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-gray-100 text-gray-700">
+                    <UserRound size={20} aria-hidden="true" />
+                  </span>
+                  <span className="min-w-0 flex-1">
+                    <span className="block text-base font-bold">訪客試玩</span>
+                    <span className="mt-1 block text-xs font-normal leading-5 text-gray-600">
+                      不需代碼，紀錄不會交給老師
+                    </span>
+                  </span>
+                  <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full border-2 border-gray-300 text-transparent group-data-[state=active]:border-blue-600 group-data-[state=active]:bg-blue-600 group-data-[state=active]:text-white">
+                    <Check size={12} strokeWidth={3} aria-hidden="true" />
+                  </span>
+                </span>
+              </TabsTrigger>
             </TabsList>
-            <TabsContent value="code" className="space-y-4 py-4">
+            <TabsContent value="code" className="space-y-4 pt-5">
               <div className="space-y-2">
                 <label htmlFor="loginCode" className="text-sm font-medium text-gray-700">
                   登入代碼
@@ -417,9 +456,9 @@ export default function HomePage({ gameId, assignmentId }: { gameId?: string; as
                 </Button>
               </div>
             </TabsContent>
-            <TabsContent value="guest" className="space-y-4 py-4">
+            <TabsContent value="guest" className="space-y-4 pt-5">
               <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">
-                不需要學號。進度只保存在這台裝置，不會寫入學習紀錄與排行榜；換裝置或清除瀏覽器資料後會遺失。
+                不需要登入代碼。進度只保存在這台裝置，不會寫入學習紀錄與排行榜；換裝置或清除瀏覽器資料後會遺失。
               </div>
               <div className="space-y-2">
                 <label htmlFor="guestNickname" className="text-sm font-medium text-gray-700">
