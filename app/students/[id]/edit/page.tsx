@@ -19,22 +19,9 @@ import { useLanguage } from '@/app/contexts/LanguageContext';
 import { useTranslation } from '@/utils/translations';
 import { PageHeader } from '@/components/layout/PageHeader';
 import { EmptyState, PageLoader } from '@/components/ui/page-state';
+import { SubjectPicker } from '@/app/components/students/SubjectPicker';
 
 type Student = Database['public']['Tables']['students']['Row'];
-
-const subjects = [
-  'Mathematics',
-  'English',
-  'Science',
-  'History',
-  'Geography',
-  'Physics',
-  'Chemistry',
-  'Biology',
-  'Computer Science',
-  'Art',
-  'Music',
-];
 
 // Define the expected params type
 interface EditStudentPageParams {
@@ -144,20 +131,6 @@ export default function EditStudentPage({ params: paramsPromise }: { params: Pro
     }
   };
 
-  const handleSubjectToggle = (subject: string) => {
-    if (!student) return;
-
-    setStudent((prev) => {
-      if (!prev) return null;
-      return {
-        ...prev,
-        subjects: prev.subjects.includes(subject)
-          ? prev.subjects.filter((s) => s !== subject)
-          : [...prev.subjects, subject],
-      };
-    });
-  };
-
   if (loading || !pageParams) { // Show loading also if params haven't resolved yet
     return <PageLoader />;
   }
@@ -248,22 +221,11 @@ export default function EditStudentPage({ params: paramsPromise }: { params: Pro
         </div>
         <div className="space-y-2">
           <Label>{t('subjects_label')}</Label>
-          <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
-            {subjects.map((subject) => (
-              <Button
-                key={subject}
-                type="button"
-                variant={
-                  student.subjects.includes(subject) ? 'default' : 'outline'
-                }
-                className="h-auto min-h-10 justify-start whitespace-normal text-left"
-                aria-pressed={student.subjects.includes(subject)}
-                onClick={() => handleSubjectToggle(subject)}
-              >
-                {subject}
-              </Button>
-            ))}
-          </div>
+          <SubjectPicker
+            language={language}
+            value={student.subjects}
+            onChange={subjects => setStudent(prev => prev ? { ...prev, subjects } : null)}
+          />
         </div>
         <div className="flex flex-wrap justify-end gap-2 border-t border-border/70 pt-5">
           <Button

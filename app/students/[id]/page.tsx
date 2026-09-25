@@ -26,6 +26,7 @@ import { BookOpen, Copy, GraduationCap, IdCard, KeyRound, Mail, RefreshCw, UserR
 import { useLanguage } from '@/app/contexts/LanguageContext';
 import { useTranslation } from '@/utils/translations';
 import type { Database } from '@/types/supabase';
+import { studentSubjectLabel } from '@/lib/student-subjects';
 
 type Student = Database['public']['Tables']['students']['Row'];
 
@@ -274,7 +275,7 @@ export default function StudentPage({ params: paramsPromise }: { params: Promise
                   <BookOpen className="mt-1 h-4 w-4 shrink-0 text-muted-foreground" />
                   <div className="flex flex-wrap gap-2">
                     {subjects.length > 0 ? subjects.map((subject) => (
-                      <span key={subject} className="rounded-full bg-secondary px-3 py-1 text-sm">{subject}</span>
+                      <span key={subject} className="rounded-full bg-secondary px-3 py-1 text-sm">{studentSubjectLabel(subject, language)}</span>
                     )) : <span className="text-sm text-muted-foreground">{language === 'zh-TW' ? '尚未設定學習主題' : 'No subjects assigned'}</span>}
                   </div>
                 </div>

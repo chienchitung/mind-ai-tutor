@@ -4,10 +4,12 @@ import Link from 'next/link';
 import { useEffect, useMemo, useState } from 'react';
 import {
   Archive,
+  AlertCircle,
   Check,
   ClipboardCopy,
   Gamepad2,
   GraduationCap,
+  LockKeyhole,
   Plus,
   Trash2,
   UserPlus,
@@ -123,6 +125,7 @@ export default function ClassroomsPage() {
   const [isSaving, setIsSaving] = useState(false);
   const [showCreate, setShowCreate] = useState(false);
   const [showArchived, setShowArchived] = useState(false);
+  const [showStoppedAssignments, setShowStoppedAssignments] = useState(false);
   const [className, setClassName] = useState('');
   const [academicYear, setAcademicYear] = useState('');
   const [term, setTerm] = useState('');
@@ -185,7 +188,17 @@ export default function ClassroomsPage() {
       .map(item => item.student_id)),
     [memberships, selectedClassroomId],
   );
-  const classAssignments = assignments.filter(item => item.classroom_id === selectedClassroomId);
+  const classAssignments = assignments
+    .filter(item => item.classroom_id === selectedClassroomId)
+    .sort((a, b) => Number(b.status === 'active') - Number(a.status === 'active'));
+  const stoppedAssignmentCount = classAssignments.filter(item => item.status !== 'active').length;
+  const visibleClassAssignments = showStoppedAssignments
+    ? classAssignments
+    : classAssignments.filter(item => item.status === 'active');
+  const activeAssignedGameIds = new Set(classAssignments
+    .filter(item => item.status === 'active')
+    .map(item => item.game_id));
+  const availableGames = games.filter(game => !activeAssignedGameIds.has(game.id));
   const activeClassCount = classrooms.filter(item => item.status === 'active').length;
   const activeClassIds = new Set(classrooms.filter(item => item.status === 'active').map(item => item.id));
   const assignedStudentCount = new Set(memberships
@@ -227,7 +240,7 @@ export default function ClassroomsPage() {
   }
 
   async function toggleMember(studentId: string, checked: boolean) {
-    if (!selectedClassroomId) return;
+    if (!selectedClassroomId || selectedClassroom?.status !== 'active') return;
     const before = memberships;
     if (checked) {
       setMemberships(current => [
@@ -258,7 +271,15 @@ export default function ClassroomsPage() {
   }
 
   async function assignGame() {
-    if (!selectedClassroomId || !selectedGameId || isSaving) return;
+    if (!selectedClassroomId || !selectedGameId || isSaving || selectedClassroom?.status !== 'active') return;
+    if (activeAssignedGameIds.has(selectedGameId)) {
+      toast({
+        title: zh ? '這款遊戲已指派' : 'Game already assigned',
+        description: zh ? '同一班級同一時間只保留一個活動連結。' : 'A class can only have one active link for each game.',
+        variant: 'destructive',
+      });
+      return;
+    }
     setIsSaving(true);
     try {
       const { supabase } = await import('@/lib/supabase');
@@ -276,6 +297,29 @@ export default function ClassroomsPage() {
       toast({ title: zh ? '遊戲已指派給班級' : 'Game assigned to class' });
     } catch (error: any) {
       toast({ title: zh ? '指派失敗' : 'Assignment failed', description: error?.message, variant: 'destructive' });
+    } finally {
+      setIsSaving(false);
+    }
+  }
+
+  async function stopAssignment(assignment: GameAssignment) {
+    if (assignment.status !== 'active' || isSaving) return;
+    setIsSaving(true);
+    try {
+      const { supabase } = await import('@/lib/supabase');
+      const { error } = await (supabase() as any)
+        .from('game_assignments')
+        .update({ status: 'archived', updated_at: new Date().toISOString() })
+        .eq('id', assignment.id)
+        .eq('status', 'active');
+      if (error) throw error;
+      await loadData();
+      toast({
+        title: zh ? '已停止指派' : 'Assignment stopped',
+        description: zh ? '舊連結已停用，既有學習紀錄仍會保留。' : 'The old link is disabled and existing learning records are preserved.',
+      });
+    } catch (error: any) {
+      toast({ title: zh ? '無法停止指派' : 'Could not stop assignment', description: error?.message, variant: 'destructive' });
     } finally {
       setIsSaving(false);
     }
@@ -465,7 +509,11 @@ export default function ClassroomsPage() {
                 <button
                   key={classroom.id}
                   type="button"
-                  onClick={() => setSelectedClassroomId(classroom.id)}
+                  onClick={() => {
+                    setSelectedClassroomId(classroom.id);
+                    setSelectedGameId('');
+                    setShowStoppedAssignments(false);
+                  }}
                   className={cn(
                     'w-full rounded-2xl border bg-card p-4 text-left transition-colors hover:border-primary/40',
                     selectedClassroomId === classroom.id && 'border-primary ring-2 ring-primary/10',
@@ -526,7 +574,7 @@ export default function ClassroomsPage() {
                         <AlertDialogHeader>
                           <AlertDialogTitle>{zh ? `封存「${selectedClassroom.name}」？` : `Archive “${selectedClassroom.name}”?`}</AlertDialogTitle>
                           <AlertDialogDescription>
-                            {zh ? '班級會從日常清單中收起，但學生名單、遊戲活動與歷史學習紀錄都會保留，之後也可以重新啟用。' : 'The class leaves the active list, while its roster, assignments, and learning history remain available for reactivation.'}
+                            {zh ? '封存後，學生會立即無法使用這個班級的活動連結登入。學生名單、遊戲活動與歷史學習紀錄仍會保留，重新啟用班級後可再次使用。' : 'Students immediately lose access to this class’s activity links. The roster, assignments, and learning history remain and become available again if you reactivate the class.'}
                           </AlertDialogDescription>
                         </AlertDialogHeader>
                         <AlertDialogFooter>
@@ -571,6 +619,18 @@ export default function ClassroomsPage() {
                 </CardHeader>
               </Card>
 
+              {selectedClassroom.status === 'archived' && (
+                <div className="flex items-start gap-3 rounded-xl border border-amber-200 bg-amber-50 p-4 text-amber-950" role="status">
+                  <LockKeyhole className="mt-0.5 h-5 w-5 shrink-0" />
+                  <div>
+                    <p className="text-sm font-semibold">{zh ? '這個班級目前已停止使用' : 'This class is currently inactive'}</p>
+                    <p className="mt-1 text-sm text-amber-900/80">
+                      {zh ? '學生無法用學號進入班級活動；名單與紀錄維持不變。若要繼續上課，請先重新啟用班級。' : 'Students cannot enter its activities with their ID. The roster and records remain unchanged; reactivate the class to resume.'}
+                    </p>
+                  </div>
+                </div>
+              )}
+
               <Card>
                 <CardHeader>
                   <CardTitle className="flex items-center gap-2"><Users className="h-5 w-5 shrink-0" />{zh ? '學生名單' : 'Class roster'}</CardTitle>
@@ -582,9 +642,10 @@ export default function ClassroomsPage() {
                   ) : (
                     <div className="grid gap-2 md:grid-cols-2">
                       {students.map(student => (
-                        <label key={student.id} className="flex cursor-pointer items-center gap-3 rounded-xl border p-3 hover:bg-muted/40">
+                        <label key={student.id} className={cn('flex items-center gap-3 rounded-xl border p-3', selectedClassroom.status === 'active' ? 'cursor-pointer hover:bg-muted/40' : 'cursor-not-allowed opacity-70')}>
                           <Checkbox
                             checked={activeMemberIds.has(student.id)}
+                            disabled={selectedClassroom.status !== 'active'}
                             onCheckedChange={checked => void toggleMember(student.id, checked === true)}
                           />
                           <span className="min-w-0 flex-1">
@@ -605,7 +666,7 @@ export default function ClassroomsPage() {
                 <CardHeader>
                   <CardTitle className="flex items-center gap-2"><Gamepad2 className="h-5 w-5 shrink-0" />{zh ? '班級遊戲活動' : 'Class game assignments'}</CardTitle>
                   <CardDescription>
-                    {zh ? '指派後只要把同一個班級活動連結分享給全班；學生輸入自己的學號／研究編號即可開始。' : 'Share one class activity link with everyone; learners enter their own student or research ID to begin.'}
+                    {zh ? '每款遊戲同時只會有一個進行中連結，避免重複指派。停止指派不會刪除既有學習紀錄。' : 'Each game has one active link at a time to prevent duplicates. Stopping an assignment keeps its learning history.'}
                   </CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-4">
@@ -613,39 +674,94 @@ export default function ClassroomsPage() {
                     <select
                       value={selectedGameId}
                       onChange={event => setSelectedGameId(event.target.value)}
+                      disabled={selectedClassroom.status !== 'active'}
                       aria-label={zh ? '選擇要指派的遊戲' : 'Choose a game to assign'}
                       className="h-10 min-w-0 flex-1 rounded-md border border-input bg-background px-3 text-sm"
                     >
                       <option value="">{zh ? '選擇要指派的遊戲' : 'Choose a game to assign'}</option>
-                      {games.map(game => <option key={game.id} value={game.id}>{game.title}</option>)}
+                      {availableGames.map(game => <option key={game.id} value={game.id}>{game.title}</option>)}
                     </select>
-                    <Button onClick={assignGame} disabled={!selectedGameId || isSaving}>
+                    <Button onClick={assignGame} disabled={!selectedGameId || isSaving || selectedClassroom.status !== 'active'}>
                       <Plus className="mr-2 h-4 w-4" />{zh ? '指派遊戲' : 'Assign game'}
                     </Button>
                   </div>
 
-                  {classAssignments.length === 0 ? (
+                  {selectedClassroom.status === 'active' && availableGames.length === 0 && games.length > 0 && (
+                    <p className="flex items-center gap-2 text-sm text-muted-foreground">
+                      <AlertCircle className="h-4 w-4" />{zh ? '所有遊戲都已指派；若要重新建立連結，請先停止原有指派。' : 'All games are assigned. Stop an existing assignment before creating a new link.'}
+                    </p>
+                  )}
+
+                  {visibleClassAssignments.length === 0 ? (
                     <div className="rounded-xl border border-dashed p-6 text-center text-sm text-muted-foreground">
-                      {zh ? '尚未指派任何遊戲。' : 'No games assigned yet.'}
+                      {classAssignments.length === 0
+                        ? (zh ? '尚未指派任何遊戲。' : 'No games assigned yet.')
+                        : (zh ? '目前沒有進行中的遊戲活動。' : 'There are no active game assignments.')}
                     </div>
-                  ) : classAssignments.map(assignment => {
+                  ) : visibleClassAssignments.map(assignment => {
                     const game = games.find(item => item.id === assignment.game_id);
                     return (
                       <div key={assignment.id} className="flex flex-col gap-3 rounded-xl border p-4 sm:flex-row sm:items-center">
                         <div className="min-w-0 flex-1">
                           <div className="flex flex-wrap items-center gap-2">
                             <p className="font-medium">{assignment.title || game?.title || (zh ? '未命名遊戲' : 'Untitled game')}</p>
-                            <Badge variant={assignment.status === 'active' ? 'default' : 'secondary'}>{assignment.status}</Badge>
+                            <Badge variant={assignment.status === 'active' ? 'default' : 'secondary'}>
+                              {assignment.status === 'active' ? (zh ? '進行中' : 'Active') : (zh ? '已停止' : 'Stopped')}
+                            </Badge>
                           </div>
                           <p className="mt-1 truncate text-xs text-muted-foreground">{assignmentUrl(assignment)}</p>
                         </div>
-                        <Button variant="outline" size="sm" onClick={() => void copyAssignmentLink(assignment)}>
-                          {copiedAssignmentId === assignment.id ? <Check className="mr-2 h-4 w-4" /> : <ClipboardCopy className="mr-2 h-4 w-4" />}
-                          {copiedAssignmentId === assignment.id ? (zh ? '已複製' : 'Copied') : (zh ? '複製全班活動連結' : 'Copy class activity link')}
-                        </Button>
+                        <div className="flex flex-wrap gap-2">
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            disabled={assignment.status !== 'active' || selectedClassroom.status !== 'active'}
+                            onClick={() => void copyAssignmentLink(assignment)}
+                          >
+                            {copiedAssignmentId === assignment.id ? <Check className="mr-2 h-4 w-4" /> : <ClipboardCopy className="mr-2 h-4 w-4" />}
+                            {copiedAssignmentId === assignment.id ? (zh ? '已複製' : 'Copied') : (zh ? '複製活動連結' : 'Copy link')}
+                          </Button>
+                          {assignment.status === 'active' && (
+                            <AlertDialog>
+                              <AlertDialogTrigger asChild>
+                                <Button variant="ghost" size="sm" className="text-destructive hover:bg-destructive/10 hover:text-destructive" disabled={isSaving || selectedClassroom.status !== 'active'}>
+                                  <Trash2 className="mr-2 h-4 w-4" />{zh ? '停止指派' : 'Stop assignment'}
+                                </Button>
+                              </AlertDialogTrigger>
+                              <AlertDialogContent>
+                                <AlertDialogHeader>
+                                  <AlertDialogTitle>{zh ? '停止這個遊戲指派？' : 'Stop this game assignment?'}</AlertDialogTitle>
+                                  <AlertDialogDescription>
+                                    {zh ? '學生將無法再使用這個活動連結。既有進度與學習紀錄會保留，之後也可以重新指派同一款遊戲。' : 'Students can no longer use this activity link. Existing progress and records remain, and you can assign the game again later.'}
+                                  </AlertDialogDescription>
+                                </AlertDialogHeader>
+                                <AlertDialogFooter>
+                                  <AlertDialogCancel>{zh ? '保留活動' : 'Keep activity'}</AlertDialogCancel>
+                                  <AlertDialogAction onClick={() => void stopAssignment(assignment)} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+                                    {zh ? '停止指派' : 'Stop assignment'}
+                                  </AlertDialogAction>
+                                </AlertDialogFooter>
+                              </AlertDialogContent>
+                            </AlertDialog>
+                          )}
+                        </div>
                       </div>
                     );
                   })}
+
+                  {stoppedAssignmentCount > 0 && (
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      className="w-full text-muted-foreground"
+                      onClick={() => setShowStoppedAssignments(value => !value)}
+                    >
+                      {showStoppedAssignments
+                        ? (zh ? '收起已停止活動' : 'Hide stopped assignments')
+                        : (zh ? `查看已停止活動（${stoppedAssignmentCount}）` : `View stopped assignments (${stoppedAssignmentCount})`)}
+                    </Button>
+                  )}
                 </CardContent>
               </Card>
             </div>
