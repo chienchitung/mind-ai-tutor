@@ -11,6 +11,7 @@ import {
   Plus,
   UserPlus,
   Users,
+  type LucideIcon,
 } from 'lucide-react';
 import { PageHeader } from '@/components/layout/PageHeader';
 import { Button } from '@/components/ui/button';
@@ -81,6 +82,32 @@ interface GameAssignment {
   status: 'draft' | 'active' | 'closed' | 'archived';
   assigned_at: string;
   due_at: string | null;
+}
+
+function SummaryCard({
+  label,
+  value,
+  icon: Icon,
+  tone,
+}: {
+  label: string;
+  value: number;
+  icon: LucideIcon;
+  tone: string;
+}) {
+  return (
+    <Card className="overflow-hidden">
+      <CardContent className="flex min-h-24 items-center justify-between gap-4 p-5">
+        <div className="min-w-0">
+          <p className="text-2xl font-semibold leading-none tabular-nums text-foreground">{value}</p>
+          <p className="mt-2 truncate text-sm text-muted-foreground">{label}</p>
+        </div>
+        <span className={cn('grid h-10 w-10 shrink-0 place-items-center rounded-xl', tone)} aria-hidden="true">
+          <Icon size={19} strokeWidth={2} />
+        </span>
+      </CardContent>
+    </Card>
+  );
 }
 
 export default function ClassroomsPage() {
@@ -404,19 +431,7 @@ export default function ClassroomsPage() {
               { label: zh ? '進行中班級' : 'Active classes', value: activeClassCount, icon: GraduationCap, tone: 'bg-blue-50 text-blue-700' },
               { label: zh ? '已分班學生' : 'Students assigned', value: assignedStudentCount, icon: Users, tone: 'bg-emerald-50 text-emerald-700' },
               { label: zh ? '進行中活動' : 'Active activities', value: activeAssignmentCount, icon: Gamepad2, tone: 'bg-violet-50 text-violet-700' },
-            ].map(item => (
-              <Card key={item.label}>
-                <CardContent className="flex items-center gap-4 p-4">
-                  <span className={cn('flex h-10 w-10 shrink-0 items-center justify-center rounded-xl', item.tone)}>
-                    <item.icon className="h-5 w-5" />
-                  </span>
-                  <span>
-                    <span className="block text-2xl font-semibold leading-none">{item.value}</span>
-                    <span className="mt-1.5 block text-xs text-muted-foreground">{item.label}</span>
-                  </span>
-                </CardContent>
-              </Card>
-            ))}
+            ].map(item => <SummaryCard key={item.label} {...item} />)}
           </section>
           <div className="grid gap-5 lg:grid-cols-[280px_minmax(0,1fr)]">
           <div className="space-y-3">
@@ -507,7 +522,7 @@ export default function ClassroomsPage() {
 
               <Card>
                 <CardHeader>
-                  <CardTitle className="flex items-center gap-2"><Users className="h-5 w-5" />{zh ? '學生名單' : 'Class roster'}</CardTitle>
+                  <CardTitle className="flex items-center gap-2"><Users className="h-5 w-5 shrink-0" />{zh ? '學生名單' : 'Class roster'}</CardTitle>
                   <CardDescription>{zh ? `勾選要加入的學生，目前共 ${activeMemberIds.size} 位；移出班級仍會保留過去紀錄。` : `Select students to add. ${activeMemberIds.size} enrolled; removing one keeps their history.`}</CardDescription>
                 </CardHeader>
                 <CardContent>
@@ -535,7 +550,7 @@ export default function ClassroomsPage() {
 
               <Card>
                 <CardHeader>
-                  <CardTitle className="flex items-center gap-2"><Gamepad2 className="h-5 w-5" />{zh ? '班級遊戲活動' : 'Class game assignments'}</CardTitle>
+                  <CardTitle className="flex items-center gap-2"><Gamepad2 className="h-5 w-5 shrink-0" />{zh ? '班級遊戲活動' : 'Class game assignments'}</CardTitle>
                   <CardDescription>
                     {zh ? '每次指派都會產生班級專屬連結；相同遊戲指派到兩個班級時，資料會分開記錄。' : 'Each assignment gets a class-specific link, keeping data separate when the same game is used by two classes.'}
                   </CardDescription>

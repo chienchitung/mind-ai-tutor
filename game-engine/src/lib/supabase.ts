@@ -41,6 +41,8 @@ export interface VerifiedStudent {
   student_name: string
   grade: number | null
   classroom_name?: string | null
+  game_assignment_id?: string | null
+  assignment_count?: number
 }
 
 // Verifies a teacher-issued login code against public.students via a
@@ -55,13 +57,28 @@ export async function verifyStudentLoginCode(
   const trimmed = code.trim();
   if (!trimmed) return null;
 
-  const { data, error } = assignmentId && gameId
-    ? await supabase.rpc('verify_student_assignment_login_code', {
+  let result = gameId
+    ? await supabase.rpc('verify_student_game_login_code', {
         p_code: trimmed,
-        p_assignment_id: assignmentId,
         p_game_id: gameId,
+        p_assignment_id: assignmentId ?? null,
       })
     : await supabase.rpc('verify_student_login_code', { p_code: trimmed });
+
+  // Keep deployments backwards compatible while the new migration and the
+  // game-engine release roll out. The fallback preserves existing behavior;
+  // automatic class resolution starts as soon as the RPC is available.
+  if (result.error && gameId) {
+    result = assignmentId
+      ? await supabase.rpc('verify_student_assignment_login_code', {
+          p_code: trimmed,
+          p_assignment_id: assignmentId,
+          p_game_id: gameId,
+        })
+      : await supabase.rpc('verify_student_login_code', { p_code: trimmed });
+  }
+
+  const { data, error } = result;
 
   if (error) {
     console.error('Error verifying student login code:', error.message || JSON.stringify(error));
@@ -84,6 +101,8 @@ export async function verifyStudentLoginCode(
     student_name: row.student_name,
     grade: row.grade ?? null,
     ...(typeof row.classroom_name === 'string' ? { classroom_name: row.classroom_name } : {}),
+    ...(typeof row.game_assignment_id === 'string' ? { game_assignment_id: row.game_assignment_id } : {}),
+    ...(typeof row.assignment_count === 'number' ? { assignment_count: row.assignment_count } : {}),
   };
 }
 

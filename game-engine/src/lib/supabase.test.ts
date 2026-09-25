@@ -38,7 +38,10 @@ describe('verifyStudentLoginCode', () => {
 
   it('uses the classroom-scoped verifier for an assignment link', async () => {
     rpc.mockResolvedValue({
-      data: [{ student_id: 'student-uuid', student_name: '小明', grade: 5, classroom_name: '六年甲班' }],
+      data: [{
+        student_id: 'student-uuid', student_name: '小明', grade: 5,
+        classroom_name: '六年甲班', game_assignment_id: 'assignment-1', assignment_count: 1,
+      }],
       error: null,
     });
 
@@ -47,11 +50,34 @@ describe('verifyStudentLoginCode', () => {
       student_name: '小明',
       grade: 5,
       classroom_name: '六年甲班',
+      game_assignment_id: 'assignment-1',
+      assignment_count: 1,
     });
-    expect(rpc).toHaveBeenCalledWith('verify_student_assignment_login_code', {
+    expect(rpc).toHaveBeenCalledWith('verify_student_game_login_code', {
       p_code: 'HPGZR92P',
       p_assignment_id: 'assignment-1',
       p_game_id: 'game-1',
+    });
+  });
+
+  it('resolves a unique classroom assignment from a generic game link', async () => {
+    rpc.mockResolvedValue({
+      data: [{
+        student_id: 'student-uuid', student_name: '小明', grade: 5,
+        classroom_name: '六年甲班', game_assignment_id: 'assignment-1', assignment_count: 1,
+      }],
+      error: null,
+    });
+
+    await expect(verifyStudentLoginCode('HPGZR92P', 'game-1')).resolves.toMatchObject({
+      student_id: 'student-uuid',
+      game_assignment_id: 'assignment-1',
+      assignment_count: 1,
+    });
+    expect(rpc).toHaveBeenCalledWith('verify_student_game_login_code', {
+      p_code: 'HPGZR92P',
+      p_game_id: 'game-1',
+      p_assignment_id: null,
     });
   });
 
