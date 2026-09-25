@@ -11,6 +11,7 @@ import {
   GraduationCap,
   LockKeyhole,
   Plus,
+  Search,
   Trash2,
   UserPlus,
   Users,
@@ -46,6 +47,11 @@ import { PageLoader } from '@/components/ui/page-state';
 import { useToast } from '@/hooks/use-toast';
 import { useLanguage } from '@/app/contexts/LanguageContext';
 import { cn } from '@/lib/utils';
+import {
+  filterClassroomStudents,
+  getRosterGrades,
+  type RosterMembershipFilter,
+} from '@/lib/classroom-roster';
 
 interface Classroom {
   id: string;
@@ -135,6 +141,10 @@ export default function ClassroomsPage() {
   const [studyArm, setStudyArm] = useState('');
   const [selectedGameId, setSelectedGameId] = useState('');
   const [copiedAssignmentId, setCopiedAssignmentId] = useState<string | null>(null);
+  const [rosterSearch, setRosterSearch] = useState('');
+  const [rosterGrade, setRosterGrade] = useState('all');
+  const [rosterMembership, setRosterMembership] = useState<RosterMembershipFilter>('all');
+  const [isRosterSaving, setIsRosterSaving] = useState(false);
   const { toast } = useToast();
   const { language } = useLanguage();
   const zh = language === 'zh-TW';
@@ -190,6 +200,32 @@ export default function ClassroomsPage() {
       .map(item => item.student_id)),
     [memberships, selectedClassroomId],
   );
+  const rosterGrades = useMemo(() => getRosterGrades(students), [students]);
+  const filteredStudents = useMemo(
+    () => filterClassroomStudents(students, activeMemberIds, {
+      search: rosterSearch,
+      grade: rosterGrade,
+      membership: rosterMembership,
+    }),
+    [activeMemberIds, rosterGrade, rosterMembership, rosterSearch, students],
+  );
+  const otherClassroomsByStudent = useMemo(() => {
+    const classroomNames = new Map(classrooms
+      .filter(classroom => classroom.status === 'active')
+      .map(classroom => [classroom.id, classroom.name]));
+    const result = new Map<string, string[]>();
+    memberships.forEach(membership => {
+      if (membership.left_at || membership.classroom_id === selectedClassroomId) return;
+      const classroomName = classroomNames.get(membership.classroom_id);
+      if (!classroomName) return;
+      result.set(membership.student_id, [...(result.get(membership.student_id) || []), classroomName]);
+    });
+    return result;
+  }, [classrooms, memberships, selectedClassroomId]);
+  const filteredEnrolledCount = filteredStudents.filter(student => activeMemberIds.has(student.id)).length;
+  const filteredAddableStudents = filteredStudents.filter(student => student.status === 'active' && !activeMemberIds.has(student.id));
+  const filteredAvailableCount = filteredAddableStudents.length;
+  const hasActiveRosterFilter = Boolean(rosterSearch.trim()) || rosterGrade !== 'all' || rosterMembership !== 'all';
   const classAssignments = assignments
     .filter(item => item.classroom_id === selectedClassroomId)
     .sort((a, b) => Number(b.status === 'active') - Number(a.status === 'active'));
@@ -241,18 +277,20 @@ export default function ClassroomsPage() {
     }
   }
 
-  async function toggleMember(studentId: string, checked: boolean) {
-    if (!selectedClassroomId || selectedClassroom?.status !== 'active') return;
+  async function updateMembers(studentIds: string[], checked: boolean) {
+    if (!selectedClassroomId || selectedClassroom?.status !== 'active' || studentIds.length === 0 || isRosterSaving) return;
+    setIsRosterSaving(true);
     const before = memberships;
+    const studentIdSet = new Set(studentIds);
     if (checked) {
       setMemberships(current => [
-        ...current.filter(item => !(item.classroom_id === selectedClassroomId && item.student_id === studentId)),
-        { classroom_id: selectedClassroomId, student_id: studentId, left_at: null },
+        ...current.filter(item => !(item.classroom_id === selectedClassroomId && studentIdSet.has(item.student_id))),
+        ...studentIds.map(studentId => ({ classroom_id: selectedClassroomId, student_id: studentId, left_at: null })),
       ]);
     } else {
       const leftAt = new Date().toISOString();
       setMemberships(current => current.map(item =>
-        item.classroom_id === selectedClassroomId && item.student_id === studentId
+        item.classroom_id === selectedClassroomId && studentIdSet.has(item.student_id)
           ? { ...item, left_at: leftAt }
           : item,
       ));
@@ -262,13 +300,22 @@ export default function ClassroomsPage() {
       const { supabase } = await import('@/lib/supabase');
       const client = supabase() as any;
       const query = checked
-        ? client.from('classroom_students').upsert({ classroom_id: selectedClassroomId, student_id: studentId, left_at: null })
-        : client.from('classroom_students').update({ left_at: new Date().toISOString() }).eq('classroom_id', selectedClassroomId).eq('student_id', studentId);
+        ? client.from('classroom_students').upsert(studentIds.map(studentId => ({ classroom_id: selectedClassroomId, student_id: studentId, left_at: null })))
+        : client.from('classroom_students').update({ left_at: new Date().toISOString() }).eq('classroom_id', selectedClassroomId).in('student_id', studentIds);
       const { error } = await query;
       if (error) throw error;
+      if (studentIds.length > 1) {
+        toast({
+          title: checked
+            ? (zh ? `已加入 ${studentIds.length} 位學生` : `${studentIds.length} students added`)
+            : (zh ? `已移出 ${studentIds.length} 位學生` : `${studentIds.length} students removed`),
+        });
+      }
     } catch (error: any) {
       setMemberships(before);
       toast({ title: zh ? '無法更新學生名單' : 'Could not update roster', description: error?.message, variant: 'destructive' });
+    } finally {
+      setIsRosterSaving(false);
     }
   }
 
@@ -696,30 +743,148 @@ export default function ClassroomsPage() {
               <Card>
                 <CardHeader>
                   <CardTitle className="flex items-center gap-2"><Users className="h-5 w-5 shrink-0" />{zh ? '學生名單' : 'Class roster'}</CardTitle>
-                  <CardDescription>{zh ? `勾選要加入的學生，目前共 ${activeMemberIds.size} 位；移出班級仍會保留過去紀錄。` : `Select students to add. ${activeMemberIds.size} enrolled; removing one keeps their history.`}</CardDescription>
+                  <CardDescription>{zh ? `可用姓名、學號或 Email 搜尋，目前共 ${activeMemberIds.size} 位；移出班級仍會保留過去紀錄。` : `Search by name, student ID, or email. ${activeMemberIds.size} enrolled; removing one keeps their history.`}</CardDescription>
                 </CardHeader>
-                <CardContent>
+                <CardContent className="space-y-4">
                   {students.length === 0 ? (
                     <p className="text-sm text-muted-foreground">{zh ? '請先到學生管理新增學生。' : 'Add students in Student Management first.'}</p>
                   ) : (
-                    <div className="grid gap-2 md:grid-cols-2">
-                      {students.map(student => (
-                        <label key={student.id} className={cn('flex items-center gap-3 rounded-xl border p-3', selectedClassroom.status === 'active' ? 'cursor-pointer hover:bg-muted/40' : 'cursor-not-allowed opacity-70')}>
-                          <Checkbox
-                            checked={activeMemberIds.has(student.id)}
-                            disabled={selectedClassroom.status !== 'active'}
-                            onCheckedChange={checked => void toggleMember(student.id, checked === true)}
+                    <>
+                      <div className="grid gap-2 lg:grid-cols-[minmax(240px,1fr)_160px_180px]">
+                        <div className="relative">
+                          <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" aria-hidden="true" />
+                          <Input
+                            value={rosterSearch}
+                            onChange={event => setRosterSearch(event.target.value)}
+                            placeholder={zh ? '搜尋姓名、學號或 Email' : 'Search name, student ID, or email'}
+                            aria-label={zh ? '搜尋學生' : 'Search students'}
+                            className="pl-9"
                           />
-                          <span className="min-w-0 flex-1">
-                            <span className="block truncate text-sm font-medium">{student.name}</span>
-                            <span className="block truncate text-xs text-muted-foreground">
-                              {student.external_id || student.email || (zh ? '尚未設定學生編號' : 'No student ID')}
-                            </span>
-                          </span>
-                          {student.grade !== null && <Badge variant="outline">{student.grade}</Badge>}
-                        </label>
-                      ))}
-                    </div>
+                        </div>
+                        <select
+                          value={rosterGrade}
+                          onChange={event => setRosterGrade(event.target.value)}
+                          aria-label={zh ? '依年級篩選' : 'Filter by grade'}
+                          className="h-10 rounded-md border border-input bg-background px-3 text-sm"
+                        >
+                          <option value="all">{zh ? '所有年級' : 'All grades'}</option>
+                          {rosterGrades.map(grade => <option key={grade} value={String(grade)}>{zh ? `${grade} 年級` : `Grade ${grade}`}</option>)}
+                          {students.some(student => student.grade === null) && <option value="unassigned">{zh ? '未設定年級' : 'No grade'}</option>}
+                        </select>
+                        <select
+                          value={rosterMembership}
+                          onChange={event => setRosterMembership(event.target.value as RosterMembershipFilter)}
+                          aria-label={zh ? '依分班狀態篩選' : 'Filter by enrollment'}
+                          className="h-10 rounded-md border border-input bg-background px-3 text-sm"
+                        >
+                          <option value="all">{zh ? '全部學生' : 'All students'}</option>
+                          <option value="enrolled">{zh ? '已加入本班' : 'In this class'}</option>
+                          <option value="available">{zh ? '尚未加入本班' : 'Not in this class'}</option>
+                        </select>
+                      </div>
+
+                      <div className="flex flex-col gap-3 rounded-xl bg-muted/35 px-3 py-2.5 sm:flex-row sm:items-center sm:justify-between">
+                        <p className="text-xs text-muted-foreground" aria-live="polite">
+                          {zh
+                            ? `找到 ${filteredStudents.length} 位；其中 ${filteredEnrolledCount} 位已加入本班`
+                            : `${filteredStudents.length} found; ${filteredEnrolledCount} already in this class`}
+                        </p>
+                        {selectedClassroom.status === 'active' && hasActiveRosterFilter && (
+                          <div className="flex flex-wrap gap-2">
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              disabled={filteredAvailableCount === 0 || isRosterSaving}
+                              onClick={() => void updateMembers(filteredAddableStudents.map(student => student.id), true)}
+                            >
+                              <UserPlus className="mr-2 h-4 w-4" />
+                              {zh ? `加入顯示的學生（${filteredAvailableCount}）` : `Add shown (${filteredAvailableCount})`}
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              disabled={filteredEnrolledCount === 0 || isRosterSaving}
+                              onClick={() => void updateMembers(filteredStudents.filter(student => activeMemberIds.has(student.id)).map(student => student.id), false)}
+                            >
+                              {zh ? `移出顯示的學生（${filteredEnrolledCount}）` : `Remove shown (${filteredEnrolledCount})`}
+                            </Button>
+                          </div>
+                        )}
+                        {selectedClassroom.status === 'active' && !hasActiveRosterFilter && (
+                          <p className="text-xs text-muted-foreground">
+                            {zh ? '先搜尋或篩選，再使用批次加入與移出。' : 'Search or filter before using bulk actions.'}
+                          </p>
+                        )}
+                      </div>
+
+                      {filteredStudents.length === 0 ? (
+                        <div className="rounded-xl border border-dashed px-4 py-8 text-center">
+                          <p className="text-sm font-medium">{zh ? '找不到符合條件的學生' : 'No students match these filters'}</p>
+                          <Button
+                            variant="link"
+                            size="sm"
+                            className="mt-1 text-muted-foreground"
+                            onClick={() => {
+                              setRosterSearch('');
+                              setRosterGrade('all');
+                              setRosterMembership('all');
+                            }}
+                          >
+                            {zh ? '清除篩選條件' : 'Clear filters'}
+                          </Button>
+                        </div>
+                      ) : (
+                        <div className="max-h-[520px] space-y-2 overflow-y-auto overscroll-contain pr-1">
+                          {filteredStudents.map(student => {
+                            const otherClassrooms = otherClassroomsByStudent.get(student.id) || [];
+                            const enrolled = activeMemberIds.has(student.id);
+                            const canChangeMembership = selectedClassroom.status === 'active'
+                              && !isRosterSaving
+                              && (student.status === 'active' || enrolled);
+                            return (
+                              <label
+                                key={student.id}
+                                className={cn(
+                                  'grid items-center gap-3 rounded-xl border p-3 sm:grid-cols-[auto_minmax(0,1fr)_auto]',
+                                  canChangeMembership
+                                    ? 'cursor-pointer hover:bg-muted/40'
+                                    : 'cursor-not-allowed opacity-70',
+                                  enrolled && 'border-primary/30 bg-primary/[0.03]',
+                                )}
+                              >
+                                <Checkbox
+                                  checked={enrolled}
+                                  disabled={!canChangeMembership}
+                                  onCheckedChange={checked => void updateMembers([student.id], checked === true)}
+                                  aria-label={zh ? `${student.name} 加入本班` : `Add ${student.name} to this class`}
+                                />
+                                <span className="min-w-0">
+                                  <span className="flex flex-wrap items-center gap-x-2 gap-y-1">
+                                    <span className="font-medium">{student.name}</span>
+                                    <span className="font-mono text-xs text-muted-foreground">
+                                      {student.external_id || (zh ? '未設定學號' : 'No student ID')}
+                                    </span>
+                                    {student.status !== 'active' && <Badge variant="secondary">{zh ? '已停用' : 'Inactive'}</Badge>}
+                                  </span>
+                                  <span className="mt-1 block break-all text-xs text-muted-foreground">
+                                    {student.email || (zh ? '未設定 Email' : 'No email')}
+                                  </span>
+                                  {otherClassrooms.length > 0 && (
+                                    <span className="mt-1 block truncate text-xs text-muted-foreground" title={otherClassrooms.join('、')}>
+                                      {zh ? `其他班級：${otherClassrooms.join('、')}` : `Other classes: ${otherClassrooms.join(', ')}`}
+                                    </span>
+                                  )}
+                                </span>
+                                <span className="flex items-center gap-2 pl-8 sm:pl-0">
+                                  {student.grade !== null && <Badge variant="outline">{zh ? `${student.grade} 年級` : `Grade ${student.grade}`}</Badge>}
+                                  {enrolled && <Badge>{zh ? '本班' : 'This class'}</Badge>}
+                                </span>
+                              </label>
+                            );
+                          })}
+                        </div>
+                      )}
+                    </>
                   )}
                 </CardContent>
               </Card>
