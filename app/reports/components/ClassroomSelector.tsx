@@ -7,7 +7,7 @@ export const ALL_CLASSROOMS = 'all';
 export const UNGROUPED_STUDENTS = 'ungrouped';
 
 interface ClassroomSelectorProps {
-  classrooms: { id: string; name: string; studyArm?: string | null }[];
+  classrooms: { id: string; name: string; studyArm?: string | null; status?: 'active' | 'archived' }[];
   selectedClassroom: string;
   onSelectClassroom: (classroomId: string) => void;
   chinese: boolean;
@@ -25,7 +25,7 @@ export function ClassroomSelector({ classrooms, selectedClassroom, onSelectClass
           <SelectItem value={ALL_CLASSROOMS}>{chinese ? '所有學生' : 'All students'}</SelectItem>
           {classrooms.map(classroom => (
             <SelectItem key={classroom.id} value={classroom.id}>
-              {classroom.name}{classroom.studyArm ? ` · ${classroom.studyArm}` : ''}
+              {classroom.name}{classroom.studyArm ? ` · ${classroom.studyArm}` : ''}{classroom.status === 'archived' ? ` · ${chinese ? '已封存' : 'Archived'}` : ''}
             </SelectItem>
           ))}
           <SelectItem value={UNGROUPED_STUDENTS}>{chinese ? '尚未分班' : 'Not assigned to a class'}</SelectItem>

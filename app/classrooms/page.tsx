@@ -9,6 +9,7 @@ import {
   Gamepad2,
   GraduationCap,
   Plus,
+  Trash2,
   UserPlus,
   Users,
   type LucideIcon,
@@ -58,7 +59,8 @@ interface Classroom {
 interface Student {
   id: string;
   name: string;
-  email: string;
+  email: string | null;
+  external_id: string | null;
   grade: number | null;
   status: string;
 }
@@ -139,7 +141,7 @@ export default function ClassroomsPage() {
       const client = supabase() as any;
       const [classroomsResult, studentsResult, gamesResult, membershipsResult, assignmentsResult] = await Promise.all([
         client.from('classrooms').select('*').order('created_at', { ascending: false }),
-        client.from('students').select('id, name, email, grade, status').order('name'),
+        client.from('students').select('id, name, email, external_id, grade, status').order('name'),
         client.from('digital_games').select('id, title').order('title'),
         client.from('classroom_students').select('classroom_id, student_id, left_at'),
         client.from('game_assignments').select('*').order('assigned_at', { ascending: false }),
@@ -296,6 +298,27 @@ export default function ClassroomsPage() {
       }
     } catch (error: any) {
       toast({ title: zh ? '更新失敗' : 'Update failed', description: error?.message, variant: 'destructive' });
+    } finally {
+      setIsSaving(false);
+    }
+  }
+
+  async function permanentlyDeleteClassroom() {
+    if (!selectedClassroom || selectedClassroom.status !== 'archived' || isSaving) return;
+    setIsSaving(true);
+    try {
+      const { supabase } = await import('@/lib/supabase');
+      const { error } = await (supabase() as any)
+        .from('classrooms')
+        .delete()
+        .eq('id', selectedClassroom.id)
+        .eq('status', 'archived');
+      if (error) throw error;
+      setSelectedClassroomId(null);
+      await loadData();
+      toast({ title: zh ? '班級已永久移除' : 'Class permanently removed' });
+    } catch (error: any) {
+      toast({ title: zh ? '無法移除班級' : 'Could not remove class', description: error?.message, variant: 'destructive' });
     } finally {
       setIsSaving(false);
     }
@@ -513,9 +536,37 @@ export default function ClassroomsPage() {
                       </AlertDialogContent>
                     </AlertDialog>
                   ) : (
-                    <Button variant="outline" size="sm" onClick={archiveClassroom} disabled={isSaving}>
-                      {zh ? '重新啟用班級' : 'Reactivate class'}
-                    </Button>
+                    <div className="flex flex-wrap justify-end gap-2">
+                      <Button variant="outline" size="sm" onClick={archiveClassroom} disabled={isSaving}>
+                        {zh ? '重新啟用班級' : 'Reactivate class'}
+                      </Button>
+                      <AlertDialog>
+                        <AlertDialogTrigger asChild>
+                          <Button variant="ghost" size="sm" className="text-destructive hover:bg-destructive/10 hover:text-destructive" disabled={isSaving}>
+                            <Trash2 className="mr-2 h-4 w-4" />{zh ? '永久移除' : 'Remove permanently'}
+                          </Button>
+                        </AlertDialogTrigger>
+                        <AlertDialogContent>
+                          <AlertDialogHeader>
+                            <AlertDialogTitle>{zh ? `永久移除「${selectedClassroom.name}」？` : `Permanently remove “${selectedClassroom.name}”?`}</AlertDialogTitle>
+                            <AlertDialogDescription>
+                              {zh
+                                ? '班級名稱、名單關係與活動連結會刪除且無法復原。學生及原有學習紀錄仍會保留，但之後不能再依這個班級篩選。'
+                                : 'The class, roster links, and activity links will be removed permanently. Learners and learning records remain, but can no longer be filtered by this class.'}
+                            </AlertDialogDescription>
+                          </AlertDialogHeader>
+                          <AlertDialogFooter>
+                            <AlertDialogCancel>{zh ? '保留班級' : 'Keep class'}</AlertDialogCancel>
+                            <AlertDialogAction
+                              onClick={permanentlyDeleteClassroom}
+                              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                            >
+                              {zh ? '永久移除班級' : 'Remove class permanently'}
+                            </AlertDialogAction>
+                          </AlertDialogFooter>
+                        </AlertDialogContent>
+                      </AlertDialog>
+                    </div>
                   )}
                 </CardHeader>
               </Card>
@@ -538,7 +589,9 @@ export default function ClassroomsPage() {
                           />
                           <span className="min-w-0 flex-1">
                             <span className="block truncate text-sm font-medium">{student.name}</span>
-                            <span className="block truncate text-xs text-muted-foreground">{student.email}</span>
+                            <span className="block truncate text-xs text-muted-foreground">
+                              {student.external_id || student.email || (zh ? '尚未設定學生編號' : 'No student ID')}
+                            </span>
                           </span>
                           {student.grade !== null && <Badge variant="outline">{student.grade}</Badge>}
                         </label>
@@ -552,7 +605,7 @@ export default function ClassroomsPage() {
                 <CardHeader>
                   <CardTitle className="flex items-center gap-2"><Gamepad2 className="h-5 w-5 shrink-0" />{zh ? '班級遊戲活動' : 'Class game assignments'}</CardTitle>
                   <CardDescription>
-                    {zh ? '每次指派都會產生班級專屬連結；相同遊戲指派到兩個班級時，資料會分開記錄。' : 'Each assignment gets a class-specific link, keeping data separate when the same game is used by two classes.'}
+                    {zh ? '指派後只要把同一個班級活動連結分享給全班；學生輸入自己的學號／研究編號即可開始。' : 'Share one class activity link with everyone; learners enter their own student or research ID to begin.'}
                   </CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-4">
@@ -588,7 +641,7 @@ export default function ClassroomsPage() {
                         </div>
                         <Button variant="outline" size="sm" onClick={() => void copyAssignmentLink(assignment)}>
                           {copiedAssignmentId === assignment.id ? <Check className="mr-2 h-4 w-4" /> : <ClipboardCopy className="mr-2 h-4 w-4" />}
-                          {copiedAssignmentId === assignment.id ? (zh ? '已複製' : 'Copied') : (zh ? '複製學生連結' : 'Copy student link')}
+                          {copiedAssignmentId === assignment.id ? (zh ? '已複製' : 'Copied') : (zh ? '複製全班活動連結' : 'Copy class activity link')}
                         </Button>
                       </div>
                     );

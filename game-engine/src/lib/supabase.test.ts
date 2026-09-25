@@ -40,6 +40,7 @@ describe('verifyStudentLoginCode', () => {
     rpc.mockResolvedValue({
       data: [{
         student_id: 'student-uuid', student_name: '小明', grade: 5,
+        student_display_name: '小○',
         classroom_name: '六年甲班', game_assignment_id: 'assignment-1', assignment_count: 1,
       }],
       error: null,
@@ -48,6 +49,7 @@ describe('verifyStudentLoginCode', () => {
     await expect(verifyStudentLoginCode('HPGZR92P', 'game-1', 'assignment-1')).resolves.toEqual({
       student_id: 'student-uuid',
       student_name: '小明',
+      student_display_name: '小○',
       grade: 5,
       classroom_name: '六年甲班',
       game_assignment_id: 'assignment-1',

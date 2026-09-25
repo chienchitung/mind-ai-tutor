@@ -115,7 +115,8 @@ export default function EditStudentPage({ params: paramsPromise }: { params: Pro
         .from('students')
         .update({
           name: student.name,
-          email: student.email,
+          external_id: student.external_id?.trim() || null,
+          email: student.email?.trim() || null,
           grade: student.grade,
           subjects: student.subjects,
           status: student.status,
@@ -185,17 +186,31 @@ export default function EditStudentPage({ params: paramsPromise }: { params: Pro
           />
         </div>
         <div className="space-y-2">
+          <Label htmlFor="external_id">{language === 'zh-TW' ? '學號／研究編號' : 'Student / research ID'}</Label>
+          <Input
+            id="external_id"
+            value={student.external_id ?? ''}
+            onChange={(e) =>
+              setStudent((prev) => prev ? { ...prev, external_id: e.target.value } : null)
+            }
+            maxLength={64}
+            required
+          />
+          <p className="text-xs text-muted-foreground">
+            {language === 'zh-TW' ? '學生用這個編號進入班級活動。' : 'The learner uses this ID to enter class activities.'}
+          </p>
+        </div>
+        <div className="space-y-2">
           <Label htmlFor="email">{t('email')}</Label>
           <Input
             id="email"
             type="email"
-            value={student.email}
+            value={student.email ?? ''}
             onChange={(e) =>
               setStudent((prev) =>
                 prev ? { ...prev, email: e.target.value } : null
               )
             }
-            required
           />
         </div>
         <div className="space-y-2">

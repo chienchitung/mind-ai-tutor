@@ -73,7 +73,7 @@ export default function ReportsPage() {
   const [selectedGame, setSelectedGame] = useState<string>(ALL_GAMES);
   const [selectedClassroom, setSelectedClassroom] = useState<string>(ALL_CLASSROOMS);
   const [students, setStudents] = useState<{ id: string; name: string }[]>([]);
-  const [classrooms, setClassrooms] = useState<{ id: string; name: string; studyArm?: string | null }[]>([]);
+  const [classrooms, setClassrooms] = useState<{ id: string; name: string; studyArm?: string | null; status?: 'active' | 'archived' }[]>([]);
   const [classMemberships, setClassMemberships] = useState<{ classroomId: string; studentId: string }[]>([]);
   const [games, setGames] = useState<{ id: string; title: string }[]>([]);
   const [learningRecords, setLearningRecords] = useState<LearningRecord[]>([]);
@@ -117,7 +117,7 @@ export default function ReportsPage() {
         const { supabase } = await import('../../lib/supabase');
         const client = supabase() as any;
         const [classesResult, membersResult] = await Promise.all([
-          client.from('classrooms').select('id, name, study_arm').eq('status', 'active').order('name'),
+          client.from('classrooms').select('id, name, study_arm, status').order('name'),
           // Keep former members in historical class reports. Excluding students
           // after they leave would bias experiment results through attrition.
           client.from('classroom_students').select('classroom_id, student_id, left_at'),
@@ -128,6 +128,7 @@ export default function ReportsPage() {
           id: item.id,
           name: item.name,
           studyArm: item.study_arm,
+          status: item.status,
         })));
         setClassMemberships((membersResult.data || []).map((item: any) => ({
           classroomId: item.classroom_id,
@@ -162,17 +163,18 @@ export default function ReportsPage() {
   useEffect(() => {
     const fetchStudents = async () => {
       try {
-        console.log('Fetching students from learning_records_view...');
+        console.log('Fetching students from the teacher roster...');
 
         // 動態導入 supabase 函數
         const { supabase } = await import('../../lib/supabase');
         const supabaseClient = supabase();
 
-        // Try to fetch from the view
+        // Use the protected teacher roster for real display names. The public
+        // game verifier only returns a masked name to account-free learners.
         const { data, error } = await supabaseClient
-          .from('learning_records_view')
-          .select('student_id, student_name')
-          .order('student_name');
+          .from('students')
+          .select('id, name')
+          .order('name');
 
         console.log('Supabase response:', { data, error });
 
@@ -182,10 +184,7 @@ export default function ReportsPage() {
         }
 
         // Deduplicate students
-        const uniqueStudents = Array.from(
-          new Map((data || []).map(item => [item.student_id, { id: item.student_id, name: item.student_name }]))
-            .values()
-        ) as { id: string; name: string }[];
+        const uniqueStudents = (data || []).map(item => ({ id: item.id, name: item.name }));
 
         console.log('Unique students found:', uniqueStudents);
         setStudents(uniqueStudents);

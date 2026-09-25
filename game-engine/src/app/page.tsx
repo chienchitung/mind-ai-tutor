@@ -11,7 +11,7 @@ import { Button } from "@/components/ui/button"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { useRouter } from "next/navigation"
-import { getLeaderboardStats, getPlayerRank, getLessonOrderMappings, verifyStudentLoginCode } from '@/lib/supabase'
+import { getLeaderboardStats, getPlayerRank, getLessonOrderMappings, verifyStudentLoginCode, type VerifiedStudent } from '@/lib/supabase'
 import { Lesson } from '@/types/lesson'
 import type { GameDefinition } from '@/types/game'
 import { gameVisualTemplate } from '@/lib/mission'
@@ -54,6 +54,7 @@ export default function HomePage({ gameId, assignmentId }: { gameId?: string; as
   const [activeStudentName, setActiveStudentName] = useState<string | null>(null);
   const [guestNickname, setGuestNickname] = useState("");
   const [loginCode, setLoginCode] = useState("");
+  const [verifiedStudent, setVerifiedStudent] = useState<VerifiedStudent | null>(null);
   const [verifyingCode, setVerifyingCode] = useState(false);
   const [loginCodeError, setLoginCodeError] = useState<string | null>(null);
   const [completionTime, setCompletionTime] = useState<string | null>(null);
@@ -322,22 +323,31 @@ export default function HomePage({ gameId, assignmentId }: { gameId?: string; as
     try {
       const verified = await verifyStudentLoginCode(loginCode, gameId, assignmentId);
       if (!verified) {
-        setLoginCodeError("代碼錯誤，請確認後再試一次");
+        setLoginCodeError(assignmentId
+          ? "找不到這個學生編號，請確認輸入內容或詢問老師"
+          : "請使用老師提供的班級活動連結，或輸入備用登入碼");
         return;
       }
       if (!assignmentId && (verified.assignment_count ?? 0) > 1) {
         setLoginCodeError("這個代碼同時屬於多個班級活動，請使用老師提供的班級專屬連結");
         return;
       }
-      startLearningSession(
-        verified.student_id,
-        verified.student_name,
-        verified.student_id,
-        verified.game_assignment_id,
-      );
+      setVerifiedStudent(verified);
     } finally {
       setVerifyingCode(false);
     }
+  };
+
+  const confirmVerifiedStudent = () => {
+    if (!verifiedStudent) return;
+    startLearningSession(
+      verifiedStudent.student_id,
+      verifiedStudent.student_name,
+      verifiedStudent.student_id,
+      verifiedStudent.game_assignment_id,
+    );
+    setVerifiedStudent(null);
+    setLoginCode("");
   };
 
   // Helper to determine the next incomplete lesson or current progress
@@ -374,7 +384,17 @@ export default function HomePage({ gameId, assignmentId }: { gameId?: string; as
         onStart={handleStartLearning} onReset={handleReset} onLeaderboard={() => setShowLeaderboardDialog(true)} />
 
       {/* 學號輸入對話框 */}
-      <Dialog open={showStudentIdDialog} onOpenChange={setShowStudentIdDialog}>
+      <Dialog
+        open={showStudentIdDialog}
+        onOpenChange={(open) => {
+          setShowStudentIdDialog(open);
+          if (!open) {
+            setVerifiedStudent(null);
+            setLoginCodeError(null);
+            setLoginCode("");
+          }
+        }}
+      >
         <DialogContent className="sm:max-w-[500px]">
           <DialogHeader>
             <DialogTitle className="text-2xl font-bold">開始學習</DialogTitle>
@@ -382,7 +402,14 @@ export default function HomePage({ gameId, assignmentId }: { gameId?: string; as
               選擇你要用哪種方式開始
             </DialogDescription>
           </DialogHeader>
-          <Tabs defaultValue="code" className="mt-2">
+          <Tabs
+            defaultValue="code"
+            className="mt-2"
+            onValueChange={() => {
+              setVerifiedStudent(null);
+              setLoginCodeError(null);
+            }}
+          >
             <TabsList
               aria-label="選擇學習登入方式"
               className="grid h-auto w-full grid-cols-1 gap-3 bg-transparent p-0 sm:grid-cols-2"
@@ -396,9 +423,9 @@ export default function HomePage({ gameId, assignmentId }: { gameId?: string; as
                     <KeyRound size={20} aria-hidden="true" />
                   </span>
                   <span className="min-w-0 flex-1">
-                    <span className="block text-base font-bold">使用學習代碼</span>
+                    <span className="block text-base font-bold">輸入學生編號</span>
                     <span className="mt-1 block text-xs font-normal leading-5 text-gray-600">
-                      老師提供，保存進度與學習紀錄
+                      不需註冊，保存進度與學習紀錄
                     </span>
                   </span>
                   <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full border-2 border-gray-300 text-transparent group-data-[state=active]:border-blue-600 group-data-[state=active]:bg-blue-600 group-data-[state=active]:text-white">
@@ -427,34 +454,69 @@ export default function HomePage({ gameId, assignmentId }: { gameId?: string; as
               </TabsTrigger>
             </TabsList>
             <TabsContent value="code" className="space-y-4 pt-5">
-              <div className="space-y-2">
-                <label htmlFor="loginCode" className="text-sm font-medium text-gray-700">
-                  登入代碼
-                </label>
-                <input
-                  id="loginCode"
-                  type="text"
-                  value={loginCode}
-                  onChange={(e) => {
-                    setLoginCode(e.target.value);
-                    setLoginCodeError(null);
-                  }}
-                  className="w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  placeholder="請輸入老師提供的登入代碼"
-                />
-                {loginCodeError && (
-                  <p className="text-sm text-red-600">{loginCodeError}</p>
-                )}
-              </div>
-              <div className="flex justify-end">
-                <Button
-                  onClick={handleLoginCodeSubmit}
-                  disabled={!loginCode.trim() || verifyingCode}
-                  className="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-lg"
-                >
-                  {verifyingCode ? "驗證中..." : "開始學習"}
-                </Button>
-              </div>
+              {verifiedStudent ? (
+                <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-4">
+                  <p className="text-xs font-semibold uppercase tracking-wider text-emerald-700">請確認身分</p>
+                  <p className="mt-2 text-lg font-bold text-emerald-950">
+                    {verifiedStudent.student_display_name || verifiedStudent.student_name}
+                  </p>
+                  {verifiedStudent.classroom_name && (
+                    <p className="mt-1 text-sm text-emerald-800">班級：{verifiedStudent.classroom_name}</p>
+                  )}
+                  <div className="mt-4 flex flex-wrap justify-end gap-2">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={() => {
+                        setVerifiedStudent(null);
+                        setLoginCode("");
+                      }}
+                    >
+                      不是我
+                    </Button>
+                    <Button type="button" onClick={confirmVerifiedStudent} className="bg-blue-600 font-bold text-white hover:bg-blue-700">
+                      確認並開始
+                    </Button>
+                  </div>
+                </div>
+              ) : (
+                <>
+                  <div className="space-y-2">
+                    <label htmlFor="loginCode" className="text-sm font-medium text-gray-700">
+                      學號／研究編號
+                    </label>
+                    <input
+                      id="loginCode"
+                      type="text"
+                      value={loginCode}
+                      onChange={(e) => {
+                        setLoginCode(e.target.value);
+                        setLoginCodeError(null);
+                      }}
+                      onKeyDown={(event) => {
+                        if (event.key === 'Enter') void handleLoginCodeSubmit();
+                      }}
+                      autoComplete="off"
+                      maxLength={64}
+                      className="w-full rounded-lg border px-4 py-3 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      placeholder="例如：A001"
+                    />
+                    <p className="text-xs text-gray-500">輸入老師登記在班級名單中的編號；特殊情況也可輸入備用登入碼。</p>
+                    {loginCodeError && (
+                      <p className="text-sm text-red-600" role="alert">{loginCodeError}</p>
+                    )}
+                  </div>
+                  <div className="flex justify-end">
+                    <Button
+                      onClick={handleLoginCodeSubmit}
+                      disabled={!loginCode.trim() || verifyingCode}
+                      className="bg-blue-600 px-4 py-2 font-bold text-white hover:bg-blue-700"
+                    >
+                      {verifyingCode ? "確認中..." : "確認身分"}
+                    </Button>
+                  </div>
+                </>
+              )}
             </TabsContent>
             <TabsContent value="guest" className="space-y-4 pt-5">
               <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">

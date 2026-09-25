@@ -22,7 +22,7 @@ import { ProgressHistory } from '@/components/students/ProgressHistory';
 import { AttendanceTracker } from '@/components/students/AttendanceTracker';
 import { AssignmentTracker } from '@/components/students/AssignmentTracker';
 import { useToast } from '@/hooks/use-toast';
-import { BookOpen, Copy, GraduationCap, KeyRound, Mail, RefreshCw, UserRound } from 'lucide-react';
+import { BookOpen, Copy, GraduationCap, IdCard, KeyRound, Mail, RefreshCw, UserRound } from 'lucide-react';
 import { useLanguage } from '@/app/contexts/LanguageContext';
 import { useTranslation } from '@/utils/translations';
 import type { Database } from '@/types/supabase';
@@ -266,7 +266,8 @@ export default function StudentPage({ params: paramsPromise }: { params: Promise
                   </span>
                 </div>
                 <div className="mt-3 grid gap-2 text-sm text-muted-foreground sm:grid-cols-2">
-                  <p className="flex min-w-0 items-center gap-2"><Mail className="h-4 w-4 shrink-0" /><span className="truncate">{student.email}</span></p>
+                  <p className="flex min-w-0 items-center gap-2"><IdCard className="h-4 w-4 shrink-0" /><span className="truncate">{student.external_id || (language === 'zh-TW' ? '尚未設定學號／研究編號' : 'No student / research ID')}</span></p>
+                  {student.email && <p className="flex min-w-0 items-center gap-2"><Mail className="h-4 w-4 shrink-0" /><span className="truncate">{student.email}</span></p>}
                   <p className="flex items-center gap-2"><GraduationCap className="h-4 w-4 shrink-0" />{t('grade')}：{student.grade || t('not_available')}</p>
                 </div>
                 <div className="mt-4 flex items-start gap-2">
@@ -283,9 +284,13 @@ export default function StudentPage({ params: paramsPromise }: { params: Promise
 
           <div className="border-t bg-muted/20 p-5 sm:p-6 lg:border-l lg:border-t-0">
             <h2 className="flex items-center gap-2 text-sm font-semibold">
-              <KeyRound className="h-4 w-4" />{t('game_login_code')}
+              <KeyRound className="h-4 w-4" />{language === 'zh-TW' ? '備用登入碼' : 'Fallback login code'}
             </h2>
-            <p className="mt-1 text-xs leading-5 text-muted-foreground">{t('game_login_code_desc')}</p>
+            <p className="mt-1 text-xs leading-5 text-muted-foreground">
+              {language === 'zh-TW'
+                ? '一般情況讓學生輸入自己的學號即可；只有忘記編號或特殊狀況才需要產生備用碼。'
+                : 'Learners normally use their student ID. Generate a fallback code only when needed.'}
+            </p>
             <div className="mt-3">
                 {student.login_code ? (
                   <div className="flex flex-wrap items-center gap-2">
