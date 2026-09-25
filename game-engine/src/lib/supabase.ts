@@ -39,6 +39,7 @@ export interface LeaderboardEntry {
 export interface VerifiedStudent {
   student_id: string
   student_name: string
+  student_display_name?: string | null
   grade: number | null
   classroom_name?: string | null
   game_assignment_id?: string | null
@@ -99,6 +100,7 @@ export async function verifyStudentLoginCode(
   return {
     student_id: row.student_id,
     student_name: row.student_name,
+    ...(typeof row.student_display_name === 'string' ? { student_display_name: row.student_display_name } : {}),
     grade: row.grade ?? null,
     ...(typeof row.classroom_name === 'string' ? { classroom_name: row.classroom_name } : {}),
     ...(typeof row.game_assignment_id === 'string' ? { game_assignment_id: row.game_assignment_id } : {}),

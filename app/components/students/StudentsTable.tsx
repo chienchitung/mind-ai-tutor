@@ -84,9 +84,11 @@ export function StudentsTable({ students, selectedTab, onSelectedTabChange, onSt
                 {name.split(" ").map(n => n[0] || '').join("").substring(0, 2) || 'ST'}
               </AvatarFallback>
             </Avatar>
-            <div>
+            <div className="min-w-0">
               <div className="font-medium">{name}</div>
-              <div className="text-xs text-muted-foreground">{student.email}</div>
+              <div className="truncate text-xs text-muted-foreground">
+                {student.external_id || student.email || (language === 'zh-TW' ? '尚未設定學生編號' : 'No student ID')}
+              </div>
             </div>
           </Link>
         );

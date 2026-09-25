@@ -19,6 +19,7 @@ type Student = Database['public']['Tables']['students']['Row'];
 type StudentInsert = Database['public']['Tables']['students']['Insert'];
 
 const IMPORT_HEADERS = {
+  external_id: ['student_id', 'external_id', '學號', '研究編號', '學生編號'],
   name: ['name', '姓名'],
   email: ['email', 'e-mail', '電子郵件', 'email address'],
   grade: ['grade', '年級'],
@@ -80,12 +81,13 @@ export default function StudentsPage() {
       const workbook = new ExcelJS.Workbook();
       const worksheet = workbook.addWorksheet(t('students'));
 
-      worksheet.addRow([t('name'), t('email'), t('status'), t('enrolled'), t('grade')]);
+      worksheet.addRow([language === 'zh-TW' ? '學號／研究編號' : 'Student / research ID', t('name'), t('email'), t('status'), t('enrolled'), t('grade')]);
 
       students.forEach((student) => {
         worksheet.addRow([
+          student.external_id ?? '',
           student.name,
-          student.email,
+          student.email ?? '',
           student.status,
           student.created_at ? new Date(student.created_at).toLocaleDateString() : 'N/A',
           student.grade ?? 'N/A',
@@ -134,8 +136,8 @@ export default function StudentsPage() {
     const workbook = new ExcelJS.Workbook();
     const worksheet = workbook.addWorksheet(t('students'));
 
-    worksheet.addRow(['name', 'email', 'grade', 'subjects', 'status']);
-    worksheet.addRow(['王小明', 'student1@example.com', 10, 'Mathematics,Science', 'active']);
+    worksheet.addRow(['student_id', 'name', 'email', 'grade', 'subjects', 'status']);
+    worksheet.addRow(['A001', '王小明', '', 10, 'Mathematics,Science', 'active']);
 
     const headerRow = worksheet.getRow(1);
     headerRow.font = { bold: true };
@@ -187,16 +189,19 @@ export default function StudentsPage() {
         }
       });
 
-      if (!columnIndex.name || !columnIndex.email) {
+      if (!columnIndex.name || (!columnIndex.external_id && !columnIndex.email)) {
         toast({
           title: t('import_failed'),
-          description: t('import_missing_columns'),
+          description: language === 'zh-TW'
+            ? '名單需要「姓名」，以及「學號／研究編號」或「電子郵件」其中一欄。'
+            : 'The roster needs a name plus either a student/research ID or email column.',
           variant: 'destructive',
         });
         return;
       }
 
-      const existingEmails = new Set(students.map((s) => s.email.toLowerCase()));
+      const existingEmails = new Set(students.flatMap((s) => s.email ? [s.email.toLowerCase()] : []));
+      const existingExternalIds = new Set(students.flatMap((s) => s.external_id ? [s.external_id.trim().toUpperCase()] : []));
       const rowsToInsert: StudentInsert[] = [];
       let skippedMissingFields = 0;
       let skippedDuplicates = 0;
@@ -205,18 +210,28 @@ export default function StudentsPage() {
         if (rowNumber === 1) return; // header
 
         const name = String(row.getCell(columnIndex.name!).value ?? '').trim();
-        const email = String(row.getCell(columnIndex.email!).value ?? '').trim();
+        const externalId = columnIndex.external_id
+          ? String(row.getCell(columnIndex.external_id).value ?? '').trim()
+          : '';
+        const email = columnIndex.email
+          ? String(row.getCell(columnIndex.email).value ?? '').trim()
+          : '';
 
-        if (!name || !email) {
-          if (name || email) skippedMissingFields++; // ignore fully blank rows silently
+        if (!name || (!externalId && !email)) {
+          if (name || externalId || email) skippedMissingFields++; // ignore fully blank rows silently
           return;
         }
 
-        if (existingEmails.has(email.toLowerCase())) {
+        const normalizedExternalId = externalId.toUpperCase();
+        if (
+          (email && existingEmails.has(email.toLowerCase()))
+          || (normalizedExternalId && existingExternalIds.has(normalizedExternalId))
+        ) {
           skippedDuplicates++;
           return;
         }
-        existingEmails.add(email.toLowerCase());
+        if (email) existingEmails.add(email.toLowerCase());
+        if (normalizedExternalId) existingExternalIds.add(normalizedExternalId);
 
         const gradeRaw = columnIndex.grade ? row.getCell(columnIndex.grade).value : null;
         const grade = gradeRaw !== null && gradeRaw !== undefined && gradeRaw !== ''
@@ -238,7 +253,8 @@ export default function StudentsPage() {
 
         rowsToInsert.push({
           name,
-          email,
+          external_id: externalId || null,
+          email: email || null,
           grade: Number.isFinite(grade) ? grade : null,
           subjects,
           status,

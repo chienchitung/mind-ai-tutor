@@ -36,6 +36,7 @@ export default function NewStudentPage() {
   const [loading, setLoading] = useState(false);
   const [formData, setFormData] = useState({
     name: '',
+    external_id: '',
     email: '',
     grade: '',
     subjects: [] as string[],
@@ -55,7 +56,8 @@ export default function NewStudentPage() {
 
       const { data, error } = await supabaseClient.from('students').insert({
         name: formData.name,
-        email: formData.email,
+        external_id: formData.external_id.trim(),
+        email: formData.email.trim() || null,
         grade: parseInt(formData.grade),
         subjects: formData.subjects,
         status: 'active',
@@ -70,8 +72,8 @@ export default function NewStudentPage() {
         description: t('student_added'),
       });
 
-      // Straight to the new student's own page, not the dashboard - generating
-      // their game login code is the very next thing a teacher does here.
+      // Go straight to the profile so the teacher can review the imported ID
+      // or optionally create a fallback code for this learner.
       router.push(`/students/${data.id}`);
     } catch (error: any) {
       toast({
@@ -109,6 +111,20 @@ export default function NewStudentPage() {
           />
         </div>
         <div className="space-y-2">
+          <Label htmlFor="external_id">{language === 'zh-TW' ? '學號／研究編號' : 'Student / research ID'}</Label>
+          <Input
+            id="external_id"
+            value={formData.external_id}
+            onChange={(e) => setFormData((prev) => ({ ...prev, external_id: e.target.value }))}
+            placeholder={language === 'zh-TW' ? '例如：A001' : 'e.g. A001'}
+            maxLength={64}
+            required
+          />
+          <p className="text-xs text-muted-foreground">
+            {language === 'zh-TW' ? '學生會用這個編號進入老師指派的班級活動。' : 'The learner uses this ID to enter an assigned class activity.'}
+          </p>
+        </div>
+        <div className="space-y-2">
           <Label htmlFor="email">{t('email')}</Label>
           <Input
             id="email"
@@ -117,8 +133,8 @@ export default function NewStudentPage() {
             onChange={(e) =>
               setFormData((prev) => ({ ...prev, email: e.target.value }))
             }
-            required
           />
+          <p className="text-xs text-muted-foreground">{language === 'zh-TW' ? '選填；學生不需要以此註冊帳號。' : 'Optional; learners do not need an account.'}</p>
         </div>
         <div className="space-y-2">
           <Label htmlFor="grade">{t('grade')}</Label>

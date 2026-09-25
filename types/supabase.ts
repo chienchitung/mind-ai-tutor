@@ -570,7 +570,8 @@ export interface Database {
           created_at: string;
           user_id: string;
           name: string;
-          email: string;
+          email: string | null;
+          external_id: string | null;
           grade: number | null;
           subjects: string[];
           status: string;
@@ -582,7 +583,8 @@ export interface Database {
           created_at?: string;
           user_id?: string;
           name: string;
-          email: string;
+          email?: string | null;
+          external_id?: string | null;
           grade?: number | null;
           subjects?: string[];
           status?: string;
@@ -594,7 +596,8 @@ export interface Database {
           created_at?: string;
           user_id?: string;
           name?: string;
-          email?: string;
+          email?: string | null;
+          external_id?: string | null;
           grade?: number | null;
           subjects?: string[];
           status?: string;
