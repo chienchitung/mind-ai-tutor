@@ -408,12 +408,12 @@ export default function ClassroomsPage() {
         text={zh
           ? '整理學生名單並指派學習遊戲；同一款遊戲可分別追蹤不同班級的表現。'
           : 'Organize rosters, assign learning games, and track each class separately.'}
-        actions={
+        actions={classrooms.length > 0 ? (
           <Button onClick={() => setShowCreate(true)}>
             <Plus className="mr-2 h-4 w-4" />
             {zh ? '新增班級' : 'New class'}
           </Button>
-        }
+        ) : undefined}
       />
 
       <Dialog open={showCreate} onOpenChange={setShowCreate}>
@@ -467,76 +467,54 @@ export default function ClassroomsPage() {
 
       {classrooms.length === 0 ? (
         <Card className="overflow-hidden">
-          <CardContent className="grid p-0 lg:grid-cols-[minmax(0,1fr)_420px]">
-            <div className="flex flex-col justify-center px-6 py-10 sm:px-10 lg:py-12">
-              <div className="mb-5 flex h-12 w-12 items-center justify-center rounded-2xl bg-primary/10 text-primary">
-                <GraduationCap className="h-6 w-6" />
+          <CardContent className="grid p-0 lg:grid-cols-[minmax(0,1fr)_400px]">
+            <div className="flex flex-col justify-center px-6 py-8 sm:px-10 lg:py-10">
+              <div className="mb-4 flex h-10 w-10 items-center justify-center rounded-xl bg-primary/10 text-primary">
+                <GraduationCap className="h-5 w-5" />
               </div>
-              <h2 className="text-xl font-semibold tracking-tight">{zh ? '建立第一個班級' : 'Create your first class'}</h2>
+              <h2 className="text-xl font-semibold tracking-tight">{zh ? '從班級開始整理學習資料' : 'Organize learning data by class'}</h2>
               <p className="mt-2 max-w-xl text-sm leading-6 text-muted-foreground">
                 {zh ? '將學生、遊戲活動與學習紀錄整理在一起，之後比較不同班級時，資料也不會混合。' : 'Keep rosters, game activities, and learning records together so class data stays separate.'}
               </p>
-              <div className="mt-6 flex flex-wrap gap-3">
+              <div className="mt-5 flex flex-wrap gap-3">
                 <Button onClick={() => setShowCreate(true)}><Plus className="mr-2 h-4 w-4" />{zh ? '建立班級' : 'Create class'}</Button>
                 {students.length === 0 && (
                   <Button variant="outline" asChild><Link href="/students/new"><UserPlus className="mr-2 h-4 w-4" />{zh ? '先新增學生' : 'Add students first'}</Link></Button>
                 )}
               </div>
             </div>
-            <div className="relative isolate overflow-hidden border-t bg-gradient-to-br from-primary/[0.09] via-background to-emerald-500/[0.08] px-6 py-8 sm:px-8 lg:border-l lg:border-t-0">
-              <div className="pointer-events-none absolute -right-16 -top-16 -z-10 h-48 w-48 rounded-full bg-primary/10 blur-3xl" />
-              <div className="pointer-events-none absolute -bottom-20 -left-16 -z-10 h-44 w-44 rounded-full bg-emerald-400/10 blur-3xl" />
-              <div className="flex items-center justify-between gap-3">
-                <div>
-                  <p className="text-xs font-semibold uppercase tracking-[0.18em] text-primary">{zh ? '設定流程' : 'Setup flow'}</p>
-                  <h3 className="mt-1 text-base font-semibold">{zh ? '開始使用只要三步' : 'Get started in three steps'}</h3>
-                </div>
-                <span className="rounded-full border border-primary/20 bg-background/80 px-2.5 py-1 text-xs font-semibold text-primary shadow-sm">
-                  {zh ? '約 3 分鐘' : 'About 3 min'}
-                </span>
+            <div className="border-t bg-muted/25 px-6 py-7 sm:px-8 lg:border-l lg:border-t-0">
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-[0.16em] text-muted-foreground">{zh ? '設定流程' : 'Setup flow'}</p>
+                <h3 className="mt-1 text-base font-semibold">{zh ? '依序完成三項設定' : 'Complete these three steps'}</h3>
               </div>
 
-              <ol className="relative mt-6 space-y-3 before:absolute before:bottom-8 before:left-5 before:top-8 before:w-px before:bg-border">
+              <ol className="mt-5 divide-y rounded-xl border bg-background">
                 {[
                   {
-                    title: zh ? '建立班級' : 'Create the class',
+                    title: zh ? '填寫基本資料' : 'Add class details',
                     description: zh ? '填寫班級名稱，學年度與學期可稍後補充。' : 'Add a class name; year and term can be completed later.',
-                    icon: GraduationCap,
                   },
                   {
                     title: zh ? '加入學生' : 'Add students',
                     description: zh ? '從既有學生名單勾選成員，不需要逐一建立帳號。' : 'Select learners from your roster without creating individual accounts.',
-                    icon: Users,
                   },
                   {
                     title: zh ? '指派並分享' : 'Assign and share',
                     description: zh ? '選擇遊戲後，將同一個班級活動連結分享給全班。' : 'Choose a game and share one class activity link with everyone.',
-                    icon: Gamepad2,
                   },
-                ].map((step, index) => {
-                  const StepIcon = step.icon;
-                  return (
-                    <li key={step.title} className="relative flex gap-3 rounded-xl border border-border/70 bg-background/80 p-3.5 shadow-sm backdrop-blur-sm">
-                      <span className="relative z-10 grid h-10 w-10 shrink-0 place-items-center rounded-xl border border-primary/15 bg-primary/10 text-primary">
-                        <StepIcon className="h-[18px] w-[18px]" aria-hidden="true" />
-                        <span className="sr-only">{zh ? `步驟 ${index + 1}` : `Step ${index + 1}`}</span>
-                      </span>
-                      <div className="min-w-0">
-                        <div className="flex items-center gap-2">
-                          <span className="text-[11px] font-semibold text-primary">{String(index + 1).padStart(2, '0')}</span>
-                          <p className="text-sm font-semibold">{step.title}</p>
-                        </div>
-                        <p className="mt-1 text-xs leading-5 text-muted-foreground">{step.description}</p>
-                      </div>
-                    </li>
-                  );
-                })}
+                ].map((step, index) => (
+                  <li key={step.title} className="flex gap-3 px-4 py-3.5">
+                    <span className="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-foreground text-[11px] font-semibold text-background">
+                      {index + 1}
+                    </span>
+                    <div className="min-w-0">
+                      <p className="text-sm font-semibold">{step.title}</p>
+                      <p className="mt-0.5 text-xs leading-5 text-muted-foreground">{step.description}</p>
+                    </div>
+                  </li>
+                ))}
               </ol>
-
-              <p className="mt-5 flex items-center gap-2 text-xs text-muted-foreground">
-                <Check className="h-4 w-4 text-emerald-600" aria-hidden="true" />
-                {zh ? '完成後即可分班追蹤進度與學習表現。' : 'You can then track progress and learning outcomes by class.'}
-              </p>
             </div>
           </CardContent>
         </Card>
