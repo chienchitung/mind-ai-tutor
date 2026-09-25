@@ -80,9 +80,9 @@ export default function HomePage({ gameId, assignmentId }: { gameId?: string; as
   const storageKey = (key: string) => gameStorageKey(gameId, key);
   // No leading /games here - basePath already adds it to every next/link href
   // and router.push() call.
-  const lessonHref = (lessonId: string) =>
+  const lessonHref = (lessonId: string, resolvedAssignmentId?: string | null) =>
     gameId
-      ? `/${gameId}/lessons/${lessonId}${assignmentId ? `?assignment=${encodeURIComponent(assignmentId)}` : ''}`
+      ? `/${gameId}/lessons/${lessonId}${resolvedAssignmentId || assignmentId ? `?assignment=${encodeURIComponent(resolvedAssignmentId || assignmentId || '')}` : ''}`
       : `/lessons/${lessonId}`;
   
   useEffect(() => {
@@ -263,7 +263,15 @@ export default function HomePage({ gameId, assignmentId }: { gameId?: string; as
     }
   };
 
-  const startLearningSession = (id: string, name: string, studentRefId: string | null) => {
+  const startLearningSession = (
+    id: string,
+    name: string,
+    studentRefId: string | null,
+    resolvedAssignmentId?: string | null,
+  ) => {
+    if (gameId && resolvedAssignmentId) {
+      localStorage.setItem(storageKey('game_assignment_id'), resolvedAssignmentId);
+    }
     // 正確處理 UTC+8 時間
     const now = new Date();
     const startTime = new Date(now.getTime() - (now.getTimezoneOffset() * 60000))
@@ -291,7 +299,7 @@ export default function HomePage({ gameId, assignmentId }: { gameId?: string; as
     // 直接導航到前導課程（0），若不存在則到第一關
     const firstLesson = mappedLessons.find(lesson => lesson.role === 'intro') || mappedLessons[0];
     if (firstLesson) {
-      router.push(lessonHref(firstLesson.lesson_id));
+      router.push(lessonHref(firstLesson.lesson_id, resolvedAssignmentId));
     } else {
       setLoadError('這款遊戲尚未設定任何關卡');
     }
@@ -317,7 +325,16 @@ export default function HomePage({ gameId, assignmentId }: { gameId?: string; as
         setLoginCodeError("代碼錯誤，請確認後再試一次");
         return;
       }
-      startLearningSession(verified.student_id, verified.student_name, verified.student_id);
+      if (!assignmentId && (verified.assignment_count ?? 0) > 1) {
+        setLoginCodeError("這個代碼同時屬於多個班級活動，請使用老師提供的班級專屬連結");
+        return;
+      }
+      startLearningSession(
+        verified.student_id,
+        verified.student_name,
+        verified.student_id,
+        verified.game_assignment_id,
+      );
     } finally {
       setVerifyingCode(false);
     }
