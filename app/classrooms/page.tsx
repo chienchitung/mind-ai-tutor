@@ -126,6 +126,8 @@ export default function ClassroomsPage() {
   const [showCreate, setShowCreate] = useState(false);
   const [showArchived, setShowArchived] = useState(false);
   const [showStoppedAssignments, setShowStoppedAssignments] = useState(false);
+  const [showDeleteClassroom, setShowDeleteClassroom] = useState(false);
+  const [deleteConfirmationName, setDeleteConfirmationName] = useState('');
   const [className, setClassName] = useState('');
   const [academicYear, setAcademicYear] = useState('');
   const [term, setTerm] = useState('');
@@ -348,7 +350,12 @@ export default function ClassroomsPage() {
   }
 
   async function permanentlyDeleteClassroom() {
-    if (!selectedClassroom || selectedClassroom.status !== 'archived' || isSaving) return;
+    if (
+      !selectedClassroom
+      || selectedClassroom.status !== 'archived'
+      || deleteConfirmationName.trim() !== selectedClassroom.name
+      || isSaving
+    ) return;
     setIsSaving(true);
     try {
       const { supabase } = await import('@/lib/supabase');
@@ -358,6 +365,8 @@ export default function ClassroomsPage() {
         .eq('id', selectedClassroom.id)
         .eq('status', 'archived');
       if (error) throw error;
+      setShowDeleteClassroom(false);
+      setDeleteConfirmationName('');
       setSelectedClassroomId(null);
       await loadData();
       toast({ title: zh ? '班級已永久移除' : 'Class permanently removed' });
@@ -474,20 +483,60 @@ export default function ClassroomsPage() {
                 )}
               </div>
             </div>
-            <div className="border-t bg-muted/25 px-6 py-8 sm:px-8 lg:border-l lg:border-t-0">
-              <p className="text-sm font-semibold">{zh ? '開始使用只要三步' : 'Get started in three steps'}</p>
-              <ol className="mt-5 space-y-5">
+            <div className="relative isolate overflow-hidden border-t bg-gradient-to-br from-primary/[0.09] via-background to-emerald-500/[0.08] px-6 py-8 sm:px-8 lg:border-l lg:border-t-0">
+              <div className="pointer-events-none absolute -right-16 -top-16 -z-10 h-48 w-48 rounded-full bg-primary/10 blur-3xl" />
+              <div className="pointer-events-none absolute -bottom-20 -left-16 -z-10 h-44 w-44 rounded-full bg-emerald-400/10 blur-3xl" />
+              <div className="flex items-center justify-between gap-3">
+                <div>
+                  <p className="text-xs font-semibold uppercase tracking-[0.18em] text-primary">{zh ? '設定流程' : 'Setup flow'}</p>
+                  <h3 className="mt-1 text-base font-semibold">{zh ? '開始使用只要三步' : 'Get started in three steps'}</h3>
+                </div>
+                <span className="rounded-full border border-primary/20 bg-background/80 px-2.5 py-1 text-xs font-semibold text-primary shadow-sm">
+                  {zh ? '約 3 分鐘' : 'About 3 min'}
+                </span>
+              </div>
+
+              <ol className="relative mt-6 space-y-3 before:absolute before:bottom-8 before:left-5 before:top-8 before:w-px before:bg-border">
                 {[
-                  zh ? '建立班級與學期資料' : 'Create the class and term',
-                  zh ? '從學生名單勾選班級成員' : 'Select students for the roster',
-                  zh ? '指派遊戲並分享班級連結' : 'Assign a game and share its link',
-                ].map((step, index) => (
-                  <li key={step} className="flex items-center gap-3 text-sm">
-                    <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full border bg-background text-xs font-semibold">{index + 1}</span>
-                    <span>{step}</span>
-                  </li>
-                ))}
+                  {
+                    title: zh ? '建立班級' : 'Create the class',
+                    description: zh ? '填寫班級名稱，學年度與學期可稍後補充。' : 'Add a class name; year and term can be completed later.',
+                    icon: GraduationCap,
+                  },
+                  {
+                    title: zh ? '加入學生' : 'Add students',
+                    description: zh ? '從既有學生名單勾選成員，不需要逐一建立帳號。' : 'Select learners from your roster without creating individual accounts.',
+                    icon: Users,
+                  },
+                  {
+                    title: zh ? '指派並分享' : 'Assign and share',
+                    description: zh ? '選擇遊戲後，將同一個班級活動連結分享給全班。' : 'Choose a game and share one class activity link with everyone.',
+                    icon: Gamepad2,
+                  },
+                ].map((step, index) => {
+                  const StepIcon = step.icon;
+                  return (
+                    <li key={step.title} className="relative flex gap-3 rounded-xl border border-border/70 bg-background/80 p-3.5 shadow-sm backdrop-blur-sm">
+                      <span className="relative z-10 grid h-10 w-10 shrink-0 place-items-center rounded-xl border border-primary/15 bg-primary/10 text-primary">
+                        <StepIcon className="h-[18px] w-[18px]" aria-hidden="true" />
+                        <span className="sr-only">{zh ? `步驟 ${index + 1}` : `Step ${index + 1}`}</span>
+                      </span>
+                      <div className="min-w-0">
+                        <div className="flex items-center gap-2">
+                          <span className="text-[11px] font-semibold text-primary">{String(index + 1).padStart(2, '0')}</span>
+                          <p className="text-sm font-semibold">{step.title}</p>
+                        </div>
+                        <p className="mt-1 text-xs leading-5 text-muted-foreground">{step.description}</p>
+                      </div>
+                    </li>
+                  );
+                })}
               </ol>
+
+              <p className="mt-5 flex items-center gap-2 text-xs text-muted-foreground">
+                <Check className="h-4 w-4 text-emerald-600" aria-hidden="true" />
+                {zh ? '完成後即可分班追蹤進度與學習表現。' : 'You can then track progress and learning outcomes by class.'}
+              </p>
             </div>
           </CardContent>
         </Card>
@@ -588,7 +637,13 @@ export default function ClassroomsPage() {
                       <Button variant="outline" size="sm" onClick={archiveClassroom} disabled={isSaving}>
                         {zh ? '重新啟用班級' : 'Reactivate class'}
                       </Button>
-                      <AlertDialog>
+                      <AlertDialog
+                        open={showDeleteClassroom}
+                        onOpenChange={open => {
+                          setShowDeleteClassroom(open);
+                          if (!open) setDeleteConfirmationName('');
+                        }}
+                      >
                         <AlertDialogTrigger asChild>
                           <Button variant="ghost" size="sm" className="text-destructive hover:bg-destructive/10 hover:text-destructive" disabled={isSaving}>
                             <Trash2 className="mr-2 h-4 w-4" />{zh ? '永久移除' : 'Remove permanently'}
@@ -596,20 +651,49 @@ export default function ClassroomsPage() {
                         </AlertDialogTrigger>
                         <AlertDialogContent>
                           <AlertDialogHeader>
-                            <AlertDialogTitle>{zh ? `永久移除「${selectedClassroom.name}」？` : `Permanently remove “${selectedClassroom.name}”?`}</AlertDialogTitle>
+                            <AlertDialogTitle>{zh ? `永久刪除「${selectedClassroom.name}」？` : `Permanently delete “${selectedClassroom.name}”?`}</AlertDialogTitle>
                             <AlertDialogDescription>
                               {zh
-                                ? '班級名稱、名單關係與活動連結會刪除且無法復原。學生及原有學習紀錄仍會保留，但之後不能再依這個班級篩選。'
-                                : 'The class, roster links, and activity links will be removed permanently. Learners and learning records remain, but can no longer be filtered by this class.'}
+                                ? '這項操作無法復原。請先確認資料影響，再輸入班級名稱。'
+                                : 'This action cannot be undone. Review the data impact, then enter the class name.'}
                             </AlertDialogDescription>
                           </AlertDialogHeader>
+                          <div className="space-y-4">
+                            <div className="rounded-xl border border-destructive/20 bg-destructive/5 p-4 text-sm">
+                              <p className="font-semibold text-destructive">{zh ? '將永久刪除' : 'Permanently deleted'}</p>
+                              <ul className="mt-2 list-disc space-y-1 pl-5 text-muted-foreground">
+                                <li>{zh ? '班級名稱與學生名單關係' : 'The class and roster relationships'}</li>
+                                <li>{zh ? '所有班級活動連結與指派項目' : 'All class activity links and assignments'}</li>
+                              </ul>
+                              <p className="mt-3 font-semibold">{zh ? '仍會保留' : 'Still preserved'}</p>
+                              <ul className="mt-2 list-disc space-y-1 pl-5 text-muted-foreground">
+                                <li>{zh ? '學生資料與既有學習紀錄' : 'Student profiles and existing learning records'}</li>
+                                <li>{zh ? '但紀錄之後無法再依此班級篩選' : 'Records can no longer be filtered by this class'}</li>
+                              </ul>
+                            </div>
+                            <div className="space-y-2">
+                              <Label htmlFor="delete-classroom-confirmation">
+                                {zh ? `請輸入「${selectedClassroom.name}」確認刪除` : `Enter “${selectedClassroom.name}” to confirm`}
+                              </Label>
+                              <Input
+                                id="delete-classroom-confirmation"
+                                value={deleteConfirmationName}
+                                onChange={event => setDeleteConfirmationName(event.target.value)}
+                                placeholder={selectedClassroom.name}
+                                autoComplete="off"
+                              />
+                            </div>
+                          </div>
                           <AlertDialogFooter>
                             <AlertDialogCancel>{zh ? '保留班級' : 'Keep class'}</AlertDialogCancel>
                             <AlertDialogAction
                               onClick={permanentlyDeleteClassroom}
                               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                              disabled={deleteConfirmationName.trim() !== selectedClassroom.name || isSaving}
                             >
-                              {zh ? '永久移除班級' : 'Remove class permanently'}
+                              {isSaving
+                                ? (zh ? '刪除中…' : 'Deleting…')
+                                : (zh ? '永久刪除班級' : 'Delete class permanently')}
                             </AlertDialogAction>
                           </AlertDialogFooter>
                         </AlertDialogContent>
