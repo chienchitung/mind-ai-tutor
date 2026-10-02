@@ -1,6 +1,6 @@
 import { BarChart3, MessageSquare } from 'lucide-react';
 import { useLanguage } from '@/app/contexts/LanguageContext';
-import { useTranslation } from '@/utils/translations';
+import { useTranslation } from '@/lib/translations';
 import type { LivePollState } from '@/lib/live-session';
 
 export type Spotlight =

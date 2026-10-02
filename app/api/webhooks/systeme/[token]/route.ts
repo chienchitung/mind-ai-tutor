@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { createHmac, timingSafeEqual } from 'crypto';
 import { createClient } from '@supabase/supabase-js';
-import { SUPABASE_URL } from '@/app/lib/supabase';
+import { SUPABASE_URL } from '@/lib/supabase-server';
 
 export const runtime = 'nodejs';
 

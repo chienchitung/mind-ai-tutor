@@ -1,10 +1,10 @@
 import type { Language } from '@/app/contexts/LanguageContext';
-import { useTranslation } from '@/utils/translations';
+import { useTranslation } from '@/lib/translations';
 
 /** Error codes an AI-generation route can return once a request has been
  * authenticated and validated - see app/api/gemini/security.ts and
  * app/api/game-covers/generate/route.ts, both backed by
- * scripts/add_teacher_ai_points.sql. */
+ * supabase/scripts/add_teacher_ai_points.sql. */
 const AI_QUOTA_ERROR_CODES = ['INSUFFICIENT_POINTS', 'DAILY_LIMIT', 'COOLDOWN'] as const;
 type AiQuotaErrorCode = (typeof AI_QUOTA_ERROR_CODES)[number];
 

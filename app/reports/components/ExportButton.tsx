@@ -2,9 +2,9 @@
 
 import { Button } from '@/components/ui/button';
 import { Download } from 'lucide-react';
-import { exportLearningRecordsToCsv } from '../../utils/csv-export';
+import { exportLearningRecordsToCsv } from '@/lib/csv-export';
 import { useLanguage } from '@/app/contexts/LanguageContext';
-import { useTranslation } from '@/utils/translations';
+import { useTranslation } from '@/lib/translations';
 
 // Define minimal interface for records
 interface LearningRecord {

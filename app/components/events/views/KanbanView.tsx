@@ -24,7 +24,7 @@ import { KanbanColumn } from "@/components/events/views/KanbanColumn";
 import { KanbanCard } from "@/components/events/views/KanbanCard";
 import { computeReorderedEvents } from "@/components/events/views/kanbanReorder";
 import { useLanguage } from "@/app/contexts/LanguageContext";
-import { useTranslation } from "@/utils/translations";
+import { useTranslation } from "@/lib/translations";
 
 const COLUMN_IDS: EventStatus[] = ['to_do', 'in_progress', 'done'];
 

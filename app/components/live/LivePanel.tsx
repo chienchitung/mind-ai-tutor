@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react';
 import { BarChart3, Eye, EyeOff, Loader2, MessageSquare, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useLanguage } from '@/app/contexts/LanguageContext';
-import { useTranslation } from '@/utils/translations';
+import { useTranslation } from '@/lib/translations';
 import type { LivePollState, LiveQuestion } from '@/lib/live-session';
 import type { Quiz, QuizQuestion } from '@/lib/quiz';
 

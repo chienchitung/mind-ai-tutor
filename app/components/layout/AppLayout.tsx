@@ -7,7 +7,7 @@ import { Sidebar } from '@/components/layout/Sidebar';
 import { PageTransition } from '@/components/layout/PageTransition';
 import { useToast } from '@/hooks/use-toast';
 import { useLanguage } from '@/app/contexts/LanguageContext';
-import { useTranslation } from '@/utils/translations';
+import { useTranslation } from '@/lib/translations';
 import { AppTopbar } from '@/components/layout/AppTopbar';
 
 interface AppLayoutProps {
@@ -73,7 +73,7 @@ export function AppLayout({ children }: AppLayoutProps) {
     // 檢查身份驗證狀態
     const checkAuth = async () => {
       try {
-        const { createClient } = await import('@/app/lib/supabase');
+        const { createClient } = await import('@/lib/supabase-server');
         const supabase = createClient();
         
         // 檢查會話

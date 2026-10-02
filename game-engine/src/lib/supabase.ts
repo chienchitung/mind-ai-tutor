@@ -261,7 +261,7 @@ export interface GuestPlayStat {
 }
 
 // Anonymous aggregate stats for guest (no login-code) play, visible only to
-// the game's own creator - see scripts/add_guest_play_stats.sql for why this
+// the game's own creator - see supabase/scripts/add_guest_play_stats.sql for why this
 // is its own table (no name, no student id at all) rather than relaxing
 // learning_records'/leaderboard's roster-linked guarantee for guests.
 export async function saveGuestPlayStats(stat: GuestPlayStat) {
@@ -298,7 +298,7 @@ export interface GuestChatMessage {
 
 // De-identified Ellis AI tutor transcript for guest (no login-code) play -
 // the same relationship to chat_messages that saveGuestPlayStats has to
-// learning_records (see scripts/add_guest_chat_messages.sql). No student
+// learning_records (see supabase/scripts/add_guest_chat_messages.sql). No student
 // name or id is ever included, only which game/lesson the exchange
 // happened in.
 export async function saveGuestChatMessage(message: GuestChatMessage) {

@@ -17,7 +17,7 @@ import { useEvents, EventProvider, Event } from '@/contexts/EventContext';
 import { format, compareDesc } from 'date-fns';
 import { TourGuide } from '@/components/TourGuide';
 import { useLanguage } from '@/app/contexts/LanguageContext';
-import { useTranslation } from '@/utils/translations';
+import { useTranslation } from '@/lib/translations';
 import { PageHeader } from '@/components/layout/PageHeader';
 import { PageLoader } from '@/components/ui/page-state';
 import Link from 'next/link';

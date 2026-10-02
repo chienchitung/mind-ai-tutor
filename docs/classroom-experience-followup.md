@@ -40,7 +40,7 @@ Supabase 使用既有外鍵 ON DELETE CASCADE，在同一筆資料庫交易中�
 
 課程和可重複使用的 Storage PDF 檔案保留；不以任意 deck_url 刪除共享檔案，也不假設資料庫 DELETE 會刪掉 Storage 物件。反應本來就不寫入資料表。通知已連線的講師和学生重新載入，顯示場次不存在。
 
-Migration：`scripts/allow_closed_live_session_deletion.sql`。已透過 Supabase migration 套用至 MindAiTutor，增加 authenticated DELETE grant 與 owner + closed RLS 規則；anon 沒有 DELETE 權限。沒有刪除任何現有正式場次。已回查 policy 與 grant，安全 advisors 前後均為 44 項，沒有新增警告。
+Migration：`supabase/scripts/allow_closed_live_session_deletion.sql`。已透過 Supabase migration 套用至 MindAiTutor，增加 authenticated DELETE grant 與 owner + closed RLS 規則；anon 沒有 DELETE 權限。沒有刪除任何現有正式場次。已回查 policy 與 grant，安全 advisors 前後均為 44 項，沒有新增警告。
 
 既有安全項目包含可變 function search_path、可執行 SECURITY DEFINER RPC、OTP 時效、外洩密碼保護與 PostgreSQL 版本；不在此次範圍內變更。[資料庫安全檢查說明](https://supabase.com/docs/guides/database/database-linter)。
 

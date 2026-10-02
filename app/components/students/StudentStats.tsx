@@ -2,7 +2,7 @@
 
 import { StudentCard } from "./StudentCard";
 import { useLanguage } from "@/app/contexts/LanguageContext";
-import { useTranslation } from "@/utils/translations";
+import { useTranslation } from "@/lib/translations";
 import type { Database } from "@/types/supabase";
 
 type Student = Database['public']['Tables']['students']['Row'];

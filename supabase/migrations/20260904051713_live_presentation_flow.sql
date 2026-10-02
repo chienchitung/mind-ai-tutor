@@ -1,4 +1,4 @@
--- Apply after scripts/add_live_sessions.sql and add_live_session_phase2.sql.
+-- Apply after supabase/scripts/add_live_sessions.sql and add_live_session_phase2.sql.
 -- Additive: existing polls remain open; new UI polls explicitly start in draft.
 begin;
 alter table public.live_sessions add column if not exists presentation jsonb not null default '{"mode":"deck"}';

@@ -10,7 +10,7 @@ import {
   Legend
 } from 'chart.js';
 import { useLanguage } from '@/app/contexts/LanguageContext';
-import { useTranslation } from '@/utils/translations';
+import { useTranslation } from '@/lib/translations';
 
 ChartJS.register(
   CategoryScale,

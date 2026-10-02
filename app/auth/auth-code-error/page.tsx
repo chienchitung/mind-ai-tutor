@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { useLanguage } from '@/app/contexts/LanguageContext';
-import { useTranslation } from '@/utils/translations';
+import { useTranslation } from '@/lib/translations';
 
 export default function AuthCodeErrorPage() {
   const { language } = useLanguage();

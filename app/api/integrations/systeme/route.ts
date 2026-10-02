@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { randomBytes, randomUUID } from 'crypto';
-import { getServerClient } from '@/app/lib/supabase';
+import { getServerClient } from '@/lib/supabase-server';
 
 export const runtime = 'nodejs';
 

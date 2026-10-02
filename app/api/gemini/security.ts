@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { getServerClient } from '@/app/lib/supabase';
+import { getServerClient } from '@/lib/supabase-server';
 import { isSameOriginRequest } from '@/lib/http-security';
 
 const fail = (error: string, status: number) => NextResponse.json(

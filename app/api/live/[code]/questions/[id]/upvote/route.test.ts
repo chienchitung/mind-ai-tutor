@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const { getServerClient, broadcastLiveUpdate } = vi.hoisted(() => ({ getServerClient: vi.fn(), broadcastLiveUpdate: vi.fn() }));
-vi.mock('@/app/lib/supabase', () => ({ getServerClient }));
+vi.mock('@/lib/supabase-server', () => ({ getServerClient }));
 vi.mock('@/lib/live-broadcast', () => ({ broadcastLiveUpdate }));
 vi.mock('next/server', async (importOriginal) => ({
   ...(await importOriginal<typeof import('next/server')>()),

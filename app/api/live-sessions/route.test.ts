@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const { getServerClient } = vi.hoisted(() => ({ getServerClient: vi.fn() }));
-vi.mock('@/app/lib/supabase', () => ({ getServerClient }));
+vi.mock('@/lib/supabase-server', () => ({ getServerClient }));
 import { GET, POST } from './route';
 
 const draft = { title: 'Excel 樞紐分析入門', question: 'SUMIF?', options: ['A', 'B', 'C', 'D'] };

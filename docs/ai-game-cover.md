@@ -15,8 +15,8 @@
 ## 管理員啟用步驟
 
 1. 確認既有 profiles 已建立，使用者 profile.role 為 teacher 或 admin。學生及沒有角色的帳號不能使用生成 API。
-2. 在 Supabase SQL Editor 執行 scripts/add_game_cover_ai_quota.sql。它建立 game_cover_ai_usage 與 claim_game_cover_generation 函式，不修改現有課程、遊戲或封面。
-3. 若從未啟用圖片上傳，先執行既有 scripts/add_game_cover_storage.sql。
+2. 在 Supabase SQL Editor 執行 supabase/scripts/add_game_cover_ai_quota.sql。它建立 game_cover_ai_usage 與 claim_game_cover_generation 函式，不修改現有課程、遊戲或封面。
+3. 若從未啟用圖片上傳，先執行既有 supabase/scripts/add_game_cover_storage.sql。
 4. 在後台主站的 Vercel 環境變數設定（不是 game-engine）：
 
 ```text

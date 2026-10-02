@@ -13,7 +13,7 @@ import { useToast } from '@/hooks/use-toast';
 import { cn } from "@/lib/utils";
 import { badgeVariants } from "@/components/ui/badge";
 import { useLanguage } from "@/app/contexts/LanguageContext";
-import { useTranslation } from "@/utils/translations";
+import { useTranslation } from "@/lib/translations";
 import { PageHeader } from '@/components/layout/PageHeader';
 import { ErrorState, PageLoader } from '@/components/ui/page-state';
 

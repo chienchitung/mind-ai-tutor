@@ -12,7 +12,7 @@ The system allows users to:
 
 ## Database Setup
 
-1. Run the SQL script in `scripts/create_lesson_order_table.sql` in your Supabase SQL editor to create the necessary table and permissions.
+1. Run the SQL script in `supabase/scripts/create_lesson_order_table.sql` in your Supabase SQL editor to create the necessary table and permissions.
 
 ```sql
 -- Create the lesson_order_mappings table
@@ -40,10 +40,10 @@ CREATE POLICY lesson_order_mappings_select_policy
 
 ## Files Created/Modified
 
-1. **utils/lessonOrderUtils.ts**: Utility functions for managing lesson order mappings
-2. **components/LessonOrderManager.tsx**: Drag-and-drop component for reordering lessons
+1. **lib/lessonOrderUtils.ts**: Utility functions for managing lesson order mappings
+2. **app/components/lessons/LessonOrderManager.tsx**: Drag-and-drop component for reordering lessons
 3. **app/digital-games/page.tsx**: Updated to use the new components and utilities
-4. **utils/translations.ts**: Added translation keys for the new UI elements
+4. **lib/translations.ts**: Added translation keys for the new UI elements
 5. **types/supabase.ts**: Added TypeScript definitions for the new table
 
 ## Usage

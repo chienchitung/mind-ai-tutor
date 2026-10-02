@@ -42,8 +42,8 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
 import * as z from "zod";
 import { useLanguage } from "@/app/contexts/LanguageContext";
-import { useTranslation } from "@/utils/translations";
-import { LessonOrderManager, type LessonOverride } from "@/components/LessonOrderManager";
+import { useTranslation } from "@/lib/translations";
+import { LessonOrderManager, type LessonOverride } from "@/components/lessons/LessonOrderManager";
 import { Accordion, AccordionItem, AccordionTrigger, AccordionContent } from "@/components/ui/accordion";
 import {
   createMappingFromOrder,

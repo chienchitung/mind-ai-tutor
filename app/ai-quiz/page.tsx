@@ -22,7 +22,7 @@ import {
 } from '@hello-pangea/dnd';
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { useLanguage } from "@/app/contexts/LanguageContext";
-import { useTranslation } from "@/utils/translations";
+import { useTranslation } from "@/lib/translations";
 import { AiQuotaError, throwForAiQuotaError } from "@/lib/ai-quota-errors";
 
 // Import text extraction libraries

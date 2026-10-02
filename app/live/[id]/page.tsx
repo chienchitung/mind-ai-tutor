@@ -25,7 +25,7 @@ import { usePresentationSnapshot } from '@/components/live/usePresentationSnapsh
 import { phaseLabel } from '@/lib/live-presentation';
 import { supabase } from '@/lib/supabase';
 import { useLanguage } from '@/app/contexts/LanguageContext';
-import { useTranslation } from '@/utils/translations';
+import { useTranslation } from '@/lib/translations';
 import {
   participantStorageKey,
   QUESTION_LENSES,

@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { getServerClient } from '@/app/lib/supabase';
+import { getServerClient } from '@/lib/supabase-server';
 import { coverRequestSchema } from '@/lib/ai-game-cover';
 import { generateCoverBackground } from '@/lib/ai-game-cover-server';
 

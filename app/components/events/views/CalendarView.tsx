@@ -20,7 +20,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
 import { EventFormDialog } from "@/components/events/EventFormDialog";
 import { useLanguage } from "@/app/contexts/LanguageContext";
-import { useTranslation } from "@/utils/translations";
+import { useTranslation } from "@/lib/translations";
 
 export function CalendarView() {
   const { events } = useEvents();

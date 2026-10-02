@@ -13,7 +13,7 @@
 
 ## Supabase 上線前設定
 
-已於 2026-08-30 在 MindAiTutor 專案執行 `scripts/add_game_cover_storage.sql`。其他環境請在目標專案 SQL Editor 執行一次：
+已於 2026-08-30 在 MindAiTutor 專案執行 `supabase/scripts/add_game_cover_storage.sql`。其他環境請在目標專案 SQL Editor 執行一次：
 
 - 建立 `game-covers` **公開封面圖片儲存桶**，不是新的業務資料表。
 - 伺服器限制每個物件最多 5 MB，只接受 JPEG。前端先解碼原圖，再重新編碼成 JPEG。

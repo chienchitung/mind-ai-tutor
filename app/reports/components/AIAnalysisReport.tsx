@@ -11,7 +11,7 @@ import {
   BarChart2, BookOpen, Award, ListTree, RefreshCw,
 } from 'lucide-react';
 import { useLanguage } from '@/app/contexts/LanguageContext';
-import { useTranslation } from '@/utils/translations';
+import { useTranslation } from '@/lib/translations';
 import { AiQuotaError, throwForAiQuotaError } from '@/lib/ai-quota-errors';
 import MarkdownRenderer from '@/app/components/ui/MarkdownRenderer';
 import { parseAnalysisReport, type AnalysisSection, type AnalysisSectionKind } from '../lib/analysis-sections';

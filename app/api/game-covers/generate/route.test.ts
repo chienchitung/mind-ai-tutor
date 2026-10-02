@@ -1,6 +1,6 @@
 import { beforeEach, afterEach, describe, expect, it, vi } from 'vitest';
 const { getServerClient, generateCoverBackground } = vi.hoisted(() => ({ getServerClient: vi.fn(), generateCoverBackground: vi.fn() }));
-vi.mock('@/app/lib/supabase', () => ({ getServerClient }));
+vi.mock('@/lib/supabase-server', () => ({ getServerClient }));
 vi.mock('@/lib/ai-game-cover-server', () => ({ generateCoverBackground }));
 import { POST } from './route';
 const body = { title: 'Excel', brief: 'Learn SUM', topics: [], style: 'minimal', consent: true, requestId: '2ff6060b-785d-409a-938f-fb7e69d261d6' };

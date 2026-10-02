@@ -6,7 +6,7 @@ import type { User } from '@supabase/supabase-js';
 import { Bell, Menu, Search } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useLanguage } from '@/app/contexts/LanguageContext';
-import { useTranslation } from '@/utils/translations';
+import { useTranslation } from '@/lib/translations';
 import { AccountMenu } from './AccountMenu';
 
 interface AppTopbarProps {

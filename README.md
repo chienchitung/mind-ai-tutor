@@ -24,10 +24,17 @@
 ```
 mind-ai-tutor/
 ├── app/            # 主站（教師端）— App Router 頁面與 API routes
-├── components/      hooks/  lib/  contexts/  types/  utils/   # 共用的舊路徑別名，實際多數程式碼在 app/ 底下
-├── scripts/        # Supabase SQL migration（手動在 SQL Editor 執行，見下方）
+│   ├── components/ #   共用 React 元件（ui/ 為 shadcn 風格基礎元件）
+│   ├── contexts/   #   React Context（語系、行事曆）
+│   └── hooks/      #   共用 hooks
+├── lib/            # 非 UI 的共用邏輯：Supabase client、Gemini、翻譯字串、匯出工具等
+├── types/          # 型別定義（Supabase 產生的型別、第三方套件宣告）
+├── supabase/       # 所有資料庫 SQL，見下方「資料庫設定」
+│   ├── migrations/ #   新的增量 migration（依時間戳記命名）
+│   └── scripts/    #   較早期、手動在 SQL Editor 執行的 SQL 與其測試
+├── public/         # 靜態資源（品牌圖、字型、pdf.js worker、模型檔）
 ├── docs/           # 設計文件、驗收紀錄、Email 樣板
-├── middleware.ts   # 全站身份驗證守門
+├── proxy.ts        # 全站身份驗證守門
 ├── next.config.ts  # 安全性標頭（CSP 等）+ /games 的 Multi-Zones rewrite
 └── game-engine/    # 獨立部署的遊戲引擎子專案，見 game-engine/README.md
 ```
@@ -124,7 +131,12 @@ npm run build         # production build
 
 ## 資料庫設定
 
-Supabase 沒有接 CLI/migration 工具，所有 schema 變更都是 `scripts/*.sql` 這個資料夾底下的獨立 SQL 檔，**手動貼到 Supabase SQL Editor 執行**。每個檔案都寫成可以重複執行（`create table if not exists`、`create or replace function`、`drop policy if exists` 再 `create policy` 之類的寫法），照檔名時間順序執行大致就是專案演進的順序；比較新的核心表格（profiles、students、events、team workspace 等）用得到的檔案包括：
+所有 SQL 都放在 `supabase/` 底下，**手動貼到 Supabase SQL Editor 執行**（專案沒有接 Supabase CLI 自動部署）：
+
+- `supabase/migrations/` — 新的 schema 變更一律放這裡，檔名以時間戳記開頭（例如 `20261002020000_add_learning_analysis_reports.sql`），照檔名順序執行。
+- `supabase/scripts/` — 較早期的 SQL。每個檔案都寫成可以重複執行（`create table if not exists`、`create or replace function`、`drop policy if exists` 再 `create policy` 之類的寫法）；`inspect_*.sql`、`set_user_admin.sql` 這類是查詢／維運用的工具腳本，不是 schema 變更。
+
+`supabase/scripts/` 裡核心表格（profiles、students、events、team workspace 等）用得到的檔案包括：
 
 - `create_profiles_table.sql`、`create_missing_tables.sql` — 基礎表格
 - `add_owner_scoping_*.sql`、`fix_*_rls.sql` — 各表的 Row Level Security
@@ -134,7 +146,7 @@ Supabase 沒有接 CLI/migration 工具，所有 schema 變更都是 `scripts/*.
 - `add_public_game_manifest.sql`、`add_game_cover_*.sql` — 數位遊戲引擎（`game-engine/` 讀取用）
 - `harden_game_student_data.sql`、`fix_ux_review_findings.sql` — 安全性強化
 
-有幾個 `.test.ts` 是對應 SQL 檔的 Vitest 測試（測 SQL 字串內容，不是連正式資料庫跑），例如 `scripts/add_live_sessions.test.ts`。
+`supabase/scripts/` 裡的 `.test.ts` 是對應 SQL 檔的 Vitest 測試（用 PGlite 在記憶體裡執行 SQL，不連正式資料庫），例如 `supabase/scripts/add_live_sessions.test.ts`。
 
 ## 部署
 

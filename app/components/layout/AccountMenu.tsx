@@ -20,7 +20,7 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { useLanguage, type Language } from '@/app/contexts/LanguageContext';
-import { useTranslation, translations } from '@/utils/translations';
+import { useTranslation, translations } from '@/lib/translations';
 import { confirmAppNavigation } from '@/lib/navigation-guard';
 
 interface AccountMenuProps {
@@ -50,7 +50,7 @@ export function AccountMenu({ user, variant, className }: AccountMenuProps) {
   // yet on every navigation (the same reasoning as AppLayout's user/isAdmin
   // fetch being lifted out of Sidebar - see that component's comment).
   // monthly_grant (and balance) come back null for an admin (or Enterprise
-  // plan) account - see scripts/add_plan_unlimited_ai_points.sql - rather
+  // plan) account - see supabase/scripts/add_plan_unlimited_ai_points.sql - rather
   // than some large fake balance number that would need explaining next to
   // the free-plan grant.
   const [points, setPoints] = useState<{ unlimited: true } | { unlimited: false; balance: number; monthlyGrant: number } | null>(null);

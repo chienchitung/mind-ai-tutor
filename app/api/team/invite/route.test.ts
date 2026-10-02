@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 const { getServerClient, createClient } = vi.hoisted(() => ({ getServerClient: vi.fn(), createClient: vi.fn() }));
-vi.mock('@/app/lib/supabase', () => ({ getServerClient, SUPABASE_URL: 'https://project.supabase.co' }));
+vi.mock('@/lib/supabase-server', () => ({ getServerClient, SUPABASE_URL: 'https://project.supabase.co' }));
 vi.mock('@supabase/supabase-js', () => ({ createClient }));
 import { POST } from './route';
 

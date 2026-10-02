@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { getServerClient } from '@/app/lib/supabase';
+import { getServerClient } from '@/lib/supabase-server';
 import { createSessionSchema, generateJoinCode } from '@/lib/live-session';
 
 function databaseError(code?: string) {

@@ -7,7 +7,7 @@ import { Button } from '@/components/ui/button';
 import { PageHeader } from '@/components/layout/PageHeader';
 import { Users, Calendar, BookOpen, MessageSquare, Search, ShieldCheck, RefreshCw, Bot } from 'lucide-react';
 import { useLanguage } from '@/app/contexts/LanguageContext';
-import { useTranslation } from '@/utils/translations';
+import { useTranslation } from '@/lib/translations';
 import { Input } from '@/components/ui/input';
 import { ErrorState, PageLoader } from '@/components/ui/page-state';
 import { loadAdminOverview, type AdminOverview } from '@/lib/admin-overview';

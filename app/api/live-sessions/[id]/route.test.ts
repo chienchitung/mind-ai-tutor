@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const { getServerClient, broadcastLiveUpdate, deleteLiveDeck } = vi.hoisted(() => ({ getServerClient: vi.fn(), broadcastLiveUpdate: vi.fn(), deleteLiveDeck: vi.fn() }));
-vi.mock('@/app/lib/supabase', () => ({ getServerClient }));
+vi.mock('@/lib/supabase-server', () => ({ getServerClient }));
 vi.mock('@/lib/live-broadcast', () => ({ broadcastLiveUpdate }));
 vi.mock('@/lib/live-deck-storage', () => ({ deleteLiveDeck }));
 // next/server's real after() throws outside an actual request context, which

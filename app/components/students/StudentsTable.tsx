@@ -19,7 +19,7 @@ import {
 import { MoreHorizontal, Trash2 } from "lucide-react";
 import { StudentStatusBadge } from "./StudentStatusBadge";
 import { useLanguage } from "@/app/contexts/LanguageContext";
-import { useTranslation } from "@/utils/translations";
+import { useTranslation } from "@/lib/translations";
 import { useToast } from "@/hooks/use-toast";
 import type { Database } from "@/types/supabase";
 import { StudentFilters } from './StudentFilters';

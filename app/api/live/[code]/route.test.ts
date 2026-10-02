@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const { getServerClient } = vi.hoisted(() => ({ getServerClient: vi.fn() }));
-vi.mock('@/app/lib/supabase', () => ({ getServerClient }));
+vi.mock('@/lib/supabase-server', () => ({ getServerClient }));
 import { GET } from './route';
 
 const request = (code = '482910') => new Request(`https://test.local/api/live/${code}`);
