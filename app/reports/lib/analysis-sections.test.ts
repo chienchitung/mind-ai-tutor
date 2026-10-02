@@ -92,4 +92,10 @@ describe('structuredReportToMarkdown', () => {
     ]);
     expect(report.preamble).toBe('');
   });
+
+  it('accepts JSON wrapped in a code fence (unconstrained model output)', () => {
+    const fenced = '```json\n' + JSON.stringify({ sections: [{ kind: 'summary', content: 'ok' }] }) + '\n```';
+    expect(parseAnalysisReport(structuredReportToMarkdown(fenced, 'en'), 'en').sections)
+      .toEqual([expect.objectContaining({ kind: 'summary', content: 'ok' })]);
+  });
 });

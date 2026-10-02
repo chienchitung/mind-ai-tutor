@@ -175,18 +175,26 @@ export async function generateDetailedLearningAnalysis(studentData: any) {
       Each "content" is the section body only, in Markdown (paragraph or bullets). Do not put headings inside content.
     `;
 
-    const result = await genAI.models.generateContent({
-      model,
-      contents: prompt,
-      config: {
-        temperature: 0.35,
-        topK: 40,
-        topP: 0.95,
-        maxOutputTokens: 8192,
-        responseMimeType: 'application/json',
-        responseJsonSchema: STRUCTURED_REPORT_JSON_SCHEMA,
-      },
-    });
+    const baseConfig = { temperature: 0.35, topK: 40, topP: 0.95, maxOutputTokens: 8192 };
+    let result;
+    try {
+      result = await genAI.models.generateContent({
+        model,
+        contents: prompt,
+        config: {
+          ...baseConfig,
+          responseMimeType: 'application/json',
+          responseJsonSchema: STRUCTURED_REPORT_JSON_SCHEMA,
+        },
+      });
+    } catch (schemaError: any) {
+      // A model configured via GEMINI_MODEL may not support schema-constrained
+      // output and reject the request outright. Retry once unconstrained: the
+      // prompt still asks for JSON, and anything else falls back to raw text.
+      if (schemaError?.status !== 400 && !/schema|mime/i.test(schemaError?.message ?? '')) throw schemaError;
+      console.warn('Structured analysis output rejected, retrying without schema:', schemaError?.message);
+      result = await genAI.models.generateContent({ model, contents: prompt, config: baseConfig });
+    }
     const text = result.text ?? '';
     // Section headings are generated from the structured kinds rather than
     // trusting the model's formatting. If the JSON is unusable, return the

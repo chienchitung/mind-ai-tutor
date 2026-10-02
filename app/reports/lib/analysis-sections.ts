@@ -170,7 +170,8 @@ export const STRUCTURED_REPORT_JSON_SCHEMA = {
 export function structuredReportToMarkdown(raw: string, language: ReportLanguage): string | null {
   let parsed: unknown;
   try {
-    parsed = JSON.parse(raw);
+    // Unconstrained responses often wrap JSON in a ```json fence.
+    parsed = JSON.parse(raw.trim().replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/, ''));
   } catch {
     return null;
   }
