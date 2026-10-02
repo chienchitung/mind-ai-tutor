@@ -1,6 +1,9 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
+import { flushSync } from 'react-dom';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { loadAnalysisHistory, saveAnalysisReport, type SavedAnalysisReport } from '../lib/analysis-history';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import {
@@ -17,6 +20,10 @@ interface AIAnalysisReportProps {
   learningRecords: object[];
   learningStats: object | null;
   selectedStudentName: string;
+  studentId: string | null;
+  // Describes the filters the analysis was run under (game, period), saved
+  // with each report so history entries can be told apart.
+  scopeLabel: string;
 }
 
 const OPEN_BY_DEFAULT = new Set<AnalysisSectionKind>(['summary', 'improvements', 'recommendations']);
@@ -92,13 +99,70 @@ function AnalysisSectionCard({
   );
 }
 
-export function AIAnalysisReport({ learningRecords, learningStats, selectedStudentName }: AIAnalysisReportProps) {
+export function AIAnalysisReport({ learningRecords, learningStats, selectedStudentName, studentId, scopeLabel }: AIAnalysisReportProps) {
   const [analysisResult, setAnalysisResult] = useState<string | null>(null);
   const [analysisError, setAnalysisError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [expandedSections, setExpandedSections] = useState<Record<string, boolean>>({});
+  const [history, setHistory] = useState<SavedAnalysisReport[]>([]);
+  const [historyAvailable, setHistoryAvailable] = useState(true);
+  const [activeReportId, setActiveReportId] = useState<string | null>(null);
   const { language } = useLanguage();
   const { t } = useTranslation(language);
+
+  const showReport = (analysis: string) => {
+    const report = parseAnalysisReport(analysis, language);
+    setAnalysisResult(analysis);
+    setExpandedSections(Object.fromEntries(
+      report.sections.map(section => [section.id, OPEN_BY_DEFAULT.has(section.kind)]),
+    ));
+  };
+
+  // Open the most recent saved report automatically: revisiting a student
+  // shouldn't require (and spend AI points on) generating it again.
+  useEffect(() => {
+    setHistory([]);
+    setActiveReportId(null);
+    setAnalysisResult(null);
+    setAnalysisError(null);
+    if (!studentId) return;
+
+    let cancelled = false;
+    void loadAnalysisHistory(studentId).then(result => {
+      if (cancelled) return;
+      if (result.status === 'unavailable') {
+        setHistoryAvailable(false);
+        return;
+      }
+      if (result.status !== 'ok' || result.reports.length === 0) return;
+      setHistory(result.reports);
+      setActiveReportId(result.reports[0].id);
+      showReport(result.reports[0].analysis);
+    });
+    return () => { cancelled = true; };
+    // showReport only depends on language, which re-parses via useMemo anyway.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [studentId]);
+
+  // Mount the fully expanded print copy only while printing, so the normal
+  // page doesn't carry a second hidden copy of the whole report. flushSync
+  // makes it render before the browser snapshots the page for printing.
+  const [isPrinting, setIsPrinting] = useState(false);
+  useEffect(() => {
+    const before = () => flushSync(() => setIsPrinting(true));
+    const after = () => setIsPrinting(false);
+    window.addEventListener('beforeprint', before);
+    window.addEventListener('afterprint', after);
+    return () => {
+      window.removeEventListener('beforeprint', before);
+      window.removeEventListener('afterprint', after);
+    };
+  }, []);
+
+  const activeReport = history.find(report => report.id === activeReportId) ?? null;
+  const formatReportTime = (iso: string) => new Date(iso).toLocaleString(language === 'zh-TW' ? 'zh-TW' : 'en-US', {
+    year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit',
+  });
 
   const labels = language === 'zh-TW' ? {
     brief: '教師重點摘要', records: `${learningRecords.length} 筆學習紀錄`, evidence: '數據解讀',
@@ -106,12 +170,16 @@ export function AIAnalysisReport({ learningRecords, learningStats, selectedStude
     evidenceHint: '需要追查原因時再展開，避免核心建議被大量細節淹沒。',
     viewEvidence: (count: number) => `查看 ${count} 項分析依據`, collapseEvidence: '收合分析依據', regenerate: '重新分析',
     disclaimer: 'AI 分析提供教學參考，請搭配原始學習紀錄與課堂觀察判讀。',
+    generatedAt: (time: string) => `產生於 ${time}`, history: '歷史報告', latest: '最新',
+    viewingOlder: '你正在查看較早的報告，內容反映的是當時的學習紀錄。',
   } : {
     brief: 'Teacher brief', records: `${learningRecords.length} learning records`, evidence: 'Evidence and interpretation',
     action: 'Suggested action', keyTakeaways: 'Key takeaways and teaching actions', evidenceGroup: 'Supporting analysis',
     evidenceHint: 'Open supporting evidence only when you need to investigate the cause.',
     viewEvidence: (count: number) => `View ${count} supporting analyses`, collapseEvidence: 'Collapse supporting analysis', regenerate: 'Run analysis again',
     disclaimer: 'AI analysis is a teaching aid. Review it alongside source records and classroom observations.',
+    generatedAt: (time: string) => `Generated ${time}`, history: 'Report history', latest: 'latest',
+    viewingOlder: "You're viewing an earlier report. It reflects the learning records at that time.",
   };
 
   const parsedReport = useMemo(
@@ -156,11 +224,22 @@ export function AIAnalysisReport({ learningRecords, learningStats, selectedStude
       }
 
       const { analysis } = await response.json();
-      const nextReport = parseAnalysisReport(analysis, language);
-      setAnalysisResult(analysis);
-      setExpandedSections(Object.fromEntries(
-        nextReport.sections.map(section => [section.id, OPEN_BY_DEFAULT.has(section.kind)]),
-      ));
+      showReport(analysis);
+      setActiveReportId(null);
+
+      if (studentId && historyAvailable) {
+        const saved = await saveAnalysisReport({
+          studentId,
+          analysis,
+          language,
+          scopeLabel,
+          recordCount: learningRecords.length,
+        });
+        if (saved) {
+          setHistory(previous => [saved, ...previous]);
+          setActiveReportId(saved.id);
+        }
+      }
     } catch (error) {
       console.error('Error generating analysis:', error);
       setAnalysisError(error instanceof AiQuotaError ? error.message : t('analysis_generation_error'));
@@ -184,7 +263,7 @@ export function AIAnalysisReport({ learningRecords, learningStats, selectedStude
     && evidenceSections.every(section => expandedSections[section.id]);
 
   return (
-    <Card className="mt-6 overflow-hidden shadow-none">
+    <Card className={`mt-6 overflow-hidden shadow-none print:mt-4 print:break-inside-auto ${analysisResult ? '' : 'print:hidden'}`}>
       <CardHeader className="border-b bg-muted/20 p-5 sm:p-6">
         <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
           <div className="flex min-w-0 items-start gap-3">
@@ -197,6 +276,7 @@ export function AIAnalysisReport({ learningRecords, learningStats, selectedStude
             </div>
           </div>
 
+          <div className="print:hidden">
           {!analysisResult ? (
             <Button onClick={generateAnalysis} disabled={!learningRecords.length || isLoading} size="sm" className="w-full gap-2 sm:w-auto">
               {isLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
@@ -208,6 +288,7 @@ export function AIAnalysisReport({ learningRecords, learningStats, selectedStude
               {labels.regenerate}
             </Button>
           )}
+          </div>
         </div>
       </CardHeader>
 
@@ -224,7 +305,7 @@ export function AIAnalysisReport({ learningRecords, learningStats, selectedStude
             <p className="text-sm text-muted-foreground">{t('processing')}</p>
           </div>
         ) : analysisResult ? (
-          <div className="space-y-4">
+          <div className="space-y-4 print:hidden">
             <div className="flex flex-col gap-3 rounded-xl border bg-muted/25 p-4 sm:flex-row sm:items-center">
               <div className="mr-auto flex min-w-0 items-center gap-3">
                 <div className="rounded-lg bg-background p-2 text-primary ring-1 ring-border">
@@ -232,10 +313,41 @@ export function AIAnalysisReport({ learningRecords, learningStats, selectedStude
                 </div>
                 <div className="min-w-0">
                   <p className="text-sm font-semibold">{labels.brief}</p>
-                  <p className="truncate text-xs text-muted-foreground">{selectedStudentName} · {labels.records}</p>
+                  <p className="truncate text-xs text-muted-foreground">
+                    {activeReport
+                      ? `${selectedStudentName} · ${labels.generatedAt(formatReportTime(activeReport.created_at))}${activeReport.scope_label ? ` · ${activeReport.scope_label}` : ''}`
+                      : `${selectedStudentName} · ${labels.records}`}
+                  </p>
                 </div>
               </div>
+              {history.length > 1 && (
+                <Select
+                  value={activeReportId ?? undefined}
+                  onValueChange={(id) => {
+                    const report = history.find(item => item.id === id);
+                    if (!report) return;
+                    setActiveReportId(id);
+                    showReport(report.analysis);
+                  }}
+                >
+                  <SelectTrigger className="w-full sm:w-[230px]" aria-label={labels.history}>
+                    <SelectValue placeholder={labels.history} />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {history.map((report, index) => (
+                      <SelectItem key={report.id} value={report.id}>
+                        {formatReportTime(report.created_at)}{index === 0 ? ` (${labels.latest})` : ''}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              )}
             </div>
+            {activeReport && activeReport.id !== history[0]?.id && (
+              <p className="rounded-lg border border-amber-200 bg-amber-50/60 px-3 py-2 text-xs text-amber-900">
+                {labels.viewingOlder}
+              </p>
+            )}
 
             {parsedReport.preamble && (
               <p className="rounded-xl border-l-4 border-primary/50 bg-primary/[0.04] px-4 py-3 text-sm leading-6 text-foreground/80">
@@ -294,6 +406,29 @@ export function AIAnalysisReport({ learningRecords, learningStats, selectedStude
             </div>
             <h3 className="text-base font-semibold sm:text-lg">{t('ai_analysis_available')}</h3>
             <p className="mt-2 max-w-lg text-sm leading-6 text-muted-foreground">{t('click_generate_for_insights')}</p>
+          </div>
+        )}
+
+        {/* Printed reports can't expand an accordion, so print every section
+            in full instead of whatever happened to be open on screen. */}
+        {analysisResult && isPrinting && (
+          <div className="hidden space-y-4 print:block">
+            <p className="text-xs text-muted-foreground">
+              {selectedStudentName}
+              {activeReport
+                ? ` · ${labels.generatedAt(formatReportTime(activeReport.created_at))}${activeReport.scope_label ? ` · ${activeReport.scope_label}` : ''}`
+                : ''}
+            </p>
+            {parsedReport.preamble && <p className="text-sm leading-6">{parsedReport.preamble}</p>}
+            {[...prioritySections, ...evidenceSections].map(section => (
+              <section key={section.id} className="break-inside-avoid border-t pt-3">
+                <h3 className="mb-1 text-sm font-semibold">{section.title}</h3>
+                <div className="text-sm leading-6 [&_.markdown-content>p]:mb-2 [&_.markdown-content>ul]:mb-0">
+                  <MarkdownRenderer content={section.content} />
+                </div>
+              </section>
+            ))}
+            <p className="text-xs text-muted-foreground">{labels.disclaimer}</p>
           </div>
         )}
       </CardContent>

@@ -7,7 +7,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { DataTable, type DataTableFeatures } from '@/components/ui/data-table';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { AlertTriangle, BarChart2, Clock, Calendar, Loader2, MessageSquare } from 'lucide-react';
+import { AlertTriangle, BarChart2, Clock, Calendar, Loader2, MessageSquare, Printer } from 'lucide-react';
 import { StudentSelector } from './components/StudentSelector';
 import { GameSelector, ALL_GAMES, UNCLASSIFIED_GAME } from './components/GameSelector';
 import { ClassroomSelector, ALL_CLASSROOMS, UNGROUPED_STUDENTS } from './components/ClassroomSelector';
@@ -15,6 +15,8 @@ import { TimeSpentChart } from './components/TimeSpentChart';
 import { CompletionRateChart } from './components/CompletionRateChart';
 import { LearningTimeline } from './components/LearningTimeline';
 import { ExportButton } from './components/ExportButton';
+import { DateRangeSelector, dateRangeLabel } from './components/DateRangeSelector';
+import { filterByDateRange, type DateRange } from './lib/date-range';
 import { useLanguage } from '@/app/contexts/LanguageContext';
 import { useTranslation } from '@/utils/translations';
 import { AIAnalysisReport } from './components/AIAnalysisReport';
@@ -63,6 +65,7 @@ interface Lesson {
 
 // Add new interface for question counts
 interface QuestionCount {
+  learning_record_id?: string | null;
   lesson_id: string;
   question_count: number;
   game_id?: string | null;
@@ -72,6 +75,7 @@ export default function ReportsPage() {
   const [chartView, setChartView] = useState('time-spent');
   const [selectedStudent, setSelectedStudent] = useState<string | null>(null);
   const [selectedGame, setSelectedGame] = useState<string>(ALL_GAMES);
+  const [dateRange, setDateRange] = useState<DateRange>('all');
   const [selectedClassroom, setSelectedClassroom] = useState<string>(ALL_CLASSROOMS);
   const [students, setStudents] = useState<{ id: string; name: string }[]>([]);
   const [classrooms, setClassrooms] = useState<{ id: string; name: string; studyArm?: string | null; status?: 'active' | 'archived' }[]>([]);
@@ -81,6 +85,9 @@ export default function ReportsPage() {
   const [loading, setLoading] = useState(false);
   const [recordsError, setRecordsError] = useState(false);
   const [reloadKey, setReloadKey] = useState(0);
+  // Set when printing starts rather than at render, so server and client
+  // render the same markup (a render-time timestamp breaks hydration).
+  const [printedAt, setPrintedAt] = useState('');
   // Add state for lessons
   const [lessons, setLessons] = useState<Lesson[]>([]);
   const [questionCounts, setQuestionCounts] = useState<QuestionCount[]>([]);
@@ -230,6 +237,12 @@ export default function ReportsPage() {
     fetchLessons();
   }, []);
 
+  useEffect(() => {
+    const stamp = () => setPrintedAt(new Date().toLocaleString(language === 'zh-TW' ? 'zh-TW' : 'en-US'));
+    window.addEventListener('beforeprint', stamp);
+    return () => window.removeEventListener('beforeprint', stamp);
+  }, [language]);
+
   // Fetch learning records when student is selected
   useEffect(() => {
     if (!selectedStudent) {
@@ -309,17 +322,31 @@ export default function ReportsPage() {
   // Records for the selected game filter. ALL_GAMES keeps everything,
   // UNCLASSIFIED_GAME shows records whose lesson_id didn't resolve to any
   // known game, otherwise show only that game's records.
+  const dateScopedRecords = useMemo(
+    () => filterByDateRange(learningRecords, dateRange),
+    [learningRecords, dateRange],
+  );
+
   const filteredRecords = useMemo(() => {
-    if (selectedGame === ALL_GAMES) return learningRecords;
-    if (selectedGame === UNCLASSIFIED_GAME) return learningRecords.filter(r => !r.game_id);
-    return learningRecords.filter(r => r.game_id === selectedGame);
-  }, [learningRecords, selectedGame]);
+    if (selectedGame === ALL_GAMES) return dateScopedRecords;
+    if (selectedGame === UNCLASSIFIED_GAME) return dateScopedRecords.filter(r => !r.game_id);
+    return dateScopedRecords.filter(r => r.game_id === selectedGame);
+  }, [dateScopedRecords, selectedGame]);
 
   const filteredQuestionCounts = useMemo(() => {
-    if (selectedGame === ALL_GAMES) return questionCounts;
-    if (selectedGame === UNCLASSIFIED_GAME) return questionCounts.filter(q => !q.game_id);
-    return questionCounts.filter(q => q.game_id === selectedGame);
-  }, [questionCounts, selectedGame]);
+    // Question counts carry no date of their own; scope them through the
+    // learning record they belong to so the AI-interaction stats match the
+    // same period as every other metric.
+    const inRange = dateRange === 'all'
+      ? questionCounts
+      : (() => {
+          const recordIds = new Set(dateScopedRecords.map(r => String(r.id)));
+          return questionCounts.filter(q => q.learning_record_id && recordIds.has(String(q.learning_record_id)));
+        })();
+    if (selectedGame === ALL_GAMES) return inRange;
+    if (selectedGame === UNCLASSIFIED_GAME) return inRange.filter(q => !q.game_id);
+    return inRange.filter(q => q.game_id === selectedGame);
+  }, [questionCounts, selectedGame, dateRange, dateScopedRecords]);
 
   // Calculate statistics from learning records
   const computeStats = (records: LearningRecord[], questionData: QuestionCount[]): LearningStats | null => {
@@ -412,7 +439,7 @@ export default function ReportsPage() {
       record.completed_at_taipei || record.completed_at || record.end_time;
 
     const groups = new Map<string, { gameId: string | null; count: number; totalTime: number; completed: number }>();
-    learningRecords.forEach(record => {
+    dateScopedRecords.forEach(record => {
       const gameId = record.game_id ?? null;
       const key = gameId ?? UNCLASSIFIED_GAME;
       if (!groups.has(key)) {
@@ -431,7 +458,7 @@ export default function ReportsPage() {
       totalTime: group.totalTime,
       completionRate: group.count > 0 ? (group.completed / group.count) * 100 : 0,
     })).sort((a, b) => b.count - a.count);
-  }, [learningRecords, gameTitleById, t]);
+  }, [dateScopedRecords, gameTitleById, t]);
 
   // Recent Learning Activities table, newest first - the underlying view
   // has no guaranteed order, so this sorts explicitly rather than assuming
@@ -500,6 +527,15 @@ export default function ReportsPage() {
   const selectedStudentName = selectedStudent
     ? students.find(s => s.id === selectedStudent)?.name || ''
     : '';
+
+  const reportScopeLabel = [
+    selectedGame === ALL_GAMES
+      ? t('all_games')
+      : selectedGame === UNCLASSIFIED_GAME
+        ? t('unclassified_game')
+        : gameTitleById.get(selectedGame) ?? t('unknown_game'),
+    dateRangeLabel(dateRange, language === 'zh-TW'),
+  ].join(' · ');
 
   // Add a function to get lesson title by ID
   const getLessonTitle = (lessonId: number | string) => {
@@ -618,15 +654,34 @@ export default function ReportsPage() {
         heading={t('learning_reports')}
         text={t('analyze_learning_patterns')}
         actions={
-          <ExportButton
-            records={filteredRecords}
-            studentName={selectedStudentName}
-            disabled={loading}
-          />
+          <div className="flex flex-wrap gap-2 print:hidden">
+            <Button
+              variant="outline"
+              size="sm"
+              className="gap-2"
+              onClick={() => window.print()}
+              disabled={loading || filteredRecords.length === 0}
+            >
+              <Printer className="h-4 w-4" aria-hidden="true" />
+              {language === 'zh-TW' ? '列印 / 存成 PDF' : 'Print / Save as PDF'}
+            </Button>
+            <ExportButton
+              records={filteredRecords}
+              studentName={selectedStudentName}
+              disabled={loading}
+            />
+          </div>
         }
       />
 
-      <div className="app-panel sticky top-20 z-10 flex flex-col gap-3 p-4 sm:flex-row sm:items-center">
+      {/* The scope selectors are hidden when printing, so state the scope in
+          words for whoever reads the printed/PDF copy. */}
+      <p className="hidden text-sm print:block">
+        {language === 'zh-TW' ? '學生' : 'Student'}：{selectedStudentName || '-'} · {reportScopeLabel} ·{' '}
+        {language === 'zh-TW' ? '列印時間' : 'Printed'}：{printedAt}
+      </p>
+
+      <div className="app-panel sticky top-20 z-10 flex flex-col gap-3 p-4 sm:flex-row sm:items-center print:hidden">
         <div className="mr-auto">
           <p className="app-kicker">{language === 'zh-TW' ? '報表範圍' : 'Report scope'}</p>
           <p className="mt-1 text-sm text-muted-foreground">
@@ -652,10 +707,11 @@ export default function ReportsPage() {
             allGamesLabel={t('all_games')}
             unclassifiedLabel={t('unclassified_game')}
           />
+          <DateRangeSelector value={dateRange} onChange={setDateRange} chinese={language === 'zh-TW'} />
         </div>
       </div>
 
-      {learningRecords.length > 0 && gameBreakdown.length > 1 && (
+      {!loading && !recordsError && dateScopedRecords.length > 0 && gameBreakdown.length > 1 && (
         <Card className="shadow-none">
           <CardHeader>
             <CardTitle>{t('games_comparison')}</CardTitle>
@@ -701,9 +757,13 @@ export default function ReportsPage() {
             <p className="text-muted-foreground text-center max-w-md mb-8">
               {!selectedStudent
                 ? t('select_student_prompt')
-                : learningRecords.length > 0
-                  ? t('no_records_for_game')
-                  : t('no_records_yet')}
+                : learningRecords.length === 0
+                  ? t('no_records_yet')
+                  : dateScopedRecords.length === 0
+                    ? (language === 'zh-TW'
+                        ? `「${dateRangeLabel(dateRange, true)}」內沒有學習紀錄，可改選更長的期間。`
+                        : `No learning records in "${dateRangeLabel(dateRange, false)}". Try a longer period.`)
+                    : t('no_records_for_game')}
             </p>
           </CardContent>
         </Card>
@@ -782,9 +842,12 @@ export default function ReportsPage() {
               the detail charts/table below - it's the synthesized takeaway,
               not a footnote at the bottom of a long page. */}
           <AIAnalysisReport
+            key={selectedStudent ?? 'none'}
             learningRecords={analysisRecords}
             learningStats={learningStats}
             selectedStudentName={selectedStudentName}
+            studentId={selectedStudent}
+            scopeLabel={reportScopeLabel}
           />
 
           {/* Data Visualization Tabs. flex-wrap lets all 4 labels stay
@@ -792,7 +855,7 @@ export default function ReportsPage() {
               (verified down to a 320px viewport) - no off-screen content
               to hint at, so no separate mobile Select is needed. */}
           <Tabs value={chartView} onValueChange={setChartView} className="w-full">
-            <TabsList className="mb-4 h-auto w-full flex-wrap justify-start gap-1">
+            <TabsList className="mb-4 h-auto w-full flex-wrap justify-start gap-1 print:hidden">
               <TabsTrigger value="time-spent">{t('time_distribution')}</TabsTrigger>
               <TabsTrigger value="completion">{t('completion_rates')}</TabsTrigger>
               <TabsTrigger value="timeline">{t('learning_timeline')}</TabsTrigger>
