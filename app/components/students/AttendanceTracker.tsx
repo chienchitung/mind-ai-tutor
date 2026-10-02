@@ -12,7 +12,7 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { useToast } from '@/hooks/use-toast';
 import { useLanguage } from '@/app/contexts/LanguageContext';
-import { useTranslation } from '@/utils/translations';
+import { useTranslation } from '@/lib/translations';
 
 interface Attendance {
   id: string;

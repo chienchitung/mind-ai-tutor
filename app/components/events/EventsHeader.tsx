@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { PlusCircle } from "lucide-react";
 import { ViewSelector } from "./ViewSelector";
 import { useLanguage } from "@/app/contexts/LanguageContext";
-import { useTranslation } from "@/utils/translations";
+import { useTranslation } from "@/lib/translations";
 
 interface EventsHeaderProps {
   onAddEvent: () => void;

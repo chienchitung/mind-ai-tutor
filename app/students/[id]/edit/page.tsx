@@ -16,7 +16,7 @@ import {
 import { useToast } from '@/hooks/use-toast';
 import type { Database } from '@/types/supabase';
 import { useLanguage } from '@/app/contexts/LanguageContext';
-import { useTranslation } from '@/utils/translations';
+import { useTranslation } from '@/lib/translations';
 import { PageHeader } from '@/components/layout/PageHeader';
 import { EmptyState, PageLoader } from '@/components/ui/page-state';
 import { SubjectPicker } from '@/app/components/students/SubjectPicker';

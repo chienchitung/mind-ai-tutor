@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { getServerClient } from '@/app/lib/supabase';
+import { getServerClient } from '@/lib/supabase-server';
 import { mapSessionByCodeRow } from '@/lib/live-session';
 
 const codePattern = /^[0-9]{6}$/;

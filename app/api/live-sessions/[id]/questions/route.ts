@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { getServerClient } from '@/app/lib/supabase';
+import { getServerClient } from '@/lib/supabase-server';
 import { mapQuestionRow } from '@/lib/live-session';
 
 const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;

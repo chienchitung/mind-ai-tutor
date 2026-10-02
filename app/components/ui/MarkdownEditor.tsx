@@ -2,7 +2,7 @@
 
 import dynamic from 'next/dynamic';
 import { useLanguage } from '@/app/contexts/LanguageContext';
-import { useTranslation } from '@/utils/translations';
+import { useTranslation } from '@/lib/translations';
 
 interface MarkdownEditorProps {
   value: string;

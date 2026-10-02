@@ -3,7 +3,7 @@ const mocks = vi.hoisted(() => ({
   user: { id: "owner" } as { id: string } | null,
   rpc: vi.fn(),
 }));
-vi.mock("@/app/lib/supabase", () => ({
+vi.mock("@/lib/supabase-server", () => ({
   getServerClient: async () => ({
     auth: { getUser: async () => ({ data: { user: mocks.user } }) },
     rpc: mocks.rpc,

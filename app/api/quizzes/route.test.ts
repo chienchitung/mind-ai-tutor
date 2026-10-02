@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const { getServerClient } = vi.hoisted(() => ({ getServerClient: vi.fn() }));
-vi.mock('@/app/lib/supabase', () => ({ getServerClient }));
+vi.mock('@/lib/supabase-server', () => ({ getServerClient }));
 import { GET, POST } from './route';
 
 const quiz = { id: 'd325432e-0e37-4a6d-a9c8-3fa333b4f077', title: 'Test', questions: [{ id: 'q1', questionText: 'Q', options: [], correctAnswer: '42', explanation: '' }] };

@@ -11,7 +11,7 @@ beforeAll(async () => {
     create table auth.users(id uuid primary key);
     insert into auth.users values ('${user}'), ('${other}');
     create function auth.uid() returns uuid language sql stable as $$ select nullif(current_setting('request.jwt.claim.sub',true),'')::uuid $$;`);
-  await db.exec(readFileSync(new URL('../scripts/add_game_cover_ai_quota.sql', import.meta.url), 'utf8'));
+  await db.exec(readFileSync(new URL('../supabase/scripts/add_game_cover_ai_quota.sql', import.meta.url), 'utf8'));
 }, 20000);
 beforeEach(async () => {
   await db.exec('reset role; truncate public.game_cover_ai_usage;');

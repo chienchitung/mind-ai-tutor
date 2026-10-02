@@ -3,7 +3,7 @@
 import React, { useState, useEffect } from "react";
 import { useEvents } from "@/contexts/EventContext";
 import { useLanguage } from "@/app/contexts/LanguageContext";
-import { useTranslation } from "@/utils/translations";
+import { useTranslation } from "@/lib/translations";
 import { 
   ArrowUpDown, 
   MoreHorizontal, 

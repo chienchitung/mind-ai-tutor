@@ -17,7 +17,7 @@ import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
 import { EventFormDialog } from "@/components/events/EventFormDialog";
 import { useLanguage } from "@/app/contexts/LanguageContext";
-import { useTranslation } from "@/utils/translations";
+import { useTranslation } from "@/lib/translations";
 
 const typeIcons: Record<EventType, React.ReactNode> = {
   course: <GraduationCap className="h-3 w-3 text-blue-500" />,

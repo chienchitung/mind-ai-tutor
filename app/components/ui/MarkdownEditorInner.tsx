@@ -32,7 +32,7 @@ import {
 import { useToast } from '@/hooks/use-toast';
 import { v4 as uuidv4 } from 'uuid';
 import { useLanguage } from '@/app/contexts/LanguageContext';
-import { useTranslation } from '@/utils/translations';
+import { useTranslation } from '@/lib/translations';
 import './markdown-editor.css';
 
 interface MarkdownEditorProps {

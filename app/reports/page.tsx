@@ -19,7 +19,7 @@ import { DateRangeSelector, dateRangeLabel } from './components/DateRangeSelecto
 import { filterByDateRange, type DateRange } from './lib/date-range';
 import { mergeReportStudents, type ReportStudent } from './lib/report-students';
 import { useLanguage } from '@/app/contexts/LanguageContext';
-import { useTranslation } from '@/utils/translations';
+import { useTranslation } from '@/lib/translations';
 import { AIAnalysisReport } from './components/AIAnalysisReport';
 import { AIInteractionChart } from './components/AIInteractionChart';
 import { PageHeader } from '@/components/layout/PageHeader';

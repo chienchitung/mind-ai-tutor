@@ -1,5 +1,5 @@
 import { NextResponse, after } from "next/server";
-import { getServerClient } from "@/app/lib/supabase";
+import { getServerClient } from "@/lib/supabase-server";
 import { presentationCommandSchema } from "@/lib/live-presentation";
 import { broadcastLiveUpdate } from "@/lib/live-broadcast";
 import { z } from "zod";

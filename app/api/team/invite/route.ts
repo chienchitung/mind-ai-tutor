@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
-import { getServerClient, SUPABASE_URL } from '@/app/lib/supabase';
+import { getServerClient, SUPABASE_URL } from '@/lib/supabase-server';
 import { HttpInputError, isSameOriginRequest, readJsonWithLimit } from '@/lib/http-security';
 
 export const runtime = 'nodejs';

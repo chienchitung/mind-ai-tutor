@@ -15,7 +15,7 @@ interface Member {
   joined_at: string;
 }
 
-// Maps the RPCs' RAISE EXCEPTION messages (scripts/add_team_workspaces.sql)
+// Maps the RPCs' RAISE EXCEPTION messages (supabase/scripts/add_team_workspaces.sql)
 // to user-facing text. Matched with includes() since PostgREST may wrap the
 // raw message rather than passing it through byte-for-byte.
 function describeError(message: string, zh: boolean): string {
@@ -142,7 +142,7 @@ export function TeamWorkspaceSection() {
     }
   };
 
-  // One RPC per team-scoped resource (scripts/add_team_scoping_*.sql), each
+  // One RPC per team-scoped resource (supabase/scripts/add_team_scoping_*.sql), each
   // only ever touching rows the caller already owns - run together so
   // "share what I already have" is one click instead of one per resource
   // type. A single failed RPC (e.g. NO_TEAM) still lets the others report

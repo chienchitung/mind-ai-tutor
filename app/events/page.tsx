@@ -3,7 +3,7 @@
 import { PageHeader } from '@/components/layout/PageHeader';
 import { EventsView } from '@/components/events/EventsView';
 import { useLanguage } from '@/app/contexts/LanguageContext';
-import { useTranslation } from '@/utils/translations';
+import { useTranslation } from '@/lib/translations';
 
 export default function EventsPage() {
   const { language } = useLanguage();

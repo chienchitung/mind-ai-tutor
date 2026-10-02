@@ -4,10 +4,7 @@ module.exports = {
   // next-themes adds this class at runtime; retain the shared dark palette.
   safelist: ["dark"],
   content: [
-    './pages/**/*.{ts,tsx}',
-    './components/**/*.{ts,tsx}',
     './app/**/*.{ts,tsx}',
-    './src/**/*.{ts,tsx}',
   ],
   theme: {
     container: {

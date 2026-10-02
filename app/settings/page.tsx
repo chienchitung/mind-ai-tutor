@@ -12,7 +12,7 @@ import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
 import { User, Mail, CreditCard, Users, Webhook } from 'lucide-react';
 import { useLanguage } from '@/app/contexts/LanguageContext';
-import { useTranslation } from '@/utils/translations';
+import { useTranslation } from '@/lib/translations';
 import { PageLoader } from '@/components/ui/page-state';
 import { ChangePasswordForm } from '@/components/settings/ChangePasswordForm';
 import { TeamWorkspaceSection } from '@/components/settings/TeamWorkspaceSection';

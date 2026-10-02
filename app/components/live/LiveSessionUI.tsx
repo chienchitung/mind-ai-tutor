@@ -17,7 +17,7 @@ import {
   AlertDialogAction,
 } from '@/components/ui/alert-dialog';
 import { useLanguage } from '@/app/contexts/LanguageContext';
-import { useTranslation } from '@/utils/translations';
+import { useTranslation } from '@/lib/translations';
 import type { LiveSessionStatus } from '@/lib/live-session';
 
 export function SessionStatus({ status }: { status: LiveSessionStatus }) {

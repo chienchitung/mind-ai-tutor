@@ -24,7 +24,7 @@ This change adds a persisted presentation state for the dual-screen classroom mo
 
 ## Rollout — migration before application deployment
 
-Apply `supabase/migrations/20260904051713_live_presentation_flow.sql` **after** the existing `scripts/add_live_sessions.sql` and `scripts/add_live_session_phase2.sql` setup, before deploying this app version. The repository's older schema lives in `scripts/`; this is an incremental migration, not a complete empty-database bootstrap.
+Apply `supabase/migrations/20260904051713_live_presentation_flow.sql` **after** the existing `supabase/scripts/add_live_sessions.sql` and `supabase/scripts/add_live_session_phase2.sql` setup, before deploying this app version. The repository's older schema lives in `scripts/`; this is an incremental migration, not a complete empty-database bootstrap.
 
 Also apply `supabase/migrations/20260904101418_live_qa_display_options.sql` after the initial presentation migration and before deploying the adjustable Q&A UI. This replaces the two RPC definitions without changing existing rows or grants. Roll back this UI before restoring the prior RPC definitions if required.
 

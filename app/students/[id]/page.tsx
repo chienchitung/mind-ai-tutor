@@ -24,7 +24,7 @@ import { AssignmentTracker } from '@/components/students/AssignmentTracker';
 import { useToast } from '@/hooks/use-toast';
 import { BookOpen, Copy, GraduationCap, IdCard, KeyRound, Mail, RefreshCw, UserRound } from 'lucide-react';
 import { useLanguage } from '@/app/contexts/LanguageContext';
-import { useTranslation } from '@/utils/translations';
+import { useTranslation } from '@/lib/translations';
 import type { Database } from '@/types/supabase';
 import { studentSubjectLabel } from '@/lib/student-subjects';
 

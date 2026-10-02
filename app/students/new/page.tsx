@@ -7,7 +7,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
 import { useLanguage } from '@/app/contexts/LanguageContext';
-import { useTranslation } from '@/utils/translations';
+import { useTranslation } from '@/lib/translations';
 import type { Database } from '@/types/supabase';
 import { PageHeader } from '@/components/layout/PageHeader';
 import { SubjectPicker } from '@/app/components/students/SubjectPicker';

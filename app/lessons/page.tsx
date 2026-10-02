@@ -19,7 +19,7 @@ import { useForm } from 'react-hook-form';
 import { LessonDraftPreview } from '@/components/lessons/LessonDraftPreview';
 import * as z from 'zod';
 import { useLanguage } from '@/app/contexts/LanguageContext';
-import { useTranslation } from '@/utils/translations';
+import { useTranslation } from '@/lib/translations';
 import { AiQuotaError, throwForAiQuotaError } from '@/lib/ai-quota-errors';
 import MarkdownEditor from '@/app/components/ui/MarkdownEditor';
 import MarkdownRenderer from '@/app/components/ui/MarkdownRenderer';

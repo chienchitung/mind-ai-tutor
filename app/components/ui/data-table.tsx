@@ -31,7 +31,7 @@ import {
 import { Button } from '@/components/ui/button';
 import { ArrowDown, ArrowUp, ArrowUpDown, ChevronLeft, ChevronRight, Search } from 'lucide-react';
 import { useLanguage } from '@/app/contexts/LanguageContext';
-import { useTranslation } from '@/utils/translations';
+import { useTranslation } from '@/lib/translations';
 
 // The row selection/sorting/filtering/pagination features this table
 // registers - shared here so column defs (declared by callers) and the

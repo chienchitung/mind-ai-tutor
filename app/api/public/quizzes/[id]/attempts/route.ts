@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
-import { getServerClient } from '@/app/lib/supabase';
+import { getServerClient } from '@/lib/supabase-server';
 
 const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const answerSchema = z.union([z.string().max(10000), z.array(z.string().max(100)).max(20)]);

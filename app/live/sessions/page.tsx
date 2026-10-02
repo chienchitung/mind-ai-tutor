@@ -23,7 +23,7 @@ import {
 } from '@/components/live/LiveSessionUI';
 import { useToast } from '@/hooks/use-toast';
 import { useLanguage } from '@/app/contexts/LanguageContext';
-import { useTranslation } from '@/utils/translations';
+import { useTranslation } from '@/lib/translations';
 import type { LiveSessionStatus } from '@/lib/live-session';
 
 interface LiveSessionSummary {

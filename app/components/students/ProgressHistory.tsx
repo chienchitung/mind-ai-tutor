@@ -14,7 +14,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { StudentProgressChart } from '@/components/charts/StudentProgressChart';
 import { getStudentProgress } from '@/lib/analytics';
 import { useLanguage } from '@/app/contexts/LanguageContext';
-import { useTranslation } from '@/utils/translations';
+import { useTranslation } from '@/lib/translations';
 import { Activity, BookOpen, TrendingUp } from 'lucide-react';
 
 interface Progress {

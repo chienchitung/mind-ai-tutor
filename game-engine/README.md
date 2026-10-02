@@ -6,7 +6,7 @@
 
 ## 啟用方式
 
-1. 在 Supabase SQL Editor 執行 `scripts/add_public_game_manifest.sql`。
+1. 在 Supabase SQL Editor 執行 `supabase/scripts/add_public_game_manifest.sql`。
 2. 確認 `digital_games.is_active = true`，並依照遊玩順序設定 `lesson_ids`。
 3. 以 `https://<game-engine-domain>/games/<digital_games.id>` 開啟遊戲。
 4. 教師端設定 `NEXT_PUBLIC_GAME_ENGINE_URL=https://<game-engine-domain>` 後，「開始遊戲」會自動連到共用引擎。
@@ -41,7 +41,7 @@
 
 `lessons.metadata` 的 `game_role`、`game_number`、`card_description` 仍作為舊資料的 fallback；新設定以遊戲本身的 `settings.lessonOverrides` 為優先。最後一堂課若未明確設定角色，仍會預設為最終關。
 
-既有 Excel Master 若是在資料驅動改版前建立，請執行 `scripts/restore_excel_master_manifest.sql`。它會補回第 0 關、恢復原本六關順序與短摘要，而且可安全重複執行。
+既有 Excel Master 若是在資料驅動改版前建立，請執行 `supabase/scripts/restore_excel_master_manifest.sql`。它會補回第 0 關、恢復原本六關順序與短摘要，而且可安全重複執行。
 
 # Excel Master Game 互動式學習平台
 

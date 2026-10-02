@@ -6,7 +6,7 @@ import { useRouter } from "next/navigation";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { useLanguage } from "@/app/contexts/LanguageContext";
-import { useTranslation } from "@/utils/translations";
+import { useTranslation } from "@/lib/translations";
 import { PageHeader } from '@/components/layout/PageHeader';
 import { ErrorState, PageLoader } from '@/components/ui/page-state';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";

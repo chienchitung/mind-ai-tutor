@@ -24,10 +24,17 @@ This is a monorepo with two independently-deployed Next.js projects:
 ```
 mind-ai-tutor/
 ├── app/            # Main app (teacher-facing) - App Router pages and API routes
-├── components/ hooks/ lib/ contexts/ types/ utils/   # Shared path aliases; most code lives under app/
-├── scripts/        # Supabase SQL migrations (run manually in the SQL editor, see below)
+│   ├── components/ #   Shared React components (ui/ holds the shadcn-style primitives)
+│   ├── contexts/   #   React contexts (language, events)
+│   └── hooks/      #   Shared hooks
+├── lib/            # Non-UI shared logic: Supabase clients, Gemini, translations, export helpers
+├── types/          # Type definitions (generated Supabase types, third-party declarations)
+├── supabase/       # All database SQL, see "Database setup" below
+│   ├── migrations/ #   Newer incremental migrations (timestamp-prefixed)
+│   └── scripts/    #   Older SQL run by hand in the SQL editor, plus their tests
+├── public/         # Static assets (brand images, fonts, pdf.js worker, models)
 ├── docs/           # Design docs, acceptance notes, email templates
-├── middleware.ts   # App-wide auth gate
+├── proxy.ts        # App-wide auth gate
 ├── next.config.ts  # Security headers (CSP, etc.) + the /games Multi-Zones rewrite
 └── game-engine/    # Independently-deployed game engine sub-app, see game-engine/README.md
 ```
@@ -124,7 +131,12 @@ npm run build          # production build
 
 ## Database setup
 
-There's no Supabase CLI or migration tool wired up - every schema change is its own file under `scripts/*.sql`, **run manually in the Supabase SQL editor**. Each file is written to be idempotent (`create table if not exists`, `create or replace function`, `drop policy if exists` followed by `create policy`, and so on); running them roughly in filename/date order tracks the project's actual history. The ones behind the current core tables (profiles, students, events, team workspaces, etc.) include:
+All SQL lives under `supabase/` and is **run manually in the Supabase SQL editor** (there's no Supabase CLI deploy wired up):
+
+- `supabase/migrations/` - every new schema change goes here, named with a timestamp prefix (e.g. `20261002020000_add_learning_analysis_reports.sql`) and applied in filename order.
+- `supabase/scripts/` - the older SQL. Each file is written to be idempotent (`create table if not exists`, `create or replace function`, `drop policy if exists` followed by `create policy`, and so on). Files like `inspect_*.sql` and `set_user_admin.sql` are query/maintenance tools, not schema changes.
+
+The `supabase/scripts/` files behind the current core tables (profiles, students, events, team workspaces, etc.) include:
 
 - `create_profiles_table.sql`, `create_missing_tables.sql` - base tables
 - `add_owner_scoping_*.sql`, `fix_*_rls.sql` - Row Level Security per table
@@ -134,7 +146,7 @@ There's no Supabase CLI or migration tool wired up - every schema change is its 
 - `add_public_game_manifest.sql`, `add_game_cover_*.sql` - the digital games engine (read by `game-engine/`)
 - `harden_game_student_data.sql`, `fix_ux_review_findings.sql` - security hardening
 
-A few `.test.ts` files are Vitest tests for their matching SQL file's content (testing the SQL text itself, not running against a real database) - e.g. `scripts/add_live_sessions.test.ts`.
+The `.test.ts` files in `supabase/scripts/` are Vitest tests for their matching SQL file (they run the SQL in an in-memory PGlite database, not against a real project) - e.g. `supabase/scripts/add_live_sessions.test.ts`.
 
 ## Deployment
 

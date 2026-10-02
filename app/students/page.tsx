@@ -12,7 +12,7 @@ import { useToast } from '@/hooks/use-toast';
 import ExcelJS from 'exceljs';
 import { cn } from '@/lib/utils';
 import { useLanguage } from '@/app/contexts/LanguageContext';
-import { useTranslation } from '@/utils/translations';
+import { useTranslation } from '@/lib/translations';
 import type { Database } from '@/types/supabase';
 
 type Student = Database['public']['Tables']['students']['Row'];

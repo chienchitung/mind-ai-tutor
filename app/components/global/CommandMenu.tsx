@@ -26,7 +26,7 @@ import {
   Wand2
 } from "lucide-react";
 import { useLanguage } from "@/app/contexts/LanguageContext";
-import { useTranslation } from "@/utils/translations";
+import { useTranslation } from "@/lib/translations";
 import { confirmAppNavigation } from '@/lib/navigation-guard';
 
 interface NavItem {

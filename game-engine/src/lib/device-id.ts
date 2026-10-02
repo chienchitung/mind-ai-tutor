@@ -3,7 +3,7 @@ const STORAGE_KEY = 'ellis_device_id';
 /** A random id persisted per browser, global across every game/lesson - not
  * scoped by gameStorageKey() like most other local state here, since the
  * anti-abuse daily cap it backs (claim_game_chat_message,
- * scripts/add_game_chat_device_quota.sql) is meant to bound one browser's
+ * supabase/scripts/add_game_chat_device_quota.sql) is meant to bound one browser's
  * total AI-tutor usage, not reset itself just because a student switched
  * games. Never sent anywhere except as an opaque id on /api/chat calls -
  * no login, no name, nothing identifying attached to it. */
