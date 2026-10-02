@@ -8,13 +8,14 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { Button } from '@/components/ui/button';
 import {
   Sparkles, Loader2, ChevronDown, Clock, Star, Target, Lightbulb,
-  BarChart2, BookOpen, Award, ListTree, RefreshCw,
+  BarChart2, BookOpen, Award, ListTree, RefreshCw, MessageSquareText,
 } from 'lucide-react';
 import { useLanguage } from '@/app/contexts/LanguageContext';
 import { useTranslation } from '@/lib/translations';
 import { AiQuotaError, throwForAiQuotaError } from '@/lib/ai-quota-errors';
 import MarkdownRenderer from '@/app/components/ui/MarkdownRenderer';
 import { parseAnalysisReport, type AnalysisSection, type AnalysisSectionKind } from '../lib/analysis-sections';
+import type { ConversationDigest } from '../lib/chat-insights';
 
 interface AIAnalysisReportProps {
   learningRecords: object[];
@@ -24,9 +25,12 @@ interface AIAnalysisReportProps {
   // Describes the filters the analysis was run under (game, period), saved
   // with each report so history entries can be told apart.
   scopeLabel: string;
+  // The student's recent questions to the AI tutor, analysed into the
+  // "conversation" section. Absent when there's no chat in scope.
+  conversation?: ConversationDigest | null;
 }
 
-const OPEN_BY_DEFAULT = new Set<AnalysisSectionKind>(['summary', 'improvements', 'recommendations']);
+const OPEN_BY_DEFAULT = new Set<AnalysisSectionKind>(['summary', 'conversation', 'improvements', 'recommendations']);
 
 function iconForSection(kind: AnalysisSectionKind) {
   const className = 'h-5 w-5';
@@ -35,6 +39,7 @@ function iconForSection(kind: AnalysisSectionKind) {
     case 'time': return <Clock className={className} aria-hidden="true" />;
     case 'focus': return <Target className={className} aria-hidden="true" />;
     case 'patterns': return <BarChart2 className={className} aria-hidden="true" />;
+    case 'conversation': return <MessageSquareText className={className} aria-hidden="true" />;
     case 'strengths': return <Star className={className} aria-hidden="true" />;
     case 'improvements': return <Target className={className} aria-hidden="true" />;
     case 'recommendations': return <Lightbulb className={className} aria-hidden="true" />;
@@ -99,7 +104,7 @@ function AnalysisSectionCard({
   );
 }
 
-export function AIAnalysisReport({ learningRecords, learningStats, selectedStudentName, studentId, scopeLabel }: AIAnalysisReportProps) {
+export function AIAnalysisReport({ learningRecords, learningStats, selectedStudentName, studentId, scopeLabel, conversation }: AIAnalysisReportProps) {
   const [analysisResult, setAnalysisResult] = useState<string | null>(null);
   const [analysisError, setAnalysisError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
@@ -189,8 +194,9 @@ export function AIAnalysisReport({ learningRecords, learningStats, selectedStude
   const prioritySections = useMemo(() => {
     const rank: Partial<Record<AnalysisSectionKind, number>> = {
       summary: 0,
-      improvements: 1,
-      recommendations: 2,
+      conversation: 1,
+      improvements: 2,
+      recommendations: 3,
     };
     return parsedReport.sections
       .filter(section => section.kind in rank)
@@ -215,6 +221,7 @@ export function AIAnalysisReport({ learningRecords, learningStats, selectedStude
           studentName: selectedStudentName,
           stats: learningStats,
           recentLearning: learningRecords.slice(0, 8),
+          ...(conversation ? { conversation } : {}),
           language,
         }),
       });

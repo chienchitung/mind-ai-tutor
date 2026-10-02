@@ -33,6 +33,16 @@
     --ring: 222.2 84% 4.9%;
 
     --radius: 0.875rem;
+
+    /* Report charts. Validated as a set (contrast, colorblind separation) on
+       the white card surface: one series takes --chart-1; a meter's
+       remainder or "not yet" segment takes the lighter --chart-1-soft step
+       of the same hue. Chrome stays one step off the surface. */
+    --chart-1: #2a78d6;
+    --chart-1-soft: #86b6ef;
+    --chart-grid: #ebe9e3;
+    --chart-axis: #c3c2b7;
+    --chart-tick: #6f6d68;
   }
 
   .dark {
@@ -63,6 +73,12 @@
     --border: 217.2 32.6% 17.5%;
     --input: 217.2 32.6% 17.5%;
     --ring: 212.7 26.8% 83.9%;
+
+    --chart-1: #3987e5;
+    --chart-1-soft: #184f95;
+    --chart-grid: #2c2c2a;
+    --chart-axis: #383835;
+    --chart-tick: #a8a79f;
   }
 }
 

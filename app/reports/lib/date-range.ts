@@ -16,11 +16,16 @@ export function recordStartTime(record: DatedRecord): number | null {
   return Number.isNaN(time) ? null : time;
 }
 
+// Earliest timestamp a range includes, or null for "all".
+export function rangeStart(range: DateRange, now = Date.now()): number | null {
+  return range === 'all' ? null : now - RANGE_DAYS[range] * 24 * 60 * 60 * 1000;
+}
+
 // Undated records only appear under "all": a range filter can't place them,
 // and silently counting them in "last 7 days" would inflate that view.
 export function filterByDateRange<T extends DatedRecord>(records: T[], range: DateRange, now = Date.now()): T[] {
-  if (range === 'all') return records;
-  const since = now - RANGE_DAYS[range] * 24 * 60 * 60 * 1000;
+  const since = rangeStart(range, now);
+  if (since === null) return records;
   return records.filter(record => {
     const time = recordStartTime(record);
     return time !== null && time >= since;

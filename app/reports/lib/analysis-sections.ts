@@ -3,6 +3,7 @@ export type AnalysisSectionKind =
   | 'time'
   | 'focus'
   | 'patterns'
+  | 'conversation'
   | 'strengths'
   | 'improvements'
   | 'recommendations'
@@ -25,7 +26,7 @@ type ReportLanguage = 'en' | 'zh-TW';
 // Order the model is asked to fill, and the order structured output is
 // rendered back in.
 export const REPORT_SECTION_KINDS = [
-  'summary', 'time', 'focus', 'patterns', 'strengths', 'improvements', 'recommendations',
+  'summary', 'time', 'focus', 'patterns', 'conversation', 'strengths', 'improvements', 'recommendations',
 ] as const satisfies readonly AnalysisSectionKind[];
 
 const TITLES: Record<ReportLanguage, Record<AnalysisSectionKind, string>> = {
@@ -34,6 +35,7 @@ const TITLES: Record<ReportLanguage, Record<AnalysisSectionKind, string>> = {
     time: 'Learning time and pace',
     focus: 'Learning focus and engagement',
     patterns: 'Learning behavior observations',
+    conversation: 'AI tutor conversation insights',
     strengths: 'Strengths',
     improvements: 'Priority improvement areas',
     recommendations: 'Recommended next steps',
@@ -44,6 +46,7 @@ const TITLES: Record<ReportLanguage, Record<AnalysisSectionKind, string>> = {
     time: '學習時間與節奏',
     focus: '學習重點與投入',
     patterns: '學習行為觀察',
+    conversation: 'AI 對話洞察',
     strengths: '學習優勢',
     improvements: '優先改善項目',
     recommendations: '教師下一步建議',
@@ -68,6 +71,8 @@ function sectionKind(title: string): AnalysisSectionKind {
   if (/優勢|優點|strength|doing well/.test(normalized)) return 'strengths';
   if (/時間|節奏|time management|learning time|pace/.test(normalized)) return 'time';
   if (/科目|類別|重點|投入|subject|category|focus|engagement/.test(normalized)) return 'focus';
+  // Before "patterns": the conversation heading also says 洞察/insights.
+  if (/對話|提問|聊天|conversation|chat|question/.test(normalized)) return 'conversation';
   if (/模式|行為|觀察|洞察|策略|pattern|behavior|behaviour|insight/.test(normalized)) return 'patterns';
   if (/整體|總結|摘要|overall|summary|overview/.test(normalized)) return 'summary';
   return 'general';

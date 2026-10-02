@@ -1,205 +1,80 @@
 'use client';
 
-import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
+import { useMemo } from 'react';
+import { Bar, BarChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
 import { useLanguage } from '@/app/contexts/LanguageContext';
 import { useTranslation } from '@/lib/translations';
+import {
+  activityOverTime, bucketLabel, bucketRangeLabel, formatDuration, type ActivityBucket, type ChartRecord,
+} from '../lib/chart-data';
+import { AXIS_TICK, CHART, ChartEmpty, ChartTooltipCard, MAX_BAR_SIZE, truncateLabel } from './chart-kit';
 
-interface LearningRecord {
-  id: number;
-  student_id: string;
-  student_name: string;
-  lesson_id: number;
-  started_at?: string;
-  completed_at?: string | null;
-  time_spent_seconds?: number;
-  // Add taipei fields
-  started_at_taipei?: string;
-  completed_at_taipei?: string;
-  // Other alternative fields
-  start_time?: string;
-  end_time?: string;
-  duration?: number;
-}
+const GRANULARITY_LABEL = {
+  day: { zh: '每日', en: 'Daily' },
+  week: { zh: '每週', en: 'Weekly' },
+  month: { zh: '每月', en: 'Monthly' },
+} as const;
 
-// Add interface for Lesson
-interface Lesson {
-  id: string;
-  title: string;
-}
-
-export function LearningTimeline({ 
-  records, 
-  lessons = [],
-  courseOrder = []
-}: { 
-  records: LearningRecord[],
-  lessons?: Lesson[],
-  courseOrder?: string[]
+export function LearningTimeline({
+  records,
+  titleOf,
+}: {
+  records: ChartRecord[];
+  titleOf: (lessonId: string) => string;
 }) {
   const { language } = useLanguage();
   const { t } = useTranslation(language);
-  
-  // Function to get lesson title by ID
-  const getLessonTitle = (lessonId: number | string) => {
-    const lesson = lessons.find(l => l.id === lessonId);
-    return lesson ? lesson.title : lessonId;
-  };
+  const chinese = language === 'zh-TW';
+  const { granularity, buckets } = useMemo(() => activityOverTime(records, titleOf), [records, titleOf]);
 
-  // Get the course order based on the courseOrder prop
-  const getCourseSortOrder = (title: string | number): number => {
-    if (courseOrder.length === 0) {
-      // Fallback to default order if courseOrder is not provided
-      return 999;
-    }
-    
-    const titleStr = String(title);
-    const index = courseOrder.indexOf(titleStr);
-    return index >= 0 ? index : 999; // If found in the order array, use that index, otherwise put at the end
-  };
-  
-  // Store original dates for sorting
-  const dateMap = new Map();
+  if (!buckets.length) return <ChartEmpty>{t('no_learning_data')}</ChartEmpty>;
 
-  // Format dates for the timeline (M/D format)
-  const formatDate = (dateString: string) => {
-    if (!dateString) return '';
-    const date = new Date(dateString);
-    return `${date.getMonth() + 1}/${date.getDate()}`;
-  };
+  const data = buckets.map(bucket => ({ ...bucket, label: bucketLabel(bucket, granularity) }));
+  const unit = GRANULARITY_LABEL[granularity][chinese ? 'zh' : 'en'];
 
-  // Find and sort all dates chronologically
-  const dateObjects = records
-    .filter(record => record.started_at || record.start_time || record.started_at_taipei)
-    .map(record => {
-      const startDate = record.started_at_taipei || record.started_at || record.start_time;
-      return startDate ? new Date(startDate) : null;
-    })
-    .filter(Boolean as any)
-    .sort((a, b) => a!.getTime() - b!.getTime()); // Sort chronologically, earliest first
-
-  // Create map of formatted date strings to their original Date objects for sorting
-  dateObjects.forEach(dateObj => {
-    const formattedDate = formatDate(dateObj!.toISOString());
-    if (!dateMap.has(formattedDate)) {
-      dateMap.set(formattedDate, dateObj);
-    }
-  });
-
-  // Get unique formatted dates
-  const uniqueDateStrings = Array.from(dateMap.keys());
-  
-  // Create properly sorted date entries
-  const sortedDates = uniqueDateStrings
-    .map(dateStr => ({ 
-      dateStr, 
-      dateObj: dateMap.get(dateStr) 
-    }))
-    .sort((a, b) => a.dateObj!.getTime() - b.dateObj!.getTime())
-    .map(item => item.dateStr);
-
-  // Process data for the chart - group by lesson
-  const lessonIdsSet = new Set(records.map(record => record.lesson_id));
-  const lessonIds = Array.from(lessonIdsSet);
-  
-  // Sort lessons according to the provided order
-  const sortedLessonIds = [...lessonIds].sort((a, b) => {
-    const titleA = getLessonTitle(a);
-    const titleB = getLessonTitle(b);
-    return getCourseSortOrder(titleA) - getCourseSortOrder(titleB);
-  });
-  
-  // Create chart data structure
-  const chartData = sortedDates.map((dateString, index) => {
-    const dataPoint: any = { 
-      date: dateString,
-      sortIndex: index // Add index for preserving the sort order
-    };
-    
-    sortedLessonIds.forEach(lessonId => {
-      const lessonsOnDate = records.filter(record => {
-        const recordDate = record.started_at_taipei || record.started_at || record.start_time;
-        return record.lesson_id === lessonId && recordDate && formatDate(recordDate) === dateString;
-      });
-      
-      // Sum up time spent for this lesson on this date
-      const timeSpent = lessonsOnDate.reduce((total, record) => {
-        let timeValue = 0;
-        
-        if (record.time_spent_seconds) {
-          timeValue = record.time_spent_seconds / 60; // Convert to minutes
-        } else if (record.duration) {
-          timeValue = record.duration / 60; // Convert to minutes
-        } else if ((record.completed_at_taipei || record.completed_at || record.end_time) && 
-                  (record.started_at_taipei || record.started_at || record.start_time)) {
-          const start = new Date(record.started_at_taipei || record.started_at || record.start_time!).getTime();
-          const end = new Date(record.completed_at_taipei || record.completed_at || record.end_time!).getTime();
-          timeValue = (end - start) / (1000 * 60); // Convert ms to minutes
-        }
-        
-        return total + timeValue;
-      }, 0);
-      
-      const lessonKey = `lesson_${lessonId}`;
-      dataPoint[lessonKey] = Math.round(timeSpent);
-      dataPoint[`${lessonKey}_name`] = getLessonTitle(lessonId);
-    });
-    
-    return dataPoint;
-  });
-
-  // If no data, show empty state
-  if (!chartData.length || !sortedLessonIds.length) {
-    return <div className="flex items-center justify-center h-full">{t('no_learning_data')}</div>;
-  }
-
-  // Generate lines for each lesson with consistent colors
-  const colors = ['#8884d8', '#82ca9d', '#ffc658', '#ff8042', '#0088fe', '#00C49F', '#FFBB28', '#FF8042'];
-  
   return (
-    <ResponsiveContainer width="100%" height="100%">
-      <LineChart
-        data={chartData}
-        margin={{
-          top: 20,
-          right: 30,
-          left: 20,
-          bottom: 20,
-        }}
-      >
-        <CartesianGrid strokeDasharray="3 3" opacity={0.3} />
-        <XAxis 
-          dataKey="date"
-          type="category"
-          // Sort explicitly to ensure chronological order
-          ticks={sortedDates}
-          // Avoid automatic reversal of ticks
-          reversed={false}
-        />
-        <YAxis label={{ value: `${t('time')} (${t('minutes_text')})`, angle: -90, position: 'left' }} />
-        <Tooltip 
-          formatter={(value, name, props) => {
-            // Check if name is a string before using split
-            if (typeof name === 'string') {
-              const lessonId = name.split('_')[1];
-              const lessonName = props.payload[`lesson_${lessonId}_name`];
-              return [`${value} ${t('minutes_text')}`, lessonName];
-            }
-            return [`${value} ${t('minutes_text')}`, name];
-          }}
-        />
-        {sortedLessonIds.map((lessonId, index) => (
-          <Line
-            key={`line-${lessonId}`}
-            type="monotone"
-            dataKey={`lesson_${lessonId}`}
-            stroke={colors[index % colors.length]}
-            name={`lesson_${lessonId}`}
-            strokeWidth={2}
-            dot={{ r: 4 }}
-            activeDot={{ r: 6 }}
-          />
-        ))}
-      </LineChart>
-    </ResponsiveContainer>
+    <div className="space-y-2">
+      <p className="text-xs text-muted-foreground">
+        {chinese ? `${unit}學習時間（分鐘），沒有學習的期間顯示為空白` : `${unit} learning minutes; periods without activity stay empty`}
+      </p>
+      <div className="h-80">
+        <ResponsiveContainer width="100%" height="100%">
+          <BarChart data={data} margin={{ top: 8, right: 8, bottom: 4, left: 0 }}>
+            <CartesianGrid vertical={false} stroke={CHART.grid} />
+            <XAxis
+              dataKey="label"
+              tick={AXIS_TICK}
+              tickLine={false}
+              axisLine={{ stroke: CHART.axis }}
+              interval="preserveStartEnd"
+              minTickGap={16}
+            />
+            <YAxis tick={AXIS_TICK} tickLine={false} axisLine={false} width={40} allowDecimals={false} />
+            <Tooltip
+              cursor={{ fill: 'hsl(var(--muted))', opacity: 0.6 }}
+              content={({ active, payload }) => {
+                const bucket = payload?.[0]?.payload as ActivityBucket | undefined;
+                if (!active || !bucket) return null;
+                return (
+                  <ChartTooltipCard
+                    title={bucketRangeLabel(bucket, granularity, chinese)}
+                    rows={bucket.sessions === 0
+                      ? [{ label: chinese ? '沒有學習紀錄' : 'No activity', value: '' }]
+                      : [
+                          { label: chinese ? '學習時間' : 'Learning time', value: formatDuration(bucket.minutes * 60, chinese) },
+                          ...bucket.lessons.slice(0, 4).map(lesson => ({
+                            label: truncateLabel(lesson.label, 14),
+                            value: formatDuration(lesson.minutes * 60, chinese),
+                          })),
+                        ]}
+                  />
+                );
+              }}
+            />
+            <Bar dataKey="minutes" fill={CHART.series} radius={[4, 4, 0, 0]} maxBarSize={MAX_BAR_SIZE} isAnimationActive={false} />
+          </BarChart>
+        </ResponsiveContainer>
+      </div>
+    </div>
   );
-} 
+}

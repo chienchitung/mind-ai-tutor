@@ -1,59 +1,88 @@
 'use client';
 
-import { PieChart, Pie, Cell, ResponsiveContainer, Legend, Tooltip } from 'recharts';
+import { useMemo } from 'react';
 import { useLanguage } from '@/app/contexts/LanguageContext';
 import { useTranslation } from '@/lib/translations';
+import { completionByLesson, isCompleted, type ChartRecord } from '../lib/chart-data';
+import { CHART, ChartEmpty } from './chart-kit';
 
-interface LearningStats {
-  totalRecords: number;
-  totalTimeSpent: number;
-  averageTimePerLesson: number;
-  completedLessons: number;
-  completionRate: number;
-  lastActive: string | null;
+// Completed vs not-yet-completed is one ratio, so it's shown as a number and
+// a meter rather than a two-slice pie; the per-lesson rows below show where
+// the unfinished sessions are.
+function Meter({ completed, total, height }: { completed: number; total: number; height: string }) {
+  const done = total ? (completed / total) * 100 : 0;
+  return (
+    <div className={`flex w-full gap-[2px] ${height}`} aria-hidden="true">
+      {completed > 0 && (
+        <span className={completed === total ? 'flex-1 rounded-r-[4px]' : undefined} style={{ width: `${done}%`, background: CHART.series }} />
+      )}
+      {completed < total && (
+        <span className="flex-1 rounded-r-[4px]" style={{ background: CHART.seriesSoft }} />
+      )}
+    </div>
+  );
 }
 
-export function CompletionRateChart({ stats }: { stats: LearningStats | null }) {
+function LegendKey({ color, label }: { color: string; label: string }) {
+  return (
+    <span className="inline-flex items-center gap-1.5">
+      <span className="h-2.5 w-2.5 rounded-[2px]" style={{ background: color }} aria-hidden="true" />
+      {label}
+    </span>
+  );
+}
+
+export function CompletionRateChart({
+  records,
+  titleOf,
+}: {
+  records: ChartRecord[];
+  titleOf: (lessonId: string) => string;
+}) {
   const { language } = useLanguage();
   const { t } = useTranslation(language);
-  
-  if (!stats) {
-    return <div className="flex items-center justify-center h-full">{t('no_learning_data')}</div>;
-  }
+  const chinese = language === 'zh-TW';
+  const lessons = useMemo(() => completionByLesson(records, titleOf), [records, titleOf]);
 
-  const { completedLessons, totalRecords } = stats;
-  const inProgressLessons = totalRecords - completedLessons;
+  if (!records.length) return <ChartEmpty>{t('no_learning_data')}</ChartEmpty>;
 
-  const data = [
-    { name: t('completed_text'), value: completedLessons, color: '#4ADE80' },
-    { name: t('in_progress_text'), value: inProgressLessons, color: '#FB923C' },
-  ];
-
-  // If no lessons, show empty state
-  if (totalRecords === 0) {
-    return <div className="flex items-center justify-center h-full">{t('no_learning_data')}</div>;
-  }
+  const total = records.length;
+  const completed = records.filter(isCompleted).length;
+  const rate = Math.round((completed / total) * 100);
 
   return (
-    <ResponsiveContainer width="100%" height="100%">
-      <PieChart>
-        <Pie
-          data={data}
-          cx="50%"
-          cy="50%"
-          labelLine={false}
-          outerRadius={120}
-          fill="#8884d8"
-          dataKey="value"
-          label={({ name, percent }) => `${name}: ${((percent ?? 0) * 100).toFixed(0)}%`}
-        >
-          {data.map((entry, index) => (
-            <Cell key={`cell-${index}`} fill={entry.color} />
+    <div className="space-y-8">
+      <div className="space-y-3">
+        <div className="flex flex-wrap items-end justify-between gap-x-6 gap-y-1">
+          <div>
+            <p className="text-sm text-muted-foreground">{chinese ? '整體完成率' : 'Overall completion'}</p>
+            <p className="text-5xl font-semibold tracking-tight text-foreground">{rate}%</p>
+          </div>
+          <p className="pb-1 text-sm text-muted-foreground">
+            {chinese ? `${total} 次學習中完成 ${completed} 次` : `${completed} of ${total} sessions completed`}
+          </p>
+        </div>
+        <Meter completed={completed} total={total} height="h-3" />
+        <div className="flex flex-wrap gap-x-5 gap-y-1 text-xs text-muted-foreground">
+          <LegendKey color={CHART.series} label={chinese ? `已完成 ${completed} 次` : `Completed ${completed}`} />
+          <LegendKey color={CHART.seriesSoft} label={chinese ? `未完成 ${total - completed} 次` : `Not completed ${total - completed}`} />
+        </div>
+      </div>
+
+      <div>
+        <h4 className="app-kicker mb-3">{chinese ? '各課程完成狀況' : 'By lesson'}</h4>
+        <ul className="space-y-3">
+          {lessons.map(lesson => (
+            <li key={lesson.key} className="grid grid-cols-[minmax(0,9rem)_minmax(0,1fr)_auto] items-center gap-3 text-sm sm:grid-cols-[minmax(0,12rem)_minmax(0,1fr)_auto]">
+              <span className="truncate text-foreground/85" title={lesson.label}>{lesson.label}</span>
+              <Meter completed={lesson.completed} total={lesson.total} height="h-2.5" />
+              <span className="text-right text-xs tabular-nums text-muted-foreground">
+                {chinese ? `${lesson.completed}/${lesson.total} 次` : `${lesson.completed}/${lesson.total}`}
+              </span>
+            </li>
           ))}
-        </Pie>
-        <Tooltip formatter={(value) => [`${value} ${t('lessons_count')}`, '']} />
-        <Legend />
-      </PieChart>
-    </ResponsiveContainer>
+        </ul>
+      </div>
+    </div>
   );
-} 
+}
