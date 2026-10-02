@@ -6,7 +6,8 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { DataTable, type DataTableFeatures } from '@/components/ui/data-table';
 import { Badge } from '@/components/ui/badge';
-import { BarChart2, Clock, Calendar, MessageSquare } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { AlertTriangle, BarChart2, Clock, Calendar, Loader2, MessageSquare } from 'lucide-react';
 import { StudentSelector } from './components/StudentSelector';
 import { GameSelector, ALL_GAMES, UNCLASSIFIED_GAME } from './components/GameSelector';
 import { ClassroomSelector, ALL_CLASSROOMS, UNGROUPED_STUDENTS } from './components/ClassroomSelector';
@@ -78,6 +79,8 @@ export default function ReportsPage() {
   const [games, setGames] = useState<{ id: string; title: string }[]>([]);
   const [learningRecords, setLearningRecords] = useState<LearningRecord[]>([]);
   const [loading, setLoading] = useState(false);
+  const [recordsError, setRecordsError] = useState(false);
+  const [reloadKey, setReloadKey] = useState(0);
   // Add state for lessons
   const [lessons, setLessons] = useState<Lesson[]>([]);
   const [questionCounts, setQuestionCounts] = useState<QuestionCount[]>([]);
@@ -235,8 +238,17 @@ export default function ReportsPage() {
       return;
     }
 
+    // Switching students quickly can let an older request resolve after a
+    // newer one and overwrite it with the wrong student's data.
+    let cancelled = false;
+
     const fetchLearningRecords = async () => {
       setLoading(true);
+      setRecordsError(false);
+      // Clear the previous student's data so it isn't shown under the newly
+      // selected name while this request is in flight.
+      setLearningRecords([]);
+      setQuestionCounts([]);
       try {
         // 動態導入 supabase 函數
         const { supabase } = await import('../../lib/supabase');
@@ -248,10 +260,7 @@ export default function ReportsPage() {
           .select('*')
           .eq('student_id', selectedStudent);
 
-        if (recordsError) {
-          console.error('Error fetching learning records:', recordsError);
-          return;
-        }
+        if (recordsError) throw recordsError;
 
         // Fetch question counts
         const { data: questionData, error: questionError } = await supabaseClient
@@ -259,10 +268,8 @@ export default function ReportsPage() {
           .select('*')
           .eq('student_id', selectedStudent);
 
-        if (questionError) {
-          console.error('Error fetching question counts:', questionError);
-          return;
-        }
+        if (questionError) throw questionError;
+        if (cancelled) return;
 
         // Process records
         const processedRecords = (recordsData || []).map(record => ({
@@ -276,13 +283,15 @@ export default function ReportsPage() {
         setQuestionCounts(questionData || []);
       } catch (error) {
         console.error('Error in fetchLearningRecords:', error);
+        if (!cancelled) setRecordsError(true);
       } finally {
-        setLoading(false);
+        if (!cancelled) setLoading(false);
       }
     };
 
     fetchLearningRecords();
-  }, [selectedStudent]);
+    return () => { cancelled = true; };
+  }, [selectedStudent, reloadKey]);
 
   // Which digital game a record's game_id resolves to, keyed by id.
   const gameTitleById = useMemo(() => {
@@ -311,17 +320,6 @@ export default function ReportsPage() {
     if (selectedGame === UNCLASSIFIED_GAME) return questionCounts.filter(q => !q.game_id);
     return questionCounts.filter(q => q.game_id === selectedGame);
   }, [questionCounts, selectedGame]);
-
-  // Give the analysis model teacher-facing lesson names alongside database
-  // identifiers. Reports should discuss recognizable units, not expose UUIDs
-  // that a teacher cannot act on.
-  const analysisRecords = useMemo(
-    () => filteredRecords.map(record => ({
-      ...record,
-      lesson_title: lessonTitleById.get(String(record.lesson_id)) ?? String(record.lesson_id),
-    })),
-    [filteredRecords, lessonTitleById],
-  );
 
   // Calculate statistics from learning records
   const computeStats = (records: LearningRecord[], questionData: QuestionCount[]): LearningStats | null => {
@@ -451,6 +449,17 @@ export default function ReportsPage() {
     });
   }, [filteredRecords]);
 
+  // Give the analysis model teacher-facing lesson names alongside database
+  // identifiers. Built from the newest-first list because the analysis only
+  // sends the first few records - unsorted, those were arbitrary, not recent.
+  const analysisRecords = useMemo(
+    () => activityRecords.map(record => ({
+      ...record,
+      lesson_title: lessonTitleById.get(String(record.lesson_id)) ?? String(record.lesson_id),
+    })),
+    [activityRecords, lessonTitleById],
+  );
+
   // Format time (seconds) to human readable format
   const formatTime = (seconds: number) => {
     const hours = Math.floor(seconds / 3600);
@@ -518,7 +527,9 @@ export default function ReportsPage() {
   // Get ordered course titles once
   const orderedCourseTitles = getOrderedCourseTitles();
 
-  if (loading && !learningRecords.length) {
+  // Full-page loader only before the selectors have anything to show; after
+  // that, student switches load inline so the scope bar stays usable.
+  if (loading && !students.length) {
     return <PageLoader />;
   }
 
@@ -656,7 +667,33 @@ export default function ReportsPage() {
         </Card>
       )}
 
-      {filteredRecords.length === 0 ? (
+      {loading ? (
+        <Card className="shadow-none">
+          <CardContent className="flex h-64 flex-col items-center justify-center gap-3 p-6" role="status">
+            <Loader2 className="h-8 w-8 animate-spin text-primary" aria-hidden="true" />
+            <p className="text-sm text-muted-foreground">
+              {language === 'zh-TW' ? '正在載入學習紀錄…' : 'Loading learning records…'}
+            </p>
+          </CardContent>
+        </Card>
+      ) : recordsError ? (
+        <Card className="shadow-none border-destructive/30">
+          <CardContent className="flex h-64 flex-col items-center justify-center gap-3 p-6 text-center" role="alert">
+            <AlertTriangle className="h-10 w-10 text-destructive" aria-hidden="true" />
+            <h3 className="text-lg font-medium">
+              {language === 'zh-TW' ? '學習紀錄載入失敗' : 'Could not load learning records'}
+            </h3>
+            <p className="max-w-md text-sm text-muted-foreground">
+              {language === 'zh-TW'
+                ? '這不代表學生沒有資料，可能是網路或伺服器暫時異常。請稍後重試。'
+                : "This doesn't mean the student has no records - the network or server may be temporarily unavailable."}
+            </p>
+            <Button variant="outline" size="sm" onClick={() => setReloadKey(k => k + 1)}>
+              {language === 'zh-TW' ? '重新載入' : 'Retry'}
+            </Button>
+          </CardContent>
+        </Card>
+      ) : filteredRecords.length === 0 ? (
         <Card className="shadow-none">
           <CardContent className="flex flex-col items-center justify-center p-6 h-64">
             <BarChart2 className="h-12 w-12 text-muted-foreground mb-4 opacity-50" />
