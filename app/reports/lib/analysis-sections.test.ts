@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { parseAnalysisReport } from './analysis-sections';
+import { parseAnalysisReport, structuredReportToMarkdown } from './analysis-sections';
 
 describe('parseAnalysisReport', () => {
   it('splits an inline bold heading from its content and removes markdown markers', () => {
@@ -49,5 +49,47 @@ describe('parseAnalysisReport', () => {
     expect(report.sections).toEqual([
       expect.objectContaining({ title: '整體學習摘要', kind: 'summary' }),
     ]);
+  });
+});
+
+describe('structuredReportToMarkdown', () => {
+  it('renders sections in canonical order with our own titles, round-tripping through the parser', () => {
+    const markdown = structuredReportToMarkdown(JSON.stringify({
+      sections: [
+        { kind: 'recommendations', content: '1. 下一堂先複習 IF。\n2. 加入計時練習。' },
+        { kind: 'summary', content: '完成 5 個單元，完成率 **100%**。' },
+      ],
+    }), 'zh-TW');
+
+    expect(markdown).toContain('## 整體學習摘要\n完成 5 個單元，完成率 **100%**。\n\n## 教師下一步建議\n1. 下一堂先複習 IF。\n2. 加入計時練習。');
+    const report = parseAnalysisReport(markdown, 'zh-TW');
+    expect(report.sections.map(s => s.kind)).toEqual(['summary', 'recommendations']);
+    expect(report.preamble).toBe('');
+  });
+
+  it('drops heading lines the model put inside a body so they cannot split sections', () => {
+    const markdown = structuredReportToMarkdown(JSON.stringify({
+      sections: [{ kind: 'strengths', content: '### Strengths\nFinishes every unit.' }],
+    }), 'en');
+    expect(parseAnalysisReport(markdown, 'en').sections).toEqual([
+      expect.objectContaining({ kind: 'strengths', content: 'Finishes every unit.' }),
+    ]);
+  });
+
+  it('returns null for unusable payloads so callers can fall back to raw text', () => {
+    expect(structuredReportToMarkdown('## not json', 'en')).toBeNull();
+    expect(structuredReportToMarkdown('{"sections": "nope"}', 'en')).toBeNull();
+    expect(structuredReportToMarkdown('{"sections": [{"kind": "bogus", "content": "x"}]}', 'en')).toBeNull();
+  });
+
+  it('keeps "Label：" and bold lines inside a structured section body instead of splitting on them', () => {
+    const markdown = structuredReportToMarkdown(JSON.stringify({
+      sections: [{ kind: 'patterns', content: '觀察內容：每次約 10 分鐘。\n**優勢**：能持續完成。' }],
+    }), 'zh-TW');
+    const report = parseAnalysisReport(markdown, 'zh-TW');
+    expect(report.sections).toEqual([
+      expect.objectContaining({ kind: 'patterns', content: '觀察內容：每次約 10 分鐘。\n**優勢**：能持續完成。' }),
+    ]);
+    expect(report.preamble).toBe('');
   });
 });

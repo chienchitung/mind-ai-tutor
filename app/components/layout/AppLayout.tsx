@@ -168,7 +168,10 @@ export function AppLayout({ children }: AppLayoutProps) {
   const sidebarWidth = isMobile ? 0 : (isSidebarCollapsed ? 70 : 256);
 
   return (
-    <div className="flex h-screen overflow-hidden bg-background">
+    <div className="flex h-screen overflow-hidden bg-background print:block print:h-auto print:overflow-visible print:bg-white">
+      {/* display:contents keeps the sidebar's own positioning on screen while
+          letting print:hidden drop it from printed reports. */}
+      <div className="contents print:hidden">
       <Sidebar
         className={!isMobile && isSidebarCollapsed ? 'w-[70px]' : 'w-64'}
         onCollapseChange={handleSidebarCollapse}
@@ -177,6 +180,7 @@ export function AppLayout({ children }: AppLayoutProps) {
         user={user}
         isAdmin={isAdmin}
       />
+      </div>
 
       <main
         style={{
@@ -184,10 +188,12 @@ export function AppLayout({ children }: AppLayoutProps) {
           transition: 'margin-left 0.3s ease-in-out',
           width: `calc(100% - ${sidebarWidth}px)`
         }}
-        className="h-full min-w-0"
+        className="h-full min-w-0 print:!ml-0 print:!w-full print:h-auto"
       >
-        <div ref={contentScrollRef} className="h-full overflow-auto">
-          <AppTopbar onOpenMenu={() => setIsMenuOpen(true)} user={user} />
+        <div ref={contentScrollRef} className="h-full overflow-auto print:h-auto print:overflow-visible">
+          <div className="contents print:hidden">
+            <AppTopbar onOpenMenu={() => setIsMenuOpen(true)} user={user} />
+          </div>
           <div className="mx-auto w-full max-w-[1440px] px-4 py-6 pb-10 md:px-8 md:py-8">
             <PageTransition>{children}</PageTransition>
           </div>

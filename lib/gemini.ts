@@ -1,5 +1,6 @@
 import 'server-only';
 import { GoogleGenAI } from '@google/genai';
+import { STRUCTURED_REPORT_JSON_SCHEMA, structuredReportToMarkdown } from '@/app/reports/lib/analysis-sections';
 
 // Server-only: this module must never be imported from a 'use client' component,
 // since GEMINI_API_KEY would otherwise be bundled into the browser JS.
@@ -166,11 +167,12 @@ export async function generateDetailedLearningAnalysis(studentData: any) {
       - ${isChineseContent ? 'Write entirely in professional Traditional Chinese. Do not include English translations in headings.' : 'Write entirely in clear professional English.'}
 
       OUTPUT FORMAT
-      Use exactly these seven Markdown headings, in this order:
+      Return JSON with a "sections" array, one entry per section, using these kinds in this order:
+      summary, time, focus, patterns, strengths, improvements, recommendations.
+      They correspond to these sections:
       ${sectionTemplate}
 
-      Put each heading on its own line using ##. Start content on the following line.
-      Never use **bold text** as a heading. Do not add an introduction, conclusion, or any section outside this structure.
+      Each "content" is the section body only, in Markdown (paragraph or bullets). Do not put headings inside content.
     `;
 
     const result = await genAI.models.generateContent({
@@ -181,9 +183,15 @@ export async function generateDetailedLearningAnalysis(studentData: any) {
         topK: 40,
         topP: 0.95,
         maxOutputTokens: 8192,
+        responseMimeType: 'application/json',
+        responseJsonSchema: STRUCTURED_REPORT_JSON_SCHEMA,
       },
     });
-    return result.text ?? '';
+    const text = result.text ?? '';
+    // Section headings are generated from the structured kinds rather than
+    // trusting the model's formatting. If the JSON is unusable, return the
+    // raw text - the client parser still handles free-form Markdown.
+    return structuredReportToMarkdown(text, isChineseContent ? 'zh-TW' : 'en') ?? text;
   } catch (error: any) {
     console.error('Error generating detailed learning analysis:', error);
     // Add more specific error handling

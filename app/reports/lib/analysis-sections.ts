@@ -22,6 +22,12 @@ export interface ParsedAnalysisReport {
 
 type ReportLanguage = 'en' | 'zh-TW';
 
+// Order the model is asked to fill, and the order structured output is
+// rendered back in.
+export const REPORT_SECTION_KINDS = [
+  'summary', 'time', 'focus', 'patterns', 'strengths', 'improvements', 'recommendations',
+] as const satisfies readonly AnalysisSectionKind[];
+
 const TITLES: Record<ReportLanguage, Record<AnalysisSectionKind, string>> = {
   en: {
     summary: 'Overall learning summary',
@@ -121,11 +127,77 @@ function headingFromLine(line: string): { title: string; inlineContent: string }
   return null;
 }
 
+function atxHeading(line: string): { title: string; inlineContent: string } | null {
+  const atx = line.trim().match(/^#{1,6}\s+(.+?)\s*#*$/);
+  return atx ? { title: cleanHeading(atx[1]), inlineContent: '' } : null;
+}
+
 function cleanContent(lines: string[]) {
   return lines
     .join('\n')
     .replace(/^(?:\*\*|__)(.+?)(?:\*\*|__)$/gm, '$1')
     .trim();
+}
+
+// Prefixed to reports built from structured model output. Their "## " lines
+// are the only real section boundaries, so the heuristic heading detection
+// (bold lines, "Label：" prefixes...) must not run on their bodies - it would
+// split body text like "觀察內容：..." into a bogus section.
+const STRUCTURED_MARKER = '<!-- report:structured -->';
+
+export const STRUCTURED_REPORT_JSON_SCHEMA = {
+  type: 'object',
+  properties: {
+    sections: {
+      type: 'array',
+      items: {
+        type: 'object',
+        properties: {
+          kind: { type: 'string', enum: [...REPORT_SECTION_KINDS] },
+          content: { type: 'string', description: 'Markdown body: one short paragraph or up to 3 bullets. No headings.' },
+        },
+        required: ['kind', 'content'],
+      },
+    },
+  },
+  required: ['sections'],
+} as const;
+
+// Turns the model's JSON into the "## Title" markdown parseAnalysisReport
+// reads. Headings come from our own title table, so section boundaries no
+// longer depend on how the model chose to format them. Returns null when the
+// payload isn't usable so the caller can fall back to the raw text.
+export function structuredReportToMarkdown(raw: string, language: ReportLanguage): string | null {
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(raw);
+  } catch {
+    return null;
+  }
+
+  const sections = (parsed as { sections?: unknown })?.sections;
+  if (!Array.isArray(sections)) return null;
+
+  const byKind = new Map<AnalysisSectionKind, string>();
+  for (const section of sections) {
+    const kind = (section as { kind?: unknown })?.kind;
+    const content = (section as { content?: unknown })?.content;
+    if (typeof kind !== 'string' || typeof content !== 'string') continue;
+    if (!(REPORT_SECTION_KINDS as readonly string[]).includes(kind)) continue;
+    // Strip any heading lines the model put inside a body anyway - they would
+    // otherwise be read as a new section boundary.
+    const body = content.replace(/^\s*#{1,6}\s+.*$/gm, '').trim();
+    if (!body) continue;
+    const existing = byKind.get(kind as AnalysisSectionKind);
+    byKind.set(kind as AnalysisSectionKind, existing ? `${existing}\n\n${body}` : body);
+  }
+
+  if (byKind.size === 0) return null;
+
+  return `${STRUCTURED_MARKER}\n` + REPORT_SECTION_KINDS
+    .filter(kind => byKind.has(kind))
+    .map(kind => `## ${TITLES[language][kind]}\n${byKind.get(kind)}`)
+    .join('\n\n');
 }
 
 export function parseAnalysisReport(
@@ -134,12 +206,15 @@ export function parseAnalysisReport(
 ): ParsedAnalysisReport {
   if (!text?.trim()) return { preamble: '', sections: [] };
 
+  const structured = text.trimStart().startsWith(STRUCTURED_MARKER);
+  if (structured) text = text.trimStart().slice(STRUCTURED_MARKER.length);
+
   const preamble: string[] = [];
   const rawSections: Array<{ title: string; content: string[]; kind: AnalysisSectionKind }> = [];
   let current: { title: string; content: string[]; kind: AnalysisSectionKind } | null = null;
 
   for (const line of text.replace(/\r\n?/g, '\n').split('\n')) {
-    const heading = headingFromLine(line);
+    const heading = structured ? atxHeading(line) : headingFromLine(line);
     if (heading?.title) {
       if (current) rawSections.push(current);
       const kind = sectionKind(heading.title);
