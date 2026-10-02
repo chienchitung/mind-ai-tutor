@@ -65,6 +65,42 @@ describe('AIAnalysisReport', () => {
     });
   });
 
+  it('sends the conversation digest and shows the AI conversation insights with the key takeaways', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(new Response(JSON.stringify({
+      analysis: '<!-- report:structured -->\n## 整體學習摘要\n完成兩個單元。\n\n## 學習行為觀察\n晚上學習。\n\n## AI 對話洞察\n多次詢問 SUM 的範圍。',
+    }), { status: 200, headers: { 'Content-Type': 'application/json' } }));
+    vi.stubGlobal('fetch', fetchMock);
+    const conversation = {
+      total_student_questions: 1,
+      sessions: 1,
+      excerpts: [{ lesson_title: '函數入門', asked_at: '2026-09-01T10:00:00Z', student_question: 'SUM 怎麼用？', ai_reply_start: '先想想範圍。' }],
+    };
+
+    render(
+      <LanguageProvider>
+        <AIAnalysisReport
+          learningRecords={[{ lesson_title: '函數入門' }]}
+          learningStats={{ completionRate: 100 }}
+          selectedStudentName="測試學生"
+          studentId={null}
+          scopeLabel=""
+          conversation={conversation}
+        />
+      </LanguageProvider>,
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: '生成分析' }));
+    await screen.findByText('教師重點摘要');
+
+    expect(JSON.parse(fetchMock.mock.calls[0][1].body).conversation).toEqual(conversation);
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: /AI 對話洞察/ }).getAttribute('aria-expanded')).toBe('true');
+    });
+    const buttonLabels = screen.getAllByRole('button').map(button => button.textContent ?? '');
+    expect(buttonLabels.findIndex(label => label.includes('AI 對話洞察')))
+      .toBeLessThan(buttonLabels.findIndex(label => label.includes('學習行為觀察')));
+  });
+
   it('opens the latest saved report without calling the AI, and switches between history entries', async () => {
     const fetchMock = vi.fn();
     vi.stubGlobal('fetch', fetchMock);

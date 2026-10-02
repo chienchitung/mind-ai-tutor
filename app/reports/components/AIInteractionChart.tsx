@@ -1,97 +1,37 @@
-import { useEffect, useMemo } from 'react';
-import { Bar } from 'react-chartjs-2';
-import {
-  Chart as ChartJS,
-  CategoryScale,
-  LinearScale,
-  BarElement,
-  Title,
-  Tooltip,
-  Legend
-} from 'chart.js';
+'use client';
+
+import { useMemo } from 'react';
 import { useLanguage } from '@/app/contexts/LanguageContext';
 import { useTranslation } from '@/lib/translations';
+import { questionsByLesson, type QuestionCountRow } from '../lib/chart-data';
+import { ChartEmpty, RankedBarChart } from './chart-kit';
 
-ChartJS.register(
-  CategoryScale,
-  LinearScale,
-  BarElement,
-  Title,
-  Tooltip,
-  Legend
-);
-
-interface AIInteractionChartProps {
-  records: Array<{
-    lesson_id: string;
-    question_count: number;
-  }>;
-  lessons: Array<{
-    id: string;
-    title: string;
-  }>;
-  courseOrder: string[];
-}
-
-export function AIInteractionChart({ records, lessons, courseOrder }: AIInteractionChartProps) {
+export function AIInteractionChart({
+  records,
+  titleOf,
+}: {
+  records: QuestionCountRow[];
+  titleOf: (lessonId: string) => string;
+}) {
   const { language } = useLanguage();
   const { t } = useTranslation(language);
+  const chinese = language === 'zh-TW';
+  const data = useMemo(() => questionsByLesson(records, titleOf), [records, titleOf]);
+  const total = data.reduce((sum, item) => sum + item.value, 0);
 
-  const chartData = useMemo(() => {
-    // Group question counts by lesson
-    const lessonCounts = records.reduce((acc, record) => {
-      const lessonId = record.lesson_id;
-      if (!acc[lessonId]) {
-        acc[lessonId] = 0;
-      }
-      acc[lessonId] += record.question_count;
-      return acc;
-    }, {} as Record<string, number>);
+  if (!data.length) {
+    return <ChartEmpty>{chinese ? '這段期間沒有和 AI 助教互動的紀錄' : 'No AI tutor interactions in this period'}</ChartEmpty>;
+  }
 
-    // Map lesson IDs to titles and get counts in course order
-    const orderedData = courseOrder.map(title => {
-      const lesson = lessons.find(l => l.title === title);
-      return lesson ? (lessonCounts[lesson.id] || 0) : 0;
-    });
-
-    return {
-      labels: courseOrder,
-      datasets: [
-        {
-          label: t('ai_interaction_count'),
-          data: orderedData,
-          backgroundColor: 'rgba(147, 51, 234, 0.5)',
-          borderColor: 'rgb(147, 51, 234)',
-          borderWidth: 1,
-        },
-      ],
-    };
-  }, [records, lessons, courseOrder, t]);
-
-  const options = {
-    responsive: true,
-    maintainAspectRatio: false,
-    scales: {
-      y: {
-        beginAtZero: true,
-        ticks: {
-          stepSize: 1,
-        },
-      },
-    },
-    plugins: {
-      legend: {
-        position: 'top' as const,
-      },
-      tooltip: {
-        callbacks: {
-          label: (context: any) => {
-            return `${t('ai_interaction_count')}: ${context.raw}`;
-          }
-        }
-      }
-    },
-  };
-
-  return <Bar data={chartData} options={options} />;
-} 
+  return (
+    <RankedBarChart
+      data={data}
+      allowDecimals={false}
+      formatValue={value => (chinese ? `${value} 次` : String(value))}
+      tooltipRows={datum => [
+        { label: t('ai_interaction_count'), value: String(datum.value) },
+        { label: chinese ? '佔全部互動' : 'Share of all', value: `${Math.round((datum.value / total) * 100)}%` },
+      ]}
+    />
+  );
+}

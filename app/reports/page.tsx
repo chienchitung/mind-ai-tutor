@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useCallback } from 'react';
 import type { ColumnDef } from '@tanstack/react-table';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -18,6 +18,8 @@ import { ExportButton } from './components/ExportButton';
 import { DateRangeSelector, dateRangeLabel } from './components/DateRangeSelector';
 import { filterByDateRange, type DateRange } from './lib/date-range';
 import { mergeReportStudents, type ReportStudent } from './lib/report-students';
+import { conversationDigest, filterChatMessages, groupChatSessions, type ChatMessage } from './lib/chat-insights';
+import { ChatInsights } from './components/ChatInsights';
 import { useLanguage } from '@/app/contexts/LanguageContext';
 import { useTranslation } from '@/lib/translations';
 import { AIAnalysisReport } from './components/AIAnalysisReport';
@@ -92,6 +94,8 @@ export default function ReportsPage() {
   // Add state for lessons
   const [lessons, setLessons] = useState<Lesson[]>([]);
   const [questionCounts, setQuestionCounts] = useState<QuestionCount[]>([]);
+  const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
+  const [chatError, setChatError] = useState(false);
   const { language } = useLanguage();
   const { t } = useTranslation(language);
 
@@ -253,6 +257,7 @@ export default function ReportsPage() {
     if (!selectedStudent) {
       setLearningRecords([]);
       setQuestionCounts([]);
+      setChatMessages([]);
       return;
     }
 
@@ -267,27 +272,35 @@ export default function ReportsPage() {
       // selected name while this request is in flight.
       setLearningRecords([]);
       setQuestionCounts([]);
+      setChatMessages([]);
+      setChatError(false);
       try {
         // 動態導入 supabase 函數
         const { supabase } = await import('../../lib/supabase');
         const supabaseClient = supabase();
 
-        // Fetch learning records
-        const { data: recordsData, error: recordsError } = await supabaseClient
-          .from('learning_records_view')
-          .select('*')
-          .eq('student_id', selectedStudent);
+        // Records, question counts and the AI tutor transcript load in
+        // parallel. The transcript fails on its own: a chat error shouldn't
+        // hide the student's learning records.
+        const [
+          { data: recordsData, error: recordsError },
+          { data: questionData, error: questionError },
+          { data: chatData, error: chatLoadError },
+        ] = await Promise.all([
+          supabaseClient.from('learning_records_view').select('*').eq('student_id', selectedStudent),
+          supabaseClient.from('question_counts').select('*').eq('student_id', selectedStudent),
+          supabaseClient
+            .from('chat_messages')
+            .select('id, learning_record_id, lesson_id, message_content, is_user, timestamp, game_id')
+            .eq('student_id', selectedStudent)
+            .order('timestamp', { ascending: true })
+            .limit(1000),
+        ]);
 
         if (recordsError) throw recordsError;
-
-        // Fetch question counts
-        const { data: questionData, error: questionError } = await supabaseClient
-          .from('question_counts')
-          .select('*')
-          .eq('student_id', selectedStudent);
-
         if (questionError) throw questionError;
         if (cancelled) return;
+        if (chatLoadError) console.error('Error fetching chat messages:', chatLoadError);
 
         // Process records
         const processedRecords = (recordsData || []).map(record => ({
@@ -299,6 +312,8 @@ export default function ReportsPage() {
 
         setLearningRecords(processedRecords);
         setQuestionCounts(questionData || []);
+        setChatMessages(chatLoadError ? [] : (chatData || []));
+        setChatError(Boolean(chatLoadError));
       } catch (error) {
         console.error('Error in fetchLearningRecords:', error);
         if (!cancelled) setRecordsError(true);
@@ -323,6 +338,25 @@ export default function ReportsPage() {
     lessons.forEach(lesson => map.set(String(lesson.id), lesson.title));
     return map;
   }, [lessons]);
+
+  const titleOf = useCallback(
+    (lessonId: string) => lessonTitleById.get(String(lessonId)) ?? String(lessonId),
+    [lessonTitleById],
+  );
+
+  const matchesGame = useCallback((gameId: string | null) => {
+    if (selectedGame === ALL_GAMES) return true;
+    if (selectedGame === UNCLASSIFIED_GAME) return !gameId;
+    return gameId === selectedGame;
+  }, [selectedGame]);
+
+  // Student <-> AI tutor conversations under the same game and period
+  // filters as every other metric.
+  const chatSessions = useMemo(
+    () => groupChatSessions(filterChatMessages(chatMessages, dateRange, matchesGame), titleOf),
+    [chatMessages, dateRange, matchesGame, titleOf],
+  );
+  const chatDigest = useMemo(() => conversationDigest(chatSessions), [chatSessions]);
 
   // Records for the selected game filter. ALL_GAMES keeps everything,
   // UNCLASSIFIED_GAME shows records whose lesson_id didn't resolve to any
@@ -548,24 +582,6 @@ export default function ReportsPage() {
     const lesson = lessons.find(l => String(l.id) === stringLessonId);
     return lesson ? lesson.title : lessonId;
   };
-
-  // Extract unique course titles in the order they appear in records
-  const getOrderedCourseTitles = () => {
-    const uniqueLessonIds = filteredRecords
-      .filter((record, index, self) =>
-        index === self.findIndex(r => r.lesson_id === record.lesson_id)
-      )
-      .map(record => record.lesson_id);
-
-    return uniqueLessonIds.map(id => {
-      const stringId = String(id);
-      const lesson = lessons.find(l => String(l.id) === stringId);
-      return lesson ? lesson.title : String(id);
-    });
-  };
-
-  // Get ordered course titles once
-  const orderedCourseTitles = getOrderedCourseTitles();
 
   // Full-page loader only before the selectors have anything to show; after
   // that, student switches load inline so the scope bar stays usable.
@@ -854,9 +870,10 @@ export default function ReportsPage() {
             // they can still generate an analysis, it just isn't kept.
             studentId={selectedStudentEntry?.guest ? null : selectedStudent}
             scopeLabel={reportScopeLabel}
+            conversation={chatDigest}
           />
 
-          {/* Data Visualization Tabs. flex-wrap lets all 4 labels stay
+          {/* Data Visualization Tabs. flex-wrap lets all 5 labels stay
               visible and one tap away at any width, in both languages
               (verified down to a 320px viewport) - no off-screen content
               to hint at, so no separate mobile Select is needed. */}
@@ -866,6 +883,9 @@ export default function ReportsPage() {
               <TabsTrigger value="completion">{t('completion_rates')}</TabsTrigger>
               <TabsTrigger value="timeline">{t('learning_timeline')}</TabsTrigger>
               <TabsTrigger value="ai-interactions">{t('ai_interaction_distribution')}</TabsTrigger>
+              <TabsTrigger value="conversations">
+                {language === 'zh-TW' ? 'AI 對話內容' : 'AI conversations'}
+              </TabsTrigger>
             </TabsList>
 
             <TabsContent value="time-spent" className="mt-0">
@@ -876,12 +896,8 @@ export default function ReportsPage() {
                     {t('time_spent_analysis')}
                   </CardDescription>
                 </CardHeader>
-                <CardContent className="h-96">
-                  <TimeSpentChart
-                    records={filteredRecords}
-                    lessons={lessons}
-                    courseOrder={orderedCourseTitles}
-                  />
+                <CardContent>
+                  <TimeSpentChart records={filteredRecords} titleOf={titleOf} />
                 </CardContent>
               </Card>
             </TabsContent>
@@ -894,8 +910,8 @@ export default function ReportsPage() {
                     {t('completion_vs_progress')}
                   </CardDescription>
                 </CardHeader>
-                <CardContent className="h-96">
-                  <CompletionRateChart stats={learningStats} />
+                <CardContent>
+                  <CompletionRateChart records={filteredRecords} titleOf={titleOf} />
                 </CardContent>
               </Card>
             </TabsContent>
@@ -908,12 +924,8 @@ export default function ReportsPage() {
                     {t('chronological_view')}
                   </CardDescription>
                 </CardHeader>
-                <CardContent className="h-96">
-                  <LearningTimeline
-                    records={filteredRecords}
-                    lessons={lessons}
-                    courseOrder={orderedCourseTitles}
-                  />
+                <CardContent>
+                  <LearningTimeline records={filteredRecords} titleOf={titleOf} />
                 </CardContent>
               </Card>
             </TabsContent>
@@ -926,11 +938,29 @@ export default function ReportsPage() {
                     {t('ai_interaction_by_lesson')}
                   </CardDescription>
                 </CardHeader>
-                <CardContent className="h-96">
-                  <AIInteractionChart
-                    records={filteredQuestionCounts}
-                    lessons={lessons}
-                    courseOrder={orderedCourseTitles}
+                <CardContent>
+                  <AIInteractionChart records={filteredQuestionCounts} titleOf={titleOf} />
+                </CardContent>
+              </Card>
+            </TabsContent>
+
+            <TabsContent value="conversations" className="mt-0">
+              <Card className="shadow-none">
+                <CardHeader>
+                  <CardTitle>{language === 'zh-TW' ? '學生與 AI 助教的對話' : 'Student conversations with the AI tutor'}</CardTitle>
+                  <CardDescription>
+                    {language === 'zh-TW'
+                      ? '看學生實際問了什麼、在哪些觀念卡關，以及 AI 助教如何回應'
+                      : 'What the student actually asked, where they got stuck, and how the AI tutor replied'}
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <ChatInsights
+                    key={selectedStudent ?? 'none'}
+                    sessions={chatSessions}
+                    chinese={language === 'zh-TW'}
+                    loadFailed={chatError}
+                    onRetry={() => setReloadKey(k => k + 1)}
                   />
                 </CardContent>
               </Card>

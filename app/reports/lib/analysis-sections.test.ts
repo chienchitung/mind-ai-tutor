@@ -52,6 +52,13 @@ describe('parseAnalysisReport', () => {
   });
 });
 
+describe('conversation headings in free-form reports', () => {
+  it('maps "AI 對話洞察" to the conversation section rather than behavior observations', () => {
+    const report = parseAnalysisReport('## AI 對話洞察\n常問公式寫法。\n\n## Learning behavior observations\n晚上學習。', 'zh-TW');
+    expect(report.sections.map(s => s.kind)).toEqual(['conversation', 'patterns']);
+  });
+});
+
 describe('structuredReportToMarkdown', () => {
   it('renders sections in canonical order with our own titles, round-tripping through the parser', () => {
     const markdown = structuredReportToMarkdown(JSON.stringify({
@@ -65,6 +72,23 @@ describe('structuredReportToMarkdown', () => {
     const report = parseAnalysisReport(markdown, 'zh-TW');
     expect(report.sections.map(s => s.kind)).toEqual(['summary', 'recommendations']);
     expect(report.preamble).toBe('');
+  });
+
+  it('places the conversation section between behavior observations and strengths', () => {
+    const markdown = structuredReportToMarkdown(JSON.stringify({
+      sections: [
+        { kind: 'strengths', content: '能主動提問。' },
+        { kind: 'conversation', content: '多次詢問 SUM 的範圍寫法，例如「SUM 函數怎麼用？」。' },
+        { kind: 'patterns', content: '集中在晚上學習。' },
+      ],
+    }), 'zh-TW');
+
+    const report = parseAnalysisReport(markdown, 'zh-TW');
+    expect(report.sections.map(s => [s.kind, s.title])).toEqual([
+      ['patterns', '學習行為觀察'],
+      ['conversation', 'AI 對話洞察'],
+      ['strengths', '學習優勢'],
+    ]);
   });
 
   it('drops heading lines the model put inside a body so they cannot split sections', () => {
