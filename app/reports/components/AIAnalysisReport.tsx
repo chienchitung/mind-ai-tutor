@@ -8,7 +8,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { Button } from '@/components/ui/button';
 import {
   Sparkles, Loader2, ChevronDown, Clock, Star, Target, Lightbulb,
-  BarChart2, BookOpen, Award, ListTree, RefreshCw, MessageSquareText,
+  BarChart2, BookOpen, ListTree, RefreshCw, MessageSquareText, AlertCircle,
 } from 'lucide-react';
 import { useLanguage } from '@/app/contexts/LanguageContext';
 import { useTranslation } from '@/lib/translations';
@@ -30,10 +30,10 @@ interface AIAnalysisReportProps {
   conversation?: ConversationDigest | null;
 }
 
-const OPEN_BY_DEFAULT = new Set<AnalysisSectionKind>(['summary', 'conversation', 'improvements', 'recommendations']);
+// Tightens MarkdownRenderer's document-style spacing for report panels.
+const MARKDOWN_TIGHT = '[&_.markdown-content>p]:mb-2.5 [&_.markdown-content>p:last-child]:mb-0 [&_.markdown-content>ul]:mb-0 [&_.markdown-content>ol]:mb-0 [&_.markdown-content_li]:mb-1';
 
-function iconForSection(kind: AnalysisSectionKind) {
-  const className = 'h-5 w-5';
+function iconForSection(kind: AnalysisSectionKind, className = 'h-4 w-4') {
   switch (kind) {
     case 'summary': return <BookOpen className={className} aria-hidden="true" />;
     case 'time': return <Clock className={className} aria-hidden="true" />;
@@ -41,7 +41,7 @@ function iconForSection(kind: AnalysisSectionKind) {
     case 'patterns': return <BarChart2 className={className} aria-hidden="true" />;
     case 'conversation': return <MessageSquareText className={className} aria-hidden="true" />;
     case 'strengths': return <Star className={className} aria-hidden="true" />;
-    case 'improvements': return <Target className={className} aria-hidden="true" />;
+    case 'improvements': return <AlertCircle className={className} aria-hidden="true" />;
     case 'recommendations': return <Lightbulb className={className} aria-hidden="true" />;
     default: return <ListTree className={className} aria-hidden="true" />;
   }
@@ -57,50 +57,62 @@ function sectionPreview(content: string) {
   return plainText.length > 72 ? `${plainText.slice(0, 72)}…` : plainText;
 }
 
-function AnalysisSectionCard({
+// The few sections a teacher acts on are always open, as plain panels; the
+// colour of the small icon says what kind of panel it is (attention vs.
+// action), the text itself stays full-contrast ink.
+const PANEL_ICON_TONE: Partial<Record<AnalysisSectionKind, string>> = {
+  improvements: 'text-amber-600',
+  recommendations: 'text-[var(--chart-1)]',
+  conversation: 'text-foreground/60',
+};
+
+function KeyPanel({ section }: { section: AnalysisSection }) {
+  return (
+    <section className="rounded-xl bg-muted/60 p-4 sm:p-5" aria-labelledby={`analysis-${section.id}`}>
+      <h4 id={`analysis-${section.id}`} className="flex items-center gap-2 text-sm font-semibold text-foreground">
+        <span className={PANEL_ICON_TONE[section.kind] ?? 'text-foreground/60'}>{iconForSection(section.kind)}</span>
+        {section.title}
+      </h4>
+      <div className={`mt-2 text-sm leading-7 text-foreground ${MARKDOWN_TIGHT}`}>
+        <MarkdownRenderer content={section.content} />
+      </div>
+    </section>
+  );
+}
+
+function EvidenceRow({
   section,
   expanded,
   onToggle,
-  evidenceLabel,
-  actionLabel,
 }: {
   section: AnalysisSection;
   expanded: boolean;
   onToggle: () => void;
-  evidenceLabel: string;
-  actionLabel: string;
 }) {
-  const actionSection = section.kind === 'recommendations' || section.kind === 'improvements';
-
   return (
-    <section className={`overflow-hidden rounded-xl border transition-colors ${actionSection ? 'border-amber-200/80 bg-amber-50/30' : 'bg-card'}`}>
+    <div>
       <button
         type="button"
         onClick={onToggle}
         aria-expanded={expanded}
         aria-controls={`analysis-section-${section.id}`}
-        className="flex w-full items-center gap-3 px-4 py-3.5 text-left hover:bg-muted/35 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset sm:px-5"
+        className="flex w-full items-center gap-3 px-4 py-3 text-left hover:bg-muted/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring"
       >
-        <span className={`rounded-lg p-2 ${actionSection ? 'bg-amber-100 text-amber-800' : 'bg-muted text-foreground/75'}`}>
-          {iconForSection(section.kind)}
+        <span className="text-muted-foreground">{iconForSection(section.kind)}</span>
+        <span className="min-w-0 flex-1 sm:flex sm:items-baseline sm:gap-4">
+          <span className="block shrink-0 text-sm font-medium text-foreground sm:w-32">{section.title}</span>
+          {!expanded && (
+            <span className="block truncate text-xs text-muted-foreground sm:text-sm">{sectionPreview(section.content)}</span>
+          )}
         </span>
-        <span className="min-w-0 flex-1">
-          <span className="block text-sm font-semibold text-foreground sm:text-base">{section.title}</span>
-          <span className={`mt-0.5 block text-xs ${expanded ? 'text-muted-foreground' : 'truncate text-foreground/60'}`}>
-            {expanded ? (actionSection ? actionLabel : evidenceLabel) : sectionPreview(section.content)}
-          </span>
-        </span>
-        <ChevronDown className={`h-5 w-5 shrink-0 text-muted-foreground transition-transform ${expanded ? 'rotate-180' : ''}`} aria-hidden="true" />
+        <ChevronDown className={`h-4 w-4 shrink-0 text-muted-foreground transition-transform ${expanded ? 'rotate-180' : ''}`} aria-hidden="true" />
       </button>
-
       {expanded && (
-        <div id={`analysis-section-${section.id}`} className="border-t bg-background/75 px-4 py-4 text-sm leading-7 text-foreground/80 sm:px-5">
-          <div className="[&_.markdown-content>p]:mb-3 [&_.markdown-content>p:last-child]:mb-0 [&_.markdown-content>ul]:mb-0 [&_.markdown-content>ol]:mb-0 [&_.markdown-content_li]:mb-1.5">
-            <MarkdownRenderer content={section.content} />
-          </div>
+        <div id={`analysis-section-${section.id}`} className={`px-4 pb-4 text-sm leading-7 text-foreground sm:pl-11 ${MARKDOWN_TIGHT}`}>
+          <MarkdownRenderer content={section.content} />
         </div>
       )}
-    </section>
+    </div>
   );
 }
 
@@ -116,11 +128,9 @@ export function AIAnalysisReport({ learningRecords, learningStats, selectedStude
   const { t } = useTranslation(language);
 
   const showReport = (analysis: string) => {
-    const report = parseAnalysisReport(analysis, language);
     setAnalysisResult(analysis);
-    setExpandedSections(Object.fromEntries(
-      report.sections.map(section => [section.id, OPEN_BY_DEFAULT.has(section.kind)]),
-    ));
+    // Supporting sections start collapsed for every new report.
+    setExpandedSections({});
   };
 
   // Open the most recent saved report automatically: revisiting a student
@@ -169,18 +179,14 @@ export function AIAnalysisReport({ learningRecords, learningStats, selectedStude
   });
 
   const labels = language === 'zh-TW' ? {
-    brief: '教師重點摘要', records: `${learningRecords.length} 筆學習紀錄`, evidence: '數據解讀',
-    action: '建議行動', keyTakeaways: '核心結論與教學行動', evidenceGroup: '分析依據',
-    evidenceHint: '需要追查原因時再展開，避免核心建議被大量細節淹沒。',
-    viewEvidence: (count: number) => `查看 ${count} 項分析依據`, collapseEvidence: '收合分析依據', regenerate: '重新分析',
+    records: `${learningRecords.length} 筆學習紀錄`, evidenceGroup: '分析依據',
+    evidenceHint: '需要追查原因時再展開。', expandAll: '全部展開', collapseAll: '全部收合', regenerate: '重新分析',
     disclaimer: 'AI 分析提供教學參考，請搭配原始學習紀錄與課堂觀察判讀。',
     generatedAt: (time: string) => `產生於 ${time}`, history: '歷史報告', latest: '最新',
     viewingOlder: '你正在查看較早的報告，內容反映的是當時的學習紀錄。',
   } : {
-    brief: 'Teacher brief', records: `${learningRecords.length} learning records`, evidence: 'Evidence and interpretation',
-    action: 'Suggested action', keyTakeaways: 'Key takeaways and teaching actions', evidenceGroup: 'Supporting analysis',
-    evidenceHint: 'Open supporting evidence only when you need to investigate the cause.',
-    viewEvidence: (count: number) => `View ${count} supporting analyses`, collapseEvidence: 'Collapse supporting analysis', regenerate: 'Run analysis again',
+    records: `${learningRecords.length} learning records`, evidenceGroup: 'Supporting analysis',
+    evidenceHint: 'Open these when you need to investigate the cause.', expandAll: 'Expand all', collapseAll: 'Collapse all', regenerate: 'Run analysis again',
     disclaimer: 'AI analysis is a teaching aid. Review it alongside source records and classroom observations.',
     generatedAt: (time: string) => `Generated ${time}`, history: 'Report history', latest: 'latest',
     viewingOlder: "You're viewing an earlier report. It reflects the learning records at that time.",
@@ -191,22 +197,25 @@ export function AIAnalysisReport({ learningRecords, learningStats, selectedStude
     [analysisResult, language],
   );
 
-  const prioritySections = useMemo(() => {
-    const rank: Partial<Record<AnalysisSectionKind, number>> = {
-      summary: 0,
-      conversation: 1,
-      improvements: 2,
-      recommendations: 3,
+  // Reading order for a teacher: the summary, then what needs attention and
+  // what to do next, then what the student asked the AI tutor. Everything
+  // else is supporting evidence, collapsed until needed.
+  const layout = useMemo(() => {
+    const sections = parsedReport.sections;
+    const first = (kind: AnalysisSectionKind) => sections.find(section => section.kind === kind) ?? null;
+    const summary = first('summary');
+    const improvements = first('improvements');
+    const recommendations = first('recommendations');
+    const conversationSection = first('conversation');
+    const featured = new Set([summary, improvements, recommendations, conversationSection].filter(Boolean));
+    return {
+      summary,
+      improvements,
+      recommendations,
+      conversation: conversationSection,
+      evidence: sections.filter(section => !featured.has(section)),
     };
-    return parsedReport.sections
-      .filter(section => section.kind in rank)
-      .toSorted((a, b) => (rank[a.kind] ?? 99) - (rank[b.kind] ?? 99));
   }, [parsedReport.sections]);
-
-  const evidenceSections = useMemo(
-    () => parsedReport.sections.filter(section => !prioritySections.some(priority => priority.id === section.id)),
-    [parsedReport.sections, prioritySections],
-  );
 
   const generateAnalysis = async () => {
     if (!learningRecords.length || !learningStats) return;
@@ -258,47 +267,79 @@ export function AIAnalysisReport({ learningRecords, learningStats, selectedStude
     setExpandedSections(previous => ({ ...previous, [sectionId]: !previous[sectionId] }));
   };
 
-  const setEvidenceSections = (expanded: boolean) => {
-    setExpandedSections(previous => ({
-      ...previous,
-      ...Object.fromEntries(evidenceSections.map(section => [section.id, expanded])),
-    }));
+  const allEvidenceExpanded = layout.evidence.length > 0
+    && layout.evidence.every(section => expandedSections[section.id]);
+
+  const setAllEvidence = (expanded: boolean) => {
+    setExpandedSections(Object.fromEntries(layout.evidence.map(section => [section.id, expanded])));
   };
 
-  const allEvidenceExpanded = evidenceSections.length > 0
-    && evidenceSections.every(section => expandedSections[section.id]);
+  const reportMeta = activeReport
+    ? [selectedStudentName, labels.generatedAt(formatReportTime(activeReport.created_at)), activeReport.scope_label]
+    : [selectedStudentName, labels.records];
+  const metaLine = reportMeta.filter(Boolean).join(' · ');
+
+  const printOrder = [layout.summary, layout.improvements, layout.recommendations, layout.conversation, ...layout.evidence]
+    .filter((section): section is AnalysisSection => Boolean(section));
 
   return (
     <Card className={`mt-6 overflow-hidden shadow-none print:mt-4 print:break-inside-auto ${analysisResult ? '' : 'print:hidden'}`}>
-      <CardHeader className="border-b bg-muted/20 p-5 sm:p-6">
-        <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-          <div className="flex min-w-0 items-start gap-3">
-            <div className="rounded-xl border bg-background p-2.5 text-primary shadow-sm">
+      <CardHeader className="border-b p-5 sm:p-6">
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex min-w-0 items-center gap-3">
+            <div className="rounded-xl border bg-background p-2.5 text-primary">
               <Sparkles className="h-5 w-5" aria-hidden="true" />
             </div>
             <div className="min-w-0">
               <CardTitle className="text-lg sm:text-xl">{t('ai_learning_analysis')}</CardTitle>
-              <CardDescription className="mt-1 leading-5">{t('ai_powered_insights')}</CardDescription>
+              <CardDescription className="mt-1 leading-5 sm:truncate">
+                {analysisResult ? metaLine : t('ai_powered_insights')}
+              </CardDescription>
             </div>
           </div>
 
-          <div className="print:hidden">
-          {!analysisResult ? (
-            <Button onClick={generateAnalysis} disabled={!learningRecords.length || isLoading} size="sm" className="w-full gap-2 sm:w-auto">
-              {isLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
-              {isLoading ? t('processing') : t('generate_analysis')}
-            </Button>
-          ) : (
-            <Button variant="outline" size="sm" onClick={generateAnalysis} disabled={isLoading} className="w-full gap-2 sm:w-auto">
-              {isLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
-              {labels.regenerate}
-            </Button>
-          )}
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-center print:hidden">
+            {analysisResult && history.length > 1 && (
+              <Select
+                value={activeReportId ?? undefined}
+                onValueChange={(id) => {
+                  const report = history.find(item => item.id === id);
+                  if (!report) return;
+                  setActiveReportId(id);
+                  showReport(report.analysis);
+                }}
+              >
+                <SelectTrigger className="w-full sm:w-[210px]" aria-label={labels.history}>
+                  <SelectValue placeholder={labels.history} />
+                </SelectTrigger>
+                <SelectContent>
+                  {history.map((report, index) => (
+                    <SelectItem key={report.id} value={report.id}>
+                      {formatReportTime(report.created_at)}{index === 0 ? ` (${labels.latest})` : ''}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            )}
+            {!analysisResult ? (
+              <Button onClick={generateAnalysis} disabled={!learningRecords.length || isLoading} size="sm" className="w-full gap-2 sm:w-auto">
+                {isLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
+                {isLoading ? t('processing') : t('generate_analysis')}
+              </Button>
+            ) : (
+              <Button variant="outline" size="sm" onClick={generateAnalysis} disabled={isLoading} className="w-full gap-2 sm:w-auto">
+                {isLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
+                {labels.regenerate}
+              </Button>
+            )}
           </div>
         </div>
       </CardHeader>
 
-      <CardContent className="p-4 sm:p-6">
+      {/* md:p-6 restates the top padding: CardContent defaults to md:pt-0
+          for cards whose header flows straight into the content, but this
+          header has its own border. */}
+      <CardContent className="p-5 sm:p-6 md:p-6">
         {analysisError && (
           <div role="alert" className="mb-4 rounded-xl border border-destructive/25 bg-destructive/5 p-4 text-sm text-destructive">
             {analysisError}
@@ -311,99 +352,63 @@ export function AIAnalysisReport({ learningRecords, learningStats, selectedStude
             <p className="text-sm text-muted-foreground">{t('processing')}</p>
           </div>
         ) : analysisResult ? (
-          <div className="space-y-4 print:hidden">
-            <div className="flex flex-col gap-3 rounded-xl border bg-muted/25 p-4 sm:flex-row sm:items-center">
-              <div className="mr-auto flex min-w-0 items-center gap-3">
-                <div className="rounded-lg bg-background p-2 text-primary ring-1 ring-border">
-                  <Award className="h-5 w-5" aria-hidden="true" />
-                </div>
-                <div className="min-w-0">
-                  <p className="text-sm font-semibold">{labels.brief}</p>
-                  <p className="truncate text-xs text-muted-foreground">
-                    {activeReport
-                      ? `${selectedStudentName} · ${labels.generatedAt(formatReportTime(activeReport.created_at))}${activeReport.scope_label ? ` · ${activeReport.scope_label}` : ''}`
-                      : `${selectedStudentName} · ${labels.records}`}
-                  </p>
-                </div>
-              </div>
-              {history.length > 1 && (
-                <Select
-                  value={activeReportId ?? undefined}
-                  onValueChange={(id) => {
-                    const report = history.find(item => item.id === id);
-                    if (!report) return;
-                    setActiveReportId(id);
-                    showReport(report.analysis);
-                  }}
-                >
-                  <SelectTrigger className="w-full sm:w-[230px]" aria-label={labels.history}>
-                    <SelectValue placeholder={labels.history} />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {history.map((report, index) => (
-                      <SelectItem key={report.id} value={report.id}>
-                        {formatReportTime(report.created_at)}{index === 0 ? ` (${labels.latest})` : ''}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              )}
-            </div>
+          <div className="space-y-6 print:hidden">
             {activeReport && activeReport.id !== history[0]?.id && (
               <p className="rounded-lg border border-amber-200 bg-amber-50/60 px-3 py-2 text-xs text-amber-900">
                 {labels.viewingOlder}
               </p>
             )}
 
-            {parsedReport.preamble && (
-              <p className="rounded-xl border-l-4 border-primary/50 bg-primary/[0.04] px-4 py-3 text-sm leading-6 text-foreground/80">
-                {parsedReport.preamble}
-              </p>
+            {(layout.summary || parsedReport.preamble) && (
+              <section aria-labelledby="analysis-lead">
+                <h4 id="analysis-lead" className="app-kicker">
+                  {layout.summary?.title ?? (language === 'zh-TW' ? '摘要' : 'Summary')}
+                </h4>
+                {parsedReport.preamble && (
+                  <p className="mt-2 text-sm leading-6 text-muted-foreground">{parsedReport.preamble}</p>
+                )}
+                {layout.summary && (
+                  <div className={`mt-2 text-[15px] leading-7 text-foreground ${MARKDOWN_TIGHT}`}>
+                    <MarkdownRenderer content={layout.summary.content} />
+                  </div>
+                )}
+              </section>
             )}
 
-            {prioritySections.length > 0 && (
-              <div className="space-y-3">
-                <p className="app-kicker px-1">{labels.keyTakeaways}</p>
-                {prioritySections.map(section => (
-                  <AnalysisSectionCard
-                    key={section.id}
-                    section={section}
-                    expanded={Boolean(expandedSections[section.id])}
-                    onToggle={() => toggleSection(section.id)}
-                    evidenceLabel={labels.evidence}
-                    actionLabel={labels.action}
-                  />
-                ))}
+            {(layout.improvements || layout.recommendations) && (
+              <div className={`grid gap-3 ${layout.improvements && layout.recommendations ? 'md:grid-cols-2' : ''}`}>
+                {layout.improvements && <KeyPanel section={layout.improvements} />}
+                {layout.recommendations && <KeyPanel section={layout.recommendations} />}
               </div>
             )}
 
-            {evidenceSections.length > 0 && (
-              <div className="space-y-3 border-t pt-5">
-                <div className="flex flex-col gap-3 px-1 sm:flex-row sm:items-center">
-                  <div className="mr-auto">
-                    <p className="text-sm font-semibold">{labels.evidenceGroup}</p>
-                    <p className="mt-1 max-w-2xl text-xs leading-5 text-muted-foreground">{labels.evidenceHint}</p>
+            {layout.conversation && <KeyPanel section={layout.conversation} />}
+
+            {layout.evidence.length > 0 && (
+              <section aria-labelledby="analysis-evidence">
+                <div className="mb-2 flex items-end justify-between gap-3">
+                  <div>
+                    <h4 id="analysis-evidence" className="text-sm font-semibold">{labels.evidenceGroup}</h4>
+                    <p className="mt-0.5 text-xs text-muted-foreground">{labels.evidenceHint}</p>
                   </div>
-                  <Button type="button" variant="outline" size="sm" onClick={() => setEvidenceSections(!allEvidenceExpanded)} className="w-full sm:w-auto">
-                    {allEvidenceExpanded ? labels.collapseEvidence : labels.viewEvidence(evidenceSections.length)}
+                  <Button type="button" variant="ghost" size="sm" onClick={() => setAllEvidence(!allEvidenceExpanded)}>
+                    {allEvidenceExpanded ? labels.collapseAll : labels.expandAll}
                   </Button>
                 </div>
-                <div className="grid gap-3">
-                  {evidenceSections.map(section => (
-                    <AnalysisSectionCard
+                <div className="divide-y rounded-xl border">
+                  {layout.evidence.map(section => (
+                    <EvidenceRow
                       key={section.id}
                       section={section}
                       expanded={Boolean(expandedSections[section.id])}
                       onToggle={() => toggleSection(section.id)}
-                      evidenceLabel={labels.evidence}
-                      actionLabel={labels.action}
                     />
                   ))}
                 </div>
-              </div>
+              </section>
             )}
 
-            <p className="pt-1 text-xs leading-5 text-muted-foreground">{labels.disclaimer}</p>
+            <p className="text-xs leading-5 text-muted-foreground">{labels.disclaimer}</p>
           </div>
         ) : (
           <div className="flex min-h-52 flex-col items-center justify-center px-4 py-8 text-center">
@@ -419,14 +424,9 @@ export function AIAnalysisReport({ learningRecords, learningStats, selectedStude
             in full instead of whatever happened to be open on screen. */}
         {analysisResult && isPrinting && (
           <div className="hidden space-y-4 print:block">
-            <p className="text-xs text-muted-foreground">
-              {selectedStudentName}
-              {activeReport
-                ? ` · ${labels.generatedAt(formatReportTime(activeReport.created_at))}${activeReport.scope_label ? ` · ${activeReport.scope_label}` : ''}`
-                : ''}
-            </p>
+            <p className="text-xs text-muted-foreground">{metaLine}</p>
             {parsedReport.preamble && <p className="text-sm leading-6">{parsedReport.preamble}</p>}
-            {[...prioritySections, ...evidenceSections].map(section => (
+            {printOrder.map(section => (
               <section key={section.id} className="break-inside-avoid border-t pt-3">
                 <h3 className="mb-1 text-sm font-semibold">{section.title}</h3>
                 <div className="text-sm leading-6 [&_.markdown-content>p]:mb-2 [&_.markdown-content>ul]:mb-0">

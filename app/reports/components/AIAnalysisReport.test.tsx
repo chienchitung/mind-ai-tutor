@@ -49,20 +49,20 @@ describe('AIAnalysisReport', () => {
 
     fireEvent.click(screen.getByRole('button', { name: '生成分析' }));
 
-    await screen.findByText('教師重點摘要');
+    // Actions are always-open panels, not accordions; the rest is evidence.
+    await screen.findByRole('heading', { name: '教師下一步建議' });
     expect(screen.queryByText(/\*\*/)).toBeNull();
-    expect(screen.getByText('學習行為觀察')).toBeTruthy();
-    expect(screen.getByText('教師下一步建議')).toBeTruthy();
-    expect(screen.getByRole('button', { name: '查看 1 項分析依據' })).toBeTruthy();
+    expect(screen.getByText('下一堂課先請學生口述解題步驟。')).toBeTruthy();
+    expect(screen.getByRole('button', { name: '全部展開' })).toBeTruthy();
 
-    const buttonLabels = screen.getAllByRole('button').map(button => button.textContent ?? '');
-    expect(buttonLabels.findIndex(label => label.includes('教師下一步建議')))
-      .toBeLessThan(buttonLabels.findIndex(label => label.includes('學習行為觀察')));
+    const recommendations = screen.getByRole('heading', { name: '教師下一步建議' });
+    const evidenceRow = screen.getByRole('button', { name: /學習行為觀察/ });
+    expect(recommendations.compareDocumentPosition(evidenceRow) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(evidenceRow.getAttribute('aria-expanded')).toBe('false');
 
-    await waitFor(() => {
-      expect(screen.getByRole('button', { name: /教師下一步建議/ }).getAttribute('aria-expanded')).toBe('true');
-      expect(screen.getByRole('button', { name: /學習行為觀察/ }).getAttribute('aria-expanded')).toBe('false');
-    });
+    fireEvent.click(screen.getByRole('button', { name: '全部展開' }));
+    expect(evidenceRow.getAttribute('aria-expanded')).toBe('true');
+    expect(screen.getByRole('button', { name: '全部收合' })).toBeTruthy();
   });
 
   it('sends the conversation digest and shows the AI conversation insights with the key takeaways', async () => {
@@ -90,15 +90,14 @@ describe('AIAnalysisReport', () => {
     );
 
     fireEvent.click(screen.getByRole('button', { name: '生成分析' }));
-    await screen.findByText('教師重點摘要');
+    await screen.findByText('整體學習摘要');
 
     expect(JSON.parse(fetchMock.mock.calls[0][1].body).conversation).toEqual(conversation);
-    await waitFor(() => {
-      expect(screen.getByRole('button', { name: /AI 對話洞察/ }).getAttribute('aria-expanded')).toBe('true');
-    });
-    const buttonLabels = screen.getAllByRole('button').map(button => button.textContent ?? '');
-    expect(buttonLabels.findIndex(label => label.includes('AI 對話洞察')))
-      .toBeLessThan(buttonLabels.findIndex(label => label.includes('學習行為觀察')));
+    // Shown open as its own panel, ahead of the collapsed evidence rows.
+    const insights = screen.getByRole('heading', { name: 'AI 對話洞察' });
+    expect(screen.getByText('多次詢問 SUM 的範圍。')).toBeTruthy();
+    const evidenceRow = screen.getByRole('button', { name: /學習行為觀察/ });
+    expect(insights.compareDocumentPosition(evidenceRow) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
   });
 
   it('opens the latest saved report without calling the AI, and switches between history entries', async () => {
@@ -162,7 +161,7 @@ describe('AIAnalysisReport', () => {
 
     await waitFor(() => expect(loadAnalysisHistory).toHaveBeenCalled());
     fireEvent.click(screen.getByRole('button', { name: '生成分析' }));
-    await screen.findByText('教師重點摘要');
+    await screen.findByText('整體學習摘要');
     expect(saveAnalysisReport).not.toHaveBeenCalled();
   });
 
