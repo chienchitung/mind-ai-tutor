@@ -6,7 +6,7 @@ import { useLanguage } from '@/app/contexts/LanguageContext';
 import { useTranslation } from '@/utils/translations';
 
 interface StudentSelectorProps {
-  students: { id: string; name: string }[];
+  students: { id: string; name: string; guest?: boolean }[];
   selectedStudent: string | null;
   onSelectStudent: (studentId: string) => void;
 }
@@ -37,6 +37,11 @@ export function StudentSelector({ students, selectedStudent, onSelectStudent }: 
           {students.map((student) => (
             <SelectItem key={student.id} value={student.id}>
               {student.name}
+              {student.guest && (
+                <span className="ml-1 text-xs text-muted-foreground">
+                  · {language === 'zh-TW' ? '訪客紀錄' : 'Guest record'}
+                </span>
+              )}
             </SelectItem>
           ))}
         </SelectContent>
