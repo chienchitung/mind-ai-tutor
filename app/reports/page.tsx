@@ -17,6 +17,7 @@ import { LearningTimeline } from './components/LearningTimeline';
 import { ExportButton } from './components/ExportButton';
 import { DateRangeSelector, dateRangeLabel } from './components/DateRangeSelector';
 import { filterByDateRange, type DateRange } from './lib/date-range';
+import { mergeReportStudents, type ReportStudent } from './lib/report-students';
 import { useLanguage } from '@/app/contexts/LanguageContext';
 import { useTranslation } from '@/utils/translations';
 import { AIAnalysisReport } from './components/AIAnalysisReport';
@@ -77,7 +78,7 @@ export default function ReportsPage() {
   const [selectedGame, setSelectedGame] = useState<string>(ALL_GAMES);
   const [dateRange, setDateRange] = useState<DateRange>('all');
   const [selectedClassroom, setSelectedClassroom] = useState<string>(ALL_CLASSROOMS);
-  const [students, setStudents] = useState<{ id: string; name: string }[]>([]);
+  const [students, setStudents] = useState<ReportStudent[]>([]);
   const [classrooms, setClassrooms] = useState<{ id: string; name: string; studyArm?: string | null; status?: 'active' | 'archived' }[]>([]);
   const [classMemberships, setClassMemberships] = useState<{ classroomId: string; studentId: string }[]>([]);
   const [games, setGames] = useState<{ id: string; title: string }[]>([]);
@@ -173,35 +174,39 @@ export default function ReportsPage() {
   useEffect(() => {
     const fetchStudents = async () => {
       try {
-        console.log('Fetching students from the teacher roster...');
-
         // 動態導入 supabase 函數
         const { supabase } = await import('../../lib/supabase');
         const supabaseClient = supabase();
 
         // Use the protected teacher roster for real display names. The public
         // game verifier only returns a masked name to account-free learners.
-        const { data, error } = await supabaseClient
-          .from('students')
-          .select('id, name')
-          .order('name');
+        // Older records written before roster login codes have no
+        // student_ref_id and no roster row - list those learners as guests.
+        const [rosterResult, unlinkedResult] = await Promise.all([
+          supabaseClient.from('students').select('id, name').order('name'),
+          (supabaseClient as any)
+            .from('learning_records_view')
+            .select('student_id, student_name')
+            .is('student_ref_id', null),
+        ]);
 
-        console.log('Supabase response:', { data, error });
-
-        if (error) {
-          console.error('Error fetching students:', error);
+        if (rosterResult.error) {
+          console.error('Error fetching students:', rosterResult.error);
           return;
         }
+        if (unlinkedResult.error) {
+          console.error('Error fetching guest learners:', unlinkedResult.error);
+        }
 
-        // Deduplicate students
-        const uniqueStudents = (data || []).map(item => ({ id: item.id, name: item.name }));
-
-        console.log('Unique students found:', uniqueStudents);
-        setStudents(uniqueStudents);
+        const reportStudents = mergeReportStudents(
+          rosterResult.data || [],
+          unlinkedResult.error ? [] : unlinkedResult.data || [],
+        );
+        setStudents(reportStudents);
 
         // Auto-select first student if available
-        if (uniqueStudents.length > 0 && !selectedStudent) {
-          setSelectedStudent(uniqueStudents[0].id);
+        if (reportStudents.length > 0 && !selectedStudent) {
+          setSelectedStudent(reportStudents[0].id);
         }
       } catch (error) {
         console.error('Error in fetchStudents:', error);
@@ -524,9 +529,8 @@ export default function ReportsPage() {
   };
 
   // Get the student name for display and export
-  const selectedStudentName = selectedStudent
-    ? students.find(s => s.id === selectedStudent)?.name || ''
-    : '';
+  const selectedStudentEntry = students.find(s => s.id === selectedStudent);
+  const selectedStudentName = selectedStudentEntry?.name || '';
 
   const reportScopeLabel = [
     selectedGame === ALL_GAMES
@@ -846,7 +850,9 @@ export default function ReportsPage() {
             learningRecords={analysisRecords}
             learningStats={learningStats}
             selectedStudentName={selectedStudentName}
-            studentId={selectedStudent}
+            // Saved reports reference a roster row, which guests don't have:
+            // they can still generate an analysis, it just isn't kept.
+            studentId={selectedStudentEntry?.guest ? null : selectedStudent}
             scopeLabel={reportScopeLabel}
           />
 

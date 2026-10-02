@@ -141,7 +141,6 @@ export function AIAnalysisReport({ learningRecords, learningStats, selectedStude
     });
     return () => { cancelled = true; };
     // showReport only depends on language, which re-parses via useMemo anyway.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [studentId]);
 
   // Mount the fully expanded print copy only while printing, so the normal
