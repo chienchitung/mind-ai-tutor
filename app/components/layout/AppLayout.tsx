@@ -190,7 +190,11 @@ export function AppLayout({ children }: AppLayoutProps) {
         }}
         className="h-full min-w-0 print:!ml-0 print:!w-full print:h-auto"
       >
-        <div ref={contentScrollRef} className="h-full overflow-auto print:h-auto print:overflow-visible">
+        {/* scrollbar-gutter keeps the scrollbar's space reserved: with classic
+            (non-overlay) scrollbars, e.g. on Windows, a page switching between
+            shorter and taller than the window - a loader replaced by content -
+            otherwise changed the content width by ~15px and shifted it. */}
+        <div ref={contentScrollRef} className="h-full overflow-auto [scrollbar-gutter:stable] print:h-auto print:overflow-visible">
           <div className="contents print:hidden">
             <AppTopbar onOpenMenu={() => setIsMenuOpen(true)} user={user} />
           </div>
