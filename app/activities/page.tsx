@@ -58,6 +58,19 @@ function ActivitiesPageContent() {
   const [error, setError] = useState<string | null>(null);
   const { toast } = useToast();
 
+  // Events without a description used to all read "upcoming event
+  // reminder", including ones that had already happened.
+  const eventDateLabel = (startDate?: string | null) => {
+    if (!startDate) return t('upcoming_event_reminder');
+    const day = startDate.slice(0, 10);
+    const today = new Date();
+    const todayKey = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
+    const [, month, date] = day.split('-').map(Number);
+    if (day === todayKey) return language === 'zh-TW' ? '活動就在今天' : 'Event is today';
+    if (day > todayKey) return language === 'zh-TW' ? `即將到來的活動 · ${month}/${date}` : `Upcoming event · ${month}/${date}`;
+    return language === 'zh-TW' ? `已結束的活動 · ${month}/${date}` : `Past event · ${month}/${date}`;
+  };
+
   // Fetch activities from Supabase
   useEffect(() => {
     // Pushes the selected range into each query's WHERE clause instead of
@@ -130,7 +143,7 @@ function ActivitiesPageContent() {
         try {
           let eventsQuery = supabaseWithTypes
             .from('events')
-            .select('id, title, description, created_at, type')
+            .select('id, title, description, created_at, type, start_date')
             .order('created_at', { ascending: false })
             .limit(20);
           if (bounds) {
@@ -146,7 +159,7 @@ function ActivitiesPageContent() {
             const eventActivities = eventsData.map((event: any) => ({
               id: `event-${event.id}`,
               title: event.title,
-              description: event.description || t('upcoming_event_reminder'),
+              description: event.description || eventDateLabel(event.start_date),
               type: 'reminder' as const,
               timestamp: event.created_at,
               source: 'events' as const,
