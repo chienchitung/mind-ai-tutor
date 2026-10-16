@@ -266,8 +266,10 @@ export default function DigitalGamesPage() {
     if (editingGame) {
       form.reset({
         title: editingGame.title,
-        description: editingGame.description,
-        url: editingGame.url,
+        // Nullable columns: a null would make these controlled inputs
+        // uncontrolled (React warning) and break dirty tracking.
+        description: editingGame.description ?? "",
+        url: editingGame.url ?? "",
         thumbnailUrl: editingGame.thumbnail_url || "",
         lessonIds: editingGame.lesson_ids || [],
       });

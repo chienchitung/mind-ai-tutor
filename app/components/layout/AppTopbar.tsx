@@ -21,6 +21,8 @@ export function AppTopbar({ onOpenMenu, user }: AppTopbarProps) {
 
   const section = pathname.startsWith('/students')
     ? t('students')
+    : pathname.startsWith('/classrooms')
+      ? (language === 'zh-TW' ? '班級管理' : 'Classes')
     : pathname.startsWith('/lessons')
       ? t('lessons')
       : pathname.startsWith('/digital-games')
