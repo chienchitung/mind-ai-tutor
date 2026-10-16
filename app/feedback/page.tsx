@@ -22,7 +22,7 @@ interface FeedbackItem {
   id: string;
   student: {
     name: string;
-    avatar: string;
+    avatar?: string;
     initials: string;
   };
   course: string;
@@ -103,7 +103,7 @@ const FeedbackPage = () => {
             id: itemAny.id,
             student: {
               name: itemAny.student_name || `Student ${itemAny.id}`,
-              avatar: '/avatars/default.png',
+              avatar: undefined,
               initials: itemAny.student_initials || (itemAny.student_name ? itemAny.student_name.charAt(0) : 'S')
             },
             course: itemAny.course || 'Course',

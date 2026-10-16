@@ -58,6 +58,7 @@ describe('authenticated-only pages redirect anonymous visitors to login', () => 
 
   it.each([
     '/students',
+    '/classrooms',
     '/lessons',
     '/digital-games',
     '/ai-quiz',

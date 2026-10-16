@@ -1,6 +1,5 @@
 'use client';
 
-import { Toaster } from '@/components/ui/toaster';
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 
@@ -48,7 +47,6 @@ export default function SignUpLayout({ children }: SignUpLayoutProps) {
   return (
     <div className="min-h-screen bg-muted/30">
       {children}
-      <Toaster />
     </div>
   );
 }

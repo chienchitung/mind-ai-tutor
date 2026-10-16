@@ -133,11 +133,18 @@ export default function SettingsPage() {
         data: {
           first_name: firstName,
           last_name: lastName,
-          full_name: `${firstName} ${lastName}`
+          full_name: `${firstName} ${lastName}`.trim()
         }
       });
 
       if (error) throw error;
+
+      // Keep the profiles row (shown on /profile) in step with the auth name.
+      const { error: profileError } = await supabaseClient
+        .from('profiles')
+        .update({ full_name: `${firstName} ${lastName}`.trim() })
+        .eq('user_id', user.id);
+      if (profileError) throw profileError;
 
       // 更新本地狀態以立即顯示變更
       setUser({
@@ -146,7 +153,7 @@ export default function SettingsPage() {
           ...user.user_metadata,
           first_name: firstName,
           last_name: lastName,
-          full_name: `${firstName} ${lastName}`
+          full_name: `${firstName} ${lastName}`.trim()
         }
       });
 

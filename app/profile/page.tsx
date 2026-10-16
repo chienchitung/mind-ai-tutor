@@ -89,6 +89,13 @@ export default function ProfilePage() {
         throw error;
       }
 
+      // The account menu and settings read the name from the auth user's
+      // metadata, so keep it in step - otherwise the new name never shows.
+      const { error: authError } = await supabaseClient.auth.updateUser({
+        data: { full_name: profile.full_name ?? '' },
+      });
+      if (authError) throw authError;
+
       toast({
         title: t('success'),
         description: t('profile_update_success'),

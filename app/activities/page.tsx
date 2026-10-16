@@ -28,6 +28,21 @@ import {
   X
 } from "lucide-react";
 
+// Read state has no column to live in, so it's remembered per browser;
+// without this, "mark all as read" was undone by the next page load.
+const READ_KEY = 'activities-read-ids';
+function loadReadIds(): Set<string> {
+  try { return new Set(JSON.parse(window.localStorage.getItem(READ_KEY) || '[]')); } catch { return new Set(); }
+}
+function rememberRead(ids: string[]) {
+  try {
+    const next = Array.from(new Set(Array.from(loadReadIds()).concat(ids))).slice(-500);
+    window.localStorage.setItem(READ_KEY, JSON.stringify(next));
+  } catch {
+    // Best-effort: storage can be unavailable (private mode).
+  }
+}
+
 function ActivitiesPageContent() {
   const { language } = useLanguage();
   const { t } = useTranslation(language);
@@ -194,7 +209,8 @@ function ActivitiesPageContent() {
         } else {
           // Sort all activities by timestamp
           allActivities.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
-          setActivities(allActivities);
+          const readIds = loadReadIds();
+          setActivities(allActivities.map(activity => (readIds.has(activity.id) ? { ...activity, read: true } : activity)));
           console.log(`Loaded ${allActivities.length} activities successfully`);
         }
       } catch (err) {
@@ -245,7 +261,7 @@ function ActivitiesPageContent() {
   };
 
   const handleMarkAllAsRead = () => {
-    // In a real app, we would update the read status in the database
+    rememberRead(activities.map(activity => activity.id));
     setActivities(activities.map(activity => ({ ...activity, read: true })));
     toast({
       title: t('all_activities_marked_read'),
@@ -256,6 +272,7 @@ function ActivitiesPageContent() {
 
   const handleActivityClick = (activity: Activity) => {
     // Mark as read
+    rememberRead([activity.id]);
     setActivities(activities.map(a =>
       a.id === activity.id ? { ...a, read: true } : a
     ));

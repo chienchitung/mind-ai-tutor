@@ -67,6 +67,25 @@ export function AppLayout({ children }: AppLayoutProps) {
     };
 
     loadUser();
+
+    // Renaming yourself in Settings or Profile updates the auth user; pick
+    // that up so the account menu shows the new name without a reload.
+    let unsubscribe: (() => void) | undefined;
+    let disposed = false;
+    void import('@/lib/supabase').then(({ supabase }) => {
+      if (disposed) return;
+      const { data } = supabase().auth.onAuthStateChange((event, session) => {
+        if (event === 'USER_UPDATED' && session?.user) {
+          setUser(session.user);
+          cachedUser = session.user;
+        }
+      });
+      unsubscribe = () => data.subscription.unsubscribe();
+    });
+    return () => {
+      disposed = true;
+      unsubscribe?.();
+    };
   }, []);
 
   useEffect(() => {

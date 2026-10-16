@@ -56,6 +56,7 @@ export async function proxy(request: NextRequest) {
   const PROTECTED_PATHS = [
     '/dashboard',
     '/students',
+    '/classrooms',
     '/lessons',
     '/digital-games',
     '/ai-quiz',
@@ -125,6 +126,7 @@ export const config = {
     '/dashboard/:path*',
     '/admin/:path*',
     '/students/:path*',
+    '/classrooms/:path*',
     '/lessons/:path*',
     '/digital-games/:path*',
     '/ai-quiz/:path*',
