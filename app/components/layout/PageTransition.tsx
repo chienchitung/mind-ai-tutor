@@ -13,10 +13,13 @@ export function PageTransition({ children }: PageTransitionProps) {
   return (
     <motion.div
       key={pathname}
-      initial={{ opacity: 0, y: 8 }}
-      animate={{ opacity: 1, y: 0 }}
+      // Opacity only: sliding every page up 8px on each sidebar click made
+      // the whole content area visibly jump. A short fade still marks the
+      // page change without moving anything.
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
       transition={{
-        duration: 0.18,
+        duration: 0.12,
         ease: 'easeOut',
       }}
     >
