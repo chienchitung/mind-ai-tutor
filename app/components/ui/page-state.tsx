@@ -6,7 +6,10 @@ import { cn } from '@/lib/utils';
 
 export function PageLoader({ className }: { className?: string }) {
   return (
-    <div className={cn('space-y-5', className)} aria-busy="true" aria-label="Loading">
+    // The skeleton only fades in if loading is still going after 300ms. Most
+    // page switches finish sooner, and flashing a skeleton for a split second
+    // before swapping in the real layout read as the page jittering.
+    <div className={cn('page-loader-delayed space-y-5', className)} aria-busy="true" aria-label="Loading">
       <div className="space-y-2">
         <div className="h-8 w-56 animate-pulse rounded-lg bg-muted" />
         <div className="h-4 w-80 max-w-full animate-pulse rounded bg-muted" />
