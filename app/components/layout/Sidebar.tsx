@@ -65,6 +65,12 @@ export function Sidebar({
   const { language } = useLanguage();
   const { t } = useTranslation(language);
   const pathname = usePathname();
+  // The link just clicked, highlighted right away. usePathname only changes
+  // once the next page has rendered, and a heavy page (AI quiz) kept the old
+  // item highlighted until then - the highlight then cross-faded between two
+  // items mid-stall, which read as the sidebar jittering.
+  const [pendingHref, setPendingHref] = useState<string | null>(null);
+  useEffect(() => { setPendingHref(null); }, [pathname]);
 
   useEffect(() => {
     setIsCollapsed(className?.includes('w-[70px]') ?? false);
@@ -179,17 +185,29 @@ export function Sidebar({
                     // whole /live/* flow (creating one, the presenter
                     // workspace) belongs to it too - a plain prefix match on
                     // its own href would miss /live/new and /live/[id]/present.
-                    const active = item.href === '/live/sessions'
-                      ? pathname.startsWith('/live')
-                      : pathname === item.href || pathname.startsWith(`${item.href}/`);
+                    const active = pendingHref
+                      ? pendingHref === item.href
+                      : item.href === '/live/sessions'
+                        ? pathname.startsWith('/live')
+                        : pathname === item.href || pathname.startsWith(`${item.href}/`);
                     return (
                       <Link
                         key={item.href}
                         href={item.href}
-                        onClick={() => onOpenChange?.(false)}
+                        onClick={(event) => {
+                          // Modified clicks open a new tab, and a cancelled click
+                          // (unsaved-changes guard) keeps this page: neither moves
+                          // the highlight.
+                          if (!event.defaultPrevented && !event.metaKey && !event.ctrlKey && !event.shiftKey && event.button === 0) {
+                            setPendingHref(item.href);
+                          }
+                          onOpenChange?.(false);
+                        }}
                         title={isCollapsed ? item.name : undefined}
                         className={cn(
-                          'group flex h-10 items-center rounded-xl px-3 text-sm font-medium transition-colors',
+                          // No colour transition: the active highlight should move
+                          // in one step, not fade between two items.
+                          'group flex h-10 items-center rounded-xl px-3 text-sm font-medium',
                           active
                             ? 'bg-foreground text-background'
                             : 'text-muted-foreground hover:bg-muted hover:text-foreground',
