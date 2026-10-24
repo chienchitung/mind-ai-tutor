@@ -1,11 +1,12 @@
 import { describe, expect, it, vi } from 'vitest';
 import type { SupabaseClient } from '@supabase/supabase-js';
-import { deckPathFromUrl, deleteLiveDeck, uploadLiveDeck, validateDeckFile } from './live-deck-storage';
+import { deckObjectName, deckPathFromUrl, deckTitleFromObjectName, deleteLiveDeck, listLiveDecks, uploadLiveDeck, validateDeckFile } from './live-deck-storage';
 
 function setup() {
   const bucket = {
     upload: vi.fn().mockResolvedValue({ error: null }),
     remove: vi.fn().mockResolvedValue({ error: null }),
+    list: vi.fn().mockResolvedValue({ data: [], error: null }),
     getPublicUrl: vi.fn((path: string) => ({ data: { publicUrl: `https://storage.example/live-decks/${path}` } })),
   };
   const from = vi.fn().mockReturnValue(bucket);
@@ -33,7 +34,8 @@ describe('uploadLiveDeck', () => {
     const url = await uploadLiveDeck(client, 'owner', file);
     expect(from).toHaveBeenCalledWith('live-decks');
     const path = bucket.upload.mock.calls[0][0];
-    expect(path).toMatch(/^owner\/[a-f0-9-]{36}\.pdf$/);
+    expect(path).toMatch(/^owner\/[a-f0-9-]{36}\.[A-Za-z0-9_-]+\.pdf$/);
+    expect(deckTitleFromObjectName(path.split('/')[1])).toBe('deck');
     expect(bucket.upload).toHaveBeenCalledWith(path, file, expect.objectContaining({ upsert: false, contentType: 'application/pdf' }));
     expect(url).toBe(`https://storage.example/live-decks/${path}`);
   });
@@ -75,5 +77,44 @@ describe('deleteLiveDeck', () => {
     const { client, bucket } = setup();
     bucket.remove.mockResolvedValue({ error: { message: 'denied' } });
     await expect(deleteLiveDeck(client, 'https://storage.example/live-decks/owner/abc-123.pdf')).rejects.toThrow('DECK_DELETE');
+  });
+});
+
+describe('deck titles in object names', () => {
+  const id = '0f8fad5b-d9cb-469f-a165-70867728950e';
+  it('round-trips a Chinese file name through an ASCII-only key', () => {
+    const name = deckObjectName(id, '第三課：IF 條件判斷.pdf');
+    expect(name).toMatch(/^[A-Za-z0-9._-]+$/);
+    expect(deckTitleFromObjectName(name)).toBe('第三課：IF 條件判斷');
+  });
+  it('treats older uuid-only keys as untitled', () => {
+    expect(deckObjectName(id, '.pdf')).toBe(`${id}.pdf`);
+    expect(deckTitleFromObjectName(`${id}.pdf`)).toBeNull();
+  });
+  it('caps very long titles', () => {
+    expect(deckTitleFromObjectName(deckObjectName(id, `${'簡'.repeat(200)}.pdf`))).toHaveLength(80);
+  });
+});
+
+describe('listLiveDecks', () => {
+  it("lists the owner's PDFs newest first with titles, sizes and public URLs", async () => {
+    const { client, bucket } = setup();
+    const named = deckObjectName('0f8fad5b-d9cb-469f-a165-70867728950e', '函數複習.pdf');
+    bucket.list.mockResolvedValue({ data: [
+      { id: '1', name: named, created_at: '2026-10-01T00:00:00Z', metadata: { size: 2048 } },
+      { id: '2', name: '7c9e6679-7425-40de-944b-e07fc1f90ae7.pdf', created_at: '2026-08-31T00:00:00Z', metadata: { size: 10 } },
+      { id: null, name: 'folder', created_at: null, metadata: null },
+    ], error: null });
+    const decks = await listLiveDecks(client, 'owner');
+    expect(bucket.list).toHaveBeenCalledWith('owner', expect.objectContaining({ sortBy: { column: 'created_at', order: 'desc' } }));
+    expect(decks).toEqual([
+      { path: `owner/${named}`, url: `https://storage.example/live-decks/owner/${named}`, title: '函數複習', size: 2048, createdAt: '2026-10-01T00:00:00Z' },
+      { path: 'owner/7c9e6679-7425-40de-944b-e07fc1f90ae7.pdf', url: 'https://storage.example/live-decks/owner/7c9e6679-7425-40de-944b-e07fc1f90ae7.pdf', title: null, size: 10, createdAt: '2026-08-31T00:00:00Z' },
+    ]);
+  });
+  it('maps a missing bucket to the not-ready error', async () => {
+    const { client, bucket } = setup();
+    bucket.list.mockResolvedValue({ data: null, error: { message: 'Bucket not found' } });
+    await expect(listLiveDecks(client, 'owner')).rejects.toThrow('DECK_STORAGE_NOT_READY');
   });
 });

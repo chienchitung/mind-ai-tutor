@@ -1897,7 +1897,7 @@ export default function AIQuizPage() {
     if (typeof window === 'undefined') {
       throw new Error('PDF extraction only supported in browser');
     }
-    const pdfjsLib = await import('pdfjs-dist/build/pdf');
+    const pdfjsLib = await import('pdfjs-dist/legacy/build/pdf.mjs');
     // Set workerSrc if not already set
     if (!pdfjsLib.GlobalWorkerOptions.workerSrc) {
       pdfjsLib.GlobalWorkerOptions.workerSrc = '/pdfjs/pdf.worker.min.mjs';
