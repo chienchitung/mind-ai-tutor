@@ -7,7 +7,7 @@ const getPage = vi.fn();
 const getDocument = vi.fn();
 const GlobalWorkerOptions: { workerSrc: string } = { workerSrc: '' };
 
-vi.mock('pdfjs-dist/build/pdf', () => ({ getDocument, GlobalWorkerOptions }));
+vi.mock('pdfjs-dist/legacy/build/pdf.mjs', () => ({ getDocument, GlobalWorkerOptions }));
 
 // jsdom has no ResizeObserver - stub one that reports a fixed non-zero box
 // immediately on observe(), matching what a real browser would report for

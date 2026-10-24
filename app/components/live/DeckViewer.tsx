@@ -56,7 +56,7 @@ export function DeckViewer({ url, page, onNumPages, onError, className, overlay 
     setError(false);
     async function load() {
       try {
-        const pdfjsLib = await import('pdfjs-dist/build/pdf');
+        const pdfjsLib = await import('pdfjs-dist/legacy/build/pdf.mjs');
         if (!pdfjsLib.GlobalWorkerOptions.workerSrc) {
           pdfjsLib.GlobalWorkerOptions.workerSrc = '/pdfjs/pdf.worker.min.mjs';
         }

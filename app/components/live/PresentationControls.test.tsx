@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
-import { render, screen, fireEvent, cleanup } from "@testing-library/react";
+import { render, screen, fireEvent, cleanup, within } from "@testing-library/react";
 import { mkdirSync, writeFileSync } from "node:fs";
 import { PresentationControls } from "./PresentationControls";
 import { LanguageProvider } from "@/app/contexts/LanguageContext";
@@ -61,9 +61,9 @@ const view = () =>
   );
 it("sends page size and sort changes, but waits for confirmed state before changing the page indicator", () => {
   view();
-  fireEvent.change(screen.getByLabelText("每頁題數"), {
-    target: { value: "6" },
-  });
+  fireEvent.click(
+    within(screen.getByRole("radiogroup", { name: "每頁題數" })).getByRole("radio", { name: "6" }),
+  );
   expect(mocks.command).toHaveBeenLastCalledWith({
     action: "show",
     mode: "questions",
@@ -71,9 +71,9 @@ it("sends page size and sort changes, but waits for confirmed state before chang
     pageSize: 6,
     sort: "popular",
   });
-  fireEvent.change(screen.getByLabelText("投影排序"), {
-    target: { value: "newest" },
-  });
+  fireEvent.click(
+    within(screen.getByRole("radiogroup", { name: "投影排序" })).getByRole("radio", { name: "最新" }),
+  );
   expect(mocks.command).toHaveBeenLastCalledWith({
     action: "show",
     mode: "questions",
@@ -184,4 +184,40 @@ it("renders six questions in a complete proportional preview", () => {
     );
   }
   expect(screen.getByText(/本組 1–6/)).toBeTruthy();
+});
+
+it("keeps moderation in the same list: hidden questions move to their own tab and can be shown again", () => {
+  const onModerate = vi.fn();
+  const hidden = { ...questions[7], id: "h1", text: "不適合公開的提問", visibility: "author_only" as const };
+  render(
+    <LanguageProvider>
+      <PresentationControls sessionId="test" questions={[questions[0], hidden]} connected={false} onOpen={() => {}} onModerate={onModerate} />
+    </LanguageProvider>,
+  );
+  expect(screen.queryByText("不適合公開的提問")).toBeNull();
+  fireEvent.click(screen.getAllByText("隱藏")[0]);
+  expect(onModerate).toHaveBeenLastCalledWith(questions[0]);
+  fireEvent.click(screen.getByRole("radio", { name: "查看已隱藏" }));
+  expect(screen.getByText("不適合公開的提問")).toBeTruthy();
+  fireEvent.click(screen.getByText("顯示"));
+  expect(onModerate).toHaveBeenLastCalledWith(hidden);
+});
+
+it("switches the projected display window between open and close", () => {
+  const onOpen = vi.fn();
+  const onClose = vi.fn();
+  const { rerender } = render(
+    <LanguageProvider>
+      <PresentationControls sessionId="test" questions={[]} connected={false} onOpen={onOpen} onClose={onClose} />
+    </LanguageProvider>,
+  );
+  fireEvent.click(screen.getByText("雙螢幕投影"));
+  expect(onOpen).toHaveBeenCalled();
+  rerender(
+    <LanguageProvider>
+      <PresentationControls sessionId="test" questions={[]} connected onOpen={onOpen} onClose={onClose} displayOpen />
+    </LanguageProvider>,
+  );
+  fireEvent.click(screen.getByText("停止雙螢幕投影"));
+  expect(onClose).toHaveBeenCalled();
 });

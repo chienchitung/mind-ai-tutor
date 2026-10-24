@@ -14,22 +14,21 @@ import {
   ChevronLeft,
   ChevronRight,
   Trash2,
-  EyeOff,
-  Eye,
   ListChecks,
   Maximize,
   Users,
   BarChart3,
-  MessageSquare,
   Presentation,
   Activity,
-  MonitorPlay,
   MousePointer2,
   ScanLine,
   Pencil,
   Eraser,
   Undo2,
   Redo2,
+  Library,
+  FileText,
+  Check,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
@@ -52,7 +51,8 @@ import type {
   LiveSessionStatus,
   LiveQuestion,
 } from '@/lib/live-session';
-import { deleteLiveDeck, uploadLiveDeck } from '@/lib/live-deck-storage';
+import { deleteLiveDeck, listLiveDecks, uploadLiveDeck, type LiveDeck } from '@/lib/live-deck-storage';
+import { DeleteConfirmation } from '@/components/ui/delete-confirmation';
 import { annotationReducer, deckAnnotationReducer, EMPTY_INK, type AnnotationAction, type AnnotationState, type InkPoint, type InkStroke, type PresentationTool } from '@/lib/presentation-annotations';
 import { PresentationControls } from '@/components/live/PresentationControls';
 import { DeckViewer } from '@/components/live/DeckViewer';
@@ -87,6 +87,10 @@ const CONTROL_COLORS = ['#fb7185', '#facc15', '#38bdf8', '#ffffff'] as const;
 const LIVE_SEND_THROTTLE_MS = 33;
 const EMPTY_ANNOTATIONS: AnnotationState = {};
 
+function formatDeckSize(bytes: number): string {
+  return bytes >= 1024 * 1024 ? `${(bytes / 1024 / 1024).toFixed(1)} MB` : `${Math.max(1, Math.round(bytes / 1024))} KB`;
+}
+
 function sortQuestions(a: LiveQuestion, b: LiveQuestion): number {
   return b.upvotes - a.upvotes || a.createdAt.localeCompare(b.createdAt);
 }
@@ -118,6 +122,12 @@ export default function PresenterPage() {
   const [uploadingDeck, setUploadingDeck] = useState(false);
   const [numDeckPages, setNumDeckPages] = useState(1);
   const [deckLoadError, setDeckLoadError] = useState(false);
+  const [showLibrary, setShowLibrary] = useState(false);
+  const [decks, setDecks] = useState<LiveDeck[] | null>(null);
+  const [decksLoading, setDecksLoading] = useState(false);
+  const [decksError, setDecksError] = useState('');
+  const [deckToDelete, setDeckToDelete] = useState<LiveDeck | null>(null);
+  const [deletingDeck, setDeletingDeck] = useState(false);
 
   const [questions, setQuestions] = useState<LiveQuestion[]>([]);
   const [moderatingId, setModeratingId] = useState<string | null>(null);
@@ -506,6 +516,7 @@ export default function PresenterPage() {
       });
       if (!response.ok) throw new Error('DECK_SAVE');
       uploadedUrl = null;
+      setDecks(null);
       setNumDeckPages(1);
       setDeckLoadError(false);
       setData((previous) =>
@@ -556,6 +567,71 @@ export default function PresenterPage() {
       });
     } finally {
       setUploadingDeck(false);
+    }
+  };
+
+  const loadDecks = async () => {
+    setDecksLoading(true);
+    setDecksError('');
+    try {
+      const client = supabase();
+      const { data: { user }, error: userError } = await client.auth.getUser();
+      if (userError || !user) throw new Error('DECK_AUTH');
+      setDecks(await listLiveDecks(client, user.id));
+    } catch (error) {
+      setDecksError(t(error instanceof Error && error.message === 'DECK_STORAGE_NOT_READY' ? 'error_deck_storage_not_ready' : 'live_deck_library_error'));
+    } finally {
+      setDecksLoading(false);
+    }
+  };
+
+  const openLibrary = () => {
+    setShowLibrary(true);
+    void loadDecks();
+  };
+
+  const pickLibraryDeck = async (deck: LiveDeck) => {
+    if (uploadingDeck) return;
+    if (deck.url === data?.deckUrl) { setShowLibrary(false); return; }
+    setUploadingDeck(true);
+    try {
+      const response = await fetch(`/api/live-sessions/${params.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ deckUrl: deck.url, deckPage: 1 }),
+      });
+      if (!response.ok) throw new Error();
+      setNumDeckPages(1);
+      setDeckLoadError(false);
+      setData((previous) => (previous ? { ...previous, deckUrl: deck.url, deckPage: 1 } : previous));
+      setShowLibrary(false);
+    } catch {
+      toast({ title: t('error'), description: t('error_deck_upload'), variant: 'destructive' });
+    } finally {
+      setUploadingDeck(false);
+    }
+  };
+
+  const confirmDeleteDeck = async () => {
+    if (!deckToDelete || deletingDeck) return;
+    setDeletingDeck(true);
+    try {
+      const response = await fetch('/api/live-decks', {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ path: deckToDelete.path }),
+      });
+      if (!response.ok) throw new Error();
+      const removed = deckToDelete;
+      setDecks((previous) => previous?.filter((deck) => deck.path !== removed.path) ?? previous);
+      if (removed.url === data?.deckUrl) {
+        setData((previous) => (previous ? { ...previous, deckUrl: null, deckPage: 1 } : previous));
+      }
+      setDeckToDelete(null);
+    } catch {
+      toast({ title: t('error'), description: t('live_deck_library_delete_error'), variant: 'destructive' });
+    } finally {
+      setDeletingDeck(false);
     }
   };
 
@@ -713,47 +789,43 @@ export default function PresenterPage() {
   return (
     <div className="min-h-screen bg-background">
       <LiveHeader presenter />
-      <main className="mx-auto max-w-[1440px] space-y-6 px-4 py-6 sm:px-8">
-        <div className="flex flex-wrap items-start justify-between gap-4">
-          <div className="min-w-0">
-            <p className="app-kicker mb-2">{t('live_workspace')}</p>
-            <h1 className="break-words text-2xl font-semibold tracking-tight sm:text-3xl">
-              {data.title}
-            </h1>
-          </div>
-          <div className="flex flex-wrap items-center gap-3">
-            <SessionStatus status={data.status} />
-            <span className="flex items-center gap-1.5 text-xs text-muted-foreground">
-              <Users className="h-4 w-4" />
-              {t('live_online_count', { count: onlineCount })}
-            </span>
-          </div>
-        </div>
+      <main className="mx-auto max-w-[1440px] space-y-5 px-4 py-6 sm:px-8">
         <section
           aria-label={t('live_session_controls')}
-          className="app-panel flex flex-wrap items-center justify-between gap-4 p-4"
+          className="app-panel flex flex-wrap items-center gap-x-6 gap-y-4 p-4 sm:p-5"
         >
-          <div className="flex flex-wrap items-center gap-4">
+          <div className="min-w-0 flex-1 basis-72">
+            <p className="app-kicker mb-1.5">{t('live_workspace')}</p>
+            <h1 className="break-words text-2xl font-semibold tracking-tight sm:text-[1.75rem]">
+              {data.title}
+            </h1>
+            <div className="mt-2 flex flex-wrap items-center gap-3">
+              <SessionStatus status={data.status} />
+              <span className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                <Users className="h-4 w-4" />
+                {t('live_online_count', { count: onlineCount })}
+              </span>
+            </div>
+          </div>
+          <div className="flex items-center gap-3 rounded-xl border bg-muted/40 py-2 pl-4 pr-2">
             <div>
-              <p className="mb-1 text-xs text-muted-foreground">
-                {t('live_share_title')}
-              </p>
-              <p className="font-mono text-2xl font-semibold tracking-[0.18em]">
-                {data.joinCode}
-              </p>
+              <p className="text-[11px] text-muted-foreground">{t('live_share_title')}</p>
+              <p className="font-mono text-xl font-semibold tracking-[0.18em]">{data.joinCode}</p>
             </div>
             <Button
-              variant="outline"
-              className="min-h-11"
+              variant="ghost"
+              size="sm"
+              className="h-10"
               onClick={() => void copyJoinLink()}
             >
-              <Copy className="mr-2 h-4 w-4" />
+              <Copy className="mr-1.5 h-4 w-4" />
               {t('live_copy_link')}
             </Button>
           </div>
           <div className="flex flex-wrap items-center gap-2">
             <Button
               className="min-h-11"
+              variant={data.status === 'open' ? 'outline' : 'default'}
               disabled={changingStatus}
               onClick={() =>
                 void handleStatusChange(
@@ -796,37 +868,285 @@ export default function PresenterPage() {
             )}
           </p>
         )}
-        <PresentationControls sessionId={params.id} questions={questions} connected={displayConnected} onOpen={openDisplayWindow} />
-        <div className="grid items-start gap-6 lg:grid-cols-[minmax(0,1fr)_340px] xl:grid-cols-[minmax(0,1fr)_380px]">
-          <div className="min-w-0 space-y-6">
+        <PresentationControls
+          sessionId={params.id}
+          questions={visibleQuestions}
+          connected={displayConnected}
+          onOpen={openDisplayWindow}
+          displayOpen={dualDisplayOpen}
+          onClose={closeDisplayWindow}
+          moderatingId={moderatingId}
+          onModerate={(item) => void handleModerate(item)}
+          stage={
             <Card className="min-w-0">
-              <CardContent className="p-5 sm:p-6 md:pt-6">
-                <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
+              <CardContent className="p-4 sm:p-5 md:p-5">
+                <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+                  <h2 className="flex items-center gap-2 text-sm font-semibold">
+                    <Presentation className="h-4 w-4 text-muted-foreground" />
+                    {t('live_deck_title')}
+                  </h2>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <input
+                      ref={fileInputRef}
+                      type="file"
+                      accept="application/pdf"
+                      className="hidden"
+                      onChange={(event) => void handleDeckFileChange(event)}
+                    />
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="outline"
+                      className="h-9"
+                      disabled={uploadingDeck}
+                      onClick={openLibrary}
+                    >
+                      <Library className="mr-1.5 h-3.5 w-3.5" />
+                      {t('live_deck_library')}
+                    </Button>
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="outline"
+                      className="h-9"
+                      disabled={uploadingDeck}
+                      onClick={() => fileInputRef.current?.click()}
+                    >
+                      {uploadingDeck ? (
+                        <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
+                      ) : (
+                        <FileUp className="mr-1.5 h-3.5 w-3.5" />
+                      )}
+                      {t(data.deckUrl ? 'live_deck_replace' : 'live_deck_upload')}
+                    </Button>
+                    {data.deckUrl && !deckLoadError && (
+                      <Button
+                        type="button"
+                        size="sm"
+                        className="h-9"
+                        onClick={() => void enterPresentation()}
+                      >
+                        <Maximize className="mr-1.5 h-3.5 w-3.5" />
+                        {t('live_present_fullscreen')}
+                      </Button>
+                    )}
+                    {data.deckUrl && (
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="ghost"
+                        className="h-9 w-9 p-0 text-muted-foreground"
+                        aria-label={t('live_deck_remove')}
+                        title={t('live_deck_remove')}
+                        disabled={uploadingDeck}
+                        onClick={() => void handleDeckRemove()}
+                      >
+                        <X className="h-4 w-4" />
+                      </Button>
+                    )}
+                  </div>
+                </div>
+                {data.deckUrl ? (
+                  deckLoadError ? (
+                    <div className="space-y-1 py-8 text-center">
+                      <p className="text-sm text-muted-foreground">
+                        {t('live_deck_load_error')}
+                      </p>
+                    </div>
+                  ) : (
+                    <div className="space-y-3">
+                      <div className="overflow-hidden rounded-xl border bg-slate-950/[0.04]">
+                        <DeckViewer
+                          url={data.deckUrl}
+                          page={data.deckPage}
+                          className="aspect-video w-full lg:aspect-auto lg:h-[52vh] lg:min-h-[320px]"
+                          onNumPages={setNumDeckPages}
+                          onError={() => setDeckLoadError(true)}
+                          overlay={
+                            dualDisplayOpen ? (
+                              <AnnotationLayer
+                                strokes={controlHistory.strokes}
+                                tool={controlTool}
+                                color={controlColor}
+                                width={controlWidth}
+                                label={t('live_ink_surface')}
+                                onCommit={(strokes) =>
+                                  dispatchControlInk({ type: 'commit', page: data.deckPage, strokes })
+                                }
+                                onDrawingChange={() => {}}
+                                onLiveChange={broadcastLiveChange}
+                              />
+                            ) : undefined
+                          }
+                        />
+                      </div>
+                      <div className="flex flex-wrap items-center gap-3">
+                        <div className="flex items-center gap-1 rounded-lg border bg-background p-0.5">
+                          <Button
+                            type="button"
+                            size="sm"
+                            variant="ghost"
+                            className="h-9 w-9 p-0"
+                            aria-label={t('live_deck_prev')}
+                            disabled={data.deckPage <= 1}
+                            onClick={() => void changeDeckPage(data.deckPage - 1)}
+                          >
+                            <ChevronLeft className="h-4 w-4" />
+                          </Button>
+                          <span className="min-w-[5.5rem] text-center font-mono text-xs tabular-nums text-muted-foreground">
+                            {t('live_deck_page_of', {
+                              current: data.deckPage,
+                              total: numDeckPages,
+                            })}
+                          </span>
+                          <Button
+                            type="button"
+                            size="sm"
+                            variant="ghost"
+                            className="h-9 w-9 p-0"
+                            aria-label={t('live_deck_next')}
+                            disabled={data.deckPage >= numDeckPages}
+                            onClick={() => void changeDeckPage(data.deckPage + 1)}
+                          >
+                            <ChevronRight className="h-4 w-4" />
+                          </Button>
+                        </div>
+                        {dualDisplayOpen && (
+                          <div className="flex flex-1 flex-wrap items-center gap-1 rounded-lg border bg-muted/30 p-0.5">
+                            {CONTROL_TOOLS.map(({ value, icon: Icon }) => (
+                              <Button
+                                key={value}
+                                type="button"
+                                size="sm"
+                                variant={controlTool === value ? 'secondary' : 'ghost'}
+                                className="h-9 w-9 p-0"
+                                aria-label={t(`live_tool_${value}`)}
+                                aria-pressed={controlTool === value}
+                                onClick={() => setControlTool(value)}
+                              >
+                                <Icon className="h-4 w-4" />
+                              </Button>
+                            ))}
+                            <span className="mx-1 h-6 w-px bg-border" />
+                            {CONTROL_COLORS.map((value) => (
+                              <button
+                                key={value}
+                                type="button"
+                                aria-label={value}
+                                aria-pressed={controlColor === value}
+                                className={`flex h-9 w-9 items-center justify-center rounded-md ${controlColor === value ? 'ring-2 ring-ring' : ''}`}
+                                onClick={() => {
+                                  setControlColor(value);
+                                  setControlTool('pen');
+                                }}
+                              >
+                                <span
+                                  className="h-5 w-5 rounded-full border border-black/10"
+                                  style={{ background: value }}
+                                />
+                              </button>
+                            ))}
+                            <span className="mx-1 h-6 w-px bg-border" />
+                            <Button
+                              type="button"
+                              size="sm"
+                              variant="ghost"
+                              className="h-9 w-9 p-0"
+                              aria-label={t('live_ink_undo')}
+                              disabled={!controlHistory.past.length}
+                              onClick={() => dispatchControlInk({ type: 'undo', page: data.deckPage })}
+                            >
+                              <Undo2 className="h-4 w-4" />
+                            </Button>
+                            <Button
+                              type="button"
+                              size="sm"
+                              variant="ghost"
+                              className="h-9 w-9 p-0"
+                              aria-label={t('live_ink_redo')}
+                              disabled={!controlHistory.future.length}
+                              onClick={() => dispatchControlInk({ type: 'redo', page: data.deckPage })}
+                            >
+                              <Redo2 className="h-4 w-4" />
+                            </Button>
+                            <Button
+                              type="button"
+                              size="sm"
+                              variant="ghost"
+                              className="h-9 w-9 p-0"
+                              aria-label={t('live_ink_clear')}
+                              disabled={!controlHistory.strokes.length}
+                              onClick={() => dispatchControlInk({ type: 'clear', page: data.deckPage })}
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
+                            <span className="ml-auto flex items-center gap-1.5 px-2 text-xs text-muted-foreground">
+                              <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
+                              {t('live_dual_screen_active')}
+                            </span>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  )
+                ) : (
+                  <div className="flex flex-col items-center rounded-xl border border-dashed bg-muted/30 px-4 py-10 text-center">
+                    <Presentation className="mb-3 h-7 w-7 text-muted-foreground" />
+                    <p className="text-sm font-medium">{t('live_deck_none')}</p>
+                    <p className="mt-2 max-w-sm text-xs leading-6 text-muted-foreground">
+                      {t('live_deck_hint')}
+                    </p>
+                    <div className="mt-4 flex flex-wrap justify-center gap-2">
+                      <Button type="button" size="sm" className="h-9" disabled={uploadingDeck} onClick={openLibrary}>
+                        <Library className="mr-1.5 h-3.5 w-3.5" />
+                        {t('live_deck_library')}
+                      </Button>
+                      <Button type="button" size="sm" variant="outline" className="h-9" disabled={uploadingDeck} onClick={() => fileInputRef.current?.click()}>
+                        <FileUp className="mr-1.5 h-3.5 w-3.5" />
+                        {t('live_deck_upload')}
+                      </Button>
+                    </div>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          }
+          renderPoll={(flow) => (
+            <Card className="min-w-0">
+              <CardContent className="p-4 sm:p-5 md:p-5">
+                <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
                   <h2 className="flex items-center gap-2 text-sm font-semibold">
                     <BarChart3 className="h-4 w-4 text-muted-foreground" />
                     {t('live_current_poll')}
                   </h2>
-                  <span className="rounded-full bg-muted px-3 py-1 text-xs tabular-nums">
-                    {data.poll?.voteTotal ?? 0} {t('live_answered')}
-                  </span>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span className="rounded-full bg-muted px-3 py-1 text-xs tabular-nums">
+                      {data.poll?.voteTotal ?? 0} {t('live_answered')}
+                    </span>
+                    <Button size="sm" variant="outline" className="h-9" onClick={() => void openQuizPicker()}>
+                      <ListChecks className="mr-1.5 h-3.5 w-3.5" />
+                      {t('live_load_from_quiz')}
+                    </Button>
+                    <Button size="sm" className="h-9" onClick={() => setShowComposer(true)}>
+                      <Plus className="mr-1.5 h-3.5 w-3.5" />
+                      {t('live_new_poll')}
+                    </Button>
+                  </div>
                 </div>
                 {data.poll ? (
                   <>
-                    <p className="mb-6 break-words text-xl font-semibold leading-relaxed tracking-tight sm:text-2xl">
+                    <p className="mb-4 break-words text-lg font-semibold leading-relaxed tracking-tight sm:text-xl">
                       {data.poll.question}
                     </p>
-                    <div className="space-y-3">
+                    <div className="grid gap-2.5 sm:grid-cols-2">
                       {data.poll.options.map((option, index) => {
                         const count = data.poll?.voteCounts[index] ?? 0;
                         const total = data.poll?.voteTotal ?? 0;
                         const pct =
                           total > 0 ? Math.round((count / total) * 100) : 0;
                         return (
-                          <div
-                            key={index}
-                            className="rounded-xl border p-3 sm:p-4"
-                          >
-                            <div className="mb-3 flex items-start gap-3 text-sm">
+                          <div key={index} className="rounded-xl border p-3">
+                            <div className="mb-2.5 flex items-start gap-3 text-sm">
                               <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-md bg-muted font-mono text-xs">
                                 {String.fromCharCode(65 + index)}
                               </span>
@@ -858,388 +1178,158 @@ export default function PresenterPage() {
                       })}
                     </div>
                     {data.poll.voteTotal === 0 && (
-                      <p className="mt-4 text-xs text-muted-foreground">
+                      <p className="mt-3 text-xs text-muted-foreground">
                         {t('live_results_empty')}
                       </p>
                     )}
+                    {flow && <div className="mt-4">{flow}</div>}
                   </>
                 ) : (
-                  <p className="py-8 text-sm text-muted-foreground">
+                  <p className="rounded-xl border border-dashed px-4 py-6 text-center text-sm text-muted-foreground">
                     {t('live_no_active_poll')}
                   </p>
                 )}
-                <div className="mt-5 flex flex-wrap gap-2 border-t pt-4">
-                  <Button
-                    className="min-h-11"
-                    onClick={() => setShowComposer(true)}
-                  >
-                    <Plus className="mr-2 h-4 w-4" />
-                    {t('live_new_poll')}
-                  </Button>
-                  <Button
-                    variant="outline"
-                    className="min-h-11"
-                    onClick={() => void openQuizPicker()}
-                  >
-                    <ListChecks className="mr-2 h-4 w-4" />
-                    {t('live_load_from_quiz')}
-                  </Button>
-
-                </div>
               </CardContent>
             </Card>
-            <Card className="min-w-0">
-              <CardContent className="p-5 md:pt-6">
-                <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
-                  <h2 className="flex items-center gap-2 text-sm font-semibold">
-                    <Presentation className="h-4 w-4 text-muted-foreground" />
-                    {t('live_deck_title')}
-                  </h2>
-                  <div className="flex flex-wrap items-center gap-2">
-                    <input
-                      ref={fileInputRef}
-                      type="file"
-                      accept="application/pdf"
-                      className="hidden"
-                      onChange={(event) => void handleDeckFileChange(event)}
-                    />
-                    <Button
-                      type="button"
-                      size="sm"
-                      variant="outline"
-                      className="min-h-11"
-                      disabled={uploadingDeck}
-                      onClick={() => fileInputRef.current?.click()}
-                    >
-                      {uploadingDeck ? (
-                        <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
-                      ) : (
-                        <FileUp className="mr-1.5 h-3.5 w-3.5" />
-                      )}
-                      {t(
-                        data.deckUrl ? 'live_deck_replace' : 'live_deck_upload',
-                      )}
-                    </Button>
-                    {data.deckUrl && !deckLoadError && (
-                      <Button
-                        type="button"
-                        size="sm"
-                        className="min-h-11"
-                        onClick={() => void enterPresentation()}
-                      >
-                        <Maximize className="mr-1.5 h-3.5 w-3.5" />
-                        {t('live_present_fullscreen')}
-                      </Button>
-                    )}
-                    {data.deckUrl && !deckLoadError && (
-                      <Button
-                        type="button"
-                        size="sm"
-                        variant={dualDisplayOpen ? 'secondary' : 'outline'}
-                        className="min-h-11"
-                        aria-pressed={dualDisplayOpen}
-                        title={t('live_dual_screen_hint')}
-                        onClick={dualDisplayOpen ? closeDisplayWindow : openDisplayWindow}
-                      >
-                        <MonitorPlay className="mr-1.5 h-3.5 w-3.5" />
-                        {t(dualDisplayOpen ? 'live_dual_screen_close' : 'live_dual_screen_present')}
-                      </Button>
-                    )}
-                    {data.deckUrl && (
-                      <Button
-                        type="button"
-                        size="sm"
-                        variant="ghost"
-                        className="min-h-11 min-w-11"
-                        aria-label={t('live_deck_remove')}
-                        disabled={uploadingDeck}
-                        onClick={() => void handleDeckRemove()}
-                      >
-                        <Trash2 className="h-3.5 w-3.5" />
-                      </Button>
+          )}
+          aside={
+            <>
+              <Card>
+                <CardContent className="p-4 md:p-4">
+                  <div className="mb-3 flex items-center justify-between gap-2">
+                    <h2 className="flex items-center gap-2 text-sm font-semibold">
+                      <Activity className="h-4 w-4 text-muted-foreground" />
+                      {t('live_pulse_title')}
+                    </h2>
+                    <span className="text-xs text-muted-foreground">
+                      <span className="text-lg font-semibold tabular-nums text-foreground">
+                        {pulseAvg === null ? '—' : pulseAvg.toFixed(1)}
+                      </span>
+                      {' '}/ 5 · {data.pulse.pulseTotal} {t('live_answered')}
+                    </span>
+                  </div>
+                  <div className="relative h-2 rounded-full bg-gradient-to-r from-emerald-200 via-muted to-amber-300">
+                    {pulseAvg !== null && (
+                      <span
+                        aria-hidden="true"
+                        className="absolute top-1/2 h-4 w-1 -translate-x-1/2 -translate-y-1/2 rounded-full bg-foreground"
+                        style={{ left: `${pulsePercent}%` }}
+                      />
                     )}
                   </div>
-                </div>
-                {data.deckUrl ? (
-                  deckLoadError ? (
-                    <div className="space-y-1 py-8 text-center">
-                      <p className="text-sm text-muted-foreground">
-                        {t('live_deck_load_error')}
+                  <div className="mt-2 flex justify-between text-xs text-muted-foreground">
+                    <span>{t('live_pulse_easy')}</span>
+                    <span>{t('live_pulse_ok')}</span>
+                    <span>{t('live_pulse_hard')}</span>
+                  </div>
+                  {pulseAvg === null && (
+                    <p className="mt-3 text-xs leading-5 text-muted-foreground">
+                      {t('live_pulse_empty')}
+                    </p>
+                  )}
+                  {REACTION_KINDS.some((kind) => reactionCounts[kind]) && (
+                    <div className="mt-4 border-t pt-3">
+                      <p className="mb-2 text-xs font-medium text-muted-foreground">
+                        {t('live_reactions_title')}
+                      </p>
+                      <div className="flex flex-wrap gap-2">
+                        {REACTION_KINDS.filter((kind) => reactionCounts[kind]).map((kind) => (
+                          <span
+                            key={kind}
+                            className="rounded-lg bg-muted px-2.5 py-1.5 text-sm"
+                            title={t(`live_reaction_${kind}`)}
+                          >
+                            {REACTION_EMOJI[kind]}{' '}
+                            <span className="font-mono">{reactionCounts[kind]}</span>
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            </>
+          }
+        />
+      </main>
+      <Dialog open={showLibrary} onOpenChange={setShowLibrary}>
+        <DialogContent className="max-h-[85dvh] w-[calc(100%-2rem)] max-w-lg overflow-y-auto rounded-2xl">
+          <DialogHeader>
+            <DialogTitle>{t('live_deck_library_title')}</DialogTitle>
+            <DialogDescription>{t('live_deck_library_desc')}</DialogDescription>
+          </DialogHeader>
+          {decksLoading && decks === null ? (
+            <div className="flex justify-center py-8">
+              <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+            </div>
+          ) : decksError ? (
+            <p role="alert" className="py-6 text-center text-sm text-destructive">{decksError}</p>
+          ) : !decks || decks.length === 0 ? (
+            <p className="rounded-xl border border-dashed px-4 py-8 text-center text-sm text-muted-foreground">
+              {t('live_deck_library_empty')}
+            </p>
+          ) : (
+            <ul className="space-y-2">
+              {decks.map((deck) => {
+                const current = deck.url === data.deckUrl;
+                const title = deck.title ?? t('live_deck_untitled');
+                return (
+                  <li key={deck.path} className={`flex items-center gap-3 rounded-xl border p-3 ${current ? 'border-primary/40 bg-primary/5' : ''}`}>
+                    <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-muted text-muted-foreground">
+                      <FileText className="h-5 w-5" />
+                    </span>
+                    <div className="min-w-0 flex-1">
+                      <p className="truncate text-sm font-medium" title={title}>{title}</p>
+                      <p className="text-xs text-muted-foreground">
+                        {[
+                          deck.createdAt ? new Date(deck.createdAt).toLocaleDateString(language === 'zh-TW' ? 'zh-TW' : 'en-US') : null,
+                          deck.size !== null ? formatDeckSize(deck.size) : null,
+                        ].filter(Boolean).join(' · ')}
                       </p>
                     </div>
-                  ) : (
-                    <div className="space-y-2">
-                      <div className="overflow-hidden rounded-lg border bg-black/5">
-                        <DeckViewer
-                          url={data.deckUrl}
-                          page={data.deckPage}
-                          className="h-[35vh] min-h-[200px] w-full lg:h-[42vh]"
-                          onNumPages={setNumDeckPages}
-                          onError={() => setDeckLoadError(true)}
-                          overlay={
-                            dualDisplayOpen ? (
-                              <AnnotationLayer
-                                strokes={controlHistory.strokes}
-                                tool={controlTool}
-                                color={controlColor}
-                                width={controlWidth}
-                                label={t('live_ink_surface')}
-                                onCommit={(strokes) =>
-                                  dispatchControlInk({ type: 'commit', page: data.deckPage, strokes })
-                                }
-                                onDrawingChange={() => {}}
-                                onLiveChange={broadcastLiveChange}
-                              />
-                            ) : undefined
-                          }
-                        />
-                      </div>
-                      {dualDisplayOpen && (
-                        <div className="flex flex-wrap items-center gap-1.5 rounded-lg border bg-muted/30 p-2">
-                          {CONTROL_TOOLS.map(({ value, icon: Icon }) => (
-                            <Button
-                              key={value}
-                              type="button"
-                              size="sm"
-                              variant={controlTool === value ? 'secondary' : 'ghost'}
-                              className="h-9 w-9 p-0"
-                              aria-label={t(`live_tool_${value}`)}
-                              aria-pressed={controlTool === value}
-                              onClick={() => setControlTool(value)}
-                            >
-                              <Icon className="h-4 w-4" />
-                            </Button>
-                          ))}
-                          <span className="mx-1 h-6 w-px bg-border" />
-                          {CONTROL_COLORS.map((value) => (
-                            <button
-                              key={value}
-                              type="button"
-                              aria-label={value}
-                              aria-pressed={controlColor === value}
-                              className={`flex h-9 w-9 items-center justify-center rounded-md ${controlColor === value ? 'ring-2 ring-ring' : ''}`}
-                              onClick={() => {
-                                setControlColor(value);
-                                setControlTool('pen');
-                              }}
-                            >
-                              <span
-                                className="h-5 w-5 rounded-full border border-black/10"
-                                style={{ background: value }}
-                              />
-                            </button>
-                          ))}
-                          <span className="mx-1 h-6 w-px bg-border" />
-                          <Button
-                            type="button"
-                            size="sm"
-                            variant="ghost"
-                            className="h-9 w-9 p-0"
-                            aria-label={t('live_ink_undo')}
-                            disabled={!controlHistory.past.length}
-                            onClick={() => dispatchControlInk({ type: 'undo', page: data.deckPage })}
-                          >
-                            <Undo2 className="h-4 w-4" />
-                          </Button>
-                          <Button
-                            type="button"
-                            size="sm"
-                            variant="ghost"
-                            className="h-9 w-9 p-0"
-                            aria-label={t('live_ink_redo')}
-                            disabled={!controlHistory.future.length}
-                            onClick={() => dispatchControlInk({ type: 'redo', page: data.deckPage })}
-                          >
-                            <Redo2 className="h-4 w-4" />
-                          </Button>
-                          <Button
-                            type="button"
-                            size="sm"
-                            variant="ghost"
-                            className="h-9 w-9 p-0"
-                            aria-label={t('live_ink_clear')}
-                            disabled={!controlHistory.strokes.length}
-                            onClick={() => dispatchControlInk({ type: 'clear', page: data.deckPage })}
-                          >
-                            <Trash2 className="h-4 w-4" />
-                          </Button>
-                          <span className="ml-auto flex items-center gap-1.5 text-xs text-muted-foreground">
-                            <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
-                            {t('live_dual_screen_active')}
-                          </span>
-                        </div>
-                      )}
-                      <div className="flex items-center justify-center gap-3">
-                        <Button
-                          type="button"
-                          size="sm"
-                          variant="outline"
-                          className="min-h-11 min-w-11"
-                          aria-label={t('live_deck_prev')}
-                          disabled={data.deckPage <= 1}
-                          onClick={() => void changeDeckPage(data.deckPage - 1)}
-                        >
-                          <ChevronLeft className="h-4 w-4" />
-                        </Button>
-                        <span className="font-mono text-xs text-muted-foreground">
-                          {t('live_deck_page_of', {
-                            current: data.deckPage,
-                            total: numDeckPages,
-                          })}
-                        </span>
-                        <Button
-                          type="button"
-                          size="sm"
-                          variant="outline"
-                          className="min-h-11 min-w-11"
-                          aria-label={t('live_deck_next')}
-                          disabled={data.deckPage >= numDeckPages}
-                          onClick={() => void changeDeckPage(data.deckPage + 1)}
-                        >
-                          <ChevronRight className="h-4 w-4" />
-                        </Button>
-                      </div>
-                    </div>
-                  )
-                ) : (
-                  <div className="flex flex-col items-center rounded-xl border border-dashed bg-muted/30 px-4 py-8 text-center">
-                    <Presentation className="mb-3 h-7 w-7 text-muted-foreground" />
-                    <p className="text-sm font-medium">{t('live_deck_none')}</p>
-                    <p className="mt-2 max-w-sm text-xs leading-6 text-muted-foreground">
-                      {t('live_deck_hint')}
-                    </p>
-                  </div>
-                )}
-              </CardContent>
-            </Card>
-          </div>
-          <aside
-            aria-label={t('live_participation')}
-            className="min-w-0 space-y-6"
-          >
-            <Card>
-              <CardContent className="p-5 md:pt-6">
-                <h2 className="mb-5 flex items-center gap-2 text-sm font-semibold">
-                  <Activity className="h-4 w-4 text-muted-foreground" />
-                  {t('live_pulse_title')}
-                </h2>
-                <div className="mb-4 flex items-baseline gap-2">
-                  <span className="text-3xl font-semibold tabular-nums">
-                    {pulseAvg === null ? '—' : pulseAvg.toFixed(1)}
-                  </span>
-                  <span className="text-xs text-muted-foreground">
-                    / 5 · {data.pulse.pulseTotal} {t('live_answered')}
-                  </span>
-                </div>
-                <div className="relative h-2 rounded-full bg-gradient-to-r from-emerald-200 via-muted to-amber-300">
-                  {pulseAvg !== null && (
-                    <span
-                      aria-hidden="true"
-                      className="absolute top-1/2 h-4 w-1 -translate-x-1/2 -translate-y-1/2 rounded-full bg-foreground"
-                      style={{ left: `${pulsePercent}%` }}
-                    />
-                  )}
-                </div>
-                <div className="mt-3 flex justify-between text-xs text-muted-foreground">
-                  <span>{t('live_pulse_easy')}</span>
-                  <span>{t('live_pulse_ok')}</span>
-                  <span>{t('live_pulse_hard')}</span>
-                </div>
-                {pulseAvg === null && (
-                  <p className="mt-4 text-xs leading-5 text-muted-foreground">
-                    {t('live_pulse_empty')}
-                  </p>
-                )}
-              </CardContent>
-            </Card>
-            <Card className="min-w-0">
-              <CardContent className="p-5 md:pt-6">
-                <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
-                  <h2 className="flex items-center gap-2 text-sm font-semibold">
-                    <MessageSquare className="h-4 w-4 text-muted-foreground" />
-                    {t('live_qa_title')}
-                  </h2>
-                  <div className="flex items-center gap-2">
-                    <span className="font-mono text-xs text-muted-foreground">
-                      {questions.length}
-                    </span>
-
-                  </div>
-                </div>
-                {visibleQuestions.length === 0 ? (
-                  <p className="py-6 text-center text-sm text-muted-foreground">
-                    {t('live_qa_panel_empty')}
-                  </p>
-                ) : (
-                  <ul className="max-h-[460px] space-y-2 overflow-y-auto">
-                    {visibleQuestions.map((item) => (
-                      <li
-                        key={item.id}
-                        className={`flex items-start justify-between gap-3 rounded-lg border p-3 text-sm ${item.visibility === 'author_only' ? 'opacity-60' : ''}`}
-                      >
-                        <div className="min-w-0">
-                          <div className="mb-1 flex items-center gap-2">
-                            <span className="rounded bg-muted px-1.5 py-0.5 text-[10px] uppercase tracking-wide text-muted-foreground">
-                              {t(`live_qa_lens_${item.lens}` as const)}
-                            </span>
-                            <span className="font-mono text-xs text-muted-foreground">
-                              ▲ {item.upvotes}
-                            </span>
-                          </div>
-                          <p className="break-words">{item.text}</p>
-                        </div>
-                        <Button
-                          type="button"
-                          size="sm"
-                          variant="ghost"
-                          className="min-h-11 min-w-11 shrink-0"
-                          disabled={moderatingId === item.id}
-                          onClick={() => void handleModerate(item)}
-                          aria-label={t(
-                            item.visibility === 'public'
-                              ? 'live_qa_moderate_hide'
-                              : 'live_qa_moderate_show',
-                          )}
-                        >
-                          {item.visibility === 'public' ? (
-                            <EyeOff className="h-4 w-4" />
-                          ) : (
-                            <Eye className="h-4 w-4" />
-                          )}
-                        </Button>
-                      </li>
-                    ))}
-                  </ul>
-                )}
-              </CardContent>
-            </Card>
-
-            {REACTION_KINDS.some((kind) => reactionCounts[kind]) && (
-              <div className="app-panel p-5">
-                <h2 className="mb-3 text-sm font-semibold">
-                  {t('live_reactions_title')}
-                </h2>
-                <div className="flex flex-wrap gap-3">
-                  {REACTION_KINDS.filter((kind) => reactionCounts[kind]).map(
-                    (kind) => (
-                      <span
-                        key={kind}
-                        className="rounded-lg bg-muted px-3 py-2 text-sm"
-                        title={t(`live_reaction_${kind}`)}
-                      >
-                        {REACTION_EMOJI[kind]}{' '}
-                        <span className="font-mono">
-                          {reactionCounts[kind]}
-                        </span>
+                    {current ? (
+                      <span className="flex items-center gap-1 text-xs font-medium text-primary">
+                        <Check className="h-3.5 w-3.5" />
+                        {t('live_deck_library_current')}
                       </span>
-                    ),
-                  )}
-                </div>
-              </div>
-            )}
-          </aside>
-        </div>
-      </main>
+                    ) : (
+                      <Button size="sm" className="h-9" disabled={uploadingDeck} onClick={() => void pickLibraryDeck(deck)}>
+                        {t('live_deck_library_use')}
+                      </Button>
+                    )}
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      className="h-9 w-9 shrink-0 p-0 text-muted-foreground hover:text-destructive"
+                      aria-label={t('live_deck_library_delete', { title })}
+                      onClick={() => setDeckToDelete(deck)}
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </Button>
+                  </li>
+                );
+              })}
+            </ul>
+          )}
+          <Button
+            type="button"
+            variant="outline"
+            className="min-h-11 w-full"
+            disabled={uploadingDeck}
+            onClick={() => { setShowLibrary(false); fileInputRef.current?.click(); }}
+          >
+            <FileUp className="mr-2 h-4 w-4" />
+            {t('live_deck_library_upload')}
+          </Button>
+        </DialogContent>
+      </Dialog>
+      <DeleteConfirmation
+        name={deckToDelete ? deckToDelete.title ?? t('live_deck_untitled') : null}
+        description={t('live_deck_library_delete_confirm')}
+        busy={deletingDeck}
+        onCancel={() => setDeckToDelete(null)}
+        onConfirm={() => void confirmDeleteDeck()}
+      />
       <Dialog open={showComposer} onOpenChange={setShowComposer}>
         <DialogContent className="max-h-[85dvh] w-[calc(100%-2rem)] overflow-y-auto rounded-2xl">
           <DialogHeader>
