@@ -156,7 +156,7 @@ describe("snapshot hand-off between presenter and projected windows", () => {
     const { result } = renderHook(() => usePresentationSnapshot("/api/test", "session-2"));
     await waitFor(() => expect(result.current.snapshot).not.toBeNull());
     await act(async () => { await result.current.command({ action: "show", mode: "poll" }); });
-    await waitFor(() => expect(received).toContainEqual({ type: "snapshot", snapshot: { ...snap, mode: "poll" } }));
+    await waitFor(() => expect(received).toContainEqual({ type: "snapshot", snapshot: { ...snap, mode: "poll" }, pending: false }));
     display.close();
   });
 });
@@ -207,5 +207,26 @@ describe("optimistic hand-off", () => {
     await act(async () => { failWrite(); await mutation; });
     await waitFor(() => expect(received.at(-1)?.snapshot?.mode).toBe("deck"));
     display.close();
+  });
+});
+
+describe("remote optimistic state", () => {
+  it("keeps another window's pending guess until its result arrives, even if a poll returns older state", async () => {
+    const fetcher = vi.fn().mockResolvedValue(response(snap));
+    vi.stubGlobal("fetch", fetcher);
+    const { result } = renderHook(() => usePresentationSnapshot("/api/test", "session-4"));
+    await waitFor(() => expect(result.current.snapshot?.mode).toBe("deck"));
+    const presenter = new BroadcastChannel("live-presentation:session-4");
+    presenter.postMessage({ type: "snapshot", snapshot: { ...snap, mode: "blank" }, pending: true });
+    await waitFor(() => expect(result.current.snapshot?.mode).toBe("blank"));
+    // A poll that starts now still sees the pre-write state on the server.
+    await act(async () => { await result.current.refresh(); });
+    expect(result.current.snapshot?.mode).toBe("blank");
+    presenter.postMessage({ type: "snapshot", snapshot: { ...snap, mode: "blank", title: "confirmed" }, pending: false });
+    await waitFor(() => expect(result.current.snapshot?.title).toBe("confirmed"));
+    fetcher.mockResolvedValue(response({ ...snap, mode: "poll" }));
+    await act(async () => { await result.current.refresh(); });
+    expect(result.current.snapshot?.mode).toBe("poll");
+    presenter.close();
   });
 });

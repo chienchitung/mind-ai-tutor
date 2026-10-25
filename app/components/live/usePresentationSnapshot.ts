@@ -5,6 +5,8 @@ import type {
   PresentationSnapshot,
 } from "@/lib/live-presentation";
 
+const REMOTE_PENDING_MS = 10_000;
+
 /** Broadcasts are hints, not authority. Re-read after subscribe/reconnect and
  * periodically repair missed events. One request at a time, including writes. */
 export function usePresentationSnapshot(url: string, sessionId?: string) {
@@ -30,6 +32,11 @@ export function usePresentationSnapshot(url: string, sessionId?: string) {
   // own response, or one pushed by the presenter window). A GET that started
   // before that is older than what is on screen and must not overwrite it.
   const generation = useRef(0);
+  // Set while another window's optimistic guess is on screen and its write
+  // is still in flight: a read here could only return the state before that
+  // write. Cleared by the final result (or revert), or after a safety window.
+  const remotePendingSince = useRef(0);
+  const remotePending = () => remotePendingSince.current > 0 && Date.now() - remotePendingSince.current < REMOTE_PENDING_MS;
   const refresh = useCallback((): Promise<void> => {
     if (busy.current) {
       queued.current = true;
@@ -66,7 +73,7 @@ export function usePresentationSnapshot(url: string, sessionId?: string) {
           const value = await response.json();
           // Skipped while a command is in flight too: its response is newer
           // than anything this read could have seen.
-          if (mounted.current && startedAt === generation.current && !writing.current) {
+          if (mounted.current && startedAt === generation.current && !writing.current && !remotePending()) {
             setSnapshot(value);
             setError(false);
           }
@@ -107,6 +114,7 @@ export function usePresentationSnapshot(url: string, sessionId?: string) {
       local.onmessage = ({ data }) => {
         if (data?.type === "snapshot" && data.snapshot && typeof data.snapshot === "object") {
           generation.current++;
+          remotePendingSince.current = data.pending === true ? Date.now() : 0;
           setSnapshot(data.snapshot as PresentationSnapshot);
           setError(false);
           return;
@@ -120,10 +128,10 @@ export function usePresentationSnapshot(url: string, sessionId?: string) {
       window.removeEventListener("live:presentation-refresh", update);
     };
   }, [sessionId, refresh]);
-  const pushToOtherWindows = useCallback((value: PresentationSnapshot) => {
+  const pushToOtherWindows = useCallback((value: PresentationSnapshot, pending = false) => {
     if (!sessionId || typeof BroadcastChannel === "undefined") return;
     const local = new BroadcastChannel(`live-presentation:${sessionId}`);
-    local.postMessage({ type: "snapshot", snapshot: value });
+    local.postMessage({ type: "snapshot", snapshot: value, pending });
     local.close();
   }, [sessionId]);
   const command = useCallback(
@@ -160,7 +168,7 @@ export function usePresentationSnapshot(url: string, sessionId?: string) {
         setSnapshot(guess);
         // The projected window shows the same guess at once; the server's
         // answer (or a revert) follows over the same channel.
-        pushToOtherWindows(guess);
+        pushToOtherWindows(guess, true);
       }
       try {
         const response = await fetch(url, {
