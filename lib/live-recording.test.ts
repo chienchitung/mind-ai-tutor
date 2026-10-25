@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { formatClock, joinTranscript, lessonNotesSchema, lessonNotesToMarkdown, segmentPath, slideTimeline } from './live-recording';
+import { formatClock, joinTranscript, lessonNotesSchema, lessonNotesToMarkdown, parseClock, segmentPath, slideTimeline, timedTranscript, transcriptParagraphs } from './live-recording';
 
 describe('formatClock', () => {
   it('formats minutes and hours, treating missing values as zero', () => {
@@ -57,5 +57,47 @@ describe('lesson notes', () => {
     expect(markdown).toContain('- 例：成績及格判斷');
     expect(markdown).toContain('- **巢狀 IF**：IF 裡面再放 IF');
     expect(markdown).toContain('1. IF 有幾個參數？\n   - 參考答案：三個');
+  });
+});
+
+describe('per-paragraph timestamps', () => {
+  it('parses clocks and rejects anything else', () => {
+    expect(parseClock('2:13')).toBe(133);
+    expect(parseClock('02:05')).toBe(125);
+    expect(parseClock('1:02:05')).toBe(3725);
+    expect(parseClock('1:75')).toBeNull();
+    expect(parseClock('soon')).toBeNull();
+  });
+  it('moves clip-relative times onto the lecture clock, keeping them ordered and inside the segment', () => {
+    expect(timedTranscript([
+      { start: '0:00', text: '同學好，' },
+      { start: '1:30', text: '今天看 IF。\n第二行' },
+      { start: '1:10', text: '時間倒退的段落' },
+      { start: 'later', text: '沒有時間的段落' },
+      { start: '9:59', text: '超出這段' },
+      { start: '2:00', text: '  ' },
+    ], 300, 300)).toBe([
+      '[5:00] 同學好，',
+      '[6:30] 今天看 IF。 第二行',
+      '[6:30] 時間倒退的段落',
+      '[6:30] 沒有時間的段落',
+      '[10:00] 超出這段',
+    ].join('\n\n'));
+  });
+  it('reads timed paragraphs back, and treats an older untimed transcript as one paragraph at the segment start', () => {
+    expect(transcriptParagraphs({ startSeconds: 300, transcript: '[5:00] 甲\n\n[6:30] 乙' })).toEqual([
+      { seconds: 300, text: '甲' },
+      { seconds: 390, text: '乙' },
+    ]);
+    expect(transcriptParagraphs({ startSeconds: 300, transcript: '舊的逐字稿\n\n第二段' })).toEqual([
+      { seconds: 300, text: '舊的逐字稿\n\n第二段' },
+    ]);
+    expect(transcriptParagraphs({ startSeconds: 0, transcript: '  ' })).toEqual([]);
+  });
+  it('joins old and new segments into one lecture transcript', () => {
+    expect(joinTranscript([
+      { idx: 1, startSeconds: 300, durationSeconds: 300, status: 'transcribed', transcript: '[5:00] 新甲\n\n[6:12] 新乙', error: null },
+      { idx: 0, startSeconds: 0, durationSeconds: 300, status: 'transcribed', transcript: '舊段落', error: null },
+    ])).toBe('[0:00] 舊段落\n\n[5:00] 新甲\n\n[6:12] 新乙');
   });
 });

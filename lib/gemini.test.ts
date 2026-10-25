@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { generateDetailedLearningAnalysis } from './gemini';
+import { generateDetailedLearningAnalysis, transcribeLectureAudio } from './gemini';
 
 const { generateContent } = vi.hoisted(() => ({ generateContent: vi.fn() }));
 
@@ -52,5 +52,25 @@ describe('generateDetailedLearningAnalysis', () => {
     expect(prompt).not.toContain('CONVERSATION ANALYSIS');
     expect(prompt).toContain('summary, time, focus, patterns, strengths');
     expect(prompt).not.toContain('AI 對話洞察');
+  });
+});
+
+describe('transcribeLectureAudio', () => {
+  beforeEach(() => generateContent.mockReset());
+  it('asks for timed paragraphs as JSON and returns them', async () => {
+    generateContent.mockResolvedValue({ text: JSON.stringify({ paragraphs: [{ start: '0:04', text: '同學好' }, { start: '1:10', text: '今天看 IF' }] }) });
+    expect(await transcribeLectureAudio('AAAA', { language: 'zh-TW' })).toEqual([
+      { start: '0:04', text: '同學好' },
+      { start: '1:10', text: '今天看 IF' },
+    ]);
+    const request = generateContent.mock.calls[0][0];
+    expect(request.config.responseMimeType).toBe('application/json');
+    expect(request.contents[0].parts[0].inlineData).toEqual({ mimeType: 'audio/wav', data: 'AAAA' });
+  });
+  it('keeps plain text as one paragraph when the model ignores the schema, and returns nothing for silence', async () => {
+    generateContent.mockResolvedValue({ text: '只有一段文字' });
+    expect(await transcribeLectureAudio('AAAA', { language: 'zh-TW' })).toEqual([{ start: '0:00', text: '只有一段文字' }]);
+    generateContent.mockResolvedValue({ text: JSON.stringify({ paragraphs: [] }) });
+    expect(await transcribeLectureAudio('AAAA', { language: 'zh-TW' })).toEqual([]);
   });
 });

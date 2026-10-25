@@ -120,14 +120,78 @@ export function slideTimeline(marks: SlideMark[], durationSeconds: number): { pa
   return ranges.filter((range) => range.to > range.from);
 }
 
-/** The transcript as one text with a [mm:ss] stamp at the start of each segment. */
+export type TimedParagraph = { seconds: number; text: string };
+
+const STAMP = /^\[(?:(\d+):)?(\d{1,2}):(\d{2})\]\s*/;
+
+/** "M:SS", "MM:SS" or "H:MM:SS" to seconds; null if it isn't a clock. */
+export function parseClock(value: string): number | null {
+  const match = /^\s*(?:(\d+):)?(\d{1,3}):(\d{2})\s*$/.exec(value);
+  if (!match || Number(match[3]) > 59) return null;
+  return Number(match[1] ?? 0) * 3600 + Number(match[2]) * 60 + Number(match[3]);
+}
+
+// Gemini times each paragraph from the start of its own five-minute
+// segment; the stored transcript carries lecture time instead, one
+// "[m:ss] text" paragraph per block. Times are clamped into the segment and
+// kept in order, since a model's audio timestamps are approximate.
+export function timedTranscript(paragraphs: { start: string; text: string }[], segmentStart: number, segmentDuration: number): string {
+  let previous = segmentStart;
+  const end = segmentStart + segmentDuration;
+  return paragraphs
+    .map(({ start, text }) => ({ offset: parseClock(start), text: text.replace(/\s*\n+\s*/g, ' ').trim() }))
+    .filter(({ text }) => text)
+    .map(({ offset, text }) => {
+      const seconds = offset === null ? previous : Math.min(end, Math.max(previous, segmentStart + offset));
+      previous = seconds;
+      return `[${formatClock(seconds)}] ${text}`;
+    })
+    .join('\n\n');
+}
+
+/** A stored segment's paragraphs; older transcripts without per-paragraph times count as one paragraph at the segment start. */
+export function transcriptParagraphs(segment: Pick<RecordingSegment, 'startSeconds' | 'transcript'>): TimedParagraph[] {
+  const text = segment.transcript?.trim();
+  if (!text) return [];
+  const blocks = text.split(/\n{2,}/);
+  if (!blocks.every((block) => STAMP.test(block))) return [{ seconds: segment.startSeconds, text }];
+  return blocks.map((block) => {
+    const match = STAMP.exec(block)!;
+    return {
+      seconds: Number(match[1] ?? 0) * 3600 + Number(match[2]) * 60 + Number(match[3]),
+      text: block.slice(match[0].length).trim(),
+    };
+  });
+}
+
+/** The whole lecture as "[m:ss] paragraph" blocks, in order. */
 export function joinTranscript(segments: RecordingSegment[]): string {
   return [...segments]
     .sort((a, b) => a.idx - b.idx)
-    .filter((segment) => segment.status === 'transcribed' && segment.transcript?.trim())
-    .map((segment) => `[${formatClock(segment.startSeconds)}] ${segment.transcript!.trim()}`)
+    .filter((segment) => segment.status === 'transcribed')
+    .flatMap((segment) => transcriptParagraphs(segment))
+    .map(({ seconds, text }) => `[${formatClock(seconds)}] ${text}`)
     .join('\n\n');
 }
+
+// Gemini's responseJsonSchema for one segment's transcription.
+export const TRANSCRIPT_JSON_SCHEMA = {
+  type: 'object',
+  properties: {
+    paragraphs: {
+      type: 'array',
+      items: {
+        type: 'object',
+        properties: {
+          start: { type: 'string', description: 'M:SS from the start of this audio clip' },
+          text: { type: 'string' },
+        },
+        required: ['start', 'text'],
+      },
+    },
+  },
+  required: ['paragraphs'],
+} as const;
 
 export function lessonNotesToMarkdown(notes: LessonNotes, zh: boolean): string {
   const lines: string[] = [`# ${notes.title}`, '', notes.summary, ''];

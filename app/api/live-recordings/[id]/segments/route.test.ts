@@ -48,19 +48,21 @@ beforeEach(() => {
   };
   mocks.authorizeTeacherAi.mockResolvedValue({ client: { from: table, storage: { from: () => bucket } }, user: { id: owner } });
   mocks.claimTeacherAi.mockReset().mockResolvedValue(null);
-  mocks.transcribeLectureAudio.mockReset().mockResolvedValue('老師說的話');
+  mocks.transcribeLectureAudio.mockReset().mockResolvedValue([{ start: '0:00', text: '老師說的話' }, { start: '2:13', text: '那我們來看巢狀 IF' }]);
 });
 
 describe('POST /api/live-recordings/[id]/segments', () => {
   it("transcribes the uploaded segment from the owner's folder, saves the text and deletes the audio", async () => {
-    rows.segments[2] = { idx: 2, status: 'transcribed', transcript: '前一段的結尾內容' };
+    rows.segments[2] = { idx: 2, status: 'transcribed', start_seconds: 600, transcript: '[10:00] 前一段\n\n[13:20] 的結尾內容' };
     const response = await POST(request({ idx: 3, startSeconds: 900, durationSeconds: 300 }), { params: params() });
     expect(response.status).toBe(200);
-    expect(await response.json()).toEqual({ idx: 3, status: 'transcribed', transcript: '老師說的話' });
+    const timed = '[15:00] 老師說的話\n\n[17:13] 那我們來看巢狀 IF';
+    expect(await response.json()).toEqual({ idx: 3, status: 'transcribed', transcript: timed });
     expect(bucket.download).toHaveBeenCalledWith(`${owner}/${id}/003.wav`);
     expect(mocks.claimTeacherAi).toHaveBeenCalledWith(expect.anything(), 'transcription');
-    expect(mocks.transcribeLectureAudio).toHaveBeenCalledWith('AQID', { language: 'zh-TW', previousTail: '前一段的結尾內容' });
-    expect(upserts.at(-1)).toMatchObject({ recording_id: id, idx: 3, user_id: owner, start_seconds: 900, status: 'transcribed', transcript: '老師說的話' });
+    // The previous segment's text is passed as context without its timestamps.
+    expect(mocks.transcribeLectureAudio).toHaveBeenCalledWith('AQID', { language: 'zh-TW', previousTail: '前一段 的結尾內容' });
+    expect(upserts.at(-1)).toMatchObject({ recording_id: id, idx: 3, user_id: owner, start_seconds: 900, status: 'transcribed', transcript: timed });
     expect(bucket.remove).toHaveBeenCalledWith([`${owner}/${id}/003.wav`]);
   });
   it('returns an already-transcribed segment without spending points again', async () => {

@@ -1,7 +1,7 @@
 import 'server-only';
 import { GoogleGenAI } from '@google/genai';
 import { STRUCTURED_REPORT_JSON_SCHEMA, structuredReportToMarkdown } from '@/app/reports/lib/analysis-sections';
-import { LESSON_NOTES_JSON_SCHEMA, lessonNotesSchema } from '@/lib/live-recording';
+import { LESSON_NOTES_JSON_SCHEMA, TRANSCRIPT_JSON_SCHEMA, lessonNotesSchema } from '@/lib/live-recording';
 
 // Server-only: this module must never be imported from a 'use client' component,
 // since GEMINI_API_KEY would otherwise be bundled into the browser JS.
@@ -329,18 +329,22 @@ export async function generateQuiz(
   }
 }
 
-// Transcribes one recorded lecture segment (16 kHz mono WAV, a few MB). The
-// previous segment's tail is passed as context so names and terms stay
-// consistent across the five-minute cuts.
-export async function transcribeLectureAudio(wavBase64: string, options: { language: 'zh-TW' | 'en'; previousTail?: string }) {
+// Transcribes one recorded lecture segment (16 kHz mono WAV, a few MB) into
+// paragraphs, each with its start time inside this clip. The previous
+// segment's tail is passed as context so names and terms stay consistent
+// across the five-minute cuts.
+export async function transcribeLectureAudio(
+  wavBase64: string,
+  options: { language: 'zh-TW' | 'en'; previousTail?: string },
+): Promise<{ start: string; text: string }[]> {
   const zh = options.language === 'zh-TW';
   const prompt = [
     zh
       ? '這是一段課堂錄音（老師授課）。請逐字轉錄成繁體中文，保留專有名詞與英文術語原文。'
       : 'This is a classroom recording of a teacher lecturing. Transcribe it verbatim in English, keeping technical terms as spoken.',
     zh
-      ? '只輸出逐字稿本文，依語意分段；不要加標題、時間戳、說話者標籤或任何說明。聽不清楚的地方以「（聽不清楚）」標示。若整段沒有語音，輸出空字串。'
-      : 'Output only the transcript text in paragraphs. No headings, timestamps, speaker labels or commentary. Mark inaudible parts as "(inaudible)". If there is no speech, output an empty string.',
+      ? '依語意或講者停頓分段，每段約 1～4 句；每段的 start 是這段話在本音檔中開始的時間（M:SS，從 0:00 起算）。不要加標題、說話者標籤或任何說明。聽不清楚的地方以「（聽不清楚）」標示。若整段沒有語音，paragraphs 為空陣列。'
+      : 'Split into paragraphs at changes of topic or at the speaker\'s pauses, about 1-4 sentences each. Each paragraph\'s start is when it begins in this audio clip (M:SS from 0:00). No headings, speaker labels or commentary. Mark inaudible parts as "(inaudible)". If there is no speech, return an empty paragraphs array.',
     options.previousTail
       ? `${zh ? '上一段結尾（僅供上下文參考，不要重複輸出）：' : 'End of the previous segment (context only, do not repeat):'}\n${options.previousTail}`
       : '',
@@ -348,9 +352,21 @@ export async function transcribeLectureAudio(wavBase64: string, options: { langu
   const result = await genAI.models.generateContent({
     model,
     contents: [{ role: 'user', parts: [{ inlineData: { mimeType: 'audio/wav', data: wavBase64 } }, { text: prompt }] }],
-    config: { temperature: 0, maxOutputTokens: 8192 },
+    config: { temperature: 0, maxOutputTokens: 8192, responseMimeType: 'application/json', responseJsonSchema: TRANSCRIPT_JSON_SCHEMA },
   });
-  return (result.text ?? '').trim();
+  const text = (result.text ?? '').trim();
+  try {
+    const parsed = JSON.parse(text.match(/\{[\s\S]*\}/)?.[0] ?? text);
+    if (Array.isArray(parsed?.paragraphs)) {
+      return parsed.paragraphs
+        .filter((paragraph: unknown): paragraph is { start: unknown; text: string } =>
+          !!paragraph && typeof (paragraph as { text?: unknown }).text === 'string')
+        .map((paragraph: { start: unknown; text: string }) => ({ start: String(paragraph.start ?? ''), text: paragraph.text }));
+    }
+  } catch {
+    // Fall through: keep whatever text came back rather than losing the segment.
+  }
+  return text ? [{ start: '0:00', text }] : [];
 }
 
 export async function generateLectureNotes(input: {

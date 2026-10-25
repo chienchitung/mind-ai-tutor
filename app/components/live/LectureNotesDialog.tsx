@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { SegmentedControl } from '@/components/ui/segmented-control';
 import { useLanguage } from '@/app/contexts/LanguageContext';
-import { formatClock, lessonNotesToMarkdown, type LessonNotes, type RecordingSegment } from '@/lib/live-recording';
+import { formatClock, joinTranscript, lessonNotesToMarkdown, transcriptParagraphs, type LessonNotes, type RecordingSegment } from '@/lib/live-recording';
 
 type Detail = { title: string; notes: LessonNotes | null; durationSeconds: number; segments: RecordingSegment[] };
 
@@ -43,10 +43,7 @@ export function LectureNotesDialog({ recordingId, initialNotes, onClose }: {
 
   const notes = detail?.notes ?? null;
   const markdown = notes ? lessonNotesToMarkdown(notes, zh) : '';
-  const transcriptText = (detail?.segments ?? [])
-    .filter((segment) => segment.status === 'transcribed' && segment.transcript)
-    .map((segment) => `[${formatClock(segment.startSeconds)}] ${segment.transcript}`)
-    .join('\n\n');
+  const transcriptText = joinTranscript(detail?.segments ?? []);
 
   const downloadText = (text: string, suffix: string) => {
     const url = URL.createObjectURL(new Blob([text], { type: 'text/markdown;charset=utf-8' }));
@@ -187,16 +184,25 @@ export function LectureNotesDialog({ recordingId, initialNotes, onClose }: {
                 {detail.segments.length === 0 && (
                   <p className="py-6 text-center text-muted-foreground">{say('還沒有逐字稿。', 'No transcript yet.')}</p>
                 )}
-                {detail.segments.map((segment) => (
-                  <div key={segment.idx} className="grid grid-cols-[3.5rem_1fr] gap-3">
-                    <span className="pt-0.5 font-mono text-xs tabular-nums text-muted-foreground">{formatClock(segment.startSeconds)}</span>
-                    {segment.status === 'transcribed' ? (
-                      <p className="whitespace-pre-wrap">{segment.transcript || say('（這段沒有語音）', '(no speech)')}</p>
-                    ) : (
+                {detail.segments.flatMap((segment) => {
+                  const row = (key: string, seconds: number, body: React.ReactNode) => (
+                    <div key={key} className="grid grid-cols-[3.5rem_1fr] gap-3">
+                      <span className="pt-0.5 font-mono text-xs tabular-nums text-muted-foreground">{formatClock(seconds)}</span>
+                      {body}
+                    </div>
+                  );
+                  if (segment.status !== 'transcribed') {
+                    return [row(`${segment.idx}`, segment.startSeconds, (
                       <p className="text-amber-700 dark:text-amber-400">{say('這段轉錄失敗，可在面板中重試。', 'This segment failed. Retry it from the panel.')}</p>
-                    )}
-                  </div>
-                ))}
+                    ))];
+                  }
+                  const paragraphs = transcriptParagraphs(segment);
+                  if (!paragraphs.length) {
+                    return [row(`${segment.idx}`, segment.startSeconds, <p className="text-muted-foreground">{say('（這段沒有語音）', '(no speech)')}</p>)];
+                  }
+                  return paragraphs.map((paragraph, index) =>
+                    row(`${segment.idx}-${index}`, paragraph.seconds, <p className="whitespace-pre-wrap">{paragraph.text}</p>));
+                })}
               </div>
             )}
           </div>
