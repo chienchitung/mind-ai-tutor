@@ -7,6 +7,32 @@ export const RECORDING_BUCKET = 'live-recordings';
 export const SEGMENT_SECONDS = 5 * 60;
 export const SEGMENT_SAMPLE_RATE = 16_000;
 export const MAX_SEGMENTS = 288; // 24h of 5-minute segments, matches the DB check
+// The recorder saves progress at least this often while recording; a
+// 'recording' row untouched for longer than RECORDING_ACTIVE_WINDOW_MS is a
+// tab that closed or crashed without stopping (matches is_live_session_recording).
+export const RECORDING_HEARTBEAT_MS = 2 * 60 * 1000;
+export const RECORDING_ACTIVE_WINDOW_MS = 5 * 60 * 1000;
+
+export type RecordingSummary = {
+  id: string;
+  title: string;
+  status: 'recording' | 'stopped';
+  /** Recording right now (status 'recording' and saved within the active window). */
+  active: boolean;
+  durationSeconds: number;
+  hasNotes: boolean;
+  createdAt: string;
+  sessionId: string | null;
+  sessionTitle: string | null;
+  deckUrl: string | null;
+  transcribed: number;
+  failed: number;
+};
+
+export function isRecordingActive(status: string, updatedAt: string | null | undefined, now = Date.now()): boolean {
+  if (status !== 'recording' || !updatedAt) return false;
+  return now - new Date(updatedAt).getTime() < RECORDING_ACTIVE_WINDOW_MS;
+}
 
 export type SlideMark = { t: number; page: number };
 

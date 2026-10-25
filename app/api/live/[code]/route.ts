@@ -13,11 +13,18 @@ export async function GET(request: Request, { params }: { params: Promise<{ code
     const { code } = await params;
     if (!codePattern.test(code)) return NextResponse.json({ error: 'INVALID_CODE' }, { status: 400 });
     const client = await getServerClient();
-    const { data, error } = await client.rpc('get_live_session_by_code', { p_code: code });
+    const [{ data, error }, recording] = await Promise.all([
+      client.rpc('get_live_session_by_code', { p_code: code }),
+      client.rpc('is_live_session_recording', { p_code: code }),
+    ]);
     if (error) return NextResponse.json({ error: 'LIVE_STORAGE_ERROR' }, { status: 500 });
     const row = Array.isArray(data) ? data[0] : data;
     if (!row) return NextResponse.json({ error: 'NOT_FOUND' }, { status: 404 });
-    return NextResponse.json(mapSessionByCodeRow(row), { headers: { 'Cache-Control': 'private, no-store' } });
+    // Missing until the recording-notice migration runs: no notice, not an error.
+    return NextResponse.json(
+      { ...mapSessionByCodeRow(row), recording: !recording.error && recording.data === true },
+      { headers: { 'Cache-Control': 'private, no-store' } },
+    );
   } catch {
     return NextResponse.json({ error: 'LIVE_STORAGE_ERROR' }, { status: 500 });
   }

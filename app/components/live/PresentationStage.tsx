@@ -229,6 +229,8 @@ interface Props {
   /** Small class signal kept on screen so the presenter never has to exit
    * projection just to check it. */
   onlineCount?: number;
+  /** Shows the "recording" badge next to the join code, for the whole room. */
+  recording?: boolean;
   /** Full Q&A/poll panel, opened on demand - lets the presenter moderate
    * questions, read poll results, or launch the next poll from a saved
    * quiz without leaving projection. Picking a fresh, never-used question
@@ -261,6 +263,7 @@ export const PresentationStage = forwardRef<HTMLDivElement, Props>(
       onNumPages,
       reactions,
       onlineCount,
+      recording = false,
       portalContainer,
       annotationState,
       onAnnotationAction,
@@ -815,7 +818,15 @@ export const PresentationStage = forwardRef<HTMLDivElement, Props>(
                   </strong>
                 </p>
               </div>
-              {joinCode && <JoinQRCode code={joinCode} />}
+              <div className="flex shrink-0 items-center gap-3">
+                {recording && (
+                  <span role="status" className="flex items-center gap-2 rounded-full bg-red-500/15 px-3 py-1 text-xs font-medium text-red-200 sm:text-sm">
+                    <span aria-hidden="true" className="h-2 w-2 animate-pulse rounded-full bg-red-500 motion-reduce:animate-none" />
+                    {language === "zh-TW" ? "錄音中" : "Recording"}
+                  </span>
+                )}
+                {joinCode && <JoinQRCode code={joinCode} />}
+              </div>
             </footer>
           </Dialog.Content>
         </Dialog.Portal>

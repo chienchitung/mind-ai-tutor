@@ -151,6 +151,22 @@ export default function AudiencePage() {
   useEffect(() => {
     setParticipantId(getParticipantId(code));
   }, [code]);
+  // The start/stop broadcasts keep the recording notice current, but a
+  // teacher's tab that closes or crashes sends no stop. While the notice is
+  // up, recheck it so it lapses with the server's 5-minute window.
+  const recordingShown = data?.recording === true;
+  useEffect(() => {
+    if (!recordingShown) return;
+    const timer = setInterval(() => {
+      fetch(`/api/live/${code}`, { cache: 'no-store' })
+        .then((response) => (response.ok ? response.json() : null))
+        .then((value) => {
+          if (value) setData((previous) => (previous ? { ...previous, recording: value.recording === true } : previous));
+        })
+        .catch(() => {});
+    }, 60_000);
+    return () => clearInterval(timer);
+  }, [code, recordingShown]);
 
   const loadQuestions = useCallback(async () => {
     if (!participantId) return;
@@ -248,6 +264,10 @@ export default function AudiencePage() {
         void loadQuestions();
       })
       .on('broadcast', { event: 'session:deleted' }, () => { void load(); })
+      .on('broadcast', { event: 'recording:state' }, ({ payload }) => {
+        const active = (payload as { active?: unknown }).active === true;
+        setData((previous) => (previous ? { ...previous, recording: active } : previous));
+      })
       .on('broadcast', { event: 'reaction:sent' }, ({ payload }) => {
         const reaction = payload as { kind: string; reactionId?: string };
         pushReaction(reaction.kind, reaction.reactionId);
@@ -581,6 +601,17 @@ export default function AudiencePage() {
             )}
           </div>
         </div>
+        {data.recording && (
+          <p
+            role="status"
+            className="flex items-center gap-2 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs font-medium text-red-800 dark:border-red-900 dark:bg-red-950/40 dark:text-red-200"
+          >
+            <span aria-hidden="true" className="h-2 w-2 shrink-0 animate-pulse rounded-full bg-red-500 motion-reduce:animate-none" />
+            {language === 'zh-TW'
+              ? '老師正在錄音（只錄老師的麥克風），課後會整理成教學筆記。'
+              : 'The teacher is recording (teacher’s microphone only) to make teaching notes after class.'}
+          </p>
+        )}
         {connectionStatus && (
           <p
             role="status"

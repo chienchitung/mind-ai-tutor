@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { supabase } from '@/lib/supabase';
-import { RECORDING_BUCKET, SEGMENT_SAMPLE_RATE, SEGMENT_SECONDS, segmentPath, type SlideMark } from '@/lib/live-recording';
+import { RECORDING_BUCKET, RECORDING_HEARTBEAT_MS, SEGMENT_SAMPLE_RATE, SEGMENT_SECONDS, segmentPath, type SlideMark } from '@/lib/live-recording';
 import { concatSamples, downsample, encodeWav } from '@/lib/wav';
 
 export type RecorderPhase = 'idle' | 'starting' | 'recording' | 'stopping' | 'stopped';
@@ -55,6 +55,7 @@ export function useLectureRecorder({ sessionId, title, language }: { sessionId: 
   const marksRef = useRef<SlideMark[]>([]);
   const idsRef = useRef<{ recordingId: string; userId: string } | null>(null);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const heartbeatRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const patchSegment = (idx: number, patch: Partial<LiveSegment>) =>
     setSegments((previous) => previous.map((segment) => (segment.idx === idx ? { ...segment, ...patch } : segment)));
@@ -142,6 +143,8 @@ export function useLectureRecorder({ sessionId, title, language }: { sessionId: 
     streamRef.current = null;
     if (timerRef.current) clearInterval(timerRef.current);
     timerRef.current = null;
+    if (heartbeatRef.current) clearInterval(heartbeatRef.current);
+    heartbeatRef.current = null;
   };
 
   const start = useCallback(async (currentPage?: number) => {
@@ -216,13 +219,16 @@ export function useLectureRecorder({ sessionId, title, language }: { sessionId: 
       setElapsed(0);
       setDownload((previous) => { if (previous) URL.revokeObjectURL(previous.url); return null; });
       timerRef.current = setInterval(() => setElapsed(Math.floor(seconds())), 1_000);
+      // Keeps the students' "recording" notice alive; a closed or crashed tab
+      // stops sending this, and the notice lapses on its own.
+      heartbeatRef.current = setInterval(() => void saveProgress(), RECORDING_HEARTBEAT_MS);
       setPhase('recording');
     } catch (cause) {
       stream.getTracks().forEach((track) => track.stop());
       setError(cause instanceof Error && cause.message === 'RECORDINGS_NOT_READY' ? 'RECORDINGS_NOT_READY' : 'START_FAILED');
       setPhase('idle');
     }
-  }, [phase, sessionId, title, cutSegment]);
+  }, [phase, sessionId, title, cutSegment, saveProgress]);
 
   const stop = useCallback(async () => {
     if (phase !== 'recording') return;

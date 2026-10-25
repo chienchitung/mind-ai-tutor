@@ -15,7 +15,7 @@ const APP_SHELL_ROUTES = [
   '/admin',
 ] as const;
 
-const LIVE_SHELL_ROUTES = ['/live/new', '/live/sessions'] as const;
+const LIVE_SHELL_ROUTES = ['/live/new', '/live/sessions', '/live/recordings'] as const;
 
 function matchesRoute(pathname: string, route: string): boolean {
   return pathname === route || pathname.startsWith(`${route}/`);

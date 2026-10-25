@@ -27,7 +27,7 @@ describe('GET /api/live/[code]', () => {
     expect(rpc).not.toHaveBeenCalled();
   });
   it('returns the mapped public state for a known code', async () => {
-    rpc.mockResolvedValue({ data: [row], error: null });
+    rpc.mockImplementation(async (fn: string) => (fn === 'get_live_session_by_code' ? { data: [row], error: null } : { data: false, error: null }));
     const response = await GET(request(), { params: params() });
     expect(response.status).toBe(200);
     expect(await response.json()).toEqual({
@@ -35,8 +35,20 @@ describe('GET /api/live/[code]', () => {
       poll: { pollId: 'p1', question: 'SUMIF?', options: ['A', 'B'], voteCounts: [3, 1], voteTotal: 4 },
       pulse: { pulseCounts: [0, 1, 2, 0, 0], pulseTotal: 3, pulseAverage: 2.33 },
       deckUrl: 'https://example.test/deck.pdf', deckPage: 2,
+      recording: false,
     });
     expect(rpc).toHaveBeenCalledWith('get_live_session_by_code', { p_code: '482910' });
+  });
+  it('tells students the teacher is recording, and treats a missing notice function as not recording', async () => {
+    rpc.mockImplementation(async (fn: string) => (fn === 'get_live_session_by_code' ? { data: [row], error: null } : { data: true, error: null }));
+    expect((await (await GET(request(), { params: params() })).json()).recording).toBe(true);
+    expect(rpc).toHaveBeenCalledWith('is_live_session_recording', { p_code: '482910' });
+    rpc.mockImplementation(async (fn: string) => (fn === 'get_live_session_by_code'
+      ? { data: [row], error: null }
+      : { data: null, error: { code: 'PGRST202', message: 'function not found' } }));
+    const response = await GET(request(), { params: params() });
+    expect(response.status).toBe(200);
+    expect((await response.json()).recording).toBe(false);
   });
   it('returns 404 for an unknown code', async () => {
     rpc.mockResolvedValue({ data: [], error: null });

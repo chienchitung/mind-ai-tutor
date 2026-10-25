@@ -134,6 +134,25 @@ export default function PresenterPage() {
 
   const [questions, setQuestions] = useState<LiveQuestion[]>([]);
   const [moderatingId, setModeratingId] = useState<string | null>(null);
+  const [recordingActive, setRecordingActive] = useState(false);
+  // Broadcasts can be missed (this page opened after recording started in
+  // another tab, or a connection drop), so the badge is also read from the
+  // server on every (re)subscribe and rechecked while it shows.
+  const loadRecordingActive = useCallback(async () => {
+    try {
+      const response = await fetch(`/api/live-recordings?sessionId=${params.id}`, { cache: 'no-store' });
+      if (!response.ok) return;
+      const list = await response.json();
+      if (Array.isArray(list)) setRecordingActive(list.some((item: { active?: boolean }) => item.active === true));
+    } catch {
+      // Keep the last known state.
+    }
+  }, [params.id]);
+  useEffect(() => {
+    if (!recordingActive) return;
+    const timer = setInterval(() => void loadRecordingActive(), 60_000);
+    return () => clearInterval(timer);
+  }, [recordingActive, loadRecordingActive]);
 
   const [reactionCounts, setReactionCounts] = useState<Record<string, number>>(
     {},
@@ -305,6 +324,11 @@ export default function PresenterPage() {
       // it). The instant hint arrives over the local ink channel below; this
       // re-read is the backstop that makes the saved page authoritative.
       .on('broadcast', { event: 'deck:sync' }, () => { void load(); })
+      // The fullscreen projection is what the room sees; it carries the same
+      // "recording" badge as the students' pages.
+      .on('broadcast', { event: 'recording:state' }, ({ payload }) => {
+        setRecordingActive((payload as { active?: unknown }).active === true);
+      })
       .on('broadcast', { event: 'reaction:sent' }, ({ payload }) => {
         const { kind } = payload as { kind: string };
         setReactionCounts((previous) => ({
@@ -320,11 +344,11 @@ export default function PresenterPage() {
         registerPing((payload as { participantId: string }).participantId);
       })
       .on('broadcast', { event: 'presentation:changed' }, () => window.dispatchEvent(new Event('live:presentation-refresh')))
-      .subscribe((state) => { if (state === 'SUBSCRIBED') { void load(); void loadQuestions(); window.dispatchEvent(new Event('live:presentation-refresh')); } });
+      .subscribe((state) => { if (state === 'SUBSCRIBED') { void load(); void loadQuestions(); void loadRecordingActive(); window.dispatchEvent(new Event('live:presentation-refresh')); } });
     return () => {
       void client.removeChannel(channel);
     };
-  }, [params.id, pushReaction, registerPing, load, loadQuestions]);
+  }, [params.id, pushReaction, registerPing, load, loadQuestions, loadRecordingActive]);
 
   // Drawing stays on this browser's origin, never on the public student channel.
   // A refreshed display asks for the current ink; periodic replay repairs missed messages.
@@ -1448,6 +1472,7 @@ export default function PresenterPage() {
         annotationState={controlInk} onAnnotationAction={dispatchControlInk}
         onLiveChange={live => inkChannelRef.current?.postMessage({ type: 'live', page: data.deckPage, deckUrl: data.deckUrl, payload: live })}
         onlineCount={onlineCount}
+        recording={recordingActive}
         poll={data.poll} questions={questions} moderatingId={moderatingId}
         onModerateQuestion={(item) => void handleModerate(item)}
         quizzes={quizzes} quizzesLoading={quizzesLoading} quizPickerError={quizPickerError}

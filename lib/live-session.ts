@@ -24,6 +24,8 @@ export interface LiveSessionPublicState {
   pulse: LivePulseState;
   deckUrl: string | null;
   deckPage: number;
+  /** The teacher is recording this session (public notice only). */
+  recording?: boolean;
 }
 
 /** Adds the join code, only ever returned to the verified session owner. */

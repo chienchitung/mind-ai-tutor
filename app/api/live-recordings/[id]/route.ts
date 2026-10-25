@@ -1,10 +1,24 @@
-import { NextResponse } from 'next/server';
+import { NextResponse, after } from 'next/server';
+import { broadcastLiveUpdate } from '@/lib/live-broadcast';
 import { getServerClient } from '@/lib/supabase-server';
 import { isSameOriginRequest, HttpInputError, readJsonWithLimit } from '@/lib/http-security';
-import { RECORDING_BUCKET, updateRecordingSchema } from '@/lib/live-recording';
+import { RECORDING_ACTIVE_WINDOW_MS, RECORDING_BUCKET, updateRecordingSchema } from '@/lib/live-recording';
 
 const headers = { 'Cache-Control': 'private, no-store' };
 const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+// Clears the students' "the teacher is recording" notice - unless another
+// recording of the same session is still live (e.g. a second tab).
+function endNotice(client: Awaited<ReturnType<typeof getServerClient>>, sessionId: string, endedId: string) {
+  after(async () => {
+    const since = new Date(Date.now() - RECORDING_ACTIVE_WINDOW_MS).toISOString();
+    const { data: others } = await client.from('live_recordings')
+      .select('id').eq('session_id', sessionId).eq('status', 'recording').neq('id', endedId).gt('updated_at', since).limit(1);
+    if (others?.length) return;
+    await broadcastLiveUpdate(sessionId, 'recording:state', { active: false })
+      .catch((cause) => console.error('recording stop broadcast failed:', cause));
+  });
+}
 
 async function owner(request: Request, params: Promise<{ id: string }>, mutating: boolean) {
   if (mutating && !isSameOriginRequest(request)) return { response: NextResponse.json({ error: 'FORBIDDEN' }, { status: 403 }) };
@@ -52,9 +66,10 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
     if (parsed.data.durationSeconds !== undefined) update.duration_seconds = parsed.data.durationSeconds;
     if (parsed.data.slideMarks) update.slide_marks = parsed.data.slideMarks;
     const { data, error } = await ctx.client.from('live_recordings')
-      .update(update).eq('id', ctx.id).eq('user_id', ctx.user.id).select('id').maybeSingle();
+      .update(update).eq('id', ctx.id).eq('user_id', ctx.user.id).select('id, session_id').maybeSingle();
     if (error) return NextResponse.json({ error: 'LIVE_STORAGE_ERROR' }, { status: 500 });
     if (!data) return NextResponse.json({ error: 'NOT_FOUND' }, { status: 404 });
+    if (parsed.data.status === 'stopped' && data.session_id) endNotice(ctx.client, data.session_id, ctx.id);
     return NextResponse.json({ ok: true }, { headers });
   } catch (error) {
     if (error instanceof HttpInputError) return NextResponse.json({ error: error.message }, { status: error.status });
@@ -76,9 +91,10 @@ export async function DELETE(request: Request, { params }: { params: Promise<{ i
       if (removeError) return NextResponse.json({ error: 'RECORDING_DELETE' }, { status: 500 });
     }
     const { data, error } = await ctx.client.from('live_recordings')
-      .delete().eq('id', ctx.id).eq('user_id', ctx.user.id).select('id').maybeSingle();
+      .delete().eq('id', ctx.id).eq('user_id', ctx.user.id).select('id, session_id, status').maybeSingle();
     if (error) return NextResponse.json({ error: 'LIVE_STORAGE_ERROR' }, { status: 500 });
     if (!data) return NextResponse.json({ error: 'NOT_FOUND' }, { status: 404 });
+    if (data.status === 'recording' && data.session_id) endNotice(ctx.client, data.session_id, ctx.id);
     return new NextResponse(null, { status: 204 });
   } catch {
     return NextResponse.json({ error: 'LIVE_STORAGE_ERROR' }, { status: 500 });
