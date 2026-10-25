@@ -9,7 +9,7 @@ import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover
 import { useLanguage } from '@/app/contexts/LanguageContext';
 import { cn } from '@/lib/utils';
 import { formatClock, RECORDING_BUCKET, segmentPath, type LessonNotes, type RecordingSummary } from '@/lib/live-recording';
-import { openRecordingVault, type VaultMeta } from '@/lib/recording-vault';
+import { isRecordingOwnedElsewhere, openRecordingVault, type VaultMeta } from '@/lib/recording-vault';
 import { recoverRecording } from '@/lib/recording-recovery';
 import { supabase } from '@/lib/supabase';
 import { extractDeckText } from '@/lib/deck-text';
@@ -97,6 +97,8 @@ export function LectureJobsProvider({ children }: { children: ReactNode }) {
       const found: Leftover[] = [];
       for (const meta of await vault.listMeta()) {
         if (meta.userId !== userId) continue;
+        // Still being recorded (or finished) by another open tab.
+        if (await isRecordingOwnedElsewhere(meta)) continue;
         const [segments, tail, media] = await Promise.all([
           vault.listSegments(meta.recordingId), vault.readTail(meta.recordingId), vault.readMedia(meta.recordingId),
         ]);
@@ -129,7 +131,16 @@ export function LectureJobsProvider({ children }: { children: ReactNode }) {
     void (async () => {
       const vault = await openRecordingVault();
       if (!vault) { patchLeftover(recordingId, { status: 'error' }); return; }
+      // Checked again right before: another tab may have picked it up since.
+      if (await isRecordingOwnedElsewhere(leftover.meta)) { patchLeftover(recordingId, null); return; }
       const result = await recoverRecording(vault, leftover.meta, {
+        transcribed: async (meta) => {
+          const response = await fetch(`/api/live-recordings/${meta.recordingId}`, { cache: 'no-store' });
+          const body = response.ok ? await response.json() : {};
+          return new Set<number>((body.segments ?? [])
+            .filter((segment: { status: string }) => segment.status === 'transcribed')
+            .map((segment: { idx: number }) => segment.idx));
+        },
         upload: async (meta, segment) => {
           const { error } = await supabase().storage.from(RECORDING_BUCKET)
             .upload(segmentPath(meta.userId, meta.recordingId, segment.idx), segment.blob, { contentType: 'audio/wav', upsert: true });
@@ -156,7 +167,7 @@ export function LectureJobsProvider({ children }: { children: ReactNode }) {
         })).ok,
       }).catch(() => null);
       setVersion((value) => value + 1);
-      if (!result || result.failed > 0) { patchLeftover(recordingId, { status: 'error' }); return; }
+      if (!result || result.failed > 0 || !result.finalized) { patchLeftover(recordingId, { status: 'error' }); return; }
       // Transcribed and closed; what is left is the download copy, if any.
       if (leftover.hasAudio) patchLeftover(recordingId, { status: 'idle', interrupted: false, unsentSeconds: 0 });
       else { await vault.remove(recordingId); patchLeftover(recordingId, null); }

@@ -26,7 +26,7 @@ describe('recoverRecording', () => {
 
     const result = await recoverRecording(vault, meta, d);
 
-    expect(result).toEqual({ sent: 2, failed: 0, durationSeconds: 695 });
+    expect(result).toEqual({ sent: 2, failed: 0, durationSeconds: 695, finalized: true });
     const transcribed = (d.transcribe as ReturnType<typeof vi.fn>).mock.calls.map(([, segment]) => [segment.idx, segment.startSeconds, segment.durationSeconds]);
     expect(transcribed).toEqual([[1, 300, 300], [2, 600, 95]]);
     expect(d.finalize).toHaveBeenCalledWith(meta, { durationSeconds: 695, slideMarks: meta.marks, status: 'stopped' });
@@ -51,6 +51,24 @@ describe('recoverRecording', () => {
     const retry = deps();
     expect(await recoverRecording(vault, meta, retry)).toMatchObject({ sent: 1, failed: 0 });
     expect(retry.transcribe).toHaveBeenCalledTimes(1);
+  });
+
+  it('stays recoverable when closing the recording on the server fails', async () => {
+    const vault = memoryVault();
+    await vault.putMeta(meta);
+    const d = deps({ finalize: vi.fn().mockResolvedValue(false) });
+    expect(await recoverRecording(vault, meta, d)).toMatchObject({ failed: 0, finalized: false });
+    expect((await vault.listMeta())[0].finished).toBe(false);
+  });
+
+  it('does not upload again what the server already transcribed', async () => {
+    const vault = memoryVault();
+    await vault.putMeta(meta);
+    await vault.putSegment('rec-1', { idx: 1, startSeconds: 300, durationSeconds: 300, blob: new Blob(['wav']) });
+    const d = deps({ transcribed: vi.fn().mockResolvedValue(new Set([1])) });
+    expect(await recoverRecording(vault, meta, d)).toMatchObject({ sent: 1, finalized: true });
+    expect(d.upload).not.toHaveBeenCalled();
+    expect(await vault.listSegments('rec-1')).toEqual([]);
   });
 
   it('ignores a tail shorter than a second', async () => {

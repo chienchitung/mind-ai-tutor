@@ -24,7 +24,25 @@ export type VaultMeta = {
   marks: SlideMark[];
   /** Stopped normally; only the download copy is left. */
   finished: boolean;
+  /** Last save while recording (fallback liveness where Web Locks are missing). */
+  heartbeatAt?: number;
 };
+
+// The tab that owns a recording holds this lock until it is done with it; the
+// browser drops it when that tab closes or crashes. Another tab must never
+// "recover" a recording that is still being made.
+export const vaultLockName = (recordingId: string) => `lecture-recording:${recordingId}`;
+const HEARTBEAT_STALE_MS = 30_000;
+
+/** Whether some open tab is still recording (or finishing) this one. */
+export async function isRecordingOwnedElsewhere(meta: VaultMeta): Promise<boolean> {
+  const locks = typeof navigator !== 'undefined' ? navigator.locks : undefined;
+  if (locks?.query) {
+    const { held = [] } = await locks.query().catch(() => ({ held: [] as LockInfo[] }));
+    return held.some((lock) => lock.name === vaultLockName(meta.recordingId));
+  }
+  return !meta.finished && !!meta.heartbeatAt && Date.now() - meta.heartbeatAt < HEARTBEAT_STALE_MS;
+}
 
 export type VaultSegment = { idx: number; startSeconds: number; durationSeconds: number; blob: Blob };
 

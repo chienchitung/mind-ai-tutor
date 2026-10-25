@@ -4,7 +4,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { supabase } from '@/lib/supabase';
 import { RECORDING_BUCKET, RECORDING_HEARTBEAT_MS, SEGMENT_SAMPLE_RATE, SEGMENT_SECONDS, segmentPath, type SlideMark } from '@/lib/live-recording';
 import { concatSamples, downsample, encodeWav } from '@/lib/wav';
-import { floatToInt16, openRecordingVault, type RecordingVault, type VaultMeta } from '@/lib/recording-vault';
+import { floatToInt16, openRecordingVault, vaultLockName, type RecordingVault, type VaultMeta } from '@/lib/recording-vault';
 
 export type RecorderPhase = 'idle' | 'starting' | 'recording' | 'stopping' | 'stopped';
 export type LiveSegment = {
@@ -74,6 +74,7 @@ export function useLectureRecorder() {
   const vaultMetaRef = useRef<VaultMeta | null>(null);
   const unflushedRef = useRef<Float32Array[]>([]);
   const vaultTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const releaseLockRef = useRef<(() => void) | null>(null);
 
   const segmentsRef = useRef<LiveSegment[]>([]);
   useEffect(() => { segmentsRef.current = segments; }, [segments]);
@@ -96,7 +97,7 @@ export function useLectureRecorder() {
     const samples = downsample(concatSamples(unflushedRef.current), rateRef.current, SEGMENT_SAMPLE_RATE);
     unflushedRef.current = [];
     persist((vault) => vault.appendTail(meta.recordingId, floatToInt16(samples)));
-    persistMeta({ elapsedSeconds: Math.round(totalSamplesRef.current / rateRef.current) });
+    persistMeta({ elapsedSeconds: Math.round(totalSamplesRef.current / rateRef.current), heartbeatAt: Date.now() });
   };
 
   const patchSegment = (idx: number, patch: Partial<LiveSegment>) =>
@@ -129,9 +130,6 @@ export function useLectureRecorder() {
       }
       segment = { ...segment, uploaded: true };
       patchSegment(segment.idx, { uploaded: true });
-      // Safe in Storage now; a failed transcription is retried from there.
-      const uploadedIdx = segment.idx;
-      persist((vault) => vault.deleteSegment(ids.recordingId, uploadedIdx));
     }
     patchSegment(segment.idx, { status: 'transcribing', error: undefined });
     for (let attempt = 0; attempt < 4; attempt++) {
@@ -144,6 +142,10 @@ export function useLectureRecorder() {
       if (response?.ok) {
         blobsRef.current.delete(segment.idx);
         patchSegment(segment.idx, { status: 'transcribed' });
+        // Only now is the local copy redundant: until the text is saved, the
+        // vault is the one record of this segment that survives a crash.
+        const doneIdx = segment.idx;
+        persist((vault) => vault.deleteSegment(ids.recordingId, doneIdx));
         return;
       }
       // The AI quota allows one request every 3s; segments rarely collide,
@@ -292,7 +294,15 @@ export function useLectureRecorder() {
         recordingId: body.id, userId: body.userId, sessionId: next.sessionId, title: next.title, language: next.language,
         startedAt: Date.now(), tailStartSeconds: 0, nextIdx: 0, elapsedSeconds: 0, marks: [...marksRef.current], finished: false,
       };
-      persistMeta({});
+      persistMeta({ heartbeatAt: Date.now() });
+      // Held until this tab is done with the recording (reset or a new one);
+      // the browser releases it if the tab dies, which is what recovery checks.
+      releaseLockRef.current?.();
+      releaseLockRef.current = null;
+      if (typeof navigator !== 'undefined' && navigator.locks?.request) {
+        void navigator.locks.request(vaultLockName(body.id), () => new Promise<void>((resolve) => { releaseLockRef.current = resolve; }))
+          .catch(() => undefined);
+      }
       vaultTimerRef.current = setInterval(flushTail, VAULT_FLUSH_MS);
       timerRef.current = setInterval(() => setElapsed(Math.floor(seconds())), 1_000);
       // Keeps the students' "recording" notice alive; a closed or crashed tab
@@ -350,6 +360,8 @@ export function useLectureRecorder() {
     const finishedId = idsRef.current?.recordingId;
     if (finishedId) persist((vault) => vault.remove(finishedId));
     vaultMetaRef.current = null;
+    releaseLockRef.current?.();
+    releaseLockRef.current = null;
     idsRef.current = null;
     targetRef.current = null;
     setTarget(null);

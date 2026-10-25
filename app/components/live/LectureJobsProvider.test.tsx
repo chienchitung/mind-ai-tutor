@@ -114,3 +114,19 @@ it('offers to finish a recording an earlier visit left behind, and closes it on 
   expect(JSON.parse(String(patch[1].body))).toEqual({ durationSeconds: 330, slideMarks: [{ t: 0, page: 1 }], status: 'stopped' });
   expect(await screen.findByText('完整錄音檔還保存在這台電腦，可以下載。')).toBeTruthy();
 });
+
+it('does not offer a recording that another open tab is still making', async () => {
+  const vault = memoryVault();
+  await vault.putMeta({
+    recordingId: 'live-elsewhere', userId: 'teacher-1', sessionId: 's-1', title: '第六課', language: 'zh-TW', startedAt: Date.now() - 60_000,
+    tailStartSeconds: 0, nextIdx: 0, elapsedSeconds: 55, marks: [], finished: false,
+    // Saved seconds ago by the recording tab (no Web Locks in jsdom).
+    heartbeatAt: Date.now() - 3_000,
+  });
+  await vault.appendTail('live-elsewhere', floatToInt16(new Float32Array(16_000 * 5)));
+  vaultHolder.vault = vault;
+  vi.stubGlobal('fetch', vi.fn(async () => new Response('{}')));
+  view();
+  await act(async () => { await new Promise((resolve) => setTimeout(resolve, 50)); });
+  expect(screen.queryByRole('button', { name: /背景工作/ })).toBeNull();
+});
