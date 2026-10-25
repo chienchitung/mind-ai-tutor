@@ -123,7 +123,6 @@ export function DeckViewer({ url, page, onNumPages, onError, className, overlay 
       cancelled = true;
     };
     // onNumPages/onError are expected to be stable callbacks from the caller.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [url]);
 
   useEffect(() => {
@@ -201,7 +200,6 @@ export function DeckViewer({ url, page, onNumPages, onError, className, overlay 
       cancelled = true;
       renderTask?.cancel();
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [doc, page, containerSize.width, containerSize.height]);
 
   if (error) return null;

@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import {
   Plus,
@@ -18,6 +18,9 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Card, CardContent } from '@/components/ui/card';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { supabase } from '@/lib/supabase';
+import { listLiveDecks, type LiveDeck } from '@/lib/live-deck-storage';
 import { useToast } from '@/hooks/use-toast';
 import { useLanguage } from '@/app/contexts/LanguageContext';
 import { useTranslation } from '@/lib/translations';
@@ -35,6 +38,25 @@ function NewLiveSessionForm() {
   const [question, setQuestion] = useState('');
   const [options, setOptions] = useState(['', '']);
   const [isCreating, setIsCreating] = useState(false);
+  // Decks already in the teacher's library, so one can be attached here
+  // instead of only from the workspace. Optional; null while loading.
+  const [decks, setDecks] = useState<LiveDeck[] | null>(null);
+  const [deckUrl, setDeckUrl] = useState(NO_DECK);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const client = supabase();
+        const { data: { user } } = await client.auth.getUser();
+        const list = user ? await listLiveDecks(client, user.id) : [];
+        if (!cancelled) setDecks(list);
+      } catch {
+        if (!cancelled) setDecks([]);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, []);
   const [created, setCreated] = useState<{
     sessionId: string;
     joinCode: string;
@@ -62,6 +84,22 @@ function NewLiveSessionForm() {
       });
       if (!response.ok) throw new Error();
       const data = await response.json();
+      if (deckUrl !== NO_DECK) {
+        // The session exists either way; a deck that did not attach can
+        // still be picked in the workspace.
+        const attached = await fetch(`/api/live-sessions/${data.sessionId}`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ deckUrl, deckPage: 1 }),
+        }).then((result) => result.ok, () => false);
+        if (!attached) {
+          toast({
+            title: language === 'zh-TW' ? '簡報沒有套用' : 'Slides were not attached',
+            description: language === 'zh-TW' ? '課程已建立，可以在工作區的「簡報庫」再選一次。' : 'The session was created; pick the deck again from the workspace library.',
+            variant: 'destructive',
+          });
+        }
+      }
       setCreated({ sessionId: data.sessionId, joinCode: data.joinCode });
     } catch {
       toast({
@@ -205,6 +243,30 @@ function NewLiveSessionForm() {
                   maxLength={200}
                   required
                 />
+              </div>
+              <div>
+                <Label htmlFor="live-deck">{language === 'zh-TW' ? '簡報（選填）' : 'Slides (optional)'}</Label>
+                {decks && decks.length > 0 ? (
+                  <Select value={deckUrl} onValueChange={setDeckUrl}>
+                    <SelectTrigger id="live-deck" className="mt-2 h-12">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value={NO_DECK}>{language === 'zh-TW' ? '先不使用簡報' : 'No slides for now'}</SelectItem>
+                      {decks.map((deck) => (
+                        <SelectItem key={deck.path} value={deck.url}>
+                          {deck.title ?? t('live_deck_untitled')}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                ) : (
+                  <p className="mt-2 text-sm leading-6 text-muted-foreground">
+                    {decks === null
+                      ? (language === 'zh-TW' ? '正在讀取簡報庫…' : 'Loading your slide library…')
+                      : (language === 'zh-TW' ? '簡報庫還沒有簡報；建立後可以在工作區上傳 PDF。' : 'Your slide library is empty; upload a PDF in the workspace after creating.')}
+                  </p>
+                )}
               </div>
               <div>
                 <h2 className="app-kicker mb-3 border-t pt-6">
@@ -361,6 +423,9 @@ function NewLiveSessionForm() {
     </div>
   );
 }
+
+// Radix Select reserves the empty string, so "no deck" needs a value.
+const NO_DECK = '__none__';
 
 export default function NewLiveSessionPage() {
   return <NewLiveSessionForm />;

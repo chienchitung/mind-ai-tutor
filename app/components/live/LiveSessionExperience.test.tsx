@@ -27,6 +27,11 @@ const mocks = vi.hoisted(() => ({
   subscribeCallback: null as ((status: string) => void) | null,
   send: vi.fn(),
   inkSend: vi.fn(),
+  listLiveDecks: vi.fn(),
+}));
+vi.mock('@/lib/live-deck-storage', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@/lib/live-deck-storage')>()),
+  listLiveDecks: mocks.listLiveDecks,
 }));
 vi.mock('next/navigation', () => {
   const router = { push: mocks.push };
@@ -69,7 +74,11 @@ vi.mock('@/lib/supabase', () => ({
       },
       send: mocks.send,
     };
-    return { channel: () => channel, removeChannel: vi.fn() };
+    return {
+      channel: () => channel,
+      removeChannel: vi.fn(),
+      auth: { getUser: async () => ({ data: { user: { id: 'teacher-1' } }, error: null }) },
+    };
   },
 }));
 
@@ -125,6 +134,7 @@ function capture(name: string) {
   );
 }
 beforeEach(() => {
+  mocks.listLiveDecks.mockReset().mockResolvedValue([]);
   mocks.events.clear();
   mocks.push.mockClear();
   mocks.toast.mockClear();
@@ -272,6 +282,29 @@ describe('Live Session experience', () => {
     expect(
       screen.getByRole('button', { name: '在新分頁開啟' }),
     ).toBeTruthy();
+  });
+
+  it('attaches a deck picked from the library right after creating the session', async () => {
+    mocks.listLiveDecks.mockResolvedValueOnce([
+      { path: 'teacher-1/a.pdf', url: 'https://cdn.test/a.pdf', title: '第三課簡報', size: 1000, createdAt: null },
+    ]);
+    fetchMock.mockResolvedValue(response({ sessionId: 'deck-session', joinCode: '333444' }));
+    // Radix Select uses DOM APIs jsdom does not implement.
+    Element.prototype.scrollIntoView ??= () => {};
+    Element.prototype.hasPointerCapture ??= () => false;
+    Element.prototype.releasePointerCapture ??= () => {};
+    mount(<NewPage />);
+    fireEvent.click(screen.getByRole('button', { name: '空白場次' }));
+    fireEvent.change(screen.getByLabelText('場次名稱'), { target: { value: '第三課' } });
+    const picker = await screen.findByRole('combobox', { name: '簡報（選填）' });
+    fireEvent.click(picker);
+    fireEvent.click(await screen.findByRole('option', { name: '第三課簡報' }));
+    fireEvent.click(screen.getByRole('button', { name: '開始場次' }));
+    await screen.findByText('場次已建立！');
+    expect(fetchMock).toHaveBeenCalledWith(
+      '/api/live-sessions/deck-session',
+      expect.objectContaining({ method: 'PATCH', body: JSON.stringify({ deckUrl: 'https://cdn.test/a.pdf', deckPage: 1 }) }),
+    );
   });
 
   it('creates a blank session with no poll when that mode is chosen', async () => {

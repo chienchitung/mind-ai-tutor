@@ -7,13 +7,13 @@ import { Button } from '@/components/ui/button';
 import { DeleteConfirmation } from '@/components/ui/delete-confirmation';
 import { useLanguage } from '@/app/contexts/LanguageContext';
 import { cn } from '@/lib/utils';
-import { formatClock, type RecordingSummary } from '@/lib/live-recording';
+import { formatClock, type RecordingMatch, type RecordingSummary } from '@/lib/live-recording';
 import { lectureJobError, useLectureJobs } from './LectureJobsProvider';
 
 // The recordings list with its actions (notes, transcript, retry, delete),
 // shared by the presenter workspace panel (one session) and the recordings
 // overview page (every session).
-export function RecordingList({ recordings, onReload, onRemoved, showSession = false, recordingNowId = null }: {
+export function RecordingList({ recordings, onReload, onRemoved, showSession = false, recordingNowId = null, matches, highlight = '' }: {
   recordings: RecordingSummary[];
   onReload: () => void;
   onRemoved: (id: string) => void;
@@ -21,6 +21,9 @@ export function RecordingList({ recordings, onReload, onRemoved, showSession = f
   showSession?: boolean;
   /** The recording this browser is capturing right now, if any. */
   recordingNowId?: string | null;
+  /** Search hits in transcripts or notes, shown under each recording. */
+  matches?: Record<string, RecordingMatch>;
+  highlight?: string;
 }) {
   const { language } = useLanguage();
   const zh = language === 'zh-TW';
@@ -87,6 +90,20 @@ export function RecordingList({ recordings, onReload, onRemoved, showSession = f
                     {formatClock(item.durationSeconds)} · {say(`逐字稿 ${item.transcribed} 段`, `${item.transcribed} transcribed`)}
                     {item.failed > 0 && <span className="text-amber-700 dark:text-amber-400">{say(` · ${item.failed} 段失敗`, ` · ${item.failed} failed`)}</span>}
                   </p>
+                  {matches?.[item.id] && (
+                    <button
+                      type="button"
+                      className="mt-1.5 block w-full rounded-lg bg-muted/60 px-2.5 py-1.5 text-left text-xs leading-5 text-muted-foreground hover:bg-muted"
+                      onClick={() => openNotes(item.id)}
+                    >
+                      <span className="mr-1.5 font-medium text-foreground">
+                        {matches[item.id].where === 'transcript'
+                          ? say(`逐字稿${matches[item.id].at ? ` ${matches[item.id].at}` : ''}`, `Transcript${matches[item.id].at ? ` ${matches[item.id].at}` : ''}`)
+                          : say('教學筆記', 'Notes')}
+                      </span>
+                      <Highlighted text={matches[item.id].snippet} term={highlight} />
+                    </button>
+                  )}
                   <div className="mt-1 flex flex-wrap gap-1.5">
                     {capturing && (
                       <span className="inline-flex items-center gap-1 rounded-full bg-red-50 px-2 py-0.5 text-[11px] font-medium text-red-700 dark:bg-red-950/40 dark:text-red-300">
@@ -191,5 +208,17 @@ export function IndeterminateBar() {
     <div className="h-1 overflow-hidden rounded-full bg-primary/10" aria-hidden="true">
       <div className="progress-indeterminate h-full w-2/5 rounded-full bg-primary/70" />
     </div>
+  );
+}
+
+function Highlighted({ text, term }: { text: string; term: string }) {
+  const index = term ? text.toLocaleLowerCase().indexOf(term.toLocaleLowerCase()) : -1;
+  if (index < 0) return <>{text}</>;
+  return (
+    <>
+      {text.slice(0, index)}
+      <mark className="rounded bg-amber-200/70 px-0.5 text-foreground dark:bg-amber-500/30">{text.slice(index, index + term.length)}</mark>
+      {text.slice(index + term.length)}
+    </>
   );
 }

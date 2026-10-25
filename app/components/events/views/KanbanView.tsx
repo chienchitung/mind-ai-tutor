@@ -60,7 +60,6 @@ export function KanbanView() {
         }
       });
     setItemsByColumn(next);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [events]);
 
   const sensors = useSensors(

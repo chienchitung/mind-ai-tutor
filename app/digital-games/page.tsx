@@ -108,7 +108,6 @@ function TemplatePreview({ template }: { template: (typeof visualTemplates)[numb
   const surface = surfaces[template.id]
   return <span className={`block h-28 overflow-hidden rounded-lg border-2 ${surface}`} aria-hidden="true">
     {/* Generated decorative preview; native img avoids routing it through the admin app image proxy. */}
-    {/* eslint-disable-next-line @next/next/no-img-element */}
     <img src={template.artwork} alt="" className="h-full w-full object-contain p-1.5" />
   </span>
 }

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { formatClock, joinTranscript, lessonNotesSchema, lessonNotesToMarkdown, parseClock, segmentPath, slideTimeline, timedTranscript, transcriptParagraphs } from './live-recording';
+import { findRecordingMatch, formatClock, joinTranscript, lessonNotesSchema, lessonNotesToMarkdown, parseClock, segmentPath, slideTimeline, timedTranscript, transcriptParagraphs } from './live-recording';
 
 describe('formatClock', () => {
   it('formats minutes and hours, treating missing values as zero', () => {
@@ -110,5 +110,20 @@ describe('isRecordingActive', () => {
     expect(isRecordingActive('recording', '2026-10-25T09:50:00Z', now)).toBe(false);
     expect(isRecordingActive('stopped', '2026-10-25T09:59:00Z', now)).toBe(false);
     expect(isRecordingActive('recording', null, now)).toBe(false);
+  });
+});
+
+describe('findRecordingMatch', () => {
+  const transcript = '[0:00] 今天介紹 IF 函數。\n\n[2:15] 接著用 VLOOKUP 查表，記得第四個參數要填 FALSE。';
+  it('finds a transcript hit case-insensitively with its paragraph time and an excerpt', () => {
+    expect(findRecordingMatch(transcript, 'vlookup', 'transcript')).toEqual({
+      where: 'transcript',
+      at: '2:15',
+      snippet: '今天介紹 IF 函數。 接著用 VLOOKUP 查表，記得第四個參數要填 FALSE。',
+    });
+  });
+  it('has no time for notes, and nothing when the text is absent', () => {
+    expect(findRecordingMatch('重點：IF 巢狀', 'IF', 'notes')).toEqual({ where: 'notes', at: null, snippet: '重點：IF 巢狀' });
+    expect(findRecordingMatch(transcript, 'SUMIF', 'transcript')).toBeNull();
   });
 });

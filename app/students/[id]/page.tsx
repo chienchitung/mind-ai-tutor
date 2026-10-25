@@ -76,7 +76,6 @@ export default function StudentPage({ params: paramsPromise }: { params: Promise
       }
     };
     resolveParams();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [paramsPromise]);
 
   useEffect(() => {
@@ -117,7 +116,6 @@ export default function StudentPage({ params: paramsPromise }: { params: Promise
     };
 
     fetchStudent();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pageParams]); // Depend on resolved pageParams
 
   const handleEdit = () => {
