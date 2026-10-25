@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, render, waitFor } from '@testing-library/react';
-import { DeckViewer } from './DeckViewer';
+import { clearDeckDocuments, DeckViewer } from './DeckViewer';
 
 const getPage = vi.fn();
 const getDocument = vi.fn();
@@ -36,6 +36,7 @@ function makePage() {
 }
 
 beforeEach(() => {
+  clearDeckDocuments();
   vi.stubGlobal('ResizeObserver', StubResizeObserver);
   GlobalWorkerOptions.workerSrc = '';
   getPage.mockReset().mockResolvedValue(makePage());
@@ -108,6 +109,37 @@ describe('DeckViewer', () => {
         expect.objectContaining({ url: 'https://example.test/deck-b.pdf' }),
       ),
     );
+    expect(getDocument).toHaveBeenCalledTimes(2);
+  });
+  it('reuses the downloaded deck when a viewer is remounted (e.g. after a blank screen)', async () => {
+    const first = render(<DeckViewer url="https://example.test/deck.pdf" page={1} />);
+    await waitFor(() => expect(getPage).toHaveBeenCalledWith(1));
+    first.unmount();
+    const onNumPages = vi.fn();
+    render(<DeckViewer url="https://example.test/deck.pdf" page={2} onNumPages={onNumPages} />);
+    await waitFor(() => expect(getPage).toHaveBeenCalledWith(2));
+    expect(onNumPages).toHaveBeenCalledWith(5);
+    expect(getDocument).toHaveBeenCalledTimes(1);
+  });
+  it('paints a remounted viewer from the shared page cache without rendering again', async () => {
+    const first = render(<DeckViewer url="https://example.test/deck.pdf" page={1} />);
+    // Page 1 plus its warmed neighbour, page 2.
+    await waitFor(() => expect(getPage).toHaveBeenCalledTimes(2));
+    first.unmount();
+    getPage.mockClear();
+    const second = render(<DeckViewer url="https://example.test/deck.pdf" page={1} />);
+    await waitFor(() => expect(second.container.querySelector('canvas')?.width).toBe(100));
+    await new Promise((resolve) => setTimeout(resolve, 80));
+    expect(getPage).not.toHaveBeenCalled();
+  });
+  it('tries again after a failed load instead of caching the failure', async () => {
+    getDocument.mockReturnValueOnce({ promise: Promise.reject(new Error('offline')) });
+    const onError = vi.fn();
+    const first = render(<DeckViewer url="https://example.test/flaky.pdf" page={1} onError={onError} />);
+    await waitFor(() => expect(onError).toHaveBeenCalled());
+    first.unmount();
+    render(<DeckViewer url="https://example.test/flaky.pdf" page={1} />);
+    await waitFor(() => expect(getPage).toHaveBeenCalledWith(1));
     expect(getDocument).toHaveBeenCalledTimes(2);
   });
   it('reports an error and renders nothing when the document fails to load', async () => {

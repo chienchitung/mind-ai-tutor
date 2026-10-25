@@ -85,6 +85,46 @@ describe("snapshot recovery and commands", () => {
     expect(result.current.snapshot?.mode).toBe("poll");
   });
 
+  it("takes a second click while the first is in flight: it shows at once, is sent next, and the older answer never flashes back", async () => {
+    let finishFirst!: (value: unknown) => void;
+    let finishSecond!: (value: unknown) => void;
+    const fetcher = vi
+      .fn()
+      .mockResolvedValueOnce(response(snap))
+      .mockImplementationOnce(() => new Promise((resolve) => { finishFirst = resolve; }))
+      .mockImplementationOnce(() => new Promise((resolve) => { finishSecond = resolve; }))
+      .mockResolvedValue(response(snap));
+    vi.stubGlobal("fetch", fetcher);
+    const { result } = renderHook(() => usePresentationSnapshot("/api/test"));
+    await waitFor(() => expect(result.current.snapshot?.mode).toBe("deck"));
+    const show = (mode: "deck" | "blank") =>
+      result.current.command({ action: "show", mode }, (prev) => ({ ...prev, mode }));
+    act(() => { void show("blank"); });
+    await waitFor(() => expect(result.current.snapshot?.mode).toBe("blank"));
+    let second!: Promise<boolean>;
+    act(() => { second = show("deck"); });
+    // Not dropped: the second click is on screen before either write returns.
+    expect(result.current.snapshot?.mode).toBe("deck");
+    await expect(second).resolves.toBe(true);
+    await act(async () => {
+      finishFirst(response({ ...snap, mode: "blank" }));
+      await Promise.resolve();
+    });
+    expect(result.current.snapshot?.mode).toBe("deck");
+    await waitFor(() =>
+      expect(fetcher).toHaveBeenCalledWith(
+        "/api/test",
+        expect.objectContaining({ method: "POST", body: JSON.stringify({ action: "show", mode: "deck" }) }),
+      ),
+    );
+    await act(async () => {
+      finishSecond(response({ ...snap, mode: "deck" }));
+      await Promise.resolve();
+    });
+    expect(result.current.snapshot?.mode).toBe("deck");
+    await waitFor(() => expect(result.current.pending).toBe(false));
+  });
+
   it("reverts an optimistic patch instead of leaving a guess on screen when the write fails", async () => {
     const fetcher = vi.fn().mockResolvedValue(response(snap));
     vi.stubGlobal("fetch", fetcher);
