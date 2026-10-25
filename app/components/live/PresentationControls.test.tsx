@@ -238,3 +238,26 @@ it("shows one workspace tab at a time and counts pending questions on the Q&A ta
   fireEvent.keyDown(tab(/問答/), { key: "ArrowLeft" });
   expect(tab(/投票/).getAttribute("aria-selected")).toBe("true");
 });
+
+it("keeps the tab bar reachable while the phone-only display tab is open", () => {
+  view();
+  fireEvent.click(screen.getByRole("tab", { name: "投影" }));
+  const tablist = screen.getByRole("tablist");
+  // No ancestor of the tab bar may be hidden, or the teacher is stuck here.
+  for (let node: HTMLElement | null = tablist; node; node = node.parentElement) {
+    expect(node.className).not.toMatch(/(^|\s)hidden(\s|$)/);
+  }
+  fireEvent.click(screen.getByRole("tab", { name: /問答/ }));
+  expect(screen.getByRole("tab", { name: /問答/ }).getAttribute("aria-selected")).toBe("true");
+});
+
+it("skips the phone-only display tab when moving with the keyboard on wide screens", () => {
+  const matchMedia = vi.fn().mockReturnValue({ matches: true, addEventListener: vi.fn(), removeEventListener: vi.fn() });
+  vi.stubGlobal("matchMedia", matchMedia);
+  view();
+  fireEvent.keyDown(screen.getByRole("tab", { name: /投影片/ }), { key: "ArrowLeft" });
+  expect(screen.getByRole("tab", { name: /問答/ }).getAttribute("aria-selected")).toBe("true");
+  fireEvent.keyDown(screen.getByRole("tab", { name: /問答/ }), { key: "ArrowRight" });
+  expect(screen.getByRole("tab", { name: /投影片/ }).getAttribute("aria-selected")).toBe("true");
+  vi.unstubAllGlobals();
+});

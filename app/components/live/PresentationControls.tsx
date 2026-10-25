@@ -149,6 +149,18 @@ export function PresentationControls({
     });
   const [filter, setFilter] = useState<QuestionFilter>("pending");
   const [tab, setTab] = useState<WorkspaceTab>("deck");
+  // From lg up the projection column sits beside the tabs, so "display" is
+  // not a tab there; a phone left on it falls back to slides when widened.
+  const [wide, setWide] = useState(false);
+  useEffect(() => {
+    if (typeof window.matchMedia !== "function") return;
+    const query = window.matchMedia("(min-width: 1024px)");
+    const update = () => setWide(query.matches);
+    update();
+    query.addEventListener("change", update);
+    return () => query.removeEventListener("change", update);
+  }, []);
+  const current: WorkspaceTab = wide && tab === "display" ? "deck" : tab;
   const [showOverviewSettings, setShowOverviewSettings] = useState(false);
   const disabled = pending || !snapshot || snapshot.status === "closed";
   const answeredIds = snapshot?.answeredIds ?? [];
@@ -277,17 +289,16 @@ export function PresentationControls({
   ];
   const tabId = (value: WorkspaceTab) => `workspace-tab-${value}`;
   const panelId = (value: WorkspaceTab) => `workspace-panel-${value}`;
-  const onTabKeyDown = (event: KeyboardEvent<HTMLButtonElement>, index: number) => {
+  const visibleTabs = wide ? tabs.filter((item) => item.desktop !== false) : tabs;
+  const onTabKeyDown = (event: KeyboardEvent<HTMLButtonElement>) => {
     const step = { ArrowRight: 1, ArrowLeft: -1 }[event.key];
     if (!step) return;
     event.preventDefault();
-    const next = tabs[(index + step + tabs.length) % tabs.length].value;
+    const index = visibleTabs.findIndex((item) => item.value === current);
+    const next = visibleTabs[(index + step + visibleTabs.length) % visibleTabs.length].value;
     setTab(next);
     document.getElementById(tabId(next))?.focus();
   };
-  // Slides stay on screen on wide layouts, where "display" is a side column
-  // rather than a tab of its own.
-  const showsPanel = (value: WorkspaceTab) => tab === value || (value === "deck" && tab === "display");
 
   return (
     <section className="space-y-5 pb-20 lg:pb-0" aria-label={zh ? "投影控制" : "Presentation controls"}>
@@ -317,15 +328,16 @@ export function PresentationControls({
         </p>
       )}
       <div className="grid items-start gap-6 lg:grid-cols-[minmax(0,1fr)_360px] xl:grid-cols-[minmax(0,1fr)_400px]">
-        <div className={cn("min-w-0 lg:space-y-4", tab === "display" && "hidden lg:block")}>
+        {/* Only the panels hide: the tab bar inside must stay reachable. */}
+        <div className="min-w-0 lg:space-y-4">
           <div
             role="tablist"
             aria-label={zh ? "教學工作區" : "Workspace"}
             className="fixed inset-x-0 bottom-0 z-30 flex border-t bg-card/95 px-2 pb-[max(0.5rem,env(safe-area-inset-bottom))] pt-1.5 backdrop-blur lg:static lg:inline-flex lg:rounded-xl lg:border lg:bg-muted/60 lg:p-1"
           >
-            {tabs.map((item, index) => {
+            {tabs.map((item) => {
               const Icon = item.icon;
-              const selected = tab === item.value;
+              const selected = current === item.value;
               return (
                 <button
                   key={item.value}
@@ -336,7 +348,7 @@ export function PresentationControls({
                   aria-controls={panelId(item.value)}
                   tabIndex={selected ? 0 : -1}
                   onClick={() => setTab(item.value)}
-                  onKeyDown={(event) => onTabKeyDown(event, index)}
+                  onKeyDown={onTabKeyDown}
                   className={cn(
                     "relative flex min-h-12 flex-1 flex-col items-center justify-center gap-0.5 rounded-lg px-3 text-[11px] font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring lg:min-h-9 lg:flex-none lg:flex-row lg:gap-2 lg:text-sm",
                     item.desktop === false && "lg:hidden",
@@ -361,13 +373,13 @@ export function PresentationControls({
               );
             })}
           </div>
-          <div role="tabpanel" id={panelId("deck")} aria-labelledby={tabId("deck")} className={cn(!showsPanel("deck") && "hidden")}>
+          <div role="tabpanel" id={panelId("deck")} aria-labelledby={tabId("deck")} className={cn(current !== "deck" && "hidden")}>
             {stage}
           </div>
-          <div role="tabpanel" id={panelId("poll")} aria-labelledby={tabId("poll")} className={cn(!showsPanel("poll") && "hidden")}>
+          <div role="tabpanel" id={panelId("poll")} aria-labelledby={tabId("poll")} className={cn(current !== "poll" && "hidden")}>
             {renderPoll ? renderPoll(pollFlow) : pollFlow}
           </div>
-          <div role="tabpanel" id={panelId("qa")} aria-labelledby={tabId("qa")} className={cn(!showsPanel("qa") && "hidden")}>
+          <div role="tabpanel" id={panelId("qa")} aria-labelledby={tabId("qa")} className={cn(current !== "qa" && "hidden")}>
           <div className="rounded-2xl border bg-card">
             <div className="space-y-4 border-b p-4">
               <div className="flex items-center justify-between gap-2">
@@ -594,7 +606,7 @@ export function PresentationControls({
         <aside
           id={panelId("display")}
           aria-label={zh ? "投影與課堂參與" : "Display and participation"}
-          className={cn("min-w-0 space-y-6", tab !== "display" && "hidden lg:block")}
+          className={cn("min-w-0 space-y-6", current !== "display" && "hidden lg:block")}
         >
           <div className="rounded-2xl border bg-card p-4">
             <div className="mb-3 flex items-start justify-between gap-2">
