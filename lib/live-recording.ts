@@ -250,3 +250,29 @@ export function lessonNotesToMarkdown(notes: LessonNotes, zh: boolean): string {
   }
   return lines.join('\n').trimEnd() + '\n';
 }
+
+export type RecordingMatch = {
+  where: 'transcript' | 'notes';
+  /** A short excerpt around the first hit, without paragraph timestamps. */
+  snippet: string;
+  /** For transcripts, the paragraph's "[m:ss]" time; null otherwise. */
+  at: string | null;
+};
+
+const SNIPPET_RADIUS = 36;
+// Same paragraph stamps as STAMP, anywhere in the text.
+const INLINE_STAMP = /\[((?:\d+:)?\d{1,2}:\d{2})\]\s*/g;
+
+// The first case-insensitive occurrence of `query` in `text`, as an excerpt
+// for the recordings overview's search results.
+export function findRecordingMatch(text: string, query: string, where: RecordingMatch['where']): RecordingMatch | null {
+  const index = text.toLocaleLowerCase().indexOf(query.toLocaleLowerCase());
+  if (index < 0 || !query) return null;
+  const at = where === 'transcript'
+    ? Array.from(text.slice(0, index).matchAll(INLINE_STAMP)).at(-1)?.[1] ?? null
+    : null;
+  const start = Math.max(0, index - SNIPPET_RADIUS);
+  const end = Math.min(text.length, index + query.length + SNIPPET_RADIUS);
+  const body = text.slice(start, end).replace(INLINE_STAMP, '').replace(/\s+/g, ' ').trim();
+  return { where, snippet: `${start > 0 ? '…' : ''}${body}${end < text.length ? '…' : ''}`, at };
+}

@@ -122,7 +122,6 @@ export function GameCoverInput({ value, file, onChange, onFileChange, onEditingC
 
       <div className="flex items-center gap-3">
         {(preview || value) && !imageFailed ? (
-          // eslint-disable-next-line @next/next/no-img-element
           <img
             src={preview || value}
             alt={say('遊戲封面預覽', 'Game cover preview')}

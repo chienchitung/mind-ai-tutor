@@ -239,7 +239,6 @@ function ActivitiesPageContent() {
     // Refetch whenever the applied date range changes, now that it's part
     // of the query rather than a client-side filter on an already-fetched
     // batch.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedDateRange]);
 
   const computePresetRange = (preset: string): DateRange | undefined => {

@@ -59,7 +59,6 @@ export function AssignmentTracker({ studentId }: AssignmentTrackerProps) {
 
   useEffect(() => {
     fetchAssignments();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const fetchAssignments = async () => {

@@ -10,7 +10,7 @@ import { Input } from '@/components/ui/input';
 import { SegmentedControl } from '@/components/ui/segmented-control';
 import { RecordingList } from '@/components/live/RecordingList';
 import { useLanguage } from '@/app/contexts/LanguageContext';
-import type { RecordingSummary } from '@/lib/live-recording';
+import type { RecordingMatch, RecordingSummary } from '@/lib/live-recording';
 
 type Filter = 'all' | 'notes' | 'todo';
 
@@ -25,6 +25,10 @@ export default function LiveRecordingsPage() {
   const [error, setError] = useState<'not-ready' | 'failed' | null>(null);
   const [query, setQuery] = useState('');
   const [filter, setFilter] = useState<Filter>('all');
+  // Recordings whose transcript or notes mention the query (searched on the
+  // server), with where it was said.
+  const [matches, setMatches] = useState<Record<string, RecordingMatch>>({});
+  const [searching, setSearching] = useState(false);
 
   const load = useCallback(async () => {
     try {
@@ -43,15 +47,29 @@ export default function LiveRecordingsPage() {
 
   useEffect(() => { void load(); }, [load]);
 
+  const needle = query.trim();
+  useEffect(() => {
+    if (needle.length < 2) { setMatches({}); setSearching(false); return; }
+    const controller = new AbortController();
+    setSearching(true);
+    const timer = setTimeout(() => {
+      fetch(`/api/live-recordings/search?q=${encodeURIComponent(needle)}`, { cache: 'no-store', signal: controller.signal })
+        .then((response) => (response.ok ? response.json() : {}))
+        .then((body: Record<string, RecordingMatch> | null) => { setMatches(body && typeof body === 'object' ? body : {}); setSearching(false); })
+        .catch(() => { if (!controller.signal.aborted) { setMatches({}); setSearching(false); } });
+    }, 300);
+    return () => { clearTimeout(timer); controller.abort(); };
+  }, [needle]);
+
   const visible = useMemo(() => {
-    const needle = query.trim().toLocaleLowerCase();
+    const lowered = needle.toLocaleLowerCase();
     return (recordings ?? []).filter((item) => {
       if (filter === 'notes' && !item.hasNotes) return false;
       if (filter === 'todo' && item.hasNotes) return false;
-      if (!needle) return true;
-      return `${item.sessionTitle ?? ''} ${item.title}`.toLocaleLowerCase().includes(needle);
+      if (!lowered) return true;
+      return `${item.sessionTitle ?? ''} ${item.title}`.toLocaleLowerCase().includes(lowered) || !!matches[item.id];
     });
-  }, [recordings, query, filter]);
+  }, [recordings, needle, filter, matches]);
 
   const withNotes = recordings?.filter((item) => item.hasNotes).length ?? 0;
   const total = recordings?.length ?? 0;
@@ -109,10 +127,11 @@ export default function LiveRecordingsPage() {
               <Input
                 value={query}
                 onChange={(event) => setQuery(event.target.value)}
-                placeholder={say('搜尋課程名稱', 'Search by session')}
-                aria-label={say('搜尋課程名稱', 'Search by session')}
-                className="h-11 pl-9"
+                placeholder={say('搜尋課程名稱、逐字稿或筆記', 'Search sessions, transcripts or notes')}
+                aria-label={say('搜尋課程名稱、逐字稿或筆記', 'Search sessions, transcripts or notes')}
+                className="h-11 pl-9 pr-9"
               />
+              {searching && <Loader2 aria-hidden="true" className="absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 animate-spin text-muted-foreground" />}
             </div>
             <SegmentedControl
               label={say('篩選錄音', 'Filter recordings')}
@@ -127,11 +146,15 @@ export default function LiveRecordingsPage() {
             />
           </div>
           {visible.length === 0 ? (
-            <p className="py-10 text-center text-sm text-muted-foreground">{say('沒有符合的錄音。', 'No matching recordings.')}</p>
+            <p className="py-10 text-center text-sm text-muted-foreground">
+              {searching ? say('搜尋中…', 'Searching…') : say('沒有符合的錄音。', 'No matching recordings.')}
+            </p>
           ) : (
             <RecordingList
               recordings={visible}
               showSession
+              matches={needle.length >= 2 ? matches : undefined}
+              highlight={needle}
               onReload={() => void load()}
               onRemoved={(id) => setRecordings((previous) => previous?.filter((item) => item.id !== id) ?? previous)}
             />

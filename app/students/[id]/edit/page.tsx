@@ -88,7 +88,6 @@ export default function EditStudentPage({ params: paramsPromise }: { params: Pro
     };
 
     fetchStudent();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pageParams]); // Depend on resolved pageParams
 
   const handleSubmit = async (e: React.FormEvent) => {
