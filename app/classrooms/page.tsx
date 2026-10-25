@@ -46,6 +46,7 @@ import {
 } from '@/components/ui/alert-dialog';
 import { PageLoader } from '@/components/ui/page-state';
 import { useToast } from '@/hooks/use-toast';
+import { useCopyFeedback } from '@/hooks/useCopyFeedback';
 import { useLanguage } from '@/app/contexts/LanguageContext';
 import { cn } from '@/lib/utils';
 import {
@@ -141,7 +142,7 @@ export default function ClassroomsPage() {
   const [studyLabel, setStudyLabel] = useState('');
   const [studyArm, setStudyArm] = useState('');
   const [selectedGameId, setSelectedGameId] = useState('');
-  const [copiedAssignmentId, setCopiedAssignmentId] = useState<string | null>(null);
+  const linkCopy = useCopyFeedback();
   const [rosterSearch, setRosterSearch] = useState('');
   const [rosterGrade, setRosterGrade] = useState('all');
   const [rosterMembership, setRosterMembership] = useState<RosterMembershipFilter>('all');
@@ -435,9 +436,7 @@ export default function ClassroomsPage() {
 
   async function copyAssignmentLink(assignment: GameAssignment) {
     try {
-      await navigator.clipboard.writeText(assignmentUrl(assignment));
-      setCopiedAssignmentId(assignment.id);
-      window.setTimeout(() => setCopiedAssignmentId(current => current === assignment.id ? null : current), 1800);
+      await linkCopy.copy(assignmentUrl(assignment), assignment.id);
     } catch {
       toast({
         title: zh ? '無法複製連結' : 'Could not copy link',
@@ -951,8 +950,10 @@ export default function ClassroomsPage() {
                             disabled={assignment.status !== 'active' || selectedClassroom.status !== 'active'}
                             onClick={() => void copyAssignmentLink(assignment)}
                           >
-                            {copiedAssignmentId === assignment.id ? <Check className="mr-2 h-4 w-4" /> : <ClipboardCopy className="mr-2 h-4 w-4" />}
-                            {copiedAssignmentId === assignment.id ? (zh ? '已複製' : 'Copied') : (zh ? '複製活動連結' : 'Copy link')}
+                            {linkCopy.isCopied(assignment.id)
+                              ? <Check key={linkCopy.tick} className="mr-2 h-4 w-4 text-emerald-600 animate-in zoom-in-50 spin-in-12 duration-300 motion-reduce:animate-none" />
+                              : <ClipboardCopy className="mr-2 h-4 w-4" />}
+                            <span aria-live="polite">{linkCopy.isCopied(assignment.id) ? (zh ? '已複製' : 'Copied') : (zh ? '複製活動連結' : 'Copy link')}</span>
                           </Button>
                           {assignment.status === 'active' && (
                             <AlertDialog>

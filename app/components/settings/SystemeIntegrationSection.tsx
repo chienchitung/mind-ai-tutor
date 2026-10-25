@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { useLanguage } from '@/app/contexts/LanguageContext';
 import { useToast } from '@/hooks/use-toast';
+import { useCopyFeedback } from '@/hooks/useCopyFeedback';
 
 interface Integration {
   webhook_token: string;
@@ -26,12 +27,10 @@ const EVENT_ROWS: { type: string; trigger: string; labelZh: string; labelEn: str
 ];
 
 function CopyField({ value, mono = true }: { value: string; mono?: boolean }) {
-  const [copied, setCopied] = useState(false);
+  const feedback = useCopyFeedback(1500);
   const copy = async () => {
     try {
-      await navigator.clipboard.writeText(value);
-      setCopied(true);
-      setTimeout(() => setCopied(false), 1500);
+      await feedback.copy(value);
     } catch {
       // Clipboard API can be unavailable (non-secure context, permissions) -
       // the value is still selectable text, so this is a non-fatal no-op.
@@ -43,7 +42,7 @@ function CopyField({ value, mono = true }: { value: string; mono?: boolean }) {
         {value}
       </code>
       <Button type="button" variant="outline" size="icon" className="h-8 w-8 shrink-0" onClick={copy}>
-        {copied ? <Check className="h-3.5 w-3.5" /> : <Copy className="h-3.5 w-3.5" />}
+        {feedback.isCopied() ? <Check key={feedback.tick} className="h-3.5 w-3.5 text-emerald-600 animate-in zoom-in-50 spin-in-12 duration-300 motion-reduce:animate-none" /> : <Copy className="h-3.5 w-3.5" />}
       </Button>
     </div>
   );
