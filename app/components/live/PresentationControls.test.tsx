@@ -61,6 +61,9 @@ const view = () =>
   );
 it("sends page size and sort changes, but waits for confirmed state before changing the page indicator", () => {
   view();
+  // Page size and order are tucked behind a toggle so the questions lead.
+  expect(screen.queryByRole("radiogroup", { name: "每頁題數" })).toBeNull();
+  fireEvent.click(screen.getByRole("button", { name: "投影設定" }));
   fireEvent.click(
     within(screen.getByRole("radiogroup", { name: "每頁題數" })).getByRole("radio", { name: "6" }),
   );
@@ -220,4 +223,18 @@ it("switches the projected display window between open and close", () => {
   );
   fireEvent.click(screen.getByText("停止雙螢幕投影"));
   expect(onClose).toHaveBeenCalled();
+});
+
+it("shows one workspace tab at a time and counts pending questions on the Q&A tab", () => {
+  view();
+  const tab = (name: RegExp) => screen.getByRole("tab", { name });
+  expect(tab(/投影片/).getAttribute("aria-selected")).toBe("true");
+  const qaPanel = document.getElementById(tab(/問答/).getAttribute("aria-controls")!)!;
+  expect(qaPanel.className).toContain("hidden");
+  expect(tab(/問答/).textContent).toMatch(/\d/);
+  fireEvent.click(tab(/問答/));
+  expect(tab(/問答/).getAttribute("aria-selected")).toBe("true");
+  expect(qaPanel.className).not.toContain("hidden");
+  fireEvent.keyDown(tab(/問答/), { key: "ArrowLeft" });
+  expect(tab(/投票/).getAttribute("aria-selected")).toBe("true");
 });

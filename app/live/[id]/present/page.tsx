@@ -824,84 +824,6 @@ export default function PresenterPage() {
     <div className="min-h-screen bg-background">
       <LiveHeader presenter />
       <main className="mx-auto max-w-[1440px] space-y-5 px-4 py-6 sm:px-8">
-        <section
-          aria-label={t('live_session_controls')}
-          className="app-panel flex flex-wrap items-center gap-x-6 gap-y-4 p-4 sm:p-5"
-        >
-          <div className="min-w-0 flex-1 basis-72">
-            <p className="app-kicker mb-1.5">{t('live_workspace')}</p>
-            <h1 className="break-words text-2xl font-semibold tracking-tight sm:text-[1.75rem]">
-              {data.title}
-            </h1>
-            <div className="mt-2 flex flex-wrap items-center gap-3">
-              <SessionStatus status={data.status} />
-              <span className="flex items-center gap-1.5 text-xs text-muted-foreground">
-                <Users className="h-4 w-4" />
-                {t('live_online_count', { count: onlineCount })}
-              </span>
-            </div>
-          </div>
-          <div className="flex items-center gap-3 rounded-xl border bg-muted/40 py-2 pl-4 pr-2">
-            <div>
-              <p className="text-[11px] text-muted-foreground">{t('live_share_title')}</p>
-              <p className="font-mono text-xl font-semibold tracking-[0.18em]">{data.joinCode}</p>
-            </div>
-            <Button
-              variant="ghost"
-              size="sm"
-              className="h-10"
-              onClick={() => void copyJoinLink()}
-            >
-              <Copy className="mr-1.5 h-4 w-4" />
-              {t('live_copy_link')}
-            </Button>
-          </div>
-          <div className="flex flex-wrap items-center gap-2">
-            <Button
-              className="min-h-11"
-              variant={data.status === 'open' ? 'outline' : 'default'}
-              disabled={changingStatus}
-              onClick={() =>
-                void handleStatusChange(
-                  data.status === 'open' ? 'paused' : 'open',
-                )
-              }
-            >
-              {changingStatus ? (
-                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-              ) : data.status === 'open' ? (
-                <Pause className="mr-2 h-4 w-4" />
-              ) : (
-                <Play className="mr-2 h-4 w-4" />
-              )}
-              {t(
-                data.status === 'open'
-                  ? 'live_action_paused'
-                  : data.status === 'paused'
-                    ? 'live_resume'
-                    : 'live_reopen',
-              )}
-            </Button>
-            {data.status !== 'closed' && (
-              <EndSessionButton
-                disabled={changingStatus}
-                onConfirm={() => void handleStatusChange('closed')}
-              />
-            )}
-          </div>
-        </section>
-        {data.status !== 'open' && (
-          <p
-            role="status"
-            className="rounded-xl border bg-muted/50 px-4 py-3 text-sm leading-6 text-muted-foreground"
-          >
-            {t(
-              data.status === 'paused'
-                ? 'live_paused_hint'
-                : 'live_closed_hint',
-            )}
-          </p>
-        )}
         <PresentationControls
           sessionId={params.id}
           questions={visibleQuestions}
@@ -912,6 +834,93 @@ export default function PresenterPage() {
           moderatingId={moderatingId}
           onModerate={(item) => void handleModerate(item)}
           localDeck={{ url: data.deckUrl, page: data.deckPage }}
+          header={
+            <>
+              <div className="min-w-0 flex-1 basis-56">
+                <h1 className="truncate text-lg font-semibold tracking-tight sm:text-xl" title={data.title}>
+                  {data.title}
+                </h1>
+                <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1">
+                  <SessionStatus status={data.status} />
+                  <span className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                    <Users className="h-4 w-4" />
+                    {t('live_online_count', { count: onlineCount })}
+                  </span>
+                </div>
+              </div>
+              <div className="flex h-10 items-center gap-1 rounded-lg border bg-muted/40 pl-3 pr-1">
+                <span className="sr-only">{t('live_share_title')}</span>
+                <span className="font-mono text-base font-semibold tracking-[0.18em]">{data.joinCode}</span>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="h-8 px-2"
+                  aria-label={t('live_copy_link')}
+                  title={t('live_copy_link')}
+                  onClick={() => void copyJoinLink()}
+                >
+                  <Copy className="h-4 w-4" />
+                </Button>
+              </div>
+              <LectureRecordingPanel
+                sessionId={params.id}
+                sessionTitle={data.title}
+                deckUrl={data.deckUrl}
+                deckPage={data.deckPage}
+              />
+              <div className="flex items-center gap-1">
+                <Button
+                  className="h-10 px-3"
+                  variant={data.status === 'open' ? 'outline' : 'default'}
+                  disabled={changingStatus}
+                  onClick={() =>
+                    void handleStatusChange(
+                      data.status === 'open' ? 'paused' : 'open',
+                    )
+                  }
+                >
+                  {changingStatus ? (
+                    <Loader2 className="h-4 w-4 animate-spin sm:mr-2" />
+                  ) : data.status === 'open' ? (
+                    <Pause className="h-4 w-4 sm:mr-2" />
+                  ) : (
+                    <Play className="h-4 w-4 sm:mr-2" />
+                  )}
+                  <span className={data.status === 'open' ? 'sr-only sm:not-sr-only' : undefined}>
+                    {t(
+                      data.status === 'open'
+                        ? 'live_action_paused'
+                        : data.status === 'paused'
+                          ? 'live_resume'
+                          : 'live_reopen',
+                    )}
+                  </span>
+                </Button>
+                {data.status !== 'closed' && (
+                  <EndSessionButton
+                    compact
+                    disabled={changingStatus}
+                    onConfirm={() => void handleStatusChange('closed')}
+                  />
+                )}
+              </div>
+            </>
+          }
+          pollVotes={data.poll ? data.poll.voteTotal : null}
+          notice={
+            data.status !== 'open' && (
+              <p
+                role="status"
+                className="rounded-xl border bg-muted/50 px-4 py-3 text-sm leading-6 text-muted-foreground"
+              >
+                {t(
+                  data.status === 'paused'
+                    ? 'live_paused_hint'
+                    : 'live_closed_hint',
+                )}
+              </p>
+            )
+          }
           stage={
             <Card className="min-w-0">
               <CardContent className="p-4 sm:p-5 md:p-5">
@@ -1283,12 +1292,6 @@ export default function PresenterPage() {
                   )}
                 </CardContent>
               </Card>
-              <LectureRecordingPanel
-                sessionId={params.id}
-                sessionTitle={data.title}
-                deckUrl={data.deckUrl}
-                deckPage={data.deckPage}
-              />
             </>
           }
         />
