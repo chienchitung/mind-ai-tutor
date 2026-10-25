@@ -5,6 +5,8 @@ import type {
   PresentationSnapshot,
 } from "@/lib/live-presentation";
 
+const REMOTE_PENDING_MS = 10_000;
+
 /** Broadcasts are hints, not authority. Re-read after subscribe/reconnect and
  * periodically repair missed events. One request at a time, including writes. */
 export function usePresentationSnapshot(url: string, sessionId?: string) {
@@ -26,6 +28,15 @@ export function usePresentationSnapshot(url: string, sessionId?: string) {
   const mounted = useRef(true);
   const writing = useRef(false);
   const readDone = useRef<Promise<void> | null>(null);
+  // Bumped whenever a fresher snapshot arrives without a read (a command's
+  // own response, or one pushed by the presenter window). A GET that started
+  // before that is older than what is on screen and must not overwrite it.
+  const generation = useRef(0);
+  // Set while another window's optimistic guess is on screen and its write
+  // is still in flight: a read here could only return the state before that
+  // write. Cleared by the final result (or revert), or after a safety window.
+  const remotePendingSince = useRef(0);
+  const remotePending = () => remotePendingSince.current > 0 && Date.now() - remotePendingSince.current < REMOTE_PENDING_MS;
   const refresh = useCallback((): Promise<void> => {
     if (busy.current) {
       queued.current = true;
@@ -36,6 +47,7 @@ export function usePresentationSnapshot(url: string, sessionId?: string) {
       try {
         do {
           queued.current = false;
+          const startedAt = generation.current;
           const response = await fetch(url, {
             cache: "no-store",
             signal: AbortSignal.timeout(8000),
@@ -59,7 +71,9 @@ export function usePresentationSnapshot(url: string, sessionId?: string) {
           }
           if (!response.ok) throw new Error();
           const value = await response.json();
-          if (mounted.current) {
+          // Skipped while a command is in flight too: its response is newer
+          // than anything this read could have seen.
+          if (mounted.current && startedAt === generation.current && !writing.current && !remotePending()) {
             setSnapshot(value);
             setError(false);
           }
@@ -93,13 +107,33 @@ export function usePresentationSnapshot(url: string, sessionId?: string) {
         ? null
         : new BroadcastChannel(`live-presentation:${sessionId}`);
     const update = () => void refresh();
-    if (local) local.onmessage = update;
+    if (local) {
+      // Same-origin windows of the same teacher: the presenter sends the
+      // snapshot its command just returned, so the projected window applies
+      // it immediately instead of spending another round trip to read it.
+      local.onmessage = ({ data }) => {
+        if (data?.type === "snapshot" && data.snapshot && typeof data.snapshot === "object") {
+          generation.current++;
+          remotePendingSince.current = data.pending === true ? Date.now() : 0;
+          setSnapshot(data.snapshot as PresentationSnapshot);
+          setError(false);
+          return;
+        }
+        update();
+      };
+    }
     window.addEventListener("live:presentation-refresh", update);
     return () => {
       local?.close();
       window.removeEventListener("live:presentation-refresh", update);
     };
   }, [sessionId, refresh]);
+  const pushToOtherWindows = useCallback((value: PresentationSnapshot, pending = false) => {
+    if (!sessionId || typeof BroadcastChannel === "undefined") return;
+    const local = new BroadcastChannel(`live-presentation:${sessionId}`);
+    local.postMessage({ type: "snapshot", snapshot: value, pending });
+    local.close();
+  }, [sessionId]);
   const command = useCallback(
     async (
       value: PresentationCommand,
@@ -117,7 +151,11 @@ export function usePresentationSnapshot(url: string, sessionId?: string) {
       writing.current = true;
       setActionError(false);
       setPending(true);
-      await readDone.current;
+      // Only the very first read is worth waiting for (the optimistic patch
+      // needs a snapshot to patch). A background poll in flight is not: the
+      // generation bump below makes its older result land as a no-op.
+      if (!snapshotRef.current) await readDone.current;
+      generation.current++;
       if (!mounted.current) {
         writing.current = false;
         return false;
@@ -126,7 +164,11 @@ export function usePresentationSnapshot(url: string, sessionId?: string) {
       let ok = false;
       const previous = snapshotRef.current;
       if (optimisticPatch && previous) {
-        setSnapshot(optimisticPatch(previous));
+        const guess = optimisticPatch(previous);
+        setSnapshot(guess);
+        // The projected window shows the same guess at once; the server's
+        // answer (or a revert) follows over the same channel.
+        pushToOtherWindows(guess, true);
       }
       try {
         const response = await fetch(url, {
@@ -137,20 +179,20 @@ export function usePresentationSnapshot(url: string, sessionId?: string) {
         });
         if (!response.ok) throw new Error();
         const next = await response.json();
+        generation.current++;
         if (mounted.current) {
           setSnapshot(next);
           setError(false);
         }
-        if (sessionId && typeof BroadcastChannel !== "undefined") {
-          const local = new BroadcastChannel(`live-presentation:${sessionId}`);
-          local.postMessage("changed");
-          local.close();
-        }
+        pushToOtherWindows(next);
         ok = true;
       } catch {
         if (mounted.current) {
           setActionError(true);
-          if (optimisticPatch && previous) setSnapshot(previous);
+          if (optimisticPatch && previous) {
+            setSnapshot(previous);
+            pushToOtherWindows(previous);
+          }
         }
       } finally {
         busy.current = false;
@@ -160,7 +202,7 @@ export function usePresentationSnapshot(url: string, sessionId?: string) {
       }
       return ok;
     },
-    [url, sessionId, refresh],
+    [url, refresh, pushToOtherWindows],
   );
   return {
     snapshot,

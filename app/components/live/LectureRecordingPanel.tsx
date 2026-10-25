@@ -1,15 +1,15 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
-import { AlertCircle, Download, FileText, Loader2, Mic, RotateCcw, Sparkles, Square, Trash2 } from 'lucide-react';
+import { AlertCircle, Check, Download, FileText, Loader2, Mic, RotateCcw, Sparkles, Square, Trash2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { DeleteConfirmation } from '@/components/ui/delete-confirmation';
 import { useLanguage } from '@/app/contexts/LanguageContext';
 import { cn } from '@/lib/utils';
-import { formatClock, type LessonNotes } from '@/lib/live-recording';
+import { formatClock, SEGMENT_SECONDS, type LessonNotes } from '@/lib/live-recording';
 import { extractDeckText } from '@/lib/deck-text';
-import { useLectureRecorder, type RecorderError } from './useLectureRecorder';
+import { useLectureRecorder, type LiveSegment, type RecorderError } from './useLectureRecorder';
 import { LectureNotesDialog } from './LectureNotesDialog';
 
 type RecordingSummary = {
@@ -40,6 +40,7 @@ export function LectureRecordingPanel({ sessionId, sessionTitle, deckUrl, deckPa
   const [recordings, setRecordings] = useState<RecordingSummary[] | null>(null);
   const [listError, setListError] = useState('');
   const [busyId, setBusyId] = useState<string | null>(null);
+  const [busyKind, setBusyKind] = useState<'notes' | 'retry' | null>(null);
   const [actionError, setActionError] = useState('');
   const [openId, setOpenId] = useState<string | null>(null);
   const [freshNotes, setFreshNotes] = useState<{ id: string; notes: LessonNotes } | null>(null);
@@ -85,6 +86,7 @@ export function LectureRecordingPanel({ sessionId, sessionTitle, deckUrl, deckPa
   const generateNotes = async (id: string) => {
     if (busyId) return;
     setBusyId(id);
+    setBusyKind('notes');
     setActionError('');
     try {
       const slides = deckUrl ? await extractDeckText(deckUrl).catch(() => []) : [];
@@ -105,6 +107,7 @@ export function LectureRecordingPanel({ sessionId, sessionTitle, deckUrl, deckPa
       setActionError(aiErrorMessage('COOLDOWN'));
     } finally {
       setBusyId(null);
+      setBusyKind(null);
     }
   };
 
@@ -113,6 +116,7 @@ export function LectureRecordingPanel({ sessionId, sessionTitle, deckUrl, deckPa
   const retryFailed = async (id: string) => {
     if (busyId) return;
     setBusyId(id);
+    setBusyKind('retry');
     setActionError('');
     try {
       const detail = await fetch(`/api/live-recordings/${id}`, { cache: 'no-store' }).then((response) => response.json());
@@ -136,6 +140,7 @@ export function LectureRecordingPanel({ sessionId, sessionTitle, deckUrl, deckPa
       setActionError(aiErrorMessage(undefined));
     } finally {
       setBusyId(null);
+      setBusyKind(null);
       void loadRecordings();
     }
   };
@@ -164,7 +169,6 @@ export function LectureRecordingPanel({ sessionId, sessionTitle, deckUrl, deckPa
 
   const live = recorder.segments;
   const pending = live.filter((segment) => segment.status === 'uploading' || segment.status === 'transcribing').length;
-  const failedLive = live.filter((segment) => segment.status === 'failed');
 
   return (
     <Card>
@@ -197,14 +201,27 @@ export function LectureRecordingPanel({ sessionId, sessionTitle, deckUrl, deckPa
           </div>
         ) : phase === 'recording' || phase === 'stopping' ? (
           <div className="space-y-3">
-            <p className="text-xs text-muted-foreground">
-              {say(`已轉錄 ${transcribedCount} 段`, `${transcribedCount} segment(s) transcribed`)}
-              {pending > 0 && say(` · 處理中 ${pending} 段`, ` · ${pending} in progress`)}
-              {say('（每 5 分鐘一段）', ' (one every 5 minutes)')}
-            </p>
+            <div className="space-y-1.5">
+              <div className="flex items-center justify-between gap-2 text-xs text-muted-foreground">
+                <span>
+                  {say('目前段落', 'Current segment')} {formatClock(recorder.elapsed % SEGMENT_SECONDS)} / {formatClock(SEGMENT_SECONDS)}
+                </span>
+                <span>{say(`已轉錄 ${transcribedCount} 段`, `${transcribedCount} transcribed`)}</span>
+              </div>
+              <div className="h-1.5 overflow-hidden rounded-full bg-muted" aria-hidden="true">
+                <div
+                  className="h-full rounded-full bg-red-400 transition-[width] duration-1000 ease-linear motion-reduce:transition-none"
+                  style={{ width: `${((recorder.elapsed % SEGMENT_SECONDS) / SEGMENT_SECONDS) * 100}%` }}
+                />
+              </div>
+              <p className="text-[11px] leading-4 text-muted-foreground">
+                {say('每滿 5 分鐘會自動送出一段轉錄。', 'A segment is sent for transcription every 5 minutes.')}
+              </p>
+            </div>
+            <SegmentTrack segments={live} zh={zh} onRetry={recorder.retry} />
             <Button variant="outline" className="w-full border-red-200 text-red-700 hover:bg-red-50 hover:text-red-800 dark:border-red-900 dark:text-red-300 dark:hover:bg-red-950/40" disabled={phase === 'stopping'} onClick={() => void recorder.stop()}>
               {phase === 'stopping' ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Square className="mr-2 h-3.5 w-3.5 fill-current" />}
-              {say('停止錄音', 'Stop recording')}
+              {phase === 'stopping' ? say('正在結束錄音…', 'Finishing…') : say('停止錄音', 'Stop recording')}
             </Button>
           </div>
         ) : (
@@ -212,9 +229,19 @@ export function LectureRecordingPanel({ sessionId, sessionTitle, deckUrl, deckPa
             <p className="text-sm font-medium">
               {say('錄音完成', 'Recording finished')} · {formatClock(recorder.elapsed)}
             </p>
+            {pending > 0 && (
+              <div className="space-y-2" role="status">
+                <p className="flex items-center gap-2 text-xs font-medium text-foreground">
+                  <Loader2 className="h-3.5 w-3.5 animate-spin text-primary" />
+                  {say(`正在轉錄最後 ${pending} 段，通常需要 10–30 秒…`, `Transcribing the last ${pending} segment(s), usually 10–30 seconds…`)}
+                </p>
+                <IndeterminateBar />
+              </div>
+            )}
+            <SegmentTrack segments={live} zh={zh} onRetry={recorder.retry} />
             <p className="text-xs text-muted-foreground">
               {pending > 0
-                ? say(`還有 ${pending} 段正在轉錄，完成前請不要關閉這個頁面。`, `${pending} segment(s) still transcribing. Keep this page open until they finish.`)
+                ? say('完成前請不要關閉這個頁面。', 'Keep this page open until they finish.')
                 : failedCount > 0
                   ? say('部分段落轉錄失敗，重試後就能產生完整的教學筆記。', 'Some segments failed. Retry them to get complete notes.')
                   : say('逐字稿已處理完成，可以在下方產生教學筆記。', 'Transcription finished. Generate notes below.')}
@@ -232,23 +259,6 @@ export function LectureRecordingPanel({ sessionId, sessionTitle, deckUrl, deckPa
                 <Mic className="mr-1.5 h-3.5 w-3.5" />
                 {say('新的錄音', 'New recording')}
               </Button>
-            </div>
-          </div>
-        )}
-
-        {failedLive.length > 0 && (
-          <div className="space-y-2 rounded-lg border border-amber-200 bg-amber-50 p-3 text-xs text-amber-900 dark:border-amber-900 dark:bg-amber-950/30 dark:text-amber-200">
-            <p className="flex items-center gap-1.5 font-medium">
-              <AlertCircle className="h-3.5 w-3.5" />
-              {say(`${failedLive.length} 段轉錄失敗`, `${failedLive.length} segment(s) failed`)}
-            </p>
-            <div className="flex flex-wrap gap-1.5">
-              {failedLive.map((segment) => (
-                <Button key={segment.idx} size="sm" variant="outline" className="h-7 bg-background px-2 text-xs" onClick={() => recorder.retry(segment.idx)}>
-                  <RotateCcw className="mr-1 h-3 w-3" />
-                  {formatClock(segment.startSeconds)}
-                </Button>
-              ))}
             </div>
           </div>
         )}
@@ -314,6 +324,20 @@ export function LectureRecordingPanel({ sessionId, sessionTitle, deckUrl, deckPa
                           {say('逐字稿', 'Transcript')}
                         </Button>
                       )}
+                      {busy && busyKind === 'notes' && (
+                        <div className="w-full space-y-1.5 pt-1" role="status">
+                          <p className="text-xs text-muted-foreground">
+                            {say('正在整理教學筆記，約需 20–40 秒…', 'Writing teaching notes, about 20–40 seconds…')}
+                          </p>
+                          <IndeterminateBar />
+                        </div>
+                      )}
+                      {busy && busyKind === 'retry' && (
+                        <div className="w-full space-y-1.5 pt-1" role="status">
+                          <p className="text-xs text-muted-foreground">{say('正在重新轉錄失敗的段落…', 'Retrying failed segments…')}</p>
+                          <IndeterminateBar />
+                        </div>
+                      )}
                       {item.failed > 0 && !active && (
                         <Button size="sm" variant="ghost" className="h-8" disabled={!!busyId} onClick={() => void retryFailed(item.id)}>
                           <RotateCcw className="mr-1.5 h-3.5 w-3.5" />
@@ -340,5 +364,58 @@ export function LectureRecordingPanel({ sessionId, sessionTitle, deckUrl, deckPa
         onConfirm={() => void confirmDelete()}
       />
     </Card>
+  );
+}
+
+function IndeterminateBar() {
+  return (
+    <div className="h-1 overflow-hidden rounded-full bg-primary/10" aria-hidden="true">
+      <div className="progress-indeterminate h-full w-2/5 rounded-full bg-primary/70" />
+    </div>
+  );
+}
+
+// One chip per five-minute segment, so the teacher can see each one move
+// from upload to transcription to done (or retry a failed one).
+function SegmentTrack({ segments, zh, onRetry }: { segments: LiveSegment[]; zh: boolean; onRetry: (idx: number) => void }) {
+  if (!segments.length) return null;
+  const label = (segment: LiveSegment) => ({
+    uploading: zh ? '上傳中' : 'Uploading',
+    transcribing: zh ? '轉錄中' : 'Transcribing',
+    transcribed: zh ? '已完成' : 'Done',
+    failed: zh ? '失敗，點擊重試' : 'Failed, click to retry',
+  })[segment.status];
+  return (
+    <ul className="flex flex-wrap gap-1.5" aria-label={zh ? '各段轉錄進度' : 'Segment progress'}>
+      {segments.map((segment) => {
+        const working = segment.status === 'uploading' || segment.status === 'transcribing';
+        const content = (
+          <>
+            {working ? <Loader2 className="h-3 w-3 animate-spin" />
+              : segment.status === 'transcribed' ? <Check className="h-3 w-3" />
+              : <AlertCircle className="h-3 w-3" />}
+            <span className="font-mono tabular-nums">{formatClock(segment.startSeconds)}</span>
+            {working && <span>{label(segment)}</span>}
+          </>
+        );
+        const tone = segment.status === 'transcribed'
+          ? 'border-emerald-200 bg-emerald-50 text-emerald-800 dark:border-emerald-900 dark:bg-emerald-950/40 dark:text-emerald-300'
+          : segment.status === 'failed'
+            ? 'border-amber-300 bg-amber-50 text-amber-900 hover:bg-amber-100 dark:border-amber-900 dark:bg-amber-950/40 dark:text-amber-200'
+            : 'border-primary/20 bg-primary/5 text-foreground';
+        return (
+          <li key={segment.idx}>
+            {segment.status === 'failed' ? (
+              <button type="button" title={label(segment)} aria-label={`${formatClock(segment.startSeconds)} ${label(segment)}`} onClick={() => onRetry(segment.idx)} className={cn('inline-flex h-7 items-center gap-1 rounded-full border px-2.5 text-xs', tone)}>
+                {content}
+                <RotateCcw className="h-3 w-3" />
+              </button>
+            ) : (
+              <span title={label(segment)} className={cn('inline-flex h-7 items-center gap-1 rounded-full border px-2.5 text-xs', tone)}>{content}</span>
+            )}
+          </li>
+        );
+      })}
+    </ul>
   );
 }

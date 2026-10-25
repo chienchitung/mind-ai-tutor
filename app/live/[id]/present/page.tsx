@@ -109,6 +109,8 @@ export default function PresenterPage() {
   const loadPageRef = useRef<() => Promise<void>>(async () => {});
   const navigation = useFastDeckPage(params.id, sessionData?.deckUrl, sessionData?.deckPage ?? 1, () => loadPageRef.current());
   const data = sessionData ? { ...sessionData, deckPage: navigation.page } : null;
+  const previewPageRef = useRef(navigation.preview);
+  previewPageRef.current = navigation.preview;
   useEffect(() => {
     if (navigation.error) toast({ title: language === 'zh-TW' ? '換頁同步失敗，請重試' : 'Could not save slide position. Retry.', variant: 'destructive' });
   }, [navigation.error, toast, language]);
@@ -299,6 +301,10 @@ export default function PresenterPage() {
         );
       })
       .on('broadcast', { event: 'session:deleted' }, () => { void load(); })
+      // A page turned from the projected window (e.g. a clicker focused on
+      // it). The instant hint arrives over the local ink channel below; this
+      // re-read is the backstop that makes the saved page authoritative.
+      .on('broadcast', { event: 'deck:sync' }, () => { void load(); })
       .on('broadcast', { event: 'reaction:sent' }, ({ payload }) => {
         const { kind } = payload as { kind: string };
         setReactionCounts((previous) => ({
@@ -341,6 +347,9 @@ export default function PresenterPage() {
           dispatchDeckInk({ deckUrl: current.deckUrl ?? '', action });
         }
         channel.postMessage({ type: 'ink', ...inkSnapshotRef.current });
+      }
+      if (message?.type === 'deck-preview' && typeof message.deckUrl === 'string' && Number.isInteger(message.page)) {
+        previewPageRef.current(message.deckUrl, message.page);
       }
       if (message?.type === 'ready') {
         lastDisplayPing.current = Date.now();
@@ -878,6 +887,7 @@ export default function PresenterPage() {
           onClose={closeDisplayWindow}
           moderatingId={moderatingId}
           onModerate={(item) => void handleModerate(item)}
+          localDeck={{ url: data.deckUrl, page: data.deckPage }}
           stage={
             <Card className="min-w-0">
               <CardContent className="p-4 sm:p-5 md:p-5">

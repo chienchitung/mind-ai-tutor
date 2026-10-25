@@ -485,6 +485,25 @@ describe('dual-screen presenting', () => {
     });
   });
 
+  it('follows a page turned from the projected window right away', async () => {
+    const channels: { name: string; onmessage: ((event: { data: unknown }) => void) | null }[] = [];
+    vi.stubGlobal('BroadcastChannel', class {
+      onmessage = null;
+      postMessage = mocks.inkSend;
+      close() {}
+      constructor(public name: string) { channels.push(this as never); }
+    });
+    mount(<PresenterPage />);
+    await screen.findByRole('heading', { name: session.title });
+    expect(screen.getByText('第 1 / 1 頁')).toBeTruthy();
+    const ink = channels.find((channel) => channel.name === 'live-ink:123456')!;
+    act(() => ink.onmessage?.({ data: { type: 'deck-preview', deckUrl: '/deck.pdf', page: 3 } }));
+    expect(screen.getByText('第 3 / 1 頁')).toBeTruthy();
+    // A different deck's hint is ignored.
+    act(() => ink.onmessage?.({ data: { type: 'deck-preview', deckUrl: '/other.pdf', page: 5 } }));
+    expect(screen.getByText('第 3 / 1 頁')).toBeTruthy();
+  });
+
   it('opens a second window for the projector and shows the drawing toolbar', async () => {
     const displayWindow = { closed: false, close: vi.fn() };
     const open = vi.fn().mockReturnValue(displayWindow);

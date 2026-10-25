@@ -51,6 +51,14 @@ afterEach(() => {
 });
 
 describe('DeckViewer', () => {
+  it('pre-renders the neighbouring pages so the next turn paints from cache', async () => {
+    const {rerender}=render(<DeckViewer url="https://example.test/prefetch.pdf" page={3} overlay={<span>page-three</span>} />);
+    await waitFor(()=>expect(getPage.mock.calls.map(([n])=>n)).toEqual([3, 4, 2]));
+    rerender(<DeckViewer url="https://example.test/prefetch.pdf" page={4} overlay={<span>page-four</span>} />);
+    await waitFor(()=>expect(document.body.textContent).toContain('page-four'));
+    // Page 4 came from the cache; only its unseen neighbour (5) is rendered.
+    await waitFor(()=>expect(getPage.mock.calls.map(([n])=>n)).toEqual([3, 4, 2, 5]));
+  });
   it('reuses a recently rendered page at the same size', async () => {
     const {rerender}=render(<DeckViewer url="https://example.test/cache.pdf" page={1} overlay={<span>page-one</span>} />);
     await waitFor(()=>expect(document.body.textContent).toContain('page-one'));
