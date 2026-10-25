@@ -133,6 +133,9 @@ export function usePresentationSnapshot(url: string, sessionId?: string) {
   // one shows at once and is sent when the current write settles, instead of
   // the click being dropped while the buttons wait on the round trip.
   const queuedCommand = useRef<{ value: PresentationCommand; patch: (previous: PresentationSnapshot) => PresentationSnapshot } | null>(null);
+  // What the server last confirmed while a queued guess was on screen: the
+  // queued command rolls back to this, not to its own guess, if it fails.
+  const rollbackRef = useRef<PresentationSnapshot | null>(null);
   const commandRef = useRef<((value: PresentationCommand, patch?: (previous: PresentationSnapshot) => PresentationSnapshot) => Promise<boolean>) | null>(null);
   const pushToOtherWindows = useCallback((value: PresentationSnapshot, pending = false) => {
     if (!sessionId || typeof BroadcastChannel === "undefined") return;
@@ -176,7 +179,8 @@ export function usePresentationSnapshot(url: string, sessionId?: string) {
       }
       busy.current = true;
       let ok = false;
-      const previous = snapshotRef.current;
+      const previous = rollbackRef.current ?? snapshotRef.current;
+      rollbackRef.current = null;
       if (optimisticPatch && previous) {
         const guess = optimisticPatch(previous);
         setSnapshot(guess);
@@ -202,9 +206,14 @@ export function usePresentationSnapshot(url: string, sessionId?: string) {
             setError(false);
           }
           pushToOtherWindows(next);
+        } else {
+          rollbackRef.current = next;
         }
         ok = true;
       } catch {
+        // With a newer click queued, its guess stays on screen; it reverts to
+        // the state before this failed command if it fails as well.
+        if (queuedCommand.current) rollbackRef.current = previous;
         if (mounted.current && !queuedCommand.current) {
           setActionError(true);
           if (optimisticPatch && previous) {

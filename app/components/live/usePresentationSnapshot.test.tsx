@@ -125,6 +125,33 @@ describe("snapshot recovery and commands", () => {
     await waitFor(() => expect(result.current.pending).toBe(false));
   });
 
+  it("rolls a failed queued click back to what the server confirmed, not to its own guess", async () => {
+    let finishFirst!: (value: unknown) => void;
+    const fetcher = vi
+      .fn()
+      .mockResolvedValueOnce(response(snap))
+      .mockImplementationOnce(() => new Promise((resolve) => { finishFirst = resolve; }))
+      .mockResolvedValueOnce({ ok: false, status: 500, json: async () => ({}) })
+      // The follow-up read fails too, so only the rollback decides the screen.
+      .mockRejectedValue(new Error("offline"));
+    vi.stubGlobal("fetch", fetcher);
+    const { result } = renderHook(() => usePresentationSnapshot("/api/test"));
+    await waitFor(() => expect(result.current.snapshot?.mode).toBe("deck"));
+    const show = (mode: "deck" | "blank") =>
+      result.current.command({ action: "show", mode }, (prev) => ({ ...prev, mode }));
+    act(() => { void show("blank"); });
+    act(() => { void show("deck"); });
+    expect(result.current.snapshot?.mode).toBe("deck");
+    await act(async () => {
+      finishFirst(response({ ...snap, mode: "blank" }));
+      await Promise.resolve();
+    });
+    // Blank was confirmed and "back to slides" failed: the screen is blank.
+    await waitFor(() => expect(result.current.pending).toBe(false));
+    expect(result.current.snapshot?.mode).toBe("blank");
+    expect(result.current.error).toBe(true);
+  });
+
   it("reverts an optimistic patch instead of leaving a guess on screen when the write fails", async () => {
     const fetcher = vi.fn().mockResolvedValue(response(snap));
     vi.stubGlobal("fetch", fetcher);
