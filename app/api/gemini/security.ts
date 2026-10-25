@@ -15,12 +15,12 @@ export async function authorizeTeacherAi(request: Request) {
   const profile = await client.from('profiles').select('role').eq('user_id', user.id).maybeSingle();
   if (profile.error) return { response: fail('ACCESS_NOT_READY', 503) };
   if (!['teacher', 'admin'].includes(profile.data?.role || '')) return { response: fail('FORBIDDEN', 403) };
-  return { client };
+  return { client, user };
 }
 
 export async function claimTeacherAi(
   client: Awaited<ReturnType<typeof getServerClient>>,
-  kind: 'quiz' | 'practice' | 'learning_analysis',
+  kind: 'quiz' | 'practice' | 'learning_analysis' | 'transcription' | 'lesson_notes',
 ) {
   const quota = await client.rpc('claim_teacher_ai_generation', { p_kind: kind });
   if (quota.error || quota.data !== 'OK') {

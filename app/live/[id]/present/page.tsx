@@ -55,6 +55,7 @@ import { deleteLiveDeck, listLiveDecks, uploadLiveDeck, type LiveDeck } from '@/
 import { DeleteConfirmation } from '@/components/ui/delete-confirmation';
 import { annotationReducer, deckAnnotationReducer, EMPTY_INK, type AnnotationAction, type AnnotationState, type InkPoint, type InkStroke, type PresentationTool } from '@/lib/presentation-annotations';
 import { PresentationControls } from '@/components/live/PresentationControls';
+import { LectureRecordingPanel } from '@/components/live/LectureRecordingPanel';
 import { DeckViewer } from '@/components/live/DeckViewer';
 import { AnnotationLayer } from '@/components/live/AnnotationLayer';
 import { readAnnotationCommand } from '@/lib/live-annotation-command';
@@ -1248,6 +1249,12 @@ export default function PresenterPage() {
                   )}
                 </CardContent>
               </Card>
+              <LectureRecordingPanel
+                sessionId={params.id}
+                sessionTitle={data.title}
+                deckUrl={data.deckUrl}
+                deckPage={data.deckPage}
+              />
             </>
           }
         />
