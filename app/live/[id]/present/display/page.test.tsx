@@ -18,19 +18,27 @@ vi.mock("next/navigation", () => ({ useParams: () => ({ id: "123456" }) }));
 vi.mock("@/components/live/JoinQRCode", () => ({
   JoinQRCode: () => <div>QR</div>,
 }));
-vi.mock("@/components/live/DeckViewer", () => ({
-  DeckViewer: ({
-    overlay,
-    page,
-  }: {
-    overlay: React.ReactNode;
-    page: number;
-  }) => (
-    <div data-testid="deck" data-page={page}>
-      {overlay}
-    </div>
-  ),
-}));
+vi.mock("@/components/live/DeckViewer", async () => {
+  const { useEffect } = await import("react");
+  return {
+    DeckViewer: ({
+      overlay,
+      page,
+      onNumPages,
+    }: {
+      overlay: React.ReactNode;
+      page: number;
+      onNumPages?: (count: number) => void;
+    }) => {
+      useEffect(() => onNumPages?.(5), [onNumPages]);
+      return (
+        <div data-testid="deck" data-page={page}>
+          {overlay}
+        </div>
+      );
+    },
+  };
+});
 vi.mock("@/lib/supabase", () => ({
   supabase: () => {
     const channel = {
@@ -108,6 +116,13 @@ function ink(message: any) {
   );
 }
 describe("reliable projected display", () => {
+  it("tells the presenter window about a page turned here before saving it", async () => {
+    await mount();
+    fireEvent.click(screen.getByRole("button", { name: "開始投影" }));
+    const channel = mocks.channels.find((c) => c.name === "live-ink:123456");
+    fireEvent.click(await screen.findByRole("button", { name: "下一頁" }));
+    expect(channel.postMessage).toHaveBeenCalledWith({ type: "deck-preview", deckUrl: "/deck.pdf", page: 2 });
+  });
   it("keeps pen, laser and eraser active without a teacher connection", async () => {
     await mount();
     fireEvent.click(screen.getByRole("button", { name: "開始投影" }));

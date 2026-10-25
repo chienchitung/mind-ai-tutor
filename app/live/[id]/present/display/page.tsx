@@ -267,7 +267,12 @@ export default function PresentDisplayPage() {
                 void document.exitFullscreen().catch(() => {});
             }}
             onPageChange={(page) => {
-              if (page >= 1 && page <= numPages) navigation.navigate(page);
+              if (page < 1 || page > numPages) return;
+              // Tell the presenter window right away, so its slide view,
+              // preview and lecture-recording slide timeline follow a turn
+              // made here instead of waiting for the save to round-trip.
+              inkChannelRef.current?.postMessage({ type: "deck-preview", deckUrl: snapshot.deckUrl, page });
+              navigation.navigate(page);
             }}
             onOpenPanel={() => {
               if (window.opener && !window.opener.closed) window.opener.focus();
