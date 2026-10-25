@@ -36,6 +36,8 @@ describe('AI cover workflow', () => {
   it('generates once and does not mutate the cover until explicitly adopted', async () => {
     respond(); const p = props(); render(<AiGameCover {...p} />); consent();
     await waitFor(() => expect((screen.getByText('生成封面背景') as HTMLButtonElement).disabled).toBe(false));
+    fireEvent.click(screen.getByRole('radio', { name: '科技感' }));
+    expect(screen.getByRole('radio', { name: '科技感' }).getAttribute('aria-checked')).toBe('true');
     // Hold the element reference rather than re-querying by label: the label
     // itself now flips to a "generating…" state on the very first click.
     const generateButton = screen.getByText('生成封面背景');
@@ -44,7 +46,7 @@ describe('AI cover workflow', () => {
     await screen.findByText('重新生成背景');
     expect(fetchMock).toHaveBeenCalledTimes(1); expect(p.onApply).not.toHaveBeenCalled();
     const payload = JSON.parse(fetchMock.mock.calls[0][1].body);
-    expect(payload).toMatchObject({ title: context.title, brief: context.description, topics: context.topics, consent: true });
+    expect(payload).toMatchObject({ title: context.title, brief: context.description, topics: context.topics, consent: true, style: 'technology' });
     expect(payload).not.toHaveProperty('photo');
     fireEvent.change(screen.getByLabelText(/封面標題/), { target: { value: '資料探險' } });
     fireEvent.click(screen.getByText('使用此封面'));

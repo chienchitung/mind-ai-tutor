@@ -5,6 +5,7 @@ import { DragDropContext, Droppable, Draggable } from '@hello-pangea/dnd';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
 import { BookOpen, GripVertical, X } from 'lucide-react';
 import { useTranslation } from '@/lib/translations';
@@ -111,19 +112,22 @@ export function LessonOrderManager({
                         <div className="flex-1 min-w-0 space-y-2">
                           <div className="font-medium truncate">{lesson.title}</div>
                           <div className="grid gap-2 sm:grid-cols-[140px_1fr]">
-                            <select
+                            <Select
                               disabled={disabled}
                               value={override.role ?? 'standard'}
-                              onChange={(event) => onLessonOverrideChange(lessonId, {
-                                role: event.target.value as LessonOverride['role'],
+                              onValueChange={(role) => onLessonOverrideChange(lessonId, {
+                                role: role as LessonOverride['role'],
                               })}
-                              className="h-9 rounded-md border border-input bg-background px-3 text-sm"
-                              aria-label={t('lesson_role')}
                             >
-                              <option value="intro">{t('lesson_role_intro')}</option>
-                              <option value="standard">{t('lesson_role_standard')}</option>
-                              <option value="final">{t('lesson_role_final')}</option>
-                            </select>
+                              <SelectTrigger className="h-9" aria-label={t('lesson_role')}>
+                                <SelectValue />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="intro">{t('lesson_role_intro')}</SelectItem>
+                                <SelectItem value="standard">{t('lesson_role_standard')}</SelectItem>
+                                <SelectItem value="final">{t('lesson_role_final')}</SelectItem>
+                              </SelectContent>
+                            </Select>
                             <Input
                               disabled={disabled}
                               value={override.cardDescription ?? lesson.description}

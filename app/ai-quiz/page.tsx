@@ -21,6 +21,7 @@ import {
   DraggableProvided
 } from '@hello-pangea/dnd';
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
+import { SegmentedControl } from "@/components/ui/segmented-control";
 import { useLanguage } from "@/app/contexts/LanguageContext";
 import { useTranslation } from "@/lib/translations";
 import { AiQuotaError, throwForAiQuotaError } from "@/lib/ai-quota-errors";
@@ -1668,16 +1669,17 @@ const QuizResults: React.FC<QuizResultsProps> = ({
                                       {isEditing ? (
                                         <>
                                           {/* 題型選擇 */}
-                                          <div className="mb-2">
-                                            <Label className="text-xs text-gray-500 mr-2">{t('question_type')}</Label>
-                                            <select
-                                              value={question.questionType || 'single'}
-                                              onChange={e => handleQuestionEdit(index, 'questionType', e.target.value)}
-                                              className="border rounded px-2 py-1 text-xs"
-                                            >
-                                              <option value="single">{t('answer_single_select')}</option>
-                                              <option value="multiple">{t('answer_multi_select')}</option>
-                                            </select>
+                                          <div className="mb-2 flex items-center gap-2">
+                                            <Label className="text-xs text-gray-500">{t('question_type')}</Label>
+                                            <SegmentedControl
+                                              label={t('question_type')}
+                                              value={question.questionType === 'multiple' ? 'multiple' : 'single'}
+                                              onChange={value => handleQuestionEdit(index, 'questionType', value)}
+                                              options={[
+                                                { value: 'single' as const, label: t('answer_single_select') },
+                                                { value: 'multiple' as const, label: t('answer_multi_select') },
+                                              ]}
+                                            />
                                           </div>
                                           {/* 單選/複選正確答案選擇 */}
                                           {question.questionType === 'multiple' ? (

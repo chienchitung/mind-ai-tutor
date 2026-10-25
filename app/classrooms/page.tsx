@@ -24,6 +24,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Badge } from '@/components/ui/badge';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import {
   Dialog,
   DialogContent,
@@ -761,26 +762,26 @@ export default function ClassroomsPage() {
                             className="pl-9"
                           />
                         </div>
-                        <select
-                          value={rosterGrade}
-                          onChange={event => setRosterGrade(event.target.value)}
-                          aria-label={zh ? '依年級篩選' : 'Filter by grade'}
-                          className="h-10 rounded-md border border-input bg-background px-3 text-sm"
-                        >
-                          <option value="all">{zh ? '所有年級' : 'All grades'}</option>
-                          {rosterGrades.map(grade => <option key={grade} value={String(grade)}>{zh ? `${grade} 年級` : `Grade ${grade}`}</option>)}
-                          {students.some(student => student.grade === null) && <option value="unassigned">{zh ? '未設定年級' : 'No grade'}</option>}
-                        </select>
-                        <select
-                          value={rosterMembership}
-                          onChange={event => setRosterMembership(event.target.value as RosterMembershipFilter)}
-                          aria-label={zh ? '依分班狀態篩選' : 'Filter by enrollment'}
-                          className="h-10 rounded-md border border-input bg-background px-3 text-sm"
-                        >
-                          <option value="all">{zh ? '全部學生' : 'All students'}</option>
-                          <option value="enrolled">{zh ? '已加入本班' : 'In this class'}</option>
-                          <option value="available">{zh ? '尚未加入本班' : 'Not in this class'}</option>
-                        </select>
+                        <Select value={rosterGrade} onValueChange={setRosterGrade}>
+                          <SelectTrigger aria-label={zh ? '依年級篩選' : 'Filter by grade'}>
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="all">{zh ? '所有年級' : 'All grades'}</SelectItem>
+                            {rosterGrades.map(grade => <SelectItem key={grade} value={String(grade)}>{zh ? `${grade} 年級` : `Grade ${grade}`}</SelectItem>)}
+                            {students.some(student => student.grade === null) && <SelectItem value="unassigned">{zh ? '未設定年級' : 'No grade'}</SelectItem>}
+                          </SelectContent>
+                        </Select>
+                        <Select value={rosterMembership} onValueChange={value => setRosterMembership(value as RosterMembershipFilter)}>
+                          <SelectTrigger aria-label={zh ? '依分班狀態篩選' : 'Filter by enrollment'}>
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="all">{zh ? '全部學生' : 'All students'}</SelectItem>
+                            <SelectItem value="enrolled">{zh ? '已加入本班' : 'In this class'}</SelectItem>
+                            <SelectItem value="available">{zh ? '尚未加入本班' : 'Not in this class'}</SelectItem>
+                          </SelectContent>
+                        </Select>
                       </div>
 
                       <div className="flex flex-col gap-3 rounded-xl bg-muted/35 px-3 py-2.5 sm:flex-row sm:items-center sm:justify-between">
@@ -898,16 +899,21 @@ export default function ClassroomsPage() {
                 </CardHeader>
                 <CardContent className="space-y-4">
                   <div className="flex flex-col gap-2 sm:flex-row">
-                    <select
-                      value={selectedGameId}
-                      onChange={event => setSelectedGameId(event.target.value)}
-                      disabled={selectedClassroom.status !== 'active'}
-                      aria-label={zh ? '選擇要指派的遊戲' : 'Choose a game to assign'}
-                      className="h-10 min-w-0 flex-1 rounded-md border border-input bg-background px-3 text-sm"
+                    <Select
+                      // Remount when cleared so the placeholder shows again
+                      // (Radix keeps the last label for an empty value).
+                      key={selectedGameId ? 'picked' : 'empty'}
+                      value={selectedGameId || undefined}
+                      onValueChange={setSelectedGameId}
+                      disabled={selectedClassroom.status !== 'active' || availableGames.length === 0}
                     >
-                      <option value="">{zh ? '選擇要指派的遊戲' : 'Choose a game to assign'}</option>
-                      {availableGames.map(game => <option key={game.id} value={game.id}>{game.title}</option>)}
-                    </select>
+                      <SelectTrigger className="min-w-0 flex-1" aria-label={zh ? '選擇要指派的遊戲' : 'Choose a game to assign'}>
+                        <SelectValue placeholder={zh ? '選擇要指派的遊戲' : 'Choose a game to assign'} />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {availableGames.map(game => <SelectItem key={game.id} value={game.id}>{game.title}</SelectItem>)}
+                      </SelectContent>
+                    </Select>
                     <Button onClick={assignGame} disabled={!selectedGameId || isSaving || selectedClassroom.status !== 'active'}>
                       <Plus className="mr-2 h-4 w-4" />{zh ? '指派遊戲' : 'Assign game'}
                     </Button>

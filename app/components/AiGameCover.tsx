@@ -5,6 +5,7 @@ import { Loader2, Sparkles, Upload } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
+import { SegmentedControl } from '@/components/ui/segmented-control';
 import { aiCoverError, type CoverContext, type CoverBrief } from '@/lib/ai-game-cover';
 import { coverPlacement, DEFAULT_COVER_OPTIONS, exportGameCover, validateCoverFile } from '@/lib/game-cover';
 import { DEFAULT_POSTER, drawCoverPoster, loadCoverFonts, loadCoverLogo, type PosterOptions } from '@/lib/game-cover-composition';
@@ -122,7 +123,7 @@ export function AiGameCover({ context, chinese, disabled, onApply, onCancel }: P
       <label className="block space-y-1 text-sm" htmlFor={`${id}-brief`}><span>{say('給 AI 的課程摘要', 'Course brief for AI')}</span><Textarea id={`${id}-brief`} value={brief} maxLength={2400} rows={3} onChange={e => setBrief(e.target.value)} /></label>
       <div className="text-xs text-muted-foreground">{say('關卡主題：', 'Lesson topics: ')}{topics.join('、') || say('尚未選擇關卡', 'No lessons selected')}</div>
       <Button type="button" size="sm" variant="outline" onClick={() => { setBrief(context.description.slice(0, 2400)); setTopics(context.topics.slice(0, 20).map(value => value.slice(0, 160))); setPoster({ ...poster, title: Array.from(context.title).slice(0, 48).join('') }); }}>{say('重新帶入目前課程資料', 'Refresh from current course')}</Button>
-      <label className="block space-y-1 text-sm" htmlFor={`${id}-style`}><span>{say('視覺風格', 'Visual style')}</span><select id={`${id}-style`} className="block h-10 w-full rounded-md border bg-background px-3" value={style} onChange={e => setStyle(e.target.value as CoverBrief['style'])}><option value="illustration">{say('活潑插畫', 'Playful illustration')}</option><option value="technology">{say('科技感', 'Technology')}</option><option value="minimal">{say('簡約幾何', 'Minimal geometry')}</option></select></label>
+      <div className="space-y-1 text-sm"><span>{say('視覺風格', 'Visual style')}</span><SegmentedControl<CoverBrief['style']> label={say('視覺風格', 'Visual style')} size="md" className="flex w-full flex-wrap" value={style} onChange={setStyle} disabled={blocked} options={[{ value: 'illustration', label: say('活潑插畫', 'Playful illustration') }, { value: 'technology', label: say('科技感', 'Technology') }, { value: 'minimal', label: say('簡約幾何', 'Minimal geometry') }]} /></div>
       <label className="flex items-start gap-2 text-xs leading-5"><input type="checkbox" className="mt-1" checked={consent} onChange={e => setConsent(e.target.checked)} /><span>{say('我同意將上方標題、摘要及關卡主題傳送至 Google Gemini 生成圖片，並確認不包含學生個資或機密內容。每日最多 5 次、間隔 60 秒；失敗與取消可能仍計次或產生服務費用。', 'I consent to sending the title, brief and topics to Google Gemini, with no student or confidential data. Maximum 5 attempts/day, 60 seconds apart. Failed or cancelled attempts may still count and incur provider costs.')}</span></label>
       <Button type="button" disabled={blocked || !logo || !consent || !poster.title.trim()} onClick={() => void generate()}>
         {pending === 'generate' ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Sparkles className="mr-2 h-4 w-4" />}
