@@ -148,7 +148,9 @@ describe("reliable projected display", () => {
   it("requests ink on mount and scopes late strokes/pointers to their deck and page", async () => {
     await mount();
     const channel = mocks.channels.find((c) => c.name === "live-ink:123456");
-    expect(channel.postMessage).toHaveBeenCalledWith({ type: "ready" });
+    // "ready" is posted from an effect after the snapshot renders; the deck
+    // can appear in the DOM a tick before that effect runs.
+    await waitFor(() => expect(channel.postMessage).toHaveBeenCalledWith({ type: "ready" }));
     ink({
       type: "ink",
       page: 1,
