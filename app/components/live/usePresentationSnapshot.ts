@@ -128,6 +128,15 @@ export function usePresentationSnapshot(url: string, sessionId?: string) {
       window.removeEventListener("live:presentation-refresh", update);
     };
   }, [sessionId, refresh]);
+  // A click made while another command is still in flight. Only commands with
+  // an optimistic patch queue (switching slides / blank / poll): the latest
+  // one shows at once and is sent when the current write settles, instead of
+  // the click being dropped while the buttons wait on the round trip.
+  const queuedCommand = useRef<{ value: PresentationCommand; patch: (previous: PresentationSnapshot) => PresentationSnapshot } | null>(null);
+  // What the server last confirmed while a queued guess was on screen: the
+  // queued command rolls back to this, not to its own guess, if it fails.
+  const rollbackRef = useRef<PresentationSnapshot | null>(null);
+  const commandRef = useRef<((value: PresentationCommand, patch?: (previous: PresentationSnapshot) => PresentationSnapshot) => Promise<boolean>) | null>(null);
   const pushToOtherWindows = useCallback((value: PresentationSnapshot, pending = false) => {
     if (!sessionId || typeof BroadcastChannel === "undefined") return;
     const local = new BroadcastChannel(`live-presentation:${sessionId}`);
@@ -147,7 +156,15 @@ export function usePresentationSnapshot(url: string, sessionId?: string) {
       // "next question by sort") pass no patch and behave as before.
       optimisticPatch?: (previous: PresentationSnapshot) => PresentationSnapshot,
     ) => {
-      if (writing.current) return false;
+      if (writing.current) {
+        if (!optimisticPatch || !snapshotRef.current) return false;
+        const guess = optimisticPatch(snapshotRef.current);
+        snapshotRef.current = guess;
+        setSnapshot(guess);
+        pushToOtherWindows(guess, true);
+        queuedCommand.current = { value, patch: optimisticPatch };
+        return true;
+      }
       writing.current = true;
       setActionError(false);
       setPending(true);
@@ -162,7 +179,8 @@ export function usePresentationSnapshot(url: string, sessionId?: string) {
       }
       busy.current = true;
       let ok = false;
-      const previous = snapshotRef.current;
+      const previous = rollbackRef.current ?? snapshotRef.current;
+      rollbackRef.current = null;
       if (optimisticPatch && previous) {
         const guess = optimisticPatch(previous);
         setSnapshot(guess);
@@ -180,14 +198,23 @@ export function usePresentationSnapshot(url: string, sessionId?: string) {
         if (!response.ok) throw new Error();
         const next = await response.json();
         generation.current++;
-        if (mounted.current) {
-          setSnapshot(next);
-          setError(false);
+        // A newer click is waiting: its guess is on screen and its own
+        // answer follows, so this (older) answer must not flash back.
+        if (!queuedCommand.current) {
+          if (mounted.current) {
+            setSnapshot(next);
+            setError(false);
+          }
+          pushToOtherWindows(next);
+        } else {
+          rollbackRef.current = next;
         }
-        pushToOtherWindows(next);
         ok = true;
       } catch {
-        if (mounted.current) {
+        // With a newer click queued, its guess stays on screen; it reverts to
+        // the state before this failed command if it fails as well.
+        if (queuedCommand.current) rollbackRef.current = previous;
+        if (mounted.current && !queuedCommand.current) {
           setActionError(true);
           if (optimisticPatch && previous) {
             setSnapshot(previous);
@@ -197,13 +224,20 @@ export function usePresentationSnapshot(url: string, sessionId?: string) {
       } finally {
         busy.current = false;
         writing.current = false;
-        if (mounted.current) setPending(false);
-        void refresh();
+        const queued = queuedCommand.current;
+        queuedCommand.current = null;
+        if (queued && mounted.current) {
+          void commandRef.current?.(queued.value, queued.patch);
+        } else {
+          if (mounted.current) setPending(false);
+          void refresh();
+        }
       }
       return ok;
     },
     [url, refresh, pushToOtherWindows],
   );
+  commandRef.current = command;
   return {
     snapshot,
     error: error || actionError,

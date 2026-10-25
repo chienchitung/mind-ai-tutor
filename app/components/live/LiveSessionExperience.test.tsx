@@ -377,6 +377,8 @@ describe('Live Session experience', () => {
   it('disables voting and explains the paused state when a status broadcast arrives', async () => {
     mount(<AudiencePage />);
     await screen.findByRole('heading', { name: session.title });
+    // The heading can render before the channel listener is attached.
+    await waitFor(() => expect(mocks.events.get('session:status')).toBeTruthy());
     act(() =>
       mocks.events.get('session:status')?.({ payload: { status: 'paused' } }),
     );

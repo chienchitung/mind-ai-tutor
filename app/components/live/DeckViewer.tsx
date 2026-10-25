@@ -2,8 +2,57 @@
 
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 
-// Current page, both neighbours and one recently shown page.
-const MAX_CACHED_PAGES = 4;
+// Rendered pages, shared like the documents: per viewer, the current page,
+// both neighbours and one recently shown page - for the stage, the preview
+// and the projected window at once, so a remounted viewer paints at once.
+const MAX_CACHED_PAGES = 12;
+const renderedPages = new Map<string, HTMLCanvasElement>();
+
+// Parsed decks shared by every viewer on the page. The presenter's stage, its
+// preview and the projected window each mount a viewer, and switching to a
+// poll or a blank screen unmounts one - without this, coming back meant
+// downloading the whole PDF again (up to 20 MB) before anything showed.
+const MAX_CACHED_DOCUMENTS = 3;
+const documents = new Map<string, Promise<any>>();
+
+function loadDocument(url: string): Promise<any> {
+  const cached = documents.get(url);
+  if (cached) {
+    documents.delete(url);
+    documents.set(url, cached);
+    return cached;
+  }
+  const loading = (async () => {
+    const pdfjsLib = await import('pdfjs-dist/legacy/build/pdf.mjs');
+    if (!pdfjsLib.GlobalWorkerOptions.workerSrc) {
+      pdfjsLib.GlobalWorkerOptions.workerSrc = '/pdfjs/pdf.worker.min.mjs';
+    }
+    // pdf.js defaults to HTTP Range requests to stream large PDFs
+    // progressively, which sends a Range header on a cross-origin fetch -
+    // that triggers a CORS preflight requiring the server to explicitly
+    // allow the Range header and expose Content-Range/Accept-Ranges,
+    // which Supabase Storage's public-object endpoint doesn't. A single
+    // plain GET (no Range) sidesteps that entirely; decks are capped at
+    // 20MB so losing progressive loading isn't a real cost here.
+    return pdfjsLib.getDocument({ url, disableRange: true, disableStream: true }).promise;
+  })();
+  documents.set(url, loading);
+  // A failed load is not kept, so the next mount (or a retry) tries again.
+  loading.catch(() => { if (documents.get(url) === loading) documents.delete(url); });
+  while (documents.size > MAX_CACHED_DOCUMENTS) {
+    const oldest = documents.keys().next().value as string;
+    const evicted = documents.get(oldest);
+    documents.delete(oldest);
+    void evicted?.then((pdf) => pdf?.destroy?.(), () => undefined);
+  }
+  return loading;
+}
+
+/** Test hook: forget every cached deck. */
+export function clearDeckDocuments() {
+  documents.clear();
+  renderedPages.clear();
+}
 
 interface DeckViewerProps {
   url: string;
@@ -22,7 +71,6 @@ interface DeckViewerProps {
 export function DeckViewer({ url, page, onNumPages, onError, className, overlay }: DeckViewerProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
-  const pages = useRef(new Map<string, HTMLCanvasElement>());
   const [doc, setDoc] = useState<any>(null);
   const [error, setError] = useState(false);
   const [rendered, setRendered] = useState<{
@@ -55,22 +103,10 @@ export function DeckViewer({ url, page, onNumPages, onError, className, overlay 
     let cancelled = false;
     setDoc(null);
     setRendered(null);
-    pages.current.clear();
     setError(false);
     async function load() {
       try {
-        const pdfjsLib = await import('pdfjs-dist/legacy/build/pdf.mjs');
-        if (!pdfjsLib.GlobalWorkerOptions.workerSrc) {
-          pdfjsLib.GlobalWorkerOptions.workerSrc = '/pdfjs/pdf.worker.min.mjs';
-        }
-        // pdf.js defaults to HTTP Range requests to stream large PDFs
-        // progressively, which sends a Range header on a cross-origin fetch -
-        // that triggers a CORS preflight requiring the server to explicitly
-        // allow the Range header and expose Content-Range/Accept-Ranges,
-        // which Supabase Storage's public-object endpoint doesn't. A single
-        // plain GET (no Range) sidesteps that entirely; decks are capped at
-        // 20MB so losing progressive loading isn't a real cost here.
-        const pdf = await pdfjsLib.getDocument({ url, disableRange: true, disableStream: true }).promise;
+        const pdf = await loadDocument(url);
         if (cancelled) return;
         setDoc(pdf);
         onNumPages?.(pdf.numPages);
@@ -101,15 +137,15 @@ export function DeckViewer({ url, page, onNumPages, onError, className, overlay 
     let renderTask: any = null;
     const keyFor = (pageNumber: number) => `${url}:${pageNumber}:${containerSize.width}:${containerSize.height}`;
     const remember = (key: string, canvas: HTMLCanvasElement) => {
-      pages.current.delete(key);
-      pages.current.set(key, canvas);
-      while (pages.current.size > MAX_CACHED_PAGES) pages.current.delete(pages.current.keys().next().value!);
+      renderedPages.delete(key);
+      renderedPages.set(key, canvas);
+      while (renderedPages.size > MAX_CACHED_PAGES) renderedPages.delete(renderedPages.keys().next().value!);
     };
     // Renders one page offscreen (so the visible slide stays put until the
     // new one is ready) and caches it.
     async function draw(pageNumber: number): Promise<HTMLCanvasElement | null> {
       const key = keyFor(pageNumber);
-      const cached = pages.current.get(key);
+      const cached = renderedPages.get(key);
       if (cached) { remember(key, cached); return cached; }
       const pdfPage = await doc.getPage(pageNumber);
       if (cancelled) return null;

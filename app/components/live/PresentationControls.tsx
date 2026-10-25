@@ -163,6 +163,9 @@ export function PresentationControls({
   const current: WorkspaceTab = wide && tab === "display" ? "deck" : tab;
   const [showOverviewSettings, setShowOverviewSettings] = useState(false);
   const disabled = pending || !snapshot || snapshot.status === "closed";
+  // Switching what is on screen never waits on a previous command: the
+  // latest click shows at once and is sent next (see usePresentationSnapshot).
+  const modeDisabled = !snapshot || snapshot.status === "closed";
   const answeredIds = snapshot?.answeredIds ?? [];
   const publicQuestions = questions.filter((q) => q.visibility === "public");
   const pendingQuestions = publicQuestions.filter((q) => !answeredIds.includes(q.id));
@@ -216,7 +219,7 @@ export function PresentationControls({
       </div>
       <div className="flex flex-wrap gap-2">
         <Button
-          disabled={disabled}
+          disabled={modeDisabled}
           variant={mode === "poll" ? "secondary" : "outline"}
           aria-pressed={mode === "poll"}
           onClick={() => showMode("poll")}
@@ -655,7 +658,7 @@ export function PresentationControls({
             {snapshot ? preview : <div className="aspect-video rounded-lg bg-slate-950/90" />}
             <div className="mt-3 grid grid-cols-2 gap-2">
               <Button
-                disabled={disabled}
+                disabled={modeDisabled}
                 variant={mode === "deck" ? "secondary" : "outline"}
                 aria-pressed={mode === "deck"}
                 onClick={() => showMode("deck")}
@@ -664,15 +667,13 @@ export function PresentationControls({
                 {zh ? "返回簡報" : "Back to slides"}
               </Button>
               <Button
-                disabled={disabled}
+                disabled={modeDisabled}
                 variant={mode === "blank" ? "secondary" : "outline"}
                 aria-pressed={mode === "blank"}
                 onClick={() => showMode(mode === "blank" ? "deck" : "blank")}
               >
-                <Square className="mr-2 h-4 w-4" />
-                {mode === "blank"
-                  ? zh ? "恢復簡報" : "Resume slides"
-                  : zh ? "暫時遮幕" : "Blank screen"}
+                <Square className={cn("mr-2 h-4 w-4", mode === "blank" && "fill-current")} />
+                {zh ? "暫時遮幕" : "Blank screen"}
               </Button>
             </div>
             {snapshot && connected &&
