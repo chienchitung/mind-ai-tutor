@@ -8,7 +8,10 @@ import { Button } from '@/components/ui/button';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { useLanguage } from '@/app/contexts/LanguageContext';
 import { cn } from '@/lib/utils';
-import { formatClock, type LessonNotes, type RecordingSummary } from '@/lib/live-recording';
+import { formatClock, RECORDING_BUCKET, segmentPath, type LessonNotes, type RecordingSummary } from '@/lib/live-recording';
+import { isRecordingOwnedElsewhere, openRecordingVault, type VaultMeta } from '@/lib/recording-vault';
+import { recoverRecording } from '@/lib/recording-recovery';
+import { supabase } from '@/lib/supabase';
 import { extractDeckText } from '@/lib/deck-text';
 import { useLectureRecorder } from './useLectureRecorder';
 import { LectureNotesDialog } from './LectureNotesDialog';
@@ -25,6 +28,19 @@ export type LectureJob = {
   startedOn: string;
 };
 
+/** A recording left in this browser's vault by an earlier visit. */
+export type Leftover = {
+  meta: VaultMeta;
+  /** Recorded but never sent for transcription (crash), in seconds. */
+  unsentSeconds: number;
+  hasAudio: boolean;
+  /** The tab died mid-lesson; otherwise only the download copy is left. */
+  interrupted: boolean;
+  status: 'idle' | 'recovering' | 'error';
+};
+
+const LEFTOVER_KEEP_MS = 7 * 24 * 60 * 60 * 1000;
+
 type LectureJobs = {
   recorder: ReturnType<typeof useLectureRecorder>;
   jobs: Record<string, LectureJob>;
@@ -34,6 +50,10 @@ type LectureJobs = {
   retryFailed: (item: RecordingSummary) => void;
   dismiss: (recordingId: string) => void;
   openNotes: (recordingId: string) => void;
+  leftovers: Leftover[];
+  recoverLeftover: (recordingId: string) => void;
+  downloadLeftover: (recordingId: string) => void;
+  discardLeftover: (recordingId: string) => void;
 };
 
 const LectureJobsContext = createContext<LectureJobs | null>(null);
@@ -61,6 +81,124 @@ export function LectureJobsProvider({ children }: { children: ReactNode }) {
   useEffect(() => { jobsRef.current = jobs; }, [jobs]);
   const [version, setVersion] = useState(0);
   const [openId, setOpenId] = useState<string | null>(null);
+  const [leftovers, setLeftovers] = useState<Leftover[]>([]);
+
+  // What an earlier visit left in this browser (see lib/recording-vault.ts),
+  // for whoever is signed in now. Checked once per signed-in teacher.
+  const checkedFor = useRef<string | null>(null);
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      const vault = await openRecordingVault();
+      if (!vault) return;
+      const { data } = await supabase().auth.getUser().catch(() => ({ data: { user: null } }));
+      const userId = data.user?.id;
+      if (!userId || checkedFor.current === userId) return;
+      const found: Leftover[] = [];
+      for (const meta of await vault.listMeta()) {
+        if (meta.userId !== userId) continue;
+        // Still being recorded (or finished) by another open tab.
+        if (await isRecordingOwnedElsewhere(meta)) continue;
+        const [segments, tail, media] = await Promise.all([
+          vault.listSegments(meta.recordingId), vault.readTail(meta.recordingId), vault.readMedia(meta.recordingId),
+        ]);
+        const interrupted = !meta.finished || segments.length > 0;
+        if (!interrupted && (!media.length || Date.now() - meta.startedAt > LEFTOVER_KEEP_MS)) {
+          await vault.remove(meta.recordingId);
+          continue;
+        }
+        const unsentSeconds = Math.round(tail.length / 16_000 + segments.reduce((sum, segment) => sum + segment.durationSeconds, 0));
+        found.push({ meta, unsentSeconds, hasAudio: media.length > 0, interrupted, status: 'idle' });
+      }
+      // Marked only once applied: a run cancelled midway (a remount) must not
+      // stop the next one from showing what it found.
+      if (cancelled) return;
+      checkedFor.current = userId;
+      setLeftovers(found.sort((a, b) => b.meta.startedAt - a.meta.startedAt));
+    })().catch(() => undefined);
+    return () => { cancelled = true; };
+  }, [pathname]);
+
+  const patchLeftover = (recordingId: string, patch: Partial<Leftover> | null) =>
+    setLeftovers((previous) => (patch === null
+      ? previous.filter((item) => item.meta.recordingId !== recordingId)
+      : previous.map((item) => (item.meta.recordingId === recordingId ? { ...item, ...patch } : item))));
+
+  const recoverLeftover = useCallback((recordingId: string) => {
+    const leftover = leftovers.find((item) => item.meta.recordingId === recordingId);
+    if (!leftover || leftover.status === 'recovering') return;
+    patchLeftover(recordingId, { status: 'recovering' });
+    void (async () => {
+      const vault = await openRecordingVault();
+      if (!vault) { patchLeftover(recordingId, { status: 'error' }); return; }
+      // Checked again right before: another tab may have picked it up since.
+      if (await isRecordingOwnedElsewhere(leftover.meta)) { patchLeftover(recordingId, null); return; }
+      const result = await recoverRecording(vault, leftover.meta, {
+        transcribed: async (meta) => {
+          const response = await fetch(`/api/live-recordings/${meta.recordingId}`, { cache: 'no-store' });
+          const body = response.ok ? await response.json() : {};
+          return new Set<number>((body.segments ?? [])
+            .filter((segment: { status: string }) => segment.status === 'transcribed')
+            .map((segment: { idx: number }) => segment.idx));
+        },
+        upload: async (meta, segment) => {
+          const { error } = await supabase().storage.from(RECORDING_BUCKET)
+            .upload(segmentPath(meta.userId, meta.recordingId, segment.idx), segment.blob, { contentType: 'audio/wav', upsert: true });
+          return !error;
+        },
+        transcribe: async (meta, segment) => {
+          for (let attempt = 0; attempt < 4; attempt++) {
+            const response = await fetch(`/api/live-recordings/${meta.recordingId}/segments`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ idx: segment.idx, startSeconds: segment.startSeconds, durationSeconds: segment.durationSeconds, language: meta.language }),
+            });
+            if (response.ok) return true;
+            const body = await response.json().catch(() => ({}));
+            if (response.status === 429 && body.error === 'COOLDOWN') { await sleep(4_000); continue; }
+            return false;
+          }
+          return false;
+        },
+        finalize: async (meta, body) => (await fetch(`/api/live-recordings/${meta.recordingId}`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(body),
+        })).ok,
+      }).catch(() => null);
+      setVersion((value) => value + 1);
+      if (!result || result.failed > 0 || !result.finalized) { patchLeftover(recordingId, { status: 'error' }); return; }
+      // Transcribed and closed; what is left is the download copy, if any.
+      if (leftover.hasAudio) patchLeftover(recordingId, { status: 'idle', interrupted: false, unsentSeconds: 0 });
+      else { await vault.remove(recordingId); patchLeftover(recordingId, null); }
+    })();
+  }, [leftovers]);
+
+  const downloadLeftover = useCallback((recordingId: string) => {
+    const leftover = leftovers.find((item) => item.meta.recordingId === recordingId);
+    if (!leftover) return;
+    void (async () => {
+      const media = await (await openRecordingVault())?.readMedia(recordingId);
+      if (!media?.length) return;
+      const type = media[0].type || 'audio/webm';
+      const extension = type.includes('mp4') ? 'm4a' : type.includes('ogg') ? 'ogg' : 'webm';
+      const url = URL.createObjectURL(new Blob(media, { type }));
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `${leftover.meta.title.replace(/[\\/:*?"<>|]/g, '_')}-${new Date(leftover.meta.startedAt).toISOString().slice(0, 10)}.${extension}`;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 10_000);
+    })();
+  }, [leftovers]);
+
+  const discardLeftover = useCallback((recordingId: string) => {
+    void (async () => {
+      await (await openRecordingVault())?.remove(recordingId);
+      patchLeftover(recordingId, null);
+    })();
+  }, []);
   const [freshNotes, setFreshNotes] = useState<{ id: string; notes: LessonNotes } | null>(null);
 
   const finish = useCallback((recordingId: string, patch: Partial<LectureJob>) => {
@@ -162,8 +300,8 @@ export function LectureJobsProvider({ children }: { children: ReactNode }) {
   }, [busy]);
 
   const value = useMemo(
-    () => ({ recorder, jobs, version, generateNotes, retryFailed, dismiss, openNotes }),
-    [recorder, jobs, version, generateNotes, retryFailed, dismiss, openNotes],
+    () => ({ recorder, jobs, version, generateNotes, retryFailed, dismiss, openNotes, leftovers, recoverLeftover, downloadLeftover, discardLeftover }),
+    [recorder, jobs, version, generateNotes, retryFailed, dismiss, openNotes, leftovers, recoverLeftover, downloadLeftover, discardLeftover],
   );
 
   return (
@@ -202,7 +340,9 @@ function useNow(active: boolean) {
 // The corner pill: one line for what matters most right now, and a list of
 // everything (recording, transcription, notes) when opened.
 function LectureJobsPill() {
-  const { recorder, jobs, dismiss, openNotes } = useLectureJobs();
+  const { recorder, jobs, dismiss, openNotes, leftovers: allLeftovers, recoverLeftover, downloadLeftover, discardLeftover } = useLectureJobs();
+  const leftovers = allLeftovers.filter((item) => item.meta.recordingId !== recorder.recordingId);
+  const [confirmDiscard, setConfirmDiscard] = useState<string | null>(null);
   const { language } = useLanguage();
   const zh = language === 'zh-TW';
   const say = (zhText: string, enText: string) => (zh ? zhText : enText);
@@ -221,7 +361,8 @@ function LectureJobsPill() {
   const running = list.find((job) => job.status === 'running');
   const now = useNow(!!running || recordingNow);
   const onWorkspace = /^\/live\/[^/]+\/present$/.test(pathname);
-  if (!showRecorder && list.length === 0) return null;
+  if (!showRecorder && list.length === 0 && leftovers.length === 0) return null;
+  const interrupted = leftovers.some((item) => item.interrupted);
 
   const summary = recordingNow && showRecorder
     ? { icon: <span className="h-2 w-2 animate-pulse rounded-full bg-red-500 motion-reduce:animate-none" />, text: `${say('錄音中', 'Recording')} ${formatClock(recorder.elapsed)}` }
@@ -231,6 +372,8 @@ function LectureJobsPill() {
         ? { icon: <Loader2 className="h-3.5 w-3.5 animate-spin text-primary" />, text: say(`轉錄中 ${transcribing} 段`, `Transcribing ${transcribing}`) }
         : finishedWithAudio && showRecorder && list.length === 0
           ? { icon: <Check className="h-3.5 w-3.5 text-emerald-600" />, text: say('錄音完成', 'Recording finished') }
+        : interrupted && !running
+          ? { icon: <AlertCircle className="h-3.5 w-3.5 text-amber-600" />, text: say('有錄音沒有正常結束', 'A recording did not finish') }
         : list.some((job) => job.status === 'error')
           ? { icon: <AlertCircle className="h-3.5 w-3.5 text-destructive" />, text: say('有工作失敗', 'A job failed') }
           : { icon: <Check className="h-3.5 w-3.5 text-emerald-600" />, text: say('教學筆記完成', 'Notes ready') };
@@ -290,6 +433,45 @@ function LectureJobsPill() {
             </div>
           </div>
         )}
+        {leftovers.map((item) => (
+          <div key={item.meta.recordingId} className={cn('space-y-2 rounded-xl border p-3', item.interrupted && 'border-amber-300 bg-amber-50/60 dark:border-amber-900 dark:bg-amber-950/30')}>
+            <p className="truncate text-sm font-medium">{item.meta.title}</p>
+            <p className="text-xs leading-5 text-muted-foreground" role="status">
+              {item.status === 'recovering'
+                ? say('正在補傳並轉錄…', 'Uploading and transcribing…')
+                : item.status === 'error'
+                  ? say('補傳失敗，錄音仍保存在這台電腦，可以再試一次。', 'Recovery failed; the audio is still on this computer. Try again.')
+                  : item.interrupted
+                    ? say(
+                      `錄音沒有正常結束（${new Date(item.meta.startedAt).toLocaleString('zh-TW', { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' })}）。這台電腦還保存著約 ${formatClock(item.unsentSeconds)} 尚未轉錄的錄音。`,
+                      `This recording did not finish. About ${formatClock(item.unsentSeconds)} not yet transcribed is saved on this computer.`)
+                    : say('完整錄音檔還保存在這台電腦，可以下載。', 'The full audio file is still on this computer.')}
+            </p>
+            <div className="flex flex-wrap gap-2">
+              {item.interrupted && (
+                <Button size="sm" className="h-8" disabled={item.status === 'recovering'} onClick={() => recoverLeftover(item.meta.recordingId)}>
+                  {item.status === 'recovering' && <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />}
+                  {say('補傳並轉錄', 'Upload and transcribe')}
+                </Button>
+              )}
+              {item.hasAudio && (
+                <Button size="sm" variant="outline" className="h-8" onClick={() => downloadLeftover(item.meta.recordingId)}>
+                  <Download className="mr-1.5 h-3.5 w-3.5" />
+                  {say('下載錄音檔', 'Download audio')}
+                </Button>
+              )}
+              {confirmDiscard === item.meta.recordingId ? (
+                <Button size="sm" variant="ghost" className="h-8 text-destructive" onClick={() => { setConfirmDiscard(null); discardLeftover(item.meta.recordingId); }}>
+                  {say('確定刪除？無法復原', 'Delete for good?')}
+                </Button>
+              ) : (
+                <Button size="sm" variant="ghost" className="h-8 text-muted-foreground" disabled={item.status === 'recovering'} onClick={() => setConfirmDiscard(item.meta.recordingId)}>
+                  {say('從這台電腦刪除', 'Delete from this computer')}
+                </Button>
+              )}
+            </div>
+          </div>
+        ))}
         {list.map((job) => (
           <div key={job.recordingId} className="space-y-2 rounded-xl border p-3">
             <div className="flex items-start gap-2">

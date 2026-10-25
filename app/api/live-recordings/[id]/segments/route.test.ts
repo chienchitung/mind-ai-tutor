@@ -71,6 +71,8 @@ describe('POST /api/live-recordings/[id]/segments', () => {
     expect(await response.json()).toEqual({ idx: 0, status: 'transcribed', transcript: '已完成' });
     expect(mocks.claimTeacherAi).not.toHaveBeenCalled();
     expect(bucket.download).not.toHaveBeenCalled();
+    // Audio uploaded again by a retry is not left in Storage.
+    expect(bucket.remove).toHaveBeenCalledWith([`${owner}/${id}/000.wav`]);
   });
   it('refuses before charging when the audio was never uploaded', async () => {
     bucket.download.mockResolvedValue({ data: null, error: { message: 'not found' } });

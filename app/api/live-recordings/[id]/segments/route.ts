@@ -33,12 +33,15 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
 
     const { data: existing } = await client.from('live_recording_segments')
       .select('idx, status, transcript').eq('recording_id', id).eq('idx', idx).maybeSingle();
+    const path = segmentPath(userId, id, idx);
+    const bucket = client.storage.from(RECORDING_BUCKET);
     if (existing?.status === 'transcribed') {
+      // A retry after a lost response (e.g. crash recovery) may have uploaded
+      // the audio again; audio never stays once its text is saved.
+      await bucket.remove([path]).catch(() => undefined);
       return NextResponse.json({ idx, status: 'transcribed', transcript: existing.transcript }, { headers });
     }
 
-    const path = segmentPath(userId, id, idx);
-    const bucket = client.storage.from(RECORDING_BUCKET);
     const { data: audio, error: downloadError } = await bucket.download(path);
     if (downloadError || !audio) return NextResponse.json({ error: 'SEGMENT_NOT_UPLOADED' }, { status: 409 });
 

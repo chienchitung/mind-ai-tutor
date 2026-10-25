@@ -4,11 +4,22 @@ import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-libra
 import { LanguageProvider } from '@/app/contexts/LanguageContext';
 import type { RecordingSummary } from '@/lib/live-recording';
 import { LectureJobsProvider, useLectureJobs } from './LectureJobsProvider';
+import { floatToInt16, memoryVault, type VaultMeta } from '@/lib/recording-vault';
 
 const nav = vi.hoisted(() => ({ pathname: '/live/recordings' }));
 vi.mock('next/navigation', () => ({ usePathname: () => nav.pathname }));
 vi.mock('next/link', () => ({ default: ({ children, ...props }: { children: React.ReactNode; href: string }) => <a {...props}>{children}</a> }));
-vi.mock('@/lib/supabase', () => ({ supabase: () => ({ storage: { from: () => ({ upload: vi.fn() }) } }) }));
+const vaultHolder = vi.hoisted(() => ({ vault: null as unknown }));
+vi.mock('@/lib/recording-vault', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@/lib/recording-vault')>();
+  return { ...actual, openRecordingVault: async () => vaultHolder.vault };
+});
+vi.mock('@/lib/supabase', () => ({
+  supabase: () => ({
+    auth: { getUser: async () => ({ data: { user: { id: 'teacher-1' } }, error: null }) },
+    storage: { from: () => ({ upload: vi.fn().mockResolvedValue({ error: null }) }) },
+  }),
+}));
 vi.mock('@/lib/deck-text', () => ({ extractDeckText: vi.fn().mockResolvedValue([]) }));
 vi.mock('./LectureNotesDialog', () => ({
   LectureNotesDialog: ({ recordingId }: { recordingId: string | null }) => (recordingId ? <div role="dialog">notes {recordingId}</div> : null),
@@ -21,6 +32,7 @@ const item: RecordingSummary = {
 
 let finishNotes!: (value: Response) => void;
 beforeEach(() => {
+  vaultHolder.vault = null;
   nav.pathname = '/live/recordings';
   vi.stubGlobal('fetch', vi.fn((url: string) => (url.endsWith('/notes')
     ? new Promise<Response>((resolve) => { finishNotes = resolve; })
@@ -70,4 +82,51 @@ it('reports a failed job in the pill', async () => {
   await waitFor(() => expect(screen.getByRole('button', { name: /背景工作: 有工作失敗/ })).toBeTruthy());
   fireEvent.click(screen.getByRole('button', { name: /背景工作/ }));
   expect(await screen.findByText('AI 點數不足。')).toBeTruthy();
+});
+
+it('offers to finish a recording an earlier visit left behind, and closes it on the server', async () => {
+  const vault = memoryVault();
+  const meta: VaultMeta = {
+    recordingId: 'crashed', userId: 'teacher-1', sessionId: 's-1', title: '第五課', language: 'zh-TW', startedAt: Date.now() - 60_000,
+    tailStartSeconds: 300, nextIdx: 1, elapsedSeconds: 330, marks: [{ t: 0, page: 1 }], finished: false,
+  };
+  await vault.putMeta(meta);
+  await vault.appendTail('crashed', floatToInt16(new Float32Array(16_000 * 30).fill(0.1)));
+  await vault.appendMedia('crashed', new Blob(['opus'], { type: 'audio/webm' }));
+  // Another teacher's leftovers on the same computer are never shown.
+  await vault.putMeta({ ...meta, recordingId: 'someone-else', userId: 'teacher-2' });
+  vaultHolder.vault = vault;
+  const fetchMock = vi.fn(async () => new Response('{}'));
+  vi.stubGlobal('fetch', fetchMock);
+  view();
+
+  fireEvent.click(await screen.findByRole('button', { name: /背景工作: 有錄音沒有正常結束/ }));
+  expect(screen.getByText(/約 0:30 尚未轉錄/)).toBeTruthy();
+  expect(screen.queryByText('someone-else')).toBeNull();
+  fireEvent.click(screen.getByRole('button', { name: '補傳並轉錄' }));
+
+  await waitFor(() => expect(fetchMock).toHaveBeenCalledWith('/api/live-recordings/crashed', expect.objectContaining({ method: 'PATCH' })));
+  expect(fetchMock).toHaveBeenCalledWith('/api/live-recordings/crashed/segments', expect.objectContaining({
+    body: JSON.stringify({ idx: 1, startSeconds: 300, durationSeconds: 30, language: 'zh-TW' }),
+  }));
+  // Closed with its real length; the download copy is still offered.
+  const patch = (fetchMock.mock.calls as unknown as [string, RequestInit][]).find(([url, init]) => url === '/api/live-recordings/crashed' && init.method === 'PATCH')!;
+  expect(JSON.parse(String(patch[1].body))).toEqual({ durationSeconds: 330, slideMarks: [{ t: 0, page: 1 }], status: 'stopped' });
+  expect(await screen.findByText('完整錄音檔還保存在這台電腦，可以下載。')).toBeTruthy();
+});
+
+it('does not offer a recording that another open tab is still making', async () => {
+  const vault = memoryVault();
+  await vault.putMeta({
+    recordingId: 'live-elsewhere', userId: 'teacher-1', sessionId: 's-1', title: '第六課', language: 'zh-TW', startedAt: Date.now() - 60_000,
+    tailStartSeconds: 0, nextIdx: 0, elapsedSeconds: 55, marks: [], finished: false,
+    // Saved seconds ago by the recording tab (no Web Locks in jsdom).
+    heartbeatAt: Date.now() - 3_000,
+  });
+  await vault.appendTail('live-elsewhere', floatToInt16(new Float32Array(16_000 * 5)));
+  vaultHolder.vault = vault;
+  vi.stubGlobal('fetch', vi.fn(async () => new Response('{}')));
+  view();
+  await act(async () => { await new Promise((resolve) => setTimeout(resolve, 50)); });
+  expect(screen.queryByRole('button', { name: /背景工作/ })).toBeNull();
 });
