@@ -1,17 +1,14 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import { ExternalLink, FileText, Loader2, RotateCcw, Sparkles, Trash2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { DeleteConfirmation } from '@/components/ui/delete-confirmation';
 import { useLanguage } from '@/app/contexts/LanguageContext';
 import { cn } from '@/lib/utils';
-import { formatClock, type LessonNotes, type RecordingSummary } from '@/lib/live-recording';
-import { extractDeckText } from '@/lib/deck-text';
-import { LectureNotesDialog } from './LectureNotesDialog';
-
-const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+import { formatClock, type RecordingSummary } from '@/lib/live-recording';
+import { lectureJobError, useLectureJobs } from './LectureJobsProvider';
 
 // The recordings list with its actions (notes, transcript, retry, delete),
 // shared by the presenter workspace panel (one session) and the recordings
@@ -28,87 +25,21 @@ export function RecordingList({ recordings, onReload, onRemoved, showSession = f
   const { language } = useLanguage();
   const zh = language === 'zh-TW';
   const say = (zhText: string, enText: string) => (zh ? zhText : enText);
-  const [busyId, setBusyId] = useState<string | null>(null);
-  const [busyKind, setBusyKind] = useState<'notes' | 'retry' | null>(null);
-  const [actionError, setActionError] = useState<{ id: string; message: string } | null>(null);
-  const [openId, setOpenId] = useState<string | null>(null);
-  const [freshNotes, setFreshNotes] = useState<{ id: string; notes: LessonNotes } | null>(null);
+  // Notes and retries run in LectureJobsProvider, so they keep going (and
+  // report back through the corner pill) if the teacher leaves this page.
+  const { jobs, version, generateNotes, retryFailed, openNotes, dismiss } = useLectureJobs();
+  const runningJob = Object.values(jobs).find((job) => job.status === 'running');
+  const [deleteError, setDeleteError] = useState<string | null>(null);
   const [toDelete, setToDelete] = useState<RecordingSummary | null>(null);
   const [deleting, setDeleting] = useState(false);
 
-  const aiErrorMessage = (code: string | undefined) => {
-    switch (code) {
-      case 'INSUFFICIENT_POINTS': return say('AI 點數不足。', 'Not enough AI points.');
-      case 'DAILY_LIMIT': return say('今天的 AI 使用次數已達上限。', 'Daily AI limit reached.');
-      case 'NO_TRANSCRIPT': return say('還沒有完成轉錄的段落，請稍候或重試失敗的段落。', 'Nothing has been transcribed yet. Wait or retry the failed segments.');
-      default: return say('AI 產生失敗，請再試一次。', 'AI generation failed. Please try again.');
-    }
-  };
-
-  const generateNotes = async (item: RecordingSummary) => {
-    if (busyId) return;
-    setBusyId(item.id);
-    setBusyKind('notes');
-    setActionError(null);
-    try {
-      const slides = item.deckUrl ? await extractDeckText(item.deckUrl).catch(() => []) : [];
-      for (let attempt = 0; attempt < 3; attempt++) {
-        const response = await fetch(`/api/live-recordings/${item.id}/notes`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ language: zh ? 'zh-TW' : 'en', slides }),
-        });
-        const body = await response.json().catch(() => ({}));
-        if (response.status === 429 && body.error === 'COOLDOWN') { await sleep(4_000); continue; }
-        if (!response.ok) { setActionError({ id: item.id, message: aiErrorMessage(body.error) }); return; }
-        setFreshNotes({ id: item.id, notes: body.notes });
-        setOpenId(item.id);
-        onReload();
-        return;
-      }
-      setActionError({ id: item.id, message: aiErrorMessage('COOLDOWN') });
-    } finally {
-      setBusyId(null);
-      setBusyKind(null);
-    }
-  };
-
-  // Failed segments keep their audio in Storage, so they can be retried
-  // later even after the page that recorded them was closed.
-  const retryFailed = async (id: string) => {
-    if (busyId) return;
-    setBusyId(id);
-    setBusyKind('retry');
-    setActionError(null);
-    try {
-      const detail = await fetch(`/api/live-recordings/${id}`, { cache: 'no-store' }).then((response) => response.json());
-      const failed = (detail.segments ?? []).filter((segment: { status: string }) => segment.status === 'failed');
-      for (const [index, segment] of failed.entries()) {
-        if (index > 0) await sleep(3_500);
-        const response = await fetch(`/api/live-recordings/${id}/segments`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ idx: segment.idx, startSeconds: segment.startSeconds, durationSeconds: segment.durationSeconds, language: zh ? 'zh-TW' : 'en' }),
-        });
-        if (!response.ok) {
-          const body = await response.json().catch(() => ({}));
-          setActionError({
-            id,
-            message: body.error === 'SEGMENT_NOT_UPLOADED'
-              ? say('部分段落的音訊沒有上傳成功，無法重新轉錄。', 'Some segment audio never finished uploading and cannot be transcribed.')
-              : aiErrorMessage(body.error),
-          });
-          break;
-        }
-      }
-    } catch {
-      setActionError({ id, message: aiErrorMessage(undefined) });
-    } finally {
-      setBusyId(null);
-      setBusyKind(null);
-      onReload();
-    }
-  };
+  // A job finishing changes what the list should show (notes, transcripts).
+  const seenVersion = useRef(version);
+  useEffect(() => {
+    if (seenVersion.current === version) return;
+    seenVersion.current = version;
+    onReload();
+  }, [version, onReload]);
 
   const confirmDelete = async () => {
     if (!toDelete) return;
@@ -119,7 +50,7 @@ export function RecordingList({ recordings, onReload, onRemoved, showSession = f
       onRemoved(toDelete.id);
       setToDelete(null);
     } catch {
-      setActionError({ id: toDelete.id, message: say('刪除失敗，請再試一次。', 'Could not delete. Please try again.') });
+      setDeleteError(toDelete.id);
       setToDelete(null);
     } finally {
       setDeleting(false);
@@ -134,7 +65,12 @@ export function RecordingList({ recordings, onReload, onRemoved, showSession = f
           // A 'recording' row nobody is saving any more: the tab closed or
           // crashed without pressing stop. Its transcribed parts still count.
           const unfinished = item.status === 'recording' && !capturing;
-          const busy = busyId === item.id;
+          const job = jobs[item.id];
+          const busy = job?.status === 'running';
+          const busyKind = job?.kind;
+          const actionError = job?.status === 'error'
+            ? lectureJobError(job.error, zh)
+            : deleteError === item.id ? say('刪除失敗，請再試一次。', 'Could not delete. Please try again.') : null;
           const when = new Date(item.createdAt).toLocaleString(zh ? 'zh-TW' : 'en-US', {
             ...(showSession ? { year: 'numeric' } : {}),
             month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit',
@@ -188,7 +124,7 @@ export function RecordingList({ recordings, onReload, onRemoved, showSession = f
               </div>
               <div className="mt-2 flex flex-wrap gap-2">
                 {item.hasNotes && (
-                  <Button size="sm" className="h-8" onClick={() => setOpenId(item.id)}>
+                  <Button size="sm" className="h-8" onClick={() => openNotes(item.id)}>
                     <FileText className="mr-1.5 h-3.5 w-3.5" />
                     {say('查看筆記', 'View notes')}
                   </Button>
@@ -197,19 +133,19 @@ export function RecordingList({ recordings, onReload, onRemoved, showSession = f
                   size="sm"
                   variant={item.hasNotes ? 'outline' : 'default'}
                   className={cn('h-8', capturing && 'hidden')}
-                  disabled={busy || !!busyId || item.transcribed === 0}
-                  onClick={() => void generateNotes(item)}
+                  disabled={busy || !!runningJob || item.transcribed === 0}
+                  onClick={() => { dismiss(item.id); setDeleteError(null); generateNotes(item); }}
                 >
                   {busy && busyKind === 'notes' ? <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" /> : <Sparkles className="mr-1.5 h-3.5 w-3.5" />}
                   {item.hasNotes ? say('重新產生', 'Regenerate') : say('產生教學筆記', 'Generate notes')}
                 </Button>
                 {!item.hasNotes && item.transcribed > 0 && (
-                  <Button size="sm" variant="ghost" className="h-8" onClick={() => setOpenId(item.id)}>
+                  <Button size="sm" variant="ghost" className="h-8" onClick={() => openNotes(item.id)}>
                     {say('逐字稿', 'Transcript')}
                   </Button>
                 )}
                 {item.failed > 0 && !capturing && (
-                  <Button size="sm" variant="ghost" className="h-8" disabled={!!busyId} onClick={() => void retryFailed(item.id)}>
+                  <Button size="sm" variant="ghost" className="h-8" disabled={!!runningJob} onClick={() => { dismiss(item.id); retryFailed(item); }}>
                     <RotateCcw className="mr-1.5 h-3.5 w-3.5" />
                     {say('重試失敗段落', 'Retry failed')}
                   </Button>
@@ -226,25 +162,20 @@ export function RecordingList({ recordings, onReload, onRemoved, showSession = f
                   <div className="w-full space-y-1.5 pt-1" role="status">
                     <p className="text-xs text-muted-foreground">
                       {busyKind === 'notes'
-                        ? say('正在整理教學筆記，約需 20–40 秒…', 'Writing teaching notes, about 20–40 seconds…')
+                        ? say('正在整理教學筆記，約需 20–40 秒。可以先去做別的事，完成後右下角會通知你。', 'Writing teaching notes, about 20–40 seconds. Feel free to keep working; the corner pill tells you when they are ready.')
                         : say('正在重新轉錄失敗的段落…', 'Retrying failed segments…')}
                     </p>
                     <IndeterminateBar />
                   </div>
                 )}
-                {actionError?.id === item.id && (
-                  <p role="alert" className="w-full text-xs leading-5 text-destructive">{actionError.message}</p>
+                {actionError && (
+                  <p role="alert" className="w-full text-xs leading-5 text-destructive">{actionError}</p>
                 )}
               </div>
             </li>
           );
         })}
       </ul>
-      <LectureNotesDialog
-        recordingId={openId}
-        initialNotes={freshNotes && freshNotes.id === openId ? freshNotes.notes : null}
-        onClose={() => { setOpenId(null); setFreshNotes(null); }}
-      />
       <DeleteConfirmation
         name={toDelete ? say('這段錄音與教學筆記', 'this recording and its notes') : null}
         busy={deleting}

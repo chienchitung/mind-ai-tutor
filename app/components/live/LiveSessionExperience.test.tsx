@@ -13,6 +13,7 @@ import { mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import type { ReactNode } from 'react';
 import { LanguageProvider } from '@/app/contexts/LanguageContext';
+import { LectureJobsProvider } from '@/components/live/LectureJobsProvider';
 import JoinPage from '@/app/live/page';
 import SessionsPage from '@/app/live/sessions/page';
 import NewPage from '@/app/live/new/page';
@@ -29,7 +30,7 @@ const mocks = vi.hoisted(() => ({
 }));
 vi.mock('next/navigation', () => {
   const router = { push: mocks.push };
-  return { useParams: () => ({ id: '123456' }), useRouter: () => router };
+  return { useParams: () => ({ id: '123456' }), useRouter: () => router, usePathname: () => '/live/123456/present' };
 });
 vi.mock('next/link', () => ({
   default: ({ children, ...props }: { children: ReactNode }) => (
@@ -111,7 +112,7 @@ const response = (data: unknown, ok = true) => ({
 });
 let fetchMock: ReturnType<typeof vi.fn>;
 function mount(element: ReactNode) {
-  return render(<LanguageProvider>{element}</LanguageProvider>);
+  return render(<LanguageProvider><LectureJobsProvider>{element}</LectureJobsProvider></LanguageProvider>);
 }
 // Optional local visual fixtures: real rendered components, synthetic data, no auth or database.
 function capture(name: string) {

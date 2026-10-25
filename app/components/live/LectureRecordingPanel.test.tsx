@@ -3,8 +3,10 @@ import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { LanguageProvider } from '@/app/contexts/LanguageContext';
 import { LectureRecordingPanel } from './LectureRecordingPanel';
+import { LectureJobsProvider } from './LectureJobsProvider';
 
 vi.mock('@/lib/supabase', () => ({ supabase: () => ({ storage: { from: () => ({ upload: vi.fn() }) } }) }));
+vi.mock('next/navigation', () => ({ usePathname: () => '/live/60000000-0000-4000-8000-000000000001/present' }));
 vi.mock('@/lib/deck-text', () => ({ extractDeckText: vi.fn().mockResolvedValue([]) }));
 
 const fetchMock = vi.fn();
@@ -19,7 +21,9 @@ afterEach(() => {
 
 const view = () => render(
   <LanguageProvider>
-    <LectureRecordingPanel sessionId="60000000-0000-4000-8000-000000000001" sessionTitle="第三課" deckUrl={null} deckPage={1} />
+    <LectureJobsProvider>
+      <LectureRecordingPanel sessionId="60000000-0000-4000-8000-000000000001" sessionTitle="第三課" deckUrl={null} deckPage={1} />
+    </LectureJobsProvider>
   </LanguageProvider>,
 );
 const json = (body: unknown, status = 200) => Promise.resolve(new Response(JSON.stringify(body), { status }));

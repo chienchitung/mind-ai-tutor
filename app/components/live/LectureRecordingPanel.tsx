@@ -7,7 +7,8 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { useLanguage } from '@/app/contexts/LanguageContext';
 import { cn } from '@/lib/utils';
 import { formatClock, SEGMENT_SECONDS, type RecordingSummary } from '@/lib/live-recording';
-import { useLectureRecorder, type LiveSegment, type RecorderError } from './useLectureRecorder';
+import { type LiveSegment, type RecorderError } from './useLectureRecorder';
+import { useLectureJobs } from './LectureJobsProvider';
 import { IndeterminateBar, RecordingList } from './RecordingList';
 
 export function LectureRecordingPanel({ sessionId, sessionTitle, deckUrl, deckPage }: {
@@ -19,13 +20,19 @@ export function LectureRecordingPanel({ sessionId, sessionTitle, deckUrl, deckPa
   const { language } = useLanguage();
   const zh = language === 'zh-TW';
   const say = (zhText: string, enText: string) => (zh ? zhText : enText);
-  const recorder = useLectureRecorder({ sessionId, title: sessionTitle, language: zh ? 'zh-TW' : 'en' });
-  const { markSlide, phase } = recorder;
+  // The recorder lives above the page (LectureJobsProvider) so a lesson keeps
+  // recording and transcribing while the teacher works elsewhere.
+  const { recorder, version } = useLectureJobs();
+  const { markSlide } = recorder;
+  const mine = recorder.target?.sessionId === sessionId;
+  const elsewhere = !mine && recorder.target !== null && (recorder.phase === 'recording' || recorder.phase === 'stopping');
+  // Another session's finished recording is not this panel's business.
+  const phase = mine || recorder.phase === 'starting' ? recorder.phase : 'idle';
 
   const [recordings, setRecordings] = useState<RecordingSummary[] | null>(null);
   const [listError, setListError] = useState('');
   const [open, setOpen] = useState(false);
-  useEffect(() => { markSlide(deckPage); }, [deckPage, markSlide]);
+  useEffect(() => { if (mine) markSlide(deckPage); }, [deckPage, markSlide, mine]);
 
   const loadRecordings = useCallback(async () => {
     try {
@@ -44,12 +51,13 @@ export function LectureRecordingPanel({ sessionId, sessionTitle, deckUrl, deckPa
     }
   }, [sessionId, zh]);
 
-  useEffect(() => { void loadRecordings(); }, [loadRecordings]);
+  useEffect(() => { void loadRecordings(); }, [loadRecordings, version]);
   // Errors are explained in the details dialog, so surface it when one happens.
-  useEffect(() => { if (recorder.error) setOpen(true); }, [recorder.error]);
+  useEffect(() => { if (recorder.error && !elsewhere) setOpen(true); }, [recorder.error, elsewhere]);
   // Refresh the list as the active recording progresses and when it ends.
-  const transcribedCount = recorder.segments.filter((segment) => segment.status === 'transcribed').length;
-  const failedCount = recorder.segments.filter((segment) => segment.status === 'failed').length;
+  const ownSegments = mine ? recorder.segments : [];
+  const transcribedCount = ownSegments.filter((segment) => segment.status === 'transcribed').length;
+  const failedCount = ownSegments.filter((segment) => segment.status === 'failed').length;
   useEffect(() => {
     if (phase === 'recording' || phase === 'stopped') void loadRecordings();
   }, [phase, transcribedCount, failedCount, loadRecordings]);
@@ -61,16 +69,24 @@ export function LectureRecordingPanel({ sessionId, sessionTitle, deckUrl, deckPa
     START_FAILED: say('無法開始錄音，請再試一次。', 'Could not start recording. Please try again.'),
   };
 
-  const live = recorder.segments;
+  const live = mine ? recorder.segments : [];
   const pending = live.filter((segment) => segment.status === 'uploading' || segment.status === 'transcribing').length;
 
   const recordingNow = phase === 'recording' || phase === 'stopping';
-  const startRecording = () => void recorder.start(deckUrl ? deckPage : undefined);
+  const startRecording = () => void recorder.start({ sessionId, title: sessionTitle, language: zh ? 'zh-TW' : 'en', currentPage: deckUrl ? deckPage : undefined });
 
   return (
     <div className="flex items-center gap-1.5">
       {phase === 'idle' || phase === 'starting' ? (
-        <Button variant="outline" className="h-10 px-3" disabled={phase === 'starting'} onClick={startRecording}>
+        <Button
+          variant="outline"
+          className="h-10 px-3"
+          disabled={phase === 'starting' || elsewhere}
+          title={elsewhere ? say(`「${recorder.target?.title}」正在錄音`, `"${recorder.target?.title}" is recording`) : undefined}
+          // Another lesson's audio is still waiting to be downloaded: say so
+          // (in the details) before a new recording replaces it.
+          onClick={!mine && recorder.phase === 'stopped' && recorder.download ? () => setOpen(true) : startRecording}
+        >
           {phase === 'starting' ? <Loader2 className="h-4 w-4 animate-spin sm:mr-2" /> : <span className="h-2.5 w-2.5 rounded-full bg-red-500 sm:mr-2" />}
           <span className="sr-only sm:not-sr-only">{say('開始錄音', 'Start recording')}</span>
         </Button>
@@ -121,7 +137,19 @@ export function LectureRecordingPanel({ sessionId, sessionTitle, deckUrl, deckPa
                     'Records your voice, transcribes it every 5 minutes, and turns it into teaching notes after class. Only your microphone is recorded; audio is deleted from the cloud once transcribed, and the full recording stays on this computer for download.',
                   )}
                 </p>
-                <Button className="w-full" disabled={phase === 'starting'} onClick={startRecording}>
+                {!mine && recorder.phase === 'stopped' && recorder.download && (
+                  <p className="rounded-lg bg-amber-50 px-3 py-2 text-xs leading-5 text-amber-900 dark:bg-amber-950/40 dark:text-amber-200">
+                    {say(`「${recorder.target?.title}」的錄音檔還沒下載；開始新的錄音後就無法再下載（逐字稿與筆記不受影響）。`, `The audio of "${recorder.target?.title}" has not been downloaded; starting a new recording discards it (transcripts and notes are kept).`)}
+                    {' '}
+                    <a className="font-medium underline" href={recorder.download.url} download={recorder.download.fileName}>{say('先下載', 'Download first')}</a>
+                  </p>
+                )}
+                {elsewhere && (
+                  <p className="rounded-lg bg-muted px-3 py-2 text-xs leading-5 text-muted-foreground">
+                    {say(`「${recorder.target?.title}」正在錄音，先停止那堂課的錄音才能在這裡開始。`, `"${recorder.target?.title}" is recording. Stop it before recording here.`)}
+                  </p>
+                )}
+                <Button className="w-full" disabled={phase === 'starting' || elsewhere} onClick={startRecording}>
                   {phase === 'starting' ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <span className="mr-2 h-2.5 w-2.5 rounded-full bg-red-500" />}
                   {say('開始錄音', 'Start recording')}
                 </Button>
@@ -190,7 +218,7 @@ export function LectureRecordingPanel({ sessionId, sessionTitle, deckUrl, deckPa
               </div>
             )}
 
-            {recorder.error && <p role="alert" className="text-xs leading-5 text-destructive">{recorderErrors[recorder.error]}</p>}
+            {!elsewhere && recorder.error && <p role="alert" className="text-xs leading-5 text-destructive">{recorderErrors[recorder.error]}</p>}
 
             <div className="space-y-2 border-t pt-3">
               <p className="text-xs font-medium text-muted-foreground">{say('這堂課的錄音', 'Recordings for this session')}</p>
