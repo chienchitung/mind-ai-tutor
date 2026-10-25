@@ -61,6 +61,9 @@ const view = () =>
   );
 it("sends page size and sort changes, but waits for confirmed state before changing the page indicator", () => {
   view();
+  // Page size and order are tucked behind a toggle so the questions lead.
+  expect(screen.queryByRole("radiogroup", { name: "每頁題數" })).toBeNull();
+  fireEvent.click(screen.getByRole("button", { name: "投影設定" }));
   fireEvent.click(
     within(screen.getByRole("radiogroup", { name: "每頁題數" })).getByRole("radio", { name: "6" }),
   );
@@ -220,4 +223,41 @@ it("switches the projected display window between open and close", () => {
   );
   fireEvent.click(screen.getByText("停止雙螢幕投影"));
   expect(onClose).toHaveBeenCalled();
+});
+
+it("shows one workspace tab at a time and counts pending questions on the Q&A tab", () => {
+  view();
+  const tab = (name: RegExp) => screen.getByRole("tab", { name });
+  expect(tab(/投影片/).getAttribute("aria-selected")).toBe("true");
+  const qaPanel = document.getElementById(tab(/問答/).getAttribute("aria-controls")!)!;
+  expect(qaPanel.className).toContain("hidden");
+  expect(tab(/問答/).textContent).toMatch(/\d/);
+  fireEvent.click(tab(/問答/));
+  expect(tab(/問答/).getAttribute("aria-selected")).toBe("true");
+  expect(qaPanel.className).not.toContain("hidden");
+  fireEvent.keyDown(tab(/問答/), { key: "ArrowLeft" });
+  expect(tab(/投票/).getAttribute("aria-selected")).toBe("true");
+});
+
+it("keeps the tab bar reachable while the phone-only display tab is open", () => {
+  view();
+  fireEvent.click(screen.getByRole("tab", { name: "投影" }));
+  const tablist = screen.getByRole("tablist");
+  // No ancestor of the tab bar may be hidden, or the teacher is stuck here.
+  for (let node: HTMLElement | null = tablist; node; node = node.parentElement) {
+    expect(node.className).not.toMatch(/(^|\s)hidden(\s|$)/);
+  }
+  fireEvent.click(screen.getByRole("tab", { name: /問答/ }));
+  expect(screen.getByRole("tab", { name: /問答/ }).getAttribute("aria-selected")).toBe("true");
+});
+
+it("skips the phone-only display tab when moving with the keyboard on wide screens", () => {
+  const matchMedia = vi.fn().mockReturnValue({ matches: true, addEventListener: vi.fn(), removeEventListener: vi.fn() });
+  vi.stubGlobal("matchMedia", matchMedia);
+  view();
+  fireEvent.keyDown(screen.getByRole("tab", { name: /投影片/ }), { key: "ArrowLeft" });
+  expect(screen.getByRole("tab", { name: /問答/ }).getAttribute("aria-selected")).toBe("true");
+  fireEvent.keyDown(screen.getByRole("tab", { name: /問答/ }), { key: "ArrowRight" });
+  expect(screen.getByRole("tab", { name: /投影片/ }).getAttribute("aria-selected")).toBe("true");
+  vi.unstubAllGlobals();
 });

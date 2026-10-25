@@ -110,9 +110,12 @@ export function LivePageState({
 export function EndSessionButton({
   onConfirm,
   disabled,
+  compact = false,
 }: {
   onConfirm: () => void;
   disabled?: boolean;
+  /** Icon only on narrow screens (the presenter's top bar). */
+  compact?: boolean;
 }) {
   const { language } = useLanguage();
   const { t } = useTranslation(language);
@@ -122,11 +125,11 @@ export function EndSessionButton({
         <Button
           type="button"
           variant="ghost"
-          className="min-h-11 text-muted-foreground"
+          className={compact ? 'h-10 px-3 text-muted-foreground' : 'min-h-11 text-muted-foreground'}
           disabled={disabled}
         >
-          <Square className="mr-1.5 h-3.5 w-3.5" />
-          {t('live_action_closed')}
+          <Square className={compact ? 'h-3.5 w-3.5 sm:mr-1.5' : 'mr-1.5 h-3.5 w-3.5'} />
+          <span className={compact ? 'sr-only sm:not-sr-only' : undefined}>{t('live_action_closed')}</span>
         </Button>
       </AlertDialogTrigger>
       <AlertDialogContent className="w-[calc(100%-2rem)] rounded-2xl">

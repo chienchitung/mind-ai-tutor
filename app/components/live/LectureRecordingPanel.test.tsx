@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
-import { cleanup, render, screen } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { LanguageProvider } from '@/app/contexts/LanguageContext';
 import { LectureRecordingPanel } from './LectureRecordingPanel';
 
@@ -30,6 +30,7 @@ it('lists recordings with transcript progress and offers notes only once somethi
     { id: 'b', title: '第三課', status: 'stopped', durationSeconds: 6, hasNotes: false, createdAt: '2026-10-25T05:18:00Z', transcribed: 0, failed: 1 },
   ]));
   view();
+  fireEvent.click(screen.getByRole('button', { name: '錄音詳情與紀錄' }));
   expect(await screen.findByText('查看筆記')).toBeTruthy();
   expect(screen.getByText(/45:12 · 逐字稿 10 段/)).toBeTruthy();
   expect((screen.getByRole('button', { name: /產生教學筆記/ }) as HTMLButtonElement).disabled).toBe(true);
@@ -40,6 +41,7 @@ it('lists recordings with transcript progress and offers notes only once somethi
 it('explains that the migration is needed when the tables do not exist yet', async () => {
   fetchMock.mockImplementation(() => json({ error: 'RECORDINGS_NOT_READY' }, 503));
   view();
+  fireEvent.click(screen.getByRole('button', { name: '錄音詳情與紀錄' }));
   expect(await screen.findByText(/錄音功能尚未啟用/)).toBeTruthy();
 });
 
@@ -48,5 +50,6 @@ it('reports a browser without microphone support instead of failing silently', a
   vi.stubGlobal('navigator', { ...navigator, mediaDevices: undefined });
   view();
   screen.getByRole('button', { name: '開始錄音' }).click();
+  // The details dialog opens by itself to explain the failure.
   expect(await screen.findByText(/這個瀏覽器不支援錄音/)).toBeTruthy();
 });
