@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { supabase } from '@/lib/supabase';
 import { RECORDING_BUCKET, RECORDING_HEARTBEAT_MS, SEGMENT_SAMPLE_RATE, SEGMENT_SECONDS, segmentPath, type SlideMark } from '@/lib/live-recording';
 import { concatSamples, downsample, encodeWav } from '@/lib/wav';
+import { floatToInt16, openRecordingVault, type RecordingVault, type VaultMeta } from '@/lib/recording-vault';
 
 export type RecorderPhase = 'idle' | 'starting' | 'recording' | 'stopping' | 'stopped';
 export type LiveSegment = {
@@ -19,6 +20,9 @@ export type RecorderError =
 
 const DOWNLOAD_MIME_TYPES = ['audio/webm;codecs=opus', 'audio/ogg;codecs=opus', 'audio/mp4'];
 const COOLDOWN_RETRY_MS = 4_000;
+// How often the unsent tail is copied to the browser's vault: at most this
+// much is lost if the tab dies.
+const VAULT_FLUSH_MS = 5_000;
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
 function pickDownloadMime(): string | undefined {
@@ -63,9 +67,37 @@ export function useLectureRecorder() {
   const idsRef = useRef<{ recordingId: string; userId: string } | null>(null);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const heartbeatRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  // The crash copy (see lib/recording-vault.ts). Writes run one at a time so
+  // a tail flush and the segment cut that supersedes it land in order.
+  const vaultRef = useRef<RecordingVault | null>(null);
+  const vaultQueueRef = useRef<Promise<void>>(Promise.resolve());
+  const vaultMetaRef = useRef<VaultMeta | null>(null);
+  const unflushedRef = useRef<Float32Array[]>([]);
+  const vaultTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const segmentsRef = useRef<LiveSegment[]>([]);
   useEffect(() => { segmentsRef.current = segments; }, [segments]);
+
+  const persist = (write: (vault: RecordingVault) => Promise<void>) => {
+    const vault = vaultRef.current;
+    if (!vault) return;
+    vaultQueueRef.current = vaultQueueRef.current.then(() => write(vault)).catch(() => undefined);
+  };
+  const persistMeta = (patch: Partial<VaultMeta>) => {
+    const meta = vaultMetaRef.current;
+    if (!meta) return;
+    const next = { ...meta, ...patch, marks: [...marksRef.current] };
+    vaultMetaRef.current = next;
+    persist((vault) => vault.putMeta(next));
+  };
+  const flushTail = () => {
+    const meta = vaultMetaRef.current;
+    if (!meta || !unflushedRef.current.length) return;
+    const samples = downsample(concatSamples(unflushedRef.current), rateRef.current, SEGMENT_SAMPLE_RATE);
+    unflushedRef.current = [];
+    persist((vault) => vault.appendTail(meta.recordingId, floatToInt16(samples)));
+    persistMeta({ elapsedSeconds: Math.round(totalSamplesRef.current / rateRef.current) });
+  };
 
   const patchSegment = (idx: number, patch: Partial<LiveSegment>) =>
     setSegments((previous) => previous.map((segment) => (segment.idx === idx ? { ...segment, ...patch } : segment)));
@@ -97,6 +129,9 @@ export function useLectureRecorder() {
       }
       segment = { ...segment, uploaded: true };
       patchSegment(segment.idx, { uploaded: true });
+      // Safe in Storage now; a failed transcription is retried from there.
+      const uploadedIdx = segment.idx;
+      persist((vault) => vault.deleteSegment(ids.recordingId, uploadedIdx));
     }
     patchSegment(segment.idx, { status: 'transcribing', error: undefined });
     for (let attempt = 0; attempt < 4; attempt++) {
@@ -137,8 +172,18 @@ export function useLectureRecorder() {
     const durationSeconds = Math.round(samples.length / rate);
     if (durationSeconds < 1) return;
     const idx = nextIdxRef.current++;
-    blobsRef.current.set(idx, encodeWav(downsample(samples, rate, SEGMENT_SAMPLE_RATE), SEGMENT_SAMPLE_RATE));
+    const blob = encodeWav(downsample(samples, rate, SEGMENT_SAMPLE_RATE), SEGMENT_SAMPLE_RATE);
+    blobsRef.current.set(idx, blob);
     const segment: LiveSegment = { idx, startSeconds, durationSeconds, status: 'uploading', uploaded: false };
+    // The tail so far is now this segment: keep the segment until it is
+    // uploaded, and start a fresh tail.
+    unflushedRef.current = [];
+    const recordingId = idsRef.current?.recordingId;
+    if (recordingId) {
+      persist((vault) => vault.putSegment(recordingId, { idx, startSeconds, durationSeconds, blob }));
+      persist((vault) => vault.clearTail(recordingId));
+      persistMeta({ tailStartSeconds: Math.round(segmentStartRef.current / rate), nextIdx: idx + 1, elapsedSeconds: Math.round(totalSamplesRef.current / rate) });
+    }
     setSegments((previous) => [...previous, segment]);
     void enqueue(segment);
     void saveProgress();
@@ -155,6 +200,8 @@ export function useLectureRecorder() {
     timerRef.current = null;
     if (heartbeatRef.current) clearInterval(heartbeatRef.current);
     heartbeatRef.current = null;
+    if (vaultTimerRef.current) clearInterval(vaultTimerRef.current);
+    vaultTimerRef.current = null;
   };
 
   const start = useCallback(async ({ currentPage, ...next }: RecorderTarget) => {
@@ -167,6 +214,7 @@ export function useLectureRecorder() {
       return;
     }
     setPhase('starting');
+    vaultRef.current = await openRecordingVault();
     let stream: MediaStream;
     try {
       stream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true, channelCount: 1 } });
@@ -203,7 +251,9 @@ export function useLectureRecorder() {
       mute.gain.value = 0;
       processor.onaudioprocess = (event) => {
         const input = event.inputBuffer.getChannelData(0);
-        pcmRef.current.push(new Float32Array(input));
+        const copy = new Float32Array(input);
+        pcmRef.current.push(copy);
+        unflushedRef.current.push(copy);
         totalSamplesRef.current += input.length;
         if (totalSamplesRef.current - segmentStartRef.current >= SEGMENT_SECONDS * rateRef.current) cutSegment();
       };
@@ -215,7 +265,12 @@ export function useLectureRecorder() {
       mediaChunksRef.current = [];
       if (mimeType) {
         const recorder = new MediaRecorder(stream, { mimeType, audioBitsPerSecond: 32_000 });
-        recorder.ondataavailable = (event) => { if (event.data.size) mediaChunksRef.current.push(event.data); };
+        recorder.ondataavailable = (event) => {
+          if (!event.data.size) return;
+          mediaChunksRef.current.push(event.data);
+          const recordingId = idsRef.current?.recordingId;
+          if (recordingId) persist((vault) => vault.appendMedia(recordingId, event.data));
+        };
         recorder.start(10_000);
         mediaRecorderRef.current = recorder;
       }
@@ -232,6 +287,13 @@ export function useLectureRecorder() {
       setSegments([]);
       setElapsed(0);
       setDownload((previous) => { if (previous) URL.revokeObjectURL(previous.url); return null; });
+      unflushedRef.current = [];
+      vaultMetaRef.current = {
+        recordingId: body.id, userId: body.userId, sessionId: next.sessionId, title: next.title, language: next.language,
+        startedAt: Date.now(), tailStartSeconds: 0, nextIdx: 0, elapsedSeconds: 0, marks: [...marksRef.current], finished: false,
+      };
+      persistMeta({});
+      vaultTimerRef.current = setInterval(flushTail, VAULT_FLUSH_MS);
       timerRef.current = setInterval(() => setElapsed(Math.floor(seconds())), 1_000);
       // Keeps the students' "recording" notice alive; a closed or crashed tab
       // stops sending this, and the notice lapses on its own.
@@ -264,6 +326,9 @@ export function useLectureRecorder() {
     }
     setElapsed(Math.floor(seconds()));
     await saveProgress({ status: 'stopped' });
+    // Stopped normally: only the download copy (and any segment still
+    // uploading) is left in the vault.
+    persistMeta({ finished: true, elapsedSeconds: Math.round(seconds()) });
     setPhase('stopped');
   }, [phase, cutSegment, saveProgress]);
 
@@ -282,6 +347,9 @@ export function useLectureRecorder() {
   const reset = useCallback(() => {
     if (phase !== 'stopped') return;
     setDownload((previous) => { if (previous) URL.revokeObjectURL(previous.url); return null; });
+    const finishedId = idsRef.current?.recordingId;
+    if (finishedId) persist((vault) => vault.remove(finishedId));
+    vaultMetaRef.current = null;
     idsRef.current = null;
     targetRef.current = null;
     setTarget(null);
