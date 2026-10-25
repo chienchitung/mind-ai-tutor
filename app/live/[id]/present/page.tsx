@@ -878,6 +878,7 @@ export default function PresenterPage() {
           onClose={closeDisplayWindow}
           moderatingId={moderatingId}
           onModerate={(item) => void handleModerate(item)}
+          localDeck={{ url: data.deckUrl, page: data.deckPage }}
           stage={
             <Card className="min-w-0">
               <CardContent className="p-4 sm:p-5 md:p-5">

@@ -67,6 +67,7 @@ export function PresentationControls({
   stage,
   renderPoll,
   aside,
+  localDeck,
 }: {
   sessionId: string;
   questions: LiveQuestion[];
@@ -81,6 +82,8 @@ export function PresentationControls({
   /** Wraps the poll-flow buttons in the page's own poll card. */
   renderPoll?: (flow: ReactNode) => ReactNode;
   aside?: ReactNode;
+  /** The presenter's own slide position, which leads the saved one by a round trip. */
+  localDeck?: { url: string | null; page: number };
 }) {
   const { language } = useLanguage();
   const { t } = useTranslation(language);
@@ -140,6 +143,9 @@ export function PresentationControls({
     filter === "pending" ? pendingQuestions : filter === "answered" ? answeredQuestions : hiddenQuestions;
   const featuredId = snapshot?.mode === "question" ? snapshot.questions[0]?.id : undefined;
   const mode = snapshot?.mode;
+  // Page turns are saved in the background; following the presenter's local
+  // page keeps the preview in step with the slide instead of the last save.
+  const previewPage = snapshot && localDeck && localDeck.url === snapshot.deckUrl ? localDeck.page : snapshot?.deckPage ?? 1;
   const scrollDisplay = (direction: number) => {
     if (typeof BroadcastChannel === "undefined") return;
     const channel = new BroadcastChannel(`live-ink:${sessionId}`);
@@ -155,7 +161,7 @@ export function PresentationControls({
       style={{ aspectRatio: `${displayMetrics.width}/${displayMetrics.height}` }}
     >
       {snapshot?.mode === "deck" && snapshot.deckUrl ? (
-        <DeckViewer url={snapshot.deckUrl} page={snapshot.deckPage} className="h-full w-full" />
+        <DeckViewer url={snapshot.deckUrl} page={previewPage} className="h-full w-full" />
       ) : snapshot?.mode === "deck" ? (
         <p className="flex h-full items-center justify-center px-4 text-center text-xs text-white/70">
           {zh ? "尚未上傳簡報，可先投射投票或問題" : "No slides yet. You can still show polls or questions."}
@@ -340,7 +346,7 @@ export function PresentationControls({
                       }}
                     >
                       {snapshot.mode === "deck" && snapshot.deckUrl ? (
-                        <DeckViewer url={snapshot.deckUrl} page={snapshot.deckPage} className="h-full w-full" />
+                        <DeckViewer url={snapshot.deckUrl} page={previewPage} className="h-full w-full" />
                       ) : (
                         <PresentationContent snapshot={snapshot} preview />
                       )}

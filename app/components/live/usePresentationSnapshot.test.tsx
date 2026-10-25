@@ -123,3 +123,89 @@ describe("snapshot recovery and commands", () => {
     await waitFor(() => expect(result.current.snapshot?.mode).toBe("blank"));
   });
 });
+
+describe("snapshot hand-off between presenter and projected windows", () => {
+  it("applies a snapshot pushed by another window without another read, and drops an older read still in flight", async () => {
+    let finishStale!: (value: unknown) => void;
+    const fetcher = vi
+      .fn()
+      .mockResolvedValueOnce(response(snap))
+      .mockImplementationOnce(() => new Promise((resolve) => { finishStale = resolve; }))
+      .mockResolvedValue(response({ ...snap, mode: "blank" }));
+    vi.stubGlobal("fetch", fetcher);
+    const { result } = renderHook(() => usePresentationSnapshot("/api/test", "session-1"));
+    await waitFor(() => expect(result.current.snapshot?.mode).toBe("deck"));
+    // A periodic read starts, then the presenter's command result arrives first.
+    act(() => { void result.current.refresh(); });
+    const presenter = new BroadcastChannel("live-presentation:session-1");
+    presenter.postMessage({ type: "snapshot", snapshot: { ...snap, mode: "blank" } });
+    await waitFor(() => expect(result.current.snapshot?.mode).toBe("blank"));
+    expect(fetcher).toHaveBeenCalledTimes(2);
+    await act(async () => { finishStale(response({ ...snap, mode: "deck" })); });
+    expect(result.current.snapshot?.mode).toBe("blank");
+    presenter.close();
+  });
+  it("sends the command's authoritative result to the other window", async () => {
+    const fetcher = vi.fn()
+      .mockResolvedValueOnce(response(snap))
+      .mockResolvedValue(response({ ...snap, mode: "poll" }));
+    vi.stubGlobal("fetch", fetcher);
+    const display = new BroadcastChannel("live-presentation:session-2");
+    const received: unknown[] = [];
+    display.onmessage = ({ data }) => received.push(data);
+    const { result } = renderHook(() => usePresentationSnapshot("/api/test", "session-2"));
+    await waitFor(() => expect(result.current.snapshot).not.toBeNull());
+    await act(async () => { await result.current.command({ action: "show", mode: "poll" }); });
+    await waitFor(() => expect(received).toContainEqual({ type: "snapshot", snapshot: { ...snap, mode: "poll" } }));
+    display.close();
+  });
+});
+
+describe("commands during a background read", () => {
+  it("does not wait for a poll in flight, and that poll cannot undo the click", async () => {
+    let finishPoll!: (value: unknown) => void;
+    const fetcher = vi
+      .fn()
+      .mockResolvedValueOnce(response(snap))
+      .mockImplementationOnce(() => new Promise((resolve) => { finishPoll = resolve; }))
+      .mockResolvedValue(response({ ...snap, mode: "blank" }));
+    vi.stubGlobal("fetch", fetcher);
+    const { result } = renderHook(() => usePresentationSnapshot("/api/test"));
+    await waitFor(() => expect(result.current.snapshot?.mode).toBe("deck"));
+    act(() => { void result.current.refresh(); });
+    let mutation!: Promise<boolean>;
+    act(() => {
+      mutation = result.current.command({ action: "show", mode: "blank" }, (previous) => ({ ...previous, mode: "blank" }));
+    });
+    // The POST went out without waiting for the poll.
+    await waitFor(() => expect(fetcher).toHaveBeenCalledWith("/api/test", expect.objectContaining({ method: "POST" })));
+    await act(async () => { finishPoll(response(snap)); });
+    expect(result.current.snapshot?.mode).toBe("blank");
+    await act(async () => { await mutation; });
+    expect(result.current.snapshot?.mode).toBe("blank");
+  });
+});
+
+describe("optimistic hand-off", () => {
+  it("shows a known outcome on the other window before the write returns, and reverts it if the write fails", async () => {
+    let failWrite!: () => void;
+    const fetcher = vi.fn()
+      .mockResolvedValueOnce(response(snap))
+      .mockImplementationOnce(() => new Promise((_, reject) => { failWrite = () => reject(new Error("offline")); }))
+      .mockResolvedValue(response(snap));
+    vi.stubGlobal("fetch", fetcher);
+    const display = new BroadcastChannel("live-presentation:session-3");
+    const received: any[] = [];
+    display.onmessage = ({ data }) => received.push(data);
+    const { result } = renderHook(() => usePresentationSnapshot("/api/test", "session-3"));
+    await waitFor(() => expect(result.current.snapshot).not.toBeNull());
+    let mutation!: Promise<boolean>;
+    act(() => {
+      mutation = result.current.command({ action: "show", mode: "blank" }, (previous) => ({ ...previous, mode: "blank" }));
+    });
+    await waitFor(() => expect(received.at(-1)?.snapshot?.mode).toBe("blank"));
+    await act(async () => { failWrite(); await mutation; });
+    await waitFor(() => expect(received.at(-1)?.snapshot?.mode).toBe("deck"));
+    display.close();
+  });
+});
