@@ -11,6 +11,7 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { StudentProgressChart } from '@/components/charts/StudentProgressChart';
 import { getStudentProgress } from '@/lib/analytics';
 import { useLanguage } from '@/app/contexts/LanguageContext';
@@ -28,6 +29,9 @@ interface Progress {
 interface ProgressHistoryProps {
   studentId: string;
 }
+
+// Radix Select reserves the empty string, so "every subject" needs a value.
+const ALL_SUBJECTS = '__all__';
 
 export function ProgressHistory({ studentId }: ProgressHistoryProps) {
   const { language } = useLanguage();
@@ -93,20 +97,22 @@ export function ProgressHistory({ studentId }: ProgressHistoryProps) {
       </div>
       <div className="flex items-center justify-between gap-4">
         <h2 className="font-semibold">{language === 'zh-TW' ? '學習趨勢' : 'Learning trend'}</h2>
-        <select
-          className="rounded-md border bg-background px-3 py-2 text-sm"
-          value={selectedSubject || ''}
-          onChange={(e) =>
-            setSelectedSubject(e.target.value || undefined)
-          }
+        <Select
+          value={selectedSubject ?? ALL_SUBJECTS}
+          onValueChange={(value) => setSelectedSubject(value === ALL_SUBJECTS ? undefined : value)}
         >
-          <option value="">{t('all_subjects')}</option>
-          {subjects.map((subject) => (
-            <option key={subject} value={subject}>
-              {subject}
-            </option>
-          ))}
-        </select>
+          <SelectTrigger className="w-auto min-w-[10rem] max-w-[60%]" aria-label={language === 'zh-TW' ? '篩選學習主題' : 'Filter by subject'}>
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value={ALL_SUBJECTS}>{t('all_subjects')}</SelectItem>
+            {subjects.map((subject) => (
+              <SelectItem key={subject} value={subject}>
+                {subject}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
       </div>
 
       <StudentProgressChart
