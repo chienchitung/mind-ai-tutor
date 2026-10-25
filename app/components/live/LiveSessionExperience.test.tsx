@@ -390,6 +390,16 @@ describe('Live Session experience', () => {
     );
     expect(screen.getByText(/謝謝你的參與/)).toBeTruthy();
   });
+  it('tells students when the teacher starts and stops recording', async () => {
+    fetchMock.mockImplementation(async (url: string) => response(url.includes('/questions') ? [] : { ...session, recording: true }));
+    mount(<AudiencePage />);
+    await screen.findByRole('heading', { name: session.title });
+    expect(screen.getByText(/老師正在錄音/)).toBeTruthy();
+    act(() => mocks.events.get('recording:state')?.({ payload: { active: false } }));
+    expect(screen.queryByText(/老師正在錄音/)).toBeNull();
+    act(() => mocks.events.get('recording:state')?.({ payload: { active: true } }));
+    expect(screen.getByText(/老師正在錄音/)).toBeTruthy();
+  });
   it('mounts the projection dialog before requesting native fullscreen', async () => {
     fetchMock.mockImplementation(async (url: string) => response(url.includes('/questions') ? questions : { ...session, deckUrl: '/deck.pdf' }));
     const original = HTMLElement.prototype.requestFullscreen;

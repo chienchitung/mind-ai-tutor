@@ -248,6 +248,10 @@ export default function AudiencePage() {
         void loadQuestions();
       })
       .on('broadcast', { event: 'session:deleted' }, () => { void load(); })
+      .on('broadcast', { event: 'recording:state' }, ({ payload }) => {
+        const active = (payload as { active?: unknown }).active === true;
+        setData((previous) => (previous ? { ...previous, recording: active } : previous));
+      })
       .on('broadcast', { event: 'reaction:sent' }, ({ payload }) => {
         const reaction = payload as { kind: string; reactionId?: string };
         pushReaction(reaction.kind, reaction.reactionId);
@@ -581,6 +585,17 @@ export default function AudiencePage() {
             )}
           </div>
         </div>
+        {data.recording && (
+          <p
+            role="status"
+            className="flex items-center gap-2 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs font-medium text-red-800 dark:border-red-900 dark:bg-red-950/40 dark:text-red-200"
+          >
+            <span aria-hidden="true" className="h-2 w-2 shrink-0 animate-pulse rounded-full bg-red-500 motion-reduce:animate-none" />
+            {language === 'zh-TW'
+              ? '老師正在錄音（只錄老師的麥克風），課後會整理成教學筆記。'
+              : 'The teacher is recording (teacher’s microphone only) to make teaching notes after class.'}
+          </p>
+        )}
         {connectionStatus && (
           <p
             role="status"

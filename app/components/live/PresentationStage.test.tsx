@@ -594,3 +594,18 @@ describe('shared projection controls', () => {
     expect(action).toHaveBeenCalledWith({type:'undo',page:1});
   });
 });
+
+describe('recording badge', () => {
+  it('shows the room that the lesson is being recorded, next to the join code', () => {
+    const stage = (recording: boolean) => (
+      <LanguageProvider>
+        <PresentationStage open url="/fixture.pdf" page={1} numPages={3} title="Test deck" joinCode="482910"
+          onExit={() => {}} onPageChange={() => {}} onNumPages={() => {}} recording={recording} />
+      </LanguageProvider>
+    );
+    const { rerender } = render(stage(false));
+    expect(screen.queryByText('錄音中')).toBeNull();
+    rerender(stage(true));
+    expect(screen.getByText('錄音中')).toBeTruthy();
+  });
+});

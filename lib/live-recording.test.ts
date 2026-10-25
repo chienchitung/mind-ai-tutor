@@ -101,3 +101,14 @@ describe('per-paragraph timestamps', () => {
     ])).toBe('[0:00] 舊段落\n\n[5:00] 新甲\n\n[6:12] 新乙');
   });
 });
+
+describe('isRecordingActive', () => {
+  it('counts a recording as live only while it is recording and was saved recently', async () => {
+    const { isRecordingActive } = await import('./live-recording');
+    const now = Date.parse('2026-10-25T10:00:00Z');
+    expect(isRecordingActive('recording', '2026-10-25T09:58:00Z', now)).toBe(true);
+    expect(isRecordingActive('recording', '2026-10-25T09:50:00Z', now)).toBe(false);
+    expect(isRecordingActive('stopped', '2026-10-25T09:59:00Z', now)).toBe(false);
+    expect(isRecordingActive('recording', null, now)).toBe(false);
+  });
+});

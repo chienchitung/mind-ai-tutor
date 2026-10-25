@@ -11,6 +11,7 @@ import {
   Radio,
   CalendarDays,
   Trash2,
+  Mic,
 } from 'lucide-react';
 import { PageHeader } from '@/components/layout/PageHeader';
 import { Button } from '@/components/ui/button';
@@ -129,12 +130,20 @@ function LiveSessionsList() {
         heading={t('live_sessions_title')}
         text={t('live_sessions_desc')}
         actions={
-          <Button asChild className="min-h-11">
-            <Link href="/live/new">
-              <Plus className="mr-2 h-4 w-4" />
-              {t('live_start_session')}
-            </Link>
-          </Button>
+          <div className="flex flex-wrap gap-2">
+            <Button asChild variant="outline" className="min-h-11">
+              <Link href="/live/recordings">
+                <Mic className="mr-2 h-4 w-4" />
+                {language === 'zh-TW' ? '錄音與筆記' : 'Recordings & notes'}
+              </Link>
+            </Button>
+            <Button asChild className="min-h-11">
+              <Link href="/live/new">
+                <Plus className="mr-2 h-4 w-4" />
+                {t('live_start_session')}
+              </Link>
+            </Button>
+          </div>
         }
       />
       {status === 'loading' ? (

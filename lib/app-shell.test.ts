@@ -11,6 +11,7 @@ describe('usesAppShell', () => {
     '/lessons/lesson-id/edit',
     '/live/new',
     '/live/sessions',
+    '/live/recordings',
   ])('keeps the admin shell for %s', (pathname) => {
     expect(usesAppShell(pathname)).toBe(true);
   });

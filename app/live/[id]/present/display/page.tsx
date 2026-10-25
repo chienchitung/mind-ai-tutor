@@ -40,6 +40,7 @@ export default function PresentDisplayPage() {
     id,
   );
   const [joinCode, setJoinCode] = useState("");
+  const [recording, setRecording] = useState(false);
   const [entered, setEntered] = useState(false);
   const [fullscreen, setFullscreen] = useState(false);
   const [numPages, setNumPages] = useState(1);
@@ -96,6 +97,19 @@ export default function PresentDisplayPage() {
       .catch(() => {});
     return () => abort.abort();
   }, [id]);
+  // The same notice the students see. Rechecked every minute so a recording
+  // whose tab closed without stopping stops showing here too.
+  useEffect(() => {
+    if (!joinCode) return;
+    const check = () =>
+      fetch(`/api/live/${joinCode}`, { cache: "no-store" })
+        .then((r) => (r.ok ? r.json() : null))
+        .then((value) => { if (value) setRecording(value.recording === true); })
+        .catch(() => {});
+    check();
+    const timer = setInterval(check, 60_000);
+    return () => clearInterval(timer);
+  }, [joinCode]);
   useEffect(() => {
     setDeckError(false);
     setLive(null);
@@ -116,6 +130,9 @@ export default function PresentDisplayPage() {
       .on("broadcast", { event: "deck:sync" }, () => void refresh())
       .on("broadcast", { event: "session:status" }, () => void refresh())
       .on("broadcast", { event: "session:deleted" }, () => void refresh())
+      .on("broadcast", { event: "recording:state" }, ({ payload }) =>
+        setRecording((payload as { active?: unknown })?.active === true),
+      )
       .subscribe((state) => {
         if (state === "SUBSCRIBED") void refresh();
       });
@@ -257,6 +274,7 @@ export default function PresentDisplayPage() {
             numPages={numPages}
             title={snapshot.title}
             joinCode={joinCode}
+            recording={recording}
             onNumPages={setNumPages}
             onRequestFullscreen={!fullscreen ? () => void enter() : undefined}
             annotationState={{ [navigation.page]: drawing.history }}
@@ -368,7 +386,15 @@ export default function PresentDisplayPage() {
               </strong>
             </p>
           </div>
-          {joinCode && <JoinQRCode code={joinCode} />}
+          <div className="flex shrink-0 items-center gap-4">
+            {recording && (
+              <span role="status" className="flex items-center gap-2 rounded-full bg-red-500/15 px-3 py-1 text-sm font-medium text-red-200">
+                <span aria-hidden="true" className="h-2 w-2 animate-pulse rounded-full bg-red-500 motion-reduce:animate-none" />
+                {zh ? "錄音中" : "Recording"}
+              </span>
+            )}
+            {joinCode && <JoinQRCode code={joinCode} />}
+          </div>
         </footer>
       )}
       {!hidden && (
