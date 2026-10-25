@@ -32,8 +32,15 @@ function pickDownloadMime(): string | undefined {
 //   only the notes step is left when the lesson ends;
 // - a compressed MediaRecorder copy of the whole lesson, kept in memory for
 //   the teacher to download afterwards (it never leaves the browser).
-export function useLectureRecorder({ sessionId, title, language }: { sessionId: string; title: string; language: 'zh-TW' | 'en' }) {
+export type RecorderTarget = { sessionId: string; title: string; language: 'zh-TW' | 'en'; currentPage?: number };
+
+// One recorder for the whole app (see LectureJobsProvider), so a lesson keeps
+// recording and transcribing while the teacher moves to other pages; which
+// session it records is given to start().
+export function useLectureRecorder() {
   const [phase, setPhase] = useState<RecorderPhase>('idle');
+  const [target, setTarget] = useState<Omit<RecorderTarget, 'currentPage'> | null>(null);
+  const targetRef = useRef<Omit<RecorderTarget, 'currentPage'> | null>(null);
   const [elapsed, setElapsed] = useState(0);
   const [recordingId, setRecordingId] = useState<string | null>(null);
   const [segments, setSegments] = useState<LiveSegment[]>([]);
@@ -56,6 +63,9 @@ export function useLectureRecorder({ sessionId, title, language }: { sessionId: 
   const idsRef = useRef<{ recordingId: string; userId: string } | null>(null);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const heartbeatRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  const segmentsRef = useRef<LiveSegment[]>([]);
+  useEffect(() => { segmentsRef.current = segments; }, [segments]);
 
   const patchSegment = (idx: number, patch: Partial<LiveSegment>) =>
     setSegments((previous) => previous.map((segment) => (segment.idx === idx ? { ...segment, ...patch } : segment)));
@@ -93,7 +103,7 @@ export function useLectureRecorder({ sessionId, title, language }: { sessionId: 
       const response = await fetch(`/api/live-recordings/${ids.recordingId}/segments`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ idx: segment.idx, startSeconds: segment.startSeconds, durationSeconds: segment.durationSeconds, language }),
+        body: JSON.stringify({ idx: segment.idx, startSeconds: segment.startSeconds, durationSeconds: segment.durationSeconds, language: targetRef.current?.language ?? 'zh-TW' }),
       }).catch(() => null);
       const body = response ? await response.json().catch(() => ({})) : {};
       if (response?.ok) {
@@ -111,7 +121,7 @@ export function useLectureRecorder({ sessionId, title, language }: { sessionId: 
       return;
     }
     patchSegment(segment.idx, { status: 'failed', error: 'COOLDOWN' });
-  }, [language]);
+  }, []);
 
   const enqueue = useCallback((segment: LiveSegment) => {
     queueRef.current = queueRef.current.then(() => runSegment(segment)).catch(() => undefined);
@@ -147,8 +157,10 @@ export function useLectureRecorder({ sessionId, title, language }: { sessionId: 
     heartbeatRef.current = null;
   };
 
-  const start = useCallback(async (currentPage?: number) => {
+  const start = useCallback(async ({ currentPage, ...next }: RecorderTarget) => {
     if (phase === 'starting' || phase === 'recording' || phase === 'stopping') return;
+    // A finished recording still transcribing its tail stays on screen.
+    if (phase === 'stopped' && segmentsRef.current.some((segment) => segment.status === 'uploading' || segment.status === 'transcribing')) return;
     setError(null);
     if (!navigator.mediaDevices?.getUserMedia || (typeof AudioContext === 'undefined')) {
       setError('MIC_UNSUPPORTED');
@@ -167,11 +179,13 @@ export function useLectureRecorder({ sessionId, title, language }: { sessionId: 
       const response = await fetch('/api/live-recordings', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ sessionId, title }),
+        body: JSON.stringify({ sessionId: next.sessionId, title: next.title }),
       });
       const body = await response.json().catch(() => ({}));
       if (!response.ok) throw new Error(body.error === 'RECORDINGS_NOT_READY' ? 'RECORDINGS_NOT_READY' : 'START_FAILED');
       idsRef.current = { recordingId: body.id, userId: body.userId };
+      targetRef.current = next;
+      setTarget(next);
       setRecordingId(body.id);
 
       let context: AudioContext;
@@ -228,7 +242,7 @@ export function useLectureRecorder({ sessionId, title, language }: { sessionId: 
       setError(cause instanceof Error && cause.message === 'RECORDINGS_NOT_READY' ? 'RECORDINGS_NOT_READY' : 'START_FAILED');
       setPhase('idle');
     }
-  }, [phase, sessionId, title, cutSegment, saveProgress]);
+  }, [phase, cutSegment, saveProgress]);
 
   const stop = useCallback(async () => {
     if (phase !== 'recording') return;
@@ -245,13 +259,13 @@ export function useLectureRecorder({ sessionId, title, language }: { sessionId: 
       const type = mediaChunksRef.current[0].type || 'audio/webm';
       const extension = type.includes('mp4') ? 'm4a' : type.includes('ogg') ? 'ogg' : 'webm';
       const stamp = new Date().toISOString().slice(0, 16).replace(/[:T]/g, '-');
-      setDownload({ url: URL.createObjectURL(new Blob(mediaChunksRef.current, { type })), fileName: `${title}-${stamp}.${extension}` });
+      setDownload({ url: URL.createObjectURL(new Blob(mediaChunksRef.current, { type })), fileName: `${targetRef.current?.title ?? 'lecture'}-${stamp}.${extension}` });
       mediaChunksRef.current = [];
     }
     setElapsed(Math.floor(seconds()));
     await saveProgress({ status: 'stopped' });
     setPhase('stopped');
-  }, [phase, cutSegment, saveProgress, title]);
+  }, [phase, cutSegment, saveProgress]);
 
   const markSlide = useCallback((page: number) => {
     if (phase !== 'recording') return;
@@ -269,6 +283,8 @@ export function useLectureRecorder({ sessionId, title, language }: { sessionId: 
     if (phase !== 'stopped') return;
     setDownload((previous) => { if (previous) URL.revokeObjectURL(previous.url); return null; });
     idsRef.current = null;
+    targetRef.current = null;
+    setTarget(null);
     setRecordingId(null);
     setSegments([]);
     setElapsed(0);
@@ -288,5 +304,5 @@ export function useLectureRecorder({ sessionId, title, language }: { sessionId: 
     teardownAudio();
   }, []);
 
-  return { phase, elapsed, recordingId, segments, download, error, start, stop, markSlide, retry, reset };
+  return { phase, target, elapsed, recordingId, segments, download, error, start, stop, markSlide, retry, reset };
 }

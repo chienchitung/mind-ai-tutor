@@ -4,6 +4,7 @@ import { ThemeProvider } from "next-themes";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
 import { CommandMenu } from "@/components/global/CommandMenu";
+import { LectureJobsProvider } from "@/components/live/LectureJobsProvider";
 
 const queryClient = new QueryClient();
 
@@ -16,7 +17,7 @@ export function Providers({ children }: { children: React.ReactNode }) {
         forcedTheme="light"
         disableTransitionOnChange
       >
-        {children}
+        <LectureJobsProvider>{children}</LectureJobsProvider>
         <Toaster />
         <CommandMenu />
       </ThemeProvider>
