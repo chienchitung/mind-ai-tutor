@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { transcribeLectureAudio } from '@/lib/gemini';
 import { HttpInputError, readJsonWithLimit } from '@/lib/http-security';
-import { RECORDING_BUCKET, segmentPath, segmentSchema } from '@/lib/live-recording';
+import { RECORDING_BUCKET, segmentPath, segmentSchema, timedTranscript, transcriptParagraphs } from '@/lib/live-recording';
 import { aiFailure, authorizeTeacherAi, claimTeacherAi } from '../../../gemini/security';
 
 export const runtime = 'nodejs';
@@ -46,15 +46,19 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     if (quota) return quota;
 
     const { data: previous } = idx > 0
-      ? await client.from('live_recording_segments').select('transcript').eq('recording_id', id).eq('idx', idx - 1).maybeSingle()
+      ? await client.from('live_recording_segments').select('start_seconds, transcript').eq('recording_id', id).eq('idx', idx - 1).maybeSingle()
       : { data: null };
-    const previousTail = previous?.transcript ? previous.transcript.slice(-300) : undefined;
+    const previousText = previous
+      ? transcriptParagraphs({ startSeconds: previous.start_seconds ?? 0, transcript: previous.transcript }).map((paragraph) => paragraph.text).join(' ')
+      : '';
+    const previousTail = previousText ? previousText.slice(-300) : undefined;
 
     const row = { recording_id: id, idx, user_id: userId, start_seconds: startSeconds, duration_seconds: durationSeconds, updated_at: new Date().toISOString() };
     let transcript: string;
     try {
       const base64 = Buffer.from(await audio.arrayBuffer()).toString('base64');
-      transcript = (await transcribeLectureAudio(base64, { language, previousTail })).slice(0, 60_000);
+      const paragraphs = await transcribeLectureAudio(base64, { language, previousTail });
+      transcript = timedTranscript(paragraphs, startSeconds, durationSeconds).slice(0, 60_000);
     } catch (error) {
       // Keep the audio so a retry can transcribe it again.
       await client.from('live_recording_segments').upsert({ ...row, status: 'failed', transcript: null, error: 'TRANSCRIPTION_FAILED' });
