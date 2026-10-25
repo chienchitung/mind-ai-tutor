@@ -67,6 +67,8 @@ describe('POST /api/live-recordings/[id]/notes', () => {
       studentQuestions: ['公開提問'],
     });
     expect(updates[0]).toMatchObject({ notes });
+    // Not a heartbeat: an abandoned recording must not look live again.
+    expect(updates[0]).not.toHaveProperty('updated_at');
     expect((await response.json()).notes).toEqual(notes);
   });
   it('refuses without spending points when nothing has been transcribed', async () => {

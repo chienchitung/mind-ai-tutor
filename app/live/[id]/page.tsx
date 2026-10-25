@@ -151,6 +151,22 @@ export default function AudiencePage() {
   useEffect(() => {
     setParticipantId(getParticipantId(code));
   }, [code]);
+  // The start/stop broadcasts keep the recording notice current, but a
+  // teacher's tab that closes or crashes sends no stop. While the notice is
+  // up, recheck it so it lapses with the server's 5-minute window.
+  const recordingShown = data?.recording === true;
+  useEffect(() => {
+    if (!recordingShown) return;
+    const timer = setInterval(() => {
+      fetch(`/api/live/${code}`, { cache: 'no-store' })
+        .then((response) => (response.ok ? response.json() : null))
+        .then((value) => {
+          if (value) setData((previous) => (previous ? { ...previous, recording: value.recording === true } : previous));
+        })
+        .catch(() => {});
+    }, 60_000);
+    return () => clearInterval(timer);
+  }, [code, recordingShown]);
 
   const loadQuestions = useCallback(async () => {
     if (!participantId) return;

@@ -15,9 +15,11 @@ const id = '11111111-1111-4111-8111-111111111111';
 const sessionId = '60000000-0000-4000-8000-000000000001';
 let row: any;
 let updates: any[];
+let othersLive: { id: string }[];
 
 beforeEach(() => {
   updates = [];
+  othersLive = [];
   row = { id, session_id: sessionId, status: 'recording' };
   mocks.broadcastLiveUpdate.mockReset().mockResolvedValue(undefined);
   const chain: any = {
@@ -25,6 +27,9 @@ beforeEach(() => {
     delete: () => chain,
     eq: () => chain,
     select: () => chain,
+    neq: () => chain,
+    gt: () => chain,
+    limit: async () => ({ data: othersLive, error: null }),
     maybeSingle: async () => ({ data: row, error: null }),
   };
   mocks.getServerClient.mockResolvedValue({
@@ -45,14 +50,24 @@ describe('ending the students\' recording notice', () => {
     expect(mocks.broadcastLiveUpdate).not.toHaveBeenCalled();
     expect((await PATCH(request('PATCH', { status: 'stopped', durationSeconds: 300 }), { params: params() })).status).toBe(200);
     expect(updates.at(-1)).toMatchObject({ status: 'stopped', duration_seconds: 300 });
+    await new Promise((resolve) => setTimeout(resolve, 0));
     expect(mocks.broadcastLiveUpdate).toHaveBeenCalledWith(sessionId, 'recording:state', { active: false });
+  });
+  it('keeps it on while another recording of the same session is still live', async () => {
+    othersLive = [{ id: 'other-tab' }];
+    await PATCH(request('PATCH', { status: 'stopped', durationSeconds: 300 }), { params: params() });
+    await DELETE(request('DELETE'), { params: params() });
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(mocks.broadcastLiveUpdate).not.toHaveBeenCalled();
   });
   it('clears it when a recording still marked as recording is deleted', async () => {
     expect((await DELETE(request('DELETE'), { params: params() })).status).toBe(204);
+    await new Promise((resolve) => setTimeout(resolve, 0));
     expect(mocks.broadcastLiveUpdate).toHaveBeenCalledWith(sessionId, 'recording:state', { active: false });
     mocks.broadcastLiveUpdate.mockClear();
     row = { id, session_id: sessionId, status: 'stopped' };
     await DELETE(request('DELETE'), { params: params() });
+    await new Promise((resolve) => setTimeout(resolve, 0));
     expect(mocks.broadcastLiveUpdate).not.toHaveBeenCalled();
   });
 });

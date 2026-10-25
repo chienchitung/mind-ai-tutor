@@ -67,7 +67,9 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     }
     const generatedAt = new Date().toISOString();
     const { error: saveError } = await client.from('live_recordings')
-      .update({ notes, notes_generated_at: generatedAt, updated_at: generatedAt })
+      // updated_at is left alone: it is the recorder's heartbeat, and bumping
+      // it here would make an abandoned recording look live again.
+      .update({ notes, notes_generated_at: generatedAt })
       .eq('id', id).eq('user_id', userId);
     if (saveError) return NextResponse.json({ error: 'LIVE_STORAGE_ERROR' }, { status: 500 });
     return NextResponse.json({ notes, notesGeneratedAt: generatedAt }, { headers });

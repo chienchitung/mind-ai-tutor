@@ -400,6 +400,19 @@ describe('Live Session experience', () => {
     act(() => mocks.events.get('recording:state')?.({ payload: { active: true } }));
     expect(screen.getByText(/老師正在錄音/)).toBeTruthy();
   });
+  it('lets the recording notice lapse when the teacher tab stops responding', async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    try {
+      fetchMock.mockImplementation(async (url: string) => response(url.includes('/questions') ? [] : { ...session, recording: true }));
+      mount(<AudiencePage />);
+      await screen.findByText(/老師正在錄音/);
+      fetchMock.mockImplementation(async (url: string) => response(url.includes('/questions') ? [] : { ...session, recording: false }));
+      await act(async () => { vi.advanceTimersByTime(60_000); });
+      await waitFor(() => expect(screen.queryByText(/老師正在錄音/)).toBeNull());
+    } finally {
+      vi.useRealTimers();
+    }
+  });
   it('mounts the projection dialog before requesting native fullscreen', async () => {
     fetchMock.mockImplementation(async (url: string) => response(url.includes('/questions') ? questions : { ...session, deckUrl: '/deck.pdf' }));
     const original = HTMLElement.prototype.requestFullscreen;
@@ -581,6 +594,8 @@ describe('dual-screen presenting', () => {
     mount(<PresenterPage />);
     await screen.findByRole('heading',{name:session.title});
     expect(screen.getAllByRole('button',{name:'放大這題'})).toHaveLength(1);
+    // Projection buttons stay disabled until the projection state has loaded.
+    await waitFor(() => expect((screen.getByRole('button',{name:'放大這題'}) as HTMLButtonElement).disabled).toBe(false));
     fireEvent.click(screen.getByRole('button',{name:'放大這題'}));
     await waitFor(()=>expect(fetchMock).toHaveBeenCalledWith('/api/live-sessions/123456/presentation',expect.objectContaining({body:JSON.stringify({action:'question',questionId:questions[0].id})})));
   });
