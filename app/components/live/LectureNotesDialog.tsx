@@ -1,11 +1,12 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { Copy, Download, Loader2 } from 'lucide-react';
+import { Check, Copy, Download, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { SegmentedControl } from '@/components/ui/segmented-control';
 import { useLanguage } from '@/app/contexts/LanguageContext';
+import { useCopyFeedback } from '@/hooks/useCopyFeedback';
 import { formatClock, joinTranscript, lessonNotesToMarkdown, transcriptParagraphs, type LessonNotes, type RecordingSegment } from '@/lib/live-recording';
 
 type Detail = { title: string; notes: LessonNotes | null; durationSeconds: number; segments: RecordingSegment[] };
@@ -21,14 +22,14 @@ export function LectureNotesDialog({ recordingId, initialNotes, onClose }: {
   const [detail, setDetail] = useState<Detail | null>(null);
   const [failed, setFailed] = useState(false);
   const [view, setView] = useState<'notes' | 'transcript'>('notes');
-  const [copied, setCopied] = useState(false);
+  const { copy, reset: resetCopied, isCopied, tick } = useCopyFeedback();
 
   useEffect(() => {
     if (!recordingId) return;
     let cancelled = false;
     setDetail(null);
     setFailed(false);
-    setCopied(false);
+    resetCopied();
     fetch(`/api/live-recordings/${recordingId}`, { cache: 'no-store' })
       .then((response) => (response.ok ? response.json() : Promise.reject()))
       .then((body: Detail) => {
@@ -39,7 +40,7 @@ export function LectureNotesDialog({ recordingId, initialNotes, onClose }: {
       })
       .catch(() => { if (!cancelled) setFailed(true); });
     return () => { cancelled = true; };
-  }, [recordingId, initialNotes]);
+  }, [recordingId, initialNotes, resetCopied]);
 
   const notes = detail?.notes ?? null;
   const markdown = notes ? lessonNotesToMarkdown(notes, zh) : '';
@@ -83,17 +84,19 @@ export function LectureNotesDialog({ recordingId, initialNotes, onClose }: {
                 ]}
               />
               <div className="flex gap-2">
-                {view === 'notes' && notes && (
+                {(view === 'notes' ? !!notes : !!transcriptText) && (
                   <Button
                     size="sm"
                     variant="outline"
                     className="h-8"
                     onClick={() => {
-                      void navigator.clipboard.writeText(markdown).then(() => setCopied(true), () => undefined);
+                      void copy(view === 'notes' ? markdown : transcriptText, view).catch(() => undefined);
                     }}
                   >
-                    <Copy className="mr-1.5 h-3.5 w-3.5" />
-                    {copied ? say('已複製', 'Copied') : say('複製', 'Copy')}
+                    {isCopied(view)
+                      ? <Check key={tick} className="mr-1.5 h-3.5 w-3.5 text-emerald-600 animate-in zoom-in-50 spin-in-12 duration-300 motion-reduce:animate-none" />
+                      : <Copy className="mr-1.5 h-3.5 w-3.5" />}
+                    <span aria-live="polite">{isCopied(view) ? say('已複製', 'Copied') : say('複製', 'Copy')}</span>
                   </Button>
                 )}
                 <Button
