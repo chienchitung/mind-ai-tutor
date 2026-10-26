@@ -57,3 +57,16 @@ it('reports a browser without microphone support instead of failing silently', a
   // The details dialog opens by itself to explain the failure.
   expect(await screen.findByText(/這個瀏覽器不支援錄音/)).toBeTruthy();
 });
+
+it('offers to record the screen too where the browser can, and remembers the choice', async () => {
+  fetchMock.mockImplementation(() => json([]));
+  vi.stubGlobal('navigator', { ...navigator, mediaDevices: { getUserMedia: vi.fn(), getDisplayMedia: vi.fn() } });
+  vi.stubGlobal('MediaRecorder', { isTypeSupported: (type: string) => type.startsWith('video/webm') });
+  localStorage.removeItem('mindaitutor.lecture.recordScreen');
+  view();
+  fireEvent.click(screen.getByRole('button', { name: '錄音詳情與紀錄' }));
+  fireEvent.click(await screen.findByRole('checkbox', { name: /同時錄製螢幕畫面/ }));
+  // Both the dialog's button and the bar's (hidden behind the dialog) say so.
+  expect(screen.getAllByRole('button', { name: '開始錄音＋畫面', hidden: true })).toHaveLength(2);
+  expect(localStorage.getItem('mindaitutor.lecture.recordScreen')).toBe('1');
+});

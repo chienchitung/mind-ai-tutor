@@ -430,7 +430,9 @@ describe('Live Session experience', () => {
     fetchMock.mockImplementation(async (url: string) => response(url.includes('/questions') ? [] : { ...session, recording: true }));
     mount(<AudiencePage />);
     await screen.findByRole('heading', { name: session.title });
-    expect(screen.getByText(/老師正在錄音/)).toBeTruthy();
+    expect(await screen.findByText(/老師正在錄音/)).toBeTruthy();
+    // The channel subscribes after the first render; wait for it under load.
+    await waitFor(() => expect(mocks.events.get('recording:state')).toBeTruthy());
     act(() => mocks.events.get('recording:state')?.({ payload: { active: false } }));
     expect(screen.queryByText(/老師正在錄音/)).toBeNull();
     act(() => mocks.events.get('recording:state')?.({ payload: { active: true } }));

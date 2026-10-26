@@ -4,7 +4,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { supabase } from '@/lib/supabase';
 import { RECORDING_BUCKET, RECORDING_HEARTBEAT_MS, SEGMENT_SAMPLE_RATE, SEGMENT_SECONDS, segmentPath, type SlideMark } from '@/lib/live-recording';
 import { concatSamples, downsample, encodeWav } from '@/lib/wav';
-import { floatToInt16, openRecordingVault, vaultLockName, type RecordingVault, type VaultMeta } from '@/lib/recording-vault';
+import { floatToInt16, mediaExtension, openRecordingVault, vaultLockName, type RecordingVault, type VaultMeta } from '@/lib/recording-vault';
 
 export type RecorderPhase = 'idle' | 'starting' | 'recording' | 'stopping' | 'stopped';
 export type LiveSegment = {
@@ -16,18 +16,24 @@ export type LiveSegment = {
   error?: string;
 };
 export type RecorderError =
-  | 'MIC_UNSUPPORTED' | 'MIC_DENIED' | 'RECORDINGS_NOT_READY' | 'START_FAILED';
+  | 'MIC_UNSUPPORTED' | 'MIC_DENIED' | 'SCREEN_DENIED' | 'RECORDINGS_NOT_READY' | 'START_FAILED';
 
 const DOWNLOAD_MIME_TYPES = ['audio/webm;codecs=opus', 'audio/ogg;codecs=opus', 'audio/mp4'];
+const VIDEO_MIME_TYPES = ['video/webm;codecs=vp9,opus', 'video/webm;codecs=vp8,opus', 'video/webm', 'video/mp4'];
 const COOLDOWN_RETRY_MS = 4_000;
 // How often the unsent tail is copied to the browser's vault: at most this
 // much is lost if the tab dies.
 const VAULT_FLUSH_MS = 5_000;
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
-function pickDownloadMime(): string | undefined {
+function pickMime(candidates: string[]): string | undefined {
   if (typeof MediaRecorder === 'undefined') return undefined;
-  return DOWNLOAD_MIME_TYPES.find((type) => MediaRecorder.isTypeSupported?.(type));
+  return candidates.find((type) => MediaRecorder.isTypeSupported?.(type));
+}
+
+/** Whether this browser can offer to record the screen along with the voice. */
+export function canRecordScreen(): boolean {
+  return typeof navigator !== 'undefined' && !!navigator.mediaDevices?.getDisplayMedia && !!pickMime(VIDEO_MIME_TYPES);
 }
 
 // Records the teacher's microphone in two forms at once:
@@ -35,8 +41,10 @@ function pickDownloadMime(): string | undefined {
 //   and transcribed one after another while the lesson is still going, so
 //   only the notes step is left when the lesson ends;
 // - a compressed MediaRecorder copy of the whole lesson, kept in memory for
-//   the teacher to download afterwards (it never leaves the browser).
-export type RecorderTarget = { sessionId: string; title: string; language: 'zh-TW' | 'en'; currentPage?: number };
+//   the teacher to download afterwards (it never leaves the browser). With
+//   `video`, that copy is a screen recording with the voice on it; only the
+//   16 kHz audio segments are ever uploaded.
+export type RecorderTarget = { sessionId: string; title: string; language: 'zh-TW' | 'en'; currentPage?: number; video?: boolean };
 
 // One recorder for the whole app (see LectureJobsProvider), so a lesson keeps
 // recording and transcribing while the teacher moves to other pages; which
@@ -50,8 +58,13 @@ export function useLectureRecorder() {
   const [segments, setSegments] = useState<LiveSegment[]>([]);
   const [download, setDownload] = useState<{ url: string; fileName: string } | null>(null);
   const [error, setError] = useState<RecorderError | null>(null);
+  // The download copy includes the screen; screenEnded once the teacher
+  // stopped sharing mid-lesson (the voice keeps recording).
+  const [hasVideo, setHasVideo] = useState(false);
+  const [screenEnded, setScreenEnded] = useState(false);
 
   const streamRef = useRef<MediaStream | null>(null);
+  const screenRef = useRef<MediaStream | null>(null);
   const contextRef = useRef<AudioContext | null>(null);
   const processorRef = useRef<ScriptProcessorNode | null>(null);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
@@ -198,6 +211,8 @@ export function useLectureRecorder() {
     contextRef.current = null;
     streamRef.current?.getTracks().forEach((track) => track.stop());
     streamRef.current = null;
+    screenRef.current?.getTracks().forEach((track) => track.stop());
+    screenRef.current = null;
     if (timerRef.current) clearInterval(timerRef.current);
     timerRef.current = null;
     if (heartbeatRef.current) clearInterval(heartbeatRef.current);
@@ -215,14 +230,34 @@ export function useLectureRecorder() {
       setError('MIC_UNSUPPORTED');
       return;
     }
+    // A start that fails before claiming a new recording goes back to where it
+    // was: a finished recording keeps offering its download.
+    const before = phase;
+    let claimed = false;
     setPhase('starting');
+    // Asked first, while the click still counts as the user's: browsers only
+    // show the screen picker in direct response to one.
+    let screen: MediaStream | null = null;
+    if (next.video && canRecordScreen()) {
+      try {
+        screen = await navigator.mediaDevices.getDisplayMedia({
+          video: { frameRate: { ideal: 15, max: 15 }, width: { max: 1920 }, height: { max: 1080 } },
+          audio: false,
+        });
+      } catch {
+        setError('SCREEN_DENIED');
+        setPhase(before);
+        return;
+      }
+    }
     vaultRef.current = await openRecordingVault();
     let stream: MediaStream;
     try {
       stream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true, channelCount: 1 } });
     } catch {
+      screen?.getTracks().forEach((track) => track.stop());
       setError('MIC_DENIED');
-      setPhase('idle');
+      setPhase(before);
       return;
     }
     try {
@@ -233,6 +268,7 @@ export function useLectureRecorder() {
       });
       const body = await response.json().catch(() => ({}));
       if (!response.ok) throw new Error(body.error === 'RECORDINGS_NOT_READY' ? 'RECORDINGS_NOT_READY' : 'START_FAILED');
+      claimed = true;
       idsRef.current = { recordingId: body.id, userId: body.userId };
       targetRef.current = next;
       setTarget(next);
@@ -263,10 +299,19 @@ export function useLectureRecorder() {
       processor.connect(mute);
       mute.connect(context.destination);
 
-      const mimeType = pickDownloadMime();
+      const videoMime = screen ? pickMime(VIDEO_MIME_TYPES) : undefined;
+      const mimeType = videoMime ?? pickMime(DOWNLOAD_MIME_TYPES);
+      if (screen && !videoMime) {
+        screen.getTracks().forEach((track) => track.stop());
+        screen = null;
+      }
       mediaChunksRef.current = [];
       if (mimeType) {
-        const recorder = new MediaRecorder(stream, { mimeType, audioBitsPerSecond: 32_000 });
+        // Slides change slowly, so 15 fps at ~0.8 Mbps stays sharp at about
+        // 6 MB a minute; the chunks live in the browser (and its vault) only.
+        const recorder = screen
+          ? new MediaRecorder(new MediaStream([...screen.getVideoTracks(), ...stream.getAudioTracks()]), { mimeType, videoBitsPerSecond: 800_000, audioBitsPerSecond: 32_000 })
+          : new MediaRecorder(stream, { mimeType, audioBitsPerSecond: 32_000 });
         recorder.ondataavailable = (event) => {
           if (!event.data.size) return;
           mediaChunksRef.current.push(event.data);
@@ -278,6 +323,12 @@ export function useLectureRecorder() {
       }
 
       streamRef.current = stream;
+      screenRef.current = screen;
+      setHasVideo(!!screen && !!mimeType);
+      setScreenEnded(false);
+      // Stopping the share from the browser's bar ends only the picture.
+      screen?.getVideoTracks()[0]?.addEventListener('ended', () => setScreenEnded(true));
+      if (screen) void navigator.storage?.persist?.().catch(() => false);
       contextRef.current = context;
       processorRef.current = processor;
       pcmRef.current = [];
@@ -293,6 +344,7 @@ export function useLectureRecorder() {
       vaultMetaRef.current = {
         recordingId: body.id, userId: body.userId, sessionId: next.sessionId, title: next.title, language: next.language,
         startedAt: Date.now(), tailStartSeconds: 0, nextIdx: 0, elapsedSeconds: 0, marks: [...marksRef.current], finished: false,
+        hasVideo: !!screen && !!mimeType,
       };
       persistMeta({ heartbeatAt: Date.now() });
       // Held until this tab is done with the recording (reset or a new one);
@@ -311,8 +363,9 @@ export function useLectureRecorder() {
       setPhase('recording');
     } catch (cause) {
       stream.getTracks().forEach((track) => track.stop());
+      screen?.getTracks().forEach((track) => track.stop());
       setError(cause instanceof Error && cause.message === 'RECORDINGS_NOT_READY' ? 'RECORDINGS_NOT_READY' : 'START_FAILED');
-      setPhase('idle');
+      setPhase(claimed ? 'idle' : before);
     }
   }, [phase, cutSegment, saveProgress]);
 
@@ -328,8 +381,8 @@ export function useLectureRecorder() {
     }
     teardownAudio();
     if (mediaChunksRef.current.length) {
-      const type = mediaChunksRef.current[0].type || 'audio/webm';
-      const extension = type.includes('mp4') ? 'm4a' : type.includes('ogg') ? 'ogg' : 'webm';
+      const type = mediaChunksRef.current[0].type || (hasVideo ? 'video/webm' : 'audio/webm');
+      const extension = mediaExtension(type);
       const stamp = new Date().toISOString().slice(0, 16).replace(/[:T]/g, '-');
       setDownload({ url: URL.createObjectURL(new Blob(mediaChunksRef.current, { type })), fileName: `${targetRef.current?.title ?? 'lecture'}-${stamp}.${extension}` });
       mediaChunksRef.current = [];
@@ -340,7 +393,7 @@ export function useLectureRecorder() {
     // uploading) is left in the vault.
     persistMeta({ finished: true, elapsedSeconds: Math.round(seconds()) });
     setPhase('stopped');
-  }, [phase, cutSegment, saveProgress]);
+  }, [phase, cutSegment, saveProgress, hasVideo]);
 
   const markSlide = useCallback((page: number) => {
     if (phase !== 'recording') return;
@@ -348,6 +401,9 @@ export function useLectureRecorder() {
     if (marks.at(-1)?.page === page) return;
     marks.push({ t: Math.round(seconds() * 10) / 10, page });
   }, [phase]);
+
+  // The teacher saved the download copy: a later visit need not offer it.
+  const markDownloaded = useCallback(() => persistMeta({ downloaded: true }), []);
 
   const retry = useCallback((idx: number) => {
     const segment = segments.find((item) => item.idx === idx);
@@ -368,6 +424,8 @@ export function useLectureRecorder() {
     setRecordingId(null);
     setSegments([]);
     setElapsed(0);
+    setHasVideo(false);
+    setScreenEnded(false);
     setPhase('idle');
   }, [phase]);
 
@@ -384,5 +442,5 @@ export function useLectureRecorder() {
     teardownAudio();
   }, []);
 
-  return { phase, target, elapsed, recordingId, segments, download, error, start, stop, markSlide, retry, reset };
+  return { phase, target, elapsed, recordingId, segments, download, error, hasVideo, screenEnded, start, stop, markSlide, retry, reset, markDownloaded };
 }
