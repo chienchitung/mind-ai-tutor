@@ -5,7 +5,8 @@ import type { SlideMark } from './live-recording';
 // that were not yet sent for transcription nor the downloadable audio:
 // - "tail": 16 kHz PCM of the segment still being recorded;
 // - "segment": finished WAV segments not yet uploaded;
-// - "media": the compressed whole-lesson copy offered for download.
+// - "media": the compressed whole-lesson copy offered for download (audio,
+//   or the screen plus audio when the teacher chose to record the screen).
 // Nothing here leaves the device unless the teacher recovers it.
 
 export type VaultMeta = {
@@ -26,7 +27,15 @@ export type VaultMeta = {
   finished: boolean;
   /** Last save while recording (fallback liveness where Web Locks are missing). */
   heartbeatAt?: number;
+  /** The download copy is a screen recording (video), not just audio. */
+  hasVideo?: boolean;
 };
+
+/** File extension for a download copy of this media type. */
+export function mediaExtension(type: string): string {
+  if (type.startsWith('video/')) return type.includes('mp4') ? 'mp4' : 'webm';
+  return type.includes('mp4') ? 'm4a' : type.includes('ogg') ? 'ogg' : 'webm';
+}
 
 // The tab that owns a recording holds this lock until it is done with it; the
 // browser drops it when that tab closes or crashes. Another tab must never

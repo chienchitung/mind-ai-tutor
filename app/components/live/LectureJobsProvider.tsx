@@ -9,7 +9,7 @@ import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover
 import { useLanguage } from '@/app/contexts/LanguageContext';
 import { cn } from '@/lib/utils';
 import { formatClock, RECORDING_BUCKET, segmentPath, type LessonNotes, type RecordingSummary } from '@/lib/live-recording';
-import { isRecordingOwnedElsewhere, openRecordingVault, type VaultMeta } from '@/lib/recording-vault';
+import { isRecordingOwnedElsewhere, mediaExtension, openRecordingVault, type VaultMeta } from '@/lib/recording-vault';
 import { recoverRecording } from '@/lib/recording-recovery';
 import { supabase } from '@/lib/supabase';
 import { extractDeckText } from '@/lib/deck-text';
@@ -180,8 +180,8 @@ export function LectureJobsProvider({ children }: { children: ReactNode }) {
     void (async () => {
       const media = await (await openRecordingVault())?.readMedia(recordingId);
       if (!media?.length) return;
-      const type = media[0].type || 'audio/webm';
-      const extension = type.includes('mp4') ? 'm4a' : type.includes('ogg') ? 'ogg' : 'webm';
+      const type = media[0].type || (leftover.meta.hasVideo ? 'video/webm' : 'audio/webm');
+      const extension = mediaExtension(type);
       const url = URL.createObjectURL(new Blob(media, { type }));
       const link = document.createElement('a');
       link.href = url;
@@ -406,7 +406,9 @@ function LectureJobsPill() {
                 ? <><span className="h-2 w-2 animate-pulse rounded-full bg-red-500 motion-reduce:animate-none" />{say('錄音中', 'Recording')} {formatClock(recorder.elapsed)}</>
                 : transcribing > 0
                   ? <><Loader2 className="h-3.5 w-3.5 animate-spin text-primary" />{say(`正在轉錄最後 ${transcribing} 段，完成前請不要關閉分頁`, `Transcribing the last ${transcribing}; keep this tab open`)}</>
-                  : <><Check className="h-3.5 w-3.5 text-emerald-600" />{say(`錄音完成 · ${formatClock(recorder.elapsed)}；錄音檔只存在這個分頁，記得下載`, `Finished · ${formatClock(recorder.elapsed)}. The audio file lives only in this tab; download it`)}</>}
+                  : <><Check className="h-3.5 w-3.5 text-emerald-600" />{recorder.hasVideo
+                    ? say(`錄音完成 · ${formatClock(recorder.elapsed)}；錄影檔只存在這台電腦，記得下載`, `Finished · ${formatClock(recorder.elapsed)}. The video lives only on this computer; download it`)
+                    : say(`錄音完成 · ${formatClock(recorder.elapsed)}；錄音檔只存在這個分頁，記得下載`, `Finished · ${formatClock(recorder.elapsed)}. The audio file lives only in this tab; download it`)}</>}
             </p>
             <div className="flex flex-wrap gap-2">
               {recorder.phase === 'recording' && (
@@ -419,7 +421,7 @@ function LectureJobsPill() {
                 <Button asChild size="sm" variant="outline" className="h-8">
                   <a href={recorder.download.url} download={recorder.download.fileName}>
                     <Download className="mr-1.5 h-3.5 w-3.5" />
-                    {say('下載錄音檔', 'Download audio')}
+                    {recorder.hasVideo ? say('下載錄影檔', 'Download video') : say('下載錄音檔', 'Download audio')}
                   </a>
                 </Button>
               )}
@@ -446,7 +448,9 @@ function LectureJobsPill() {
                     ? say(
                       `錄音沒有正常結束（${new Date(item.meta.startedAt).toLocaleString('zh-TW', { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' })}）。這台電腦還保存著約 ${formatClock(item.unsentSeconds)} 尚未轉錄的錄音。`,
                       `This recording did not finish. About ${formatClock(item.unsentSeconds)} not yet transcribed is saved on this computer.`)
-                    : say('完整錄音檔還保存在這台電腦，可以下載。', 'The full audio file is still on this computer.')}
+                    : item.meta.hasVideo
+                      ? say('完整錄影檔還保存在這台電腦，可以下載。', 'The full video is still on this computer.')
+                      : say('完整錄音檔還保存在這台電腦，可以下載。', 'The full audio file is still on this computer.')}
             </p>
             <div className="flex flex-wrap gap-2">
               {item.interrupted && (
@@ -458,7 +462,7 @@ function LectureJobsPill() {
               {item.hasAudio && (
                 <Button size="sm" variant="outline" className="h-8" onClick={() => downloadLeftover(item.meta.recordingId)}>
                   <Download className="mr-1.5 h-3.5 w-3.5" />
-                  {say('下載錄音檔', 'Download audio')}
+                  {item.meta.hasVideo ? say('下載錄影檔', 'Download video') : say('下載錄音檔', 'Download audio')}
                 </Button>
               )}
               {confirmDiscard === item.meta.recordingId ? (
