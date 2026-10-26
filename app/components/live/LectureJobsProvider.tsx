@@ -9,8 +9,9 @@ import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover
 import { useLanguage } from '@/app/contexts/LanguageContext';
 import { cn } from '@/lib/utils';
 import { formatClock, RECORDING_BUCKET, segmentPath, type LessonNotes, type RecordingSummary } from '@/lib/live-recording';
-import { isRecordingOwnedElsewhere, mediaExtension, openRecordingVault, type VaultMeta } from '@/lib/recording-vault';
+import { isRecordingOwnedElsewhere, mediaExtension, openRecordingVault, type RecordingVault, type VaultMeta } from '@/lib/recording-vault';
 import { recoverRecording } from '@/lib/recording-recovery';
+import { uploadLectureAudio } from '@/lib/lecture-audio';
 import { supabase } from '@/lib/supabase';
 import { extractDeckText } from '@/lib/deck-text';
 import { useLectureRecorder } from './useLectureRecorder';
@@ -40,6 +41,21 @@ export type Leftover = {
 };
 
 const LEFTOVER_KEEP_MS = 7 * 24 * 60 * 60 * 1000;
+
+/**
+ * Puts a left-behind recording's audio in the cloud copy used for playback,
+ * unless it is already there or the copy here is a screen recording.
+ */
+async function saveLeftoverAudio(vault: RecordingVault, meta: VaultMeta): Promise<VaultMeta> {
+  if (meta.hasVideo || meta.audioSaved) return meta;
+  const media = await vault.readMedia(meta.recordingId);
+  if (!media.length) return meta;
+  const ok = await uploadLectureAudio(meta.userId, meta.recordingId, new Blob(media, { type: media[0].type || 'audio/webm' }));
+  if (!ok) return meta;
+  const saved = { ...meta, audioSaved: true };
+  await vault.putMeta(saved).catch(() => undefined);
+  return saved;
+}
 const CLOSED_KEY = 'mindaitutor.lectureJobs.closed';
 
 type LectureJobs = {
@@ -54,6 +70,7 @@ type LectureJobs = {
   leftovers: Leftover[];
   recoverLeftover: (recordingId: string) => void;
   downloadLeftover: (recordingId: string) => void;
+  uploadLeftoverAudio: (recordingId: string) => void;
   discardLeftover: (recordingId: string) => void;
 };
 
@@ -170,9 +187,22 @@ export function LectureJobsProvider({ children }: { children: ReactNode }) {
       }).catch(() => null);
       setVersion((value) => value + 1);
       if (!result || result.failed > 0 || !result.finalized) { patchLeftover(recordingId, { status: 'error' }); return; }
-      // Transcribed and closed; what is left is the download copy, if any.
-      if (leftover.hasAudio) patchLeftover(recordingId, { status: 'idle', interrupted: false, unsentSeconds: 0 });
+      // Transcribed and closed; the audio goes to the cloud for playback, and
+      // what is left here is the download copy, if any.
+      const meta = await saveLeftoverAudio(vault, { ...leftover.meta, finished: true });
+      if (leftover.hasAudio) patchLeftover(recordingId, { meta, status: 'idle', interrupted: false, unsentSeconds: 0 });
       else { await vault.remove(recordingId); patchLeftover(recordingId, null); }
+    })();
+  }, [leftovers]);
+
+  const uploadLeftoverAudio = useCallback((recordingId: string) => {
+    const leftover = leftovers.find((item) => item.meta.recordingId === recordingId);
+    if (!leftover || leftover.status === 'recovering') return;
+    patchLeftover(recordingId, { status: 'recovering' });
+    void (async () => {
+      const vault = await openRecordingVault();
+      const meta = vault ? await saveLeftoverAudio(vault, leftover.meta) : leftover.meta;
+      patchLeftover(recordingId, { meta, status: meta.audioSaved ? 'idle' : 'error' });
     })();
   }, [leftovers]);
 
@@ -307,8 +337,8 @@ export function LectureJobsProvider({ children }: { children: ReactNode }) {
   }, [busy]);
 
   const value = useMemo(
-    () => ({ recorder, jobs, version, generateNotes, retryFailed, dismiss, openNotes, leftovers, recoverLeftover, downloadLeftover, discardLeftover }),
-    [recorder, jobs, version, generateNotes, retryFailed, dismiss, openNotes, leftovers, recoverLeftover, downloadLeftover, discardLeftover],
+    () => ({ recorder, jobs, version, generateNotes, retryFailed, dismiss, openNotes, leftovers, recoverLeftover, downloadLeftover, uploadLeftoverAudio, discardLeftover }),
+    [recorder, jobs, version, generateNotes, retryFailed, dismiss, openNotes, leftovers, recoverLeftover, downloadLeftover, uploadLeftoverAudio, discardLeftover],
   );
 
   return (
@@ -345,10 +375,31 @@ function useNow(active: boolean) {
   return now;
 }
 
+/** Where the lesson audio kept for transcript playback stands. */
+export function CloudAudioStatus({ recorder, zh }: { recorder: ReturnType<typeof useLectureRecorder>; zh: boolean }) {
+  const say = (zhText: string, enText: string) => (zh ? zhText : enText);
+  if (recorder.cloudAudio === 'idle') return null;
+  return (
+    <p className={cn('flex flex-wrap items-center gap-1.5 text-xs', recorder.cloudAudio === 'failed' ? 'text-destructive' : 'text-muted-foreground')} role="status">
+      {recorder.cloudAudio === 'uploading' ? (
+        <><Loader2 className="h-3.5 w-3.5 animate-spin text-primary" />{say('正在把錄音存到雲端，供逐字稿播放…', 'Saving the audio to the cloud for transcript playback…')}</>
+      ) : recorder.cloudAudio === 'saved' ? (
+        <><Check className="h-3.5 w-3.5 text-emerald-600" />{say('錄音已存到雲端，可在逐字稿邊聽邊看', 'Audio saved to the cloud; play it with the transcript')}</>
+      ) : (
+        <>
+          <AlertCircle className="h-3.5 w-3.5" />
+          {say('錄音沒能存到雲端', 'Could not save the audio to the cloud')}
+          <button type="button" className="font-medium underline underline-offset-2" onClick={() => void recorder.retryCloudAudio()}>{say('重試', 'Retry')}</button>
+        </>
+      )}
+    </p>
+  );
+}
+
 // The corner pill: one line for what matters most right now, and a list of
 // everything (recording, transcription, notes) when opened.
 function LectureJobsPill() {
-  const { recorder, jobs, dismiss, openNotes, leftovers: allLeftovers, recoverLeftover, downloadLeftover, discardLeftover } = useLectureJobs();
+  const { recorder, jobs, dismiss, openNotes, leftovers: allLeftovers, recoverLeftover, downloadLeftover, uploadLeftoverAudio, discardLeftover } = useLectureJobs();
   const [confirmDiscard, setConfirmDiscard] = useState<string | null>(null);
   const { language } = useLanguage();
   const zh = language === 'zh-TW';
@@ -450,8 +501,9 @@ function LectureJobsPill() {
                   ? <><Loader2 className="h-3.5 w-3.5 animate-spin text-primary" />{say(`正在轉錄最後 ${transcribing} 段，完成前請不要關閉分頁`, `Transcribing the last ${transcribing}; keep this tab open`)}</>
                   : <><Check className="h-3.5 w-3.5 text-emerald-600" />{recorder.hasVideo
                     ? say(`錄音完成 · ${formatClock(recorder.elapsed)}；錄影檔只存在這台電腦，記得下載`, `Finished · ${formatClock(recorder.elapsed)}. The video lives only on this computer; download it`)
-                    : say(`錄音完成 · ${formatClock(recorder.elapsed)}；錄音檔只存在這個分頁，記得下載`, `Finished · ${formatClock(recorder.elapsed)}. The audio file lives only in this tab; download it`)}</>}
+                    : say(`錄音完成 · ${formatClock(recorder.elapsed)}`, `Finished · ${formatClock(recorder.elapsed)}`)}</>}
             </p>
+            {!recordingNow && <CloudAudioStatus recorder={recorder} zh={zh} />}
             <div className="flex flex-wrap gap-2">
               {recorder.phase === 'recording' && (
                 <Button size="sm" variant="outline" className="h-8 border-red-200 text-red-700 hover:bg-red-50 hover:text-red-800" onClick={() => void recorder.stop()}>
@@ -470,7 +522,7 @@ function LectureJobsPill() {
               <Button asChild size="sm" variant="ghost" className="h-8" onClick={() => setOpen(false)}>
                 <Link href={workspacePath!}>{say('回到課程', 'Back to the session')}</Link>
               </Button>
-              {finishedWithAudio && transcribing === 0 && (
+              {finishedWithAudio && transcribing === 0 && recorder.cloudAudio !== 'uploading' && (
                 <Button size="sm" variant="ghost" className="h-8 text-muted-foreground" onClick={recorder.reset}>
                   {say('完成', 'Done')}
                 </Button>
@@ -483,7 +535,7 @@ function LectureJobsPill() {
             <p className="truncate text-sm font-medium">{item.meta.title}</p>
             <p className="text-xs leading-5 text-muted-foreground" role="status">
               {item.status === 'recovering'
-                ? say('正在補傳並轉錄…', 'Uploading and transcribing…')
+                ? (item.interrupted ? say('正在補傳並轉錄…', 'Uploading and transcribing…') : say('正在把錄音存到雲端…', 'Saving the audio to the cloud…'))
                 : item.status === 'error'
                   ? say('補傳失敗，錄音仍保存在這台電腦，可以再試一次。', 'Recovery failed; the audio is still on this computer. Try again.')
                   : item.interrupted
@@ -499,6 +551,12 @@ function LectureJobsPill() {
                 <Button size="sm" className="h-8" disabled={item.status === 'recovering'} onClick={() => recoverLeftover(item.meta.recordingId)}>
                   {item.status === 'recovering' && <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />}
                   {say('補傳並轉錄', 'Upload and transcribe')}
+                </Button>
+              )}
+              {!item.interrupted && item.hasAudio && !item.meta.hasVideo && !item.meta.audioSaved && (
+                <Button size="sm" className="h-8" disabled={item.status === 'recovering'} onClick={() => uploadLeftoverAudio(item.meta.recordingId)}>
+                  {item.status === 'recovering' && <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />}
+                  {say('存到雲端供播放', 'Save to the cloud for playback')}
                 </Button>
               )}
               {item.hasAudio && (

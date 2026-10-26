@@ -20,6 +20,10 @@ vi.mock('@/lib/supabase', () => ({
     storage: { from: () => ({ upload: vi.fn().mockResolvedValue({ error: null }) }) },
   }),
 }));
+const cloud = vi.hoisted(() => ({ uploads: [] as string[] }));
+vi.mock('@/lib/lecture-audio', () => ({
+  uploadLectureAudio: vi.fn(async (_userId: string, recordingId: string) => { cloud.uploads.push(recordingId); return true; }),
+}));
 vi.mock('@/lib/deck-text', () => ({ extractDeckText: vi.fn().mockResolvedValue([]) }));
 vi.mock('./LectureNotesDialog', () => ({
   LectureNotesDialog: ({ recordingId }: { recordingId: string | null }) => (recordingId ? <div role="dialog">notes {recordingId}</div> : null),
@@ -34,6 +38,7 @@ let finishNotes!: (value: Response) => void;
 beforeEach(() => {
   vaultHolder.vault = null;
   sessionStorage.clear();
+  cloud.uploads = [];
   nav.pathname = '/live/recordings';
   vi.stubGlobal('fetch', vi.fn((url: string) => (url.endsWith('/notes')
     ? new Promise<Response>((resolve) => { finishNotes = resolve; })
@@ -114,6 +119,22 @@ it('offers to finish a recording an earlier visit left behind, and closes it on 
   const patch = (fetchMock.mock.calls as unknown as [string, RequestInit][]).find(([url, init]) => url === '/api/live-recordings/crashed' && init.method === 'PATCH')!;
   expect(JSON.parse(String(patch[1].body))).toEqual({ durationSeconds: 330, slideMarks: [{ t: 0, page: 1 }], status: 'stopped' });
   expect(await screen.findByText('逐字稿已完成；完整錄音檔還保存在這台電腦，可以下載。')).toBeTruthy();
+  // The audio also went to the cloud copy for playback with the transcript.
+  expect(cloud.uploads).toEqual(['crashed']);
+  expect((await vault.listMeta()).find((item) => item.recordingId === 'crashed')?.audioSaved).toBe(true);
+});
+
+it('offers to save a finished recording to the cloud when that did not happen', async () => {
+  const vault = memoryVault();
+  await vault.putMeta(finishedMeta('unsaved-1'));
+  await vault.appendMedia('unsaved-1', new Blob(['opus'], { type: 'audio/webm' }));
+  vaultHolder.vault = vault;
+  vi.stubGlobal('fetch', vi.fn(async () => new Response('{}')));
+  view();
+  fireEvent.click(await screen.findByRole('button', { name: /背景工作/ }));
+  fireEvent.click(screen.getByRole('button', { name: '存到雲端供播放' }));
+  await waitFor(() => expect(cloud.uploads).toEqual(['unsaved-1']));
+  await waitFor(() => expect(screen.queryByRole('button', { name: '存到雲端供播放' })).toBeNull());
 });
 
 it('does not offer a recording that another open tab is still making', async () => {

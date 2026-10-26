@@ -9,7 +9,7 @@ import { useLanguage } from '@/app/contexts/LanguageContext';
 import { cn } from '@/lib/utils';
 import { formatClock, SEGMENT_SECONDS, type RecordingSummary } from '@/lib/live-recording';
 import { canRecordScreen, type LiveSegment, type RecorderError } from './useLectureRecorder';
-import { useLectureJobs } from './LectureJobsProvider';
+import { CloudAudioStatus, useLectureJobs } from './LectureJobsProvider';
 import { IndeterminateBar, RecordingList } from './RecordingList';
 
 const RECORD_SCREEN_KEY = 'mindaitutor.lecture.recordScreen';
@@ -151,8 +151,8 @@ export function LectureRecordingPanel({ sessionId, sessionTitle, deckUrl, deckPa
               <div className="space-y-3">
                 <p className="text-xs leading-5 text-muted-foreground">
                   {say(
-                    '錄下你的講解，每 5 分鐘自動轉成逐字稿，下課後一鍵整理成教學筆記。只有你的麥克風聲音會上傳轉錄，轉成文字後就從雲端刪除；完整錄音（或錄影）只留在這台電腦供下載。',
-                    'Records your voice, transcribes it every 5 minutes, and turns it into teaching notes after class. Only your microphone audio is uploaded for transcription and deleted from the cloud once transcribed; the full recording (or video) stays on this computer for download.',
+                    '錄下你的講解，每 5 分鐘自動轉成逐字稿，下課後一鍵整理成教學筆記。只錄你的麥克風；下課後整堂錄音會壓縮存到你的私人雲端空間，可以在逐字稿邊聽邊看（只有你能播放）。錄影只留在這台電腦供下載。',
+                    'Records your voice, transcribes it every 5 minutes, and turns it into teaching notes after class. Only your microphone is recorded; after class the whole lesson audio is saved, compressed, to your private cloud space so you can play it with the transcript (only you can). Screen video stays on this computer for download.',
                   )}
                 </p>
                 {!mine && recorder.phase === 'stopped' && recorder.download && (
@@ -234,6 +234,7 @@ export function LectureRecordingPanel({ sessionId, sessionTitle, deckUrl, deckPa
                   </div>
                 )}
                 <SegmentTrack segments={live} zh={zh} onRetry={recorder.retry} />
+                <CloudAudioStatus recorder={recorder} zh={zh} />
                 <p className="text-xs text-muted-foreground">
                   {pending > 0
                     ? say('完成前請不要關閉這個頁面。', 'Keep this page open until they finish.')
@@ -250,7 +251,7 @@ export function LectureRecordingPanel({ sessionId, sessionTitle, deckUrl, deckPa
                       </a>
                     </Button>
                   )}
-                  <Button size="sm" variant="ghost" className="h-9" disabled={pending > 0} onClick={recorder.reset}>
+                  <Button size="sm" variant="ghost" className="h-9" disabled={pending > 0 || recorder.cloudAudio === 'uploading'} onClick={recorder.reset}>
                     <Mic className="mr-1.5 h-3.5 w-3.5" />
                     {say('新的錄音', 'New recording')}
                   </Button>

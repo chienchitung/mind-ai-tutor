@@ -9,6 +9,13 @@ vi.mock('@/lib/recording-vault', async (importOriginal) => {
   const actual = await importOriginal<typeof import('@/lib/recording-vault')>();
   return { ...actual, openRecordingVault: async () => vaultHolder.vault };
 });
+const cloud = vi.hoisted(() => ({ uploads: [] as { userId: string; recordingId: string; type: string }[], ok: true }));
+vi.mock('@/lib/lecture-audio', () => ({
+  uploadLectureAudio: vi.fn(async (userId: string, recordingId: string, blob: Blob) => {
+    cloud.uploads.push({ userId, recordingId, type: blob.type });
+    return cloud.ok;
+  }),
+}));
 vi.mock('@/lib/supabase', () => ({ supabase: () => ({ storage: { from: () => ({ upload: vi.fn().mockResolvedValue({ error: null }) }) } }) }));
 
 class FakeTrack extends EventTarget {
@@ -56,6 +63,8 @@ const fetchMock = vi.fn(async (url: string, init?: RequestInit) => (url === '/ap
   : new Response('{}')));
 
 beforeEach(() => {
+  cloud.uploads = [];
+  cloud.ok = true;
   recorders.length = 0;
   calls.length = 0;
   mic = new FakeStream([new FakeTrack('audio')]);
@@ -154,4 +163,38 @@ it('keeps offering the last recording when a new start is cancelled at the scree
   expect(result.current.phase).toBe('stopped');
   expect(result.current.download).toBe(download);
   expect(result.current.target?.sessionId).toBe('s-1');
+});
+
+it('keeps the lesson audio in the cloud after a voice-only recording', async () => {
+  const { result } = renderHook(() => useLectureRecorder());
+  await act(async () => { await result.current.start(target); });
+  await act(async () => { await result.current.stop(); });
+  await vi.waitFor(() => expect(result.current.cloudAudio).toBe('saved'));
+  expect(cloud.uploads).toEqual([{ userId: 'teacher-1', recordingId: 'rec-1', type: 'audio/webm;codecs=opus' }]);
+  const vault = vaultHolder.vault as ReturnType<typeof memoryVault>;
+  await vi.waitFor(async () => expect((await vault.listMeta())[0].audioSaved).toBe(true));
+});
+
+it('sends only the voice to the cloud when the screen is recorded too', async () => {
+  const { result } = renderHook(() => useLectureRecorder());
+  await act(async () => { await result.current.start({ ...target, video: true }); });
+  // One recorder for the video download, one for the voice alone.
+  expect(recorders.map((recorder) => recorder.options.mimeType)).toEqual(['video/webm;codecs=vp9,opus', 'audio/webm;codecs=opus']);
+  expect(recorders[1].stream).toBe(mic);
+  await act(async () => { await result.current.stop(); });
+  await vi.waitFor(() => expect(result.current.cloudAudio).toBe('saved'));
+  expect(cloud.uploads.map((upload) => upload.type)).toEqual(['audio/webm;codecs=opus']);
+  expect(result.current.download?.fileName).toMatch(/\.webm$/);
+});
+
+it('offers a retry when the cloud copy fails, and holds the recording until it is saved', async () => {
+  cloud.ok = false;
+  const { result } = renderHook(() => useLectureRecorder());
+  await act(async () => { await result.current.start(target); });
+  await act(async () => { await result.current.stop(); });
+  await vi.waitFor(() => expect(result.current.cloudAudio).toBe('failed'));
+  cloud.ok = true;
+  await act(async () => { await result.current.retryCloudAudio(); });
+  expect(result.current.cloudAudio).toBe('saved');
+  expect(cloud.uploads).toHaveLength(2);
 });

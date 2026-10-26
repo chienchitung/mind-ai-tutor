@@ -49,6 +49,8 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
       id: data.id, sessionId: data.session_id, title: data.title, status: data.status,
       durationSeconds: data.duration_seconds, slideMarks: data.slide_marks ?? [],
       notes: data.notes, notesGeneratedAt: data.notes_generated_at, createdAt: data.created_at, segments,
+      // Where the lesson audio lives: <userId>/<id>/lecture-audio.
+      userId: ctx.user.id,
     }, { headers });
   } catch {
     return NextResponse.json({ error: 'LIVE_STORAGE_ERROR' }, { status: 500 });
