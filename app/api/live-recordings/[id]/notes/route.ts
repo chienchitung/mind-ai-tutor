@@ -10,6 +10,9 @@ export const maxDuration = 60;
 const headers = { 'Cache-Control': 'private, no-store' };
 const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const MAX_TRANSCRIPT_CHARS = 120_000;
+// Below this much actual speech there is nothing to make notes from; the AI
+// would only paraphrase the deck.
+const MIN_SPOKEN_CHARS = 40;
 
 // Builds teaching notes from the stored transcript, the slide timeline
 // recorded alongside it, the slide text the browser extracted from the deck,
@@ -37,6 +40,8 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     }));
     const transcript = joinTranscript(segments);
     if (!transcript) return NextResponse.json({ error: 'NO_TRANSCRIPT' }, { status: 409 });
+    const spoken = transcript.replace(/\[(?:\d+:)?\d{1,2}:\d{2}\]/g, '').replace(/\s+/g, '');
+    if (spoken.length < MIN_SPOKEN_CHARS) return NextResponse.json({ error: 'TRANSCRIPT_TOO_SHORT' }, { status: 409 });
 
     let studentQuestions: string[] = [];
     if (recording.session_id) {
@@ -51,15 +56,19 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     if (quota) return quota;
 
     const duration = recording.duration_seconds || segments.reduce((sum, segment) => Math.max(sum, segment.startSeconds + segment.durationSeconds), 0);
+    const timeline = slideTimeline((recording.slide_marks ?? []) as SlideMark[], duration);
+    // Only the slides that were actually on screen while recording: handing
+    // over the whole deck let a few seconds of speech come back as notes for
+    // the entire deck.
+    const shown = new Set(timeline.map((range) => range.page));
     let notes;
     try {
       notes = await generateLectureNotes({
         language: parsed.data.language,
         title: recording.title,
         transcript: transcript.slice(0, MAX_TRANSCRIPT_CHARS),
-        slideTimeline: slideTimeline((recording.slide_marks ?? []) as SlideMark[], duration)
-          .map((range) => ({ page: range.page, from: formatClock(range.from), to: formatClock(range.to) })),
-        slides: parsed.data.slides.filter((slide) => slide.text.trim()),
+        slideTimeline: timeline.map((range) => ({ page: range.page, from: formatClock(range.from), to: formatClock(range.to) })),
+        slides: parsed.data.slides.filter((slide) => slide.text.trim() && shown.has(slide.page)),
         studentQuestions,
       });
     } catch (cause) {

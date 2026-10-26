@@ -392,7 +392,8 @@ export async function generateLectureNotes(input: {
     REQUIREMENTS
     - Follow the order of the lesson. Make one section per topic; set slidePages from slideTimeline and startSeconds to when the topic starts (seconds), or null if unknown.
     - Points are concise, self-contained statements of what was taught; put worked examples the teacher gave into examples.
-    - Fix obvious transcription errors using the slide text, but never invent content that is in neither the transcript nor the slides.
+    - The transcript is the source of the notes: cover only what the teacher actually said. Slides are context, used to fix transcription errors, spell terms and structure topics the teacher spoke about - never a source of extra topics or points. If a slide was shown but not talked about, leave it out.
+    - The length follows the lesson: a short recording gives short notes. Never pad with background knowledge or slide content that was not spoken.
     - studentQuestions: include only questions the teacher actually addressed in the transcript, with the answer given; [] if none.
     - reviewQuestions: 3 to 5 questions checking the key ideas, each with a short answer.
     - ${zh ? 'Write entirely in Traditional Chinese (繁體中文), keeping technical terms in their original form.' : 'Write entirely in clear English.'}
