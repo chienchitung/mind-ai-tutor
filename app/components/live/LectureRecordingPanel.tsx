@@ -1,10 +1,14 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { AlertCircle, Check, ChevronDown, Download, Loader2, Mic, MonitorUp, RotateCcw, Square } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import {
+  DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuRadioGroup, DropdownMenuRadioItem,
+  DropdownMenuSeparator, DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
 import { useLanguage } from '@/app/contexts/LanguageContext';
 import { cn } from '@/lib/utils';
 import { formatClock, SEGMENT_SECONDS, type RecordingSummary } from '@/lib/live-recording';
@@ -35,6 +39,9 @@ export function LectureRecordingPanel({ sessionId, sessionTitle, deckUrl, deckPa
   const [recordings, setRecordings] = useState<RecordingSummary[] | null>(null);
   const [listError, setListError] = useState('');
   const [open, setOpen] = useState(false);
+  // Before recording, the details open from the options menu, which has no
+  // dialog trigger to take focus back: return it to the options button.
+  const optionsRef = useRef<HTMLButtonElement>(null);
   useEffect(() => { if (mine) markSlide(deckPage); }, [deckPage, markSlide, mine]);
   // Recording the screen too is opt-in, remembered per browser.
   const [screenSupported, setScreenSupported] = useState(false);
@@ -95,19 +102,53 @@ export function LectureRecordingPanel({ sessionId, sessionTitle, deckUrl, deckPa
   return (
     <div className="flex items-center gap-1.5">
       {phase === 'idle' || phase === 'starting' ? (
-        <Button
-          variant="outline"
-          className="h-10 px-3"
-          disabled={phase === 'starting' || elsewhere}
-          title={elsewhere ? say(`「${recorder.target?.title}」正在錄音`, `"${recorder.target?.title}" is recording`) : undefined}
-          // Another lesson's audio is still waiting to be downloaded: say so
-          // (in the details) before a new recording replaces it.
-          onClick={!mine && recorder.phase === 'stopped' && recorder.download ? () => setOpen(true) : startRecording}
-        >
-          {phase === 'starting' ? <Loader2 className="h-4 w-4 animate-spin sm:mr-2" /> : <span className="h-2.5 w-2.5 rounded-full bg-red-500 sm:mr-2" />}
-          <span className="sr-only sm:not-sr-only">{withScreen ? say('開始錄音＋畫面', 'Record voice + screen') : say('開始錄音', 'Start recording')}</span>
-          {withScreen && <MonitorUp className="ml-1.5 hidden h-3.5 w-3.5 text-muted-foreground sm:block" aria-hidden="true" />}
-        </Button>
+        // A split button: what gets recorded is chosen right next to the
+        // button that starts it, so first-time teachers find the screen option.
+        <div className="flex h-10 items-stretch rounded-md border border-input bg-background shadow-sm">
+          <Button
+            variant="ghost"
+            className="h-full rounded-r-none px-3"
+            disabled={phase === 'starting' || elsewhere}
+            title={elsewhere ? say(`「${recorder.target?.title}」正在錄音`, `"${recorder.target?.title}" is recording`) : undefined}
+            // Another lesson's audio is still waiting to be downloaded: say so
+            // (in the details) before a new recording replaces it.
+            onClick={!mine && recorder.phase === 'stopped' && recorder.download ? () => setOpen(true) : startRecording}
+          >
+            {phase === 'starting' ? <Loader2 className="h-4 w-4 animate-spin sm:mr-2" /> : <span className="h-2.5 w-2.5 rounded-full bg-red-500 sm:mr-2" />}
+            <span className="sr-only sm:not-sr-only">{withScreen ? say('開始錄音＋畫面', 'Record voice + screen') : say('開始錄音', 'Start recording')}</span>
+            {withScreen && <MonitorUp className="ml-1.5 hidden h-3.5 w-3.5 text-muted-foreground sm:block" aria-hidden="true" />}
+          </Button>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button ref={optionsRef} variant="ghost" className="h-full w-9 rounded-l-none border-l border-input p-0 text-muted-foreground" aria-label={say('錄音選項', 'Recording options')}>
+                <ChevronDown className="h-4 w-4" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-72">
+              <DropdownMenuLabel className="text-xs font-medium text-muted-foreground">{say('錄製方式', 'What to record')}</DropdownMenuLabel>
+              <DropdownMenuRadioGroup value={withScreen ? 'screen' : 'voice'} onValueChange={(value) => chooseRecordScreen(value === 'screen')}>
+                <DropdownMenuRadioItem value="voice" className="items-start py-2">
+                  <span className="space-y-0.5">
+                    <span className="flex items-center gap-1.5 font-medium"><Mic className="h-3.5 w-3.5" />{say('只錄聲音', 'Voice only')}</span>
+                    <span className="block text-xs text-muted-foreground">{say('轉成逐字稿與教學筆記，錄音可在逐字稿播放', 'Transcribed into notes; play it back with the transcript')}</span>
+                  </span>
+                </DropdownMenuRadioItem>
+                <DropdownMenuRadioItem value="screen" className="items-start py-2" disabled={!screenSupported}>
+                  <span className="space-y-0.5">
+                    <span className="flex items-center gap-1.5 font-medium"><MonitorUp className="h-3.5 w-3.5" />{say('錄音＋螢幕畫面', 'Voice + screen')}</span>
+                    <span className="block text-xs text-muted-foreground">
+                      {screenSupported
+                        ? say('開始時選要錄的視窗或螢幕；影片只存在這台電腦', 'Pick a window or screen when starting; the video stays on this computer')
+                        : say('這個瀏覽器不支援錄製畫面', 'This browser cannot record the screen')}
+                    </span>
+                  </span>
+                </DropdownMenuRadioItem>
+              </DropdownMenuRadioGroup>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem onSelect={() => setOpen(true)}>{say('錄音紀錄與詳情…', 'Recordings and details…')}</DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </div>
       ) : recordingNow ? (
         <>
           <span className="flex h-10 items-center gap-1.5 rounded-lg bg-red-50 px-2.5 text-xs font-medium text-red-700 dark:bg-red-950/40 dark:text-red-300" role="status">
@@ -134,12 +175,22 @@ export function LectureRecordingPanel({ sessionId, sessionTitle, deckUrl, deckPa
         </Button>
       )}
       <Dialog open={open} onOpenChange={setOpen}>
-        <DialogTrigger asChild>
-          <Button variant="ghost" className="h-10 w-10 p-0 text-muted-foreground" aria-label={say('錄音詳情與紀錄', 'Recording details and history')}>
-            <ChevronDown className="h-4 w-4" />
-          </Button>
-        </DialogTrigger>
-        <DialogContent className="max-h-[85dvh] w-[calc(100%-2rem)] max-w-lg overflow-y-auto rounded-2xl">
+        {/* Before recording, the details are in the options menu. */}
+        {phase !== 'idle' && phase !== 'starting' && (
+          <DialogTrigger asChild>
+            <Button variant="ghost" className="h-10 w-10 p-0 text-muted-foreground" aria-label={say('錄音詳情與紀錄', 'Recording details and history')}>
+              <ChevronDown className="h-4 w-4" />
+            </Button>
+          </DialogTrigger>
+        )}
+        <DialogContent
+          className="max-h-[85dvh] w-[calc(100%-2rem)] max-w-lg overflow-y-auto rounded-2xl"
+          onCloseAutoFocus={(event) => {
+            if (!optionsRef.current?.isConnected) return;
+            event.preventDefault();
+            optionsRef.current.focus();
+          }}
+        >
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <Mic className="h-4 w-4 text-muted-foreground" />
