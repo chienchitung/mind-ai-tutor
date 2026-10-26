@@ -218,6 +218,9 @@ export function LectureNotesDialog({ recordingId, initialNotes, onClose }: {
           <div className="flex justify-center py-10"><Loader2 className="h-5 w-5 animate-spin text-muted-foreground" /></div>
         ) : (
           <div className="space-y-4">
+            {/* Played through the transcript's player bar; kept mounted in
+                both views so a time clicked in the notes cues it. */}
+            {audio.status === 'ready' && <audio {...audio.audioProps} className="hidden" />}
             <div className="flex flex-wrap items-center justify-between gap-2">
               <SegmentedControl
                 label={say('筆記檢視', 'Notes view')}
@@ -394,8 +397,6 @@ export function LectureNotesDialog({ recordingId, initialNotes, onClose }: {
             ) : (
               <div ref={transcriptRef} className="space-y-3 text-sm leading-7">
                 {detail.segments.length > 0 && <PlayerBar audio={audio} zh={zh} follow={follow} onFollow={setFollow} />}
-                {/* Played through the bar above; never shown on its own. */}
-                {audio.status === 'ready' && <audio {...audio.audioProps} className="hidden" />}
                 {detail.segments.length === 0 && (
                   <p className="py-6 text-center text-muted-foreground">{say('還沒有逐字稿。', 'No transcript yet.')}</p>
                 )}

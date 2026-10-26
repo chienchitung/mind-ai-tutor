@@ -125,3 +125,14 @@ it('says when a recording has no audio in the cloud, and keeps the transcript', 
   expect(screen.getByText('先看 IF 的語法')).toBeTruthy();
   expect(screen.queryByRole('button', { name: /播放/ })).toBeNull();
 });
+
+it('cues a section time after going back from the transcript to the notes', async () => {
+  audioStore.blob = new Blob(['opus'], { type: 'audio/webm' });
+  view();
+  fireEvent.click(await screen.findByRole('radio', { name: '逐字稿' }));
+  await screen.findByRole('button', { name: '播放' });
+  fireEvent.click(screen.getByRole('radio', { name: '教學筆記' }));
+  fireEvent.click(await screen.findByRole('button', { name: '查看 1:05 的逐字稿' }));
+  await waitFor(() => expect(document.querySelector('audio')!.currentTime).toBe(65));
+  expect(HTMLMediaElement.prototype.play).not.toHaveBeenCalled();
+});
