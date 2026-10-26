@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
-import { cleanup, fireEvent, render, screen } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { LanguageProvider } from '@/app/contexts/LanguageContext';
 import { LectureRecordingPanel } from './LectureRecordingPanel';
 import { LectureJobsProvider } from './LectureJobsProvider';
@@ -86,4 +86,13 @@ it('says when the browser cannot record the screen', async () => {
   const screenOption = await screen.findByRole('menuitemradio', { name: /錄音＋螢幕畫面/ });
   expect(screenOption.getAttribute('aria-disabled')).toBe('true');
   expect(screen.getByText('這個瀏覽器不支援錄製畫面')).toBeTruthy();
+});
+
+it('returns focus to the options button when the details opened from the menu are closed', async () => {
+  fetchMock.mockImplementation(() => json([]));
+  view();
+  await openDetails();
+  fireEvent.keyDown(await screen.findByRole('dialog'), { key: 'Escape' });
+  await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
+  await waitFor(() => expect(document.activeElement).toBe(screen.getByRole('button', { name: '錄音選項' })));
 });

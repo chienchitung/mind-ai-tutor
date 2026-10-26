@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { AlertCircle, Check, ChevronDown, Download, Loader2, Mic, MonitorUp, RotateCcw, Square } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
@@ -39,6 +39,9 @@ export function LectureRecordingPanel({ sessionId, sessionTitle, deckUrl, deckPa
   const [recordings, setRecordings] = useState<RecordingSummary[] | null>(null);
   const [listError, setListError] = useState('');
   const [open, setOpen] = useState(false);
+  // Before recording, the details open from the options menu, which has no
+  // dialog trigger to take focus back: return it to the options button.
+  const optionsRef = useRef<HTMLButtonElement>(null);
   useEffect(() => { if (mine) markSlide(deckPage); }, [deckPage, markSlide, mine]);
   // Recording the screen too is opt-in, remembered per browser.
   const [screenSupported, setScreenSupported] = useState(false);
@@ -117,7 +120,7 @@ export function LectureRecordingPanel({ sessionId, sessionTitle, deckUrl, deckPa
           </Button>
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <Button variant="ghost" className="h-full w-9 rounded-l-none border-l border-input p-0 text-muted-foreground" aria-label={say('錄音選項', 'Recording options')}>
+              <Button ref={optionsRef} variant="ghost" className="h-full w-9 rounded-l-none border-l border-input p-0 text-muted-foreground" aria-label={say('錄音選項', 'Recording options')}>
                 <ChevronDown className="h-4 w-4" />
               </Button>
             </DropdownMenuTrigger>
@@ -180,7 +183,14 @@ export function LectureRecordingPanel({ sessionId, sessionTitle, deckUrl, deckPa
             </Button>
           </DialogTrigger>
         )}
-        <DialogContent className="max-h-[85dvh] w-[calc(100%-2rem)] max-w-lg overflow-y-auto rounded-2xl">
+        <DialogContent
+          className="max-h-[85dvh] w-[calc(100%-2rem)] max-w-lg overflow-y-auto rounded-2xl"
+          onCloseAutoFocus={(event) => {
+            if (!optionsRef.current?.isConnected) return;
+            event.preventDefault();
+            optionsRef.current.focus();
+          }}
+        >
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <Mic className="h-4 w-4 text-muted-foreground" />
