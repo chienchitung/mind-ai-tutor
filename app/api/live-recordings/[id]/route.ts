@@ -35,7 +35,7 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
     const ctx = await owner(request, params, false);
     if (ctx.response) return ctx.response;
     const { data, error } = await ctx.client.from('live_recordings')
-      .select('id, session_id, title, status, duration_seconds, slide_marks, notes, notes_generated_at, created_at, live_recording_segments(idx, start_seconds, duration_seconds, status, transcript, error)')
+      .select('id, session_id, title, status, duration_seconds, slide_marks, notes, notes_generated_at, created_at, live_sessions(deck_url), live_recording_segments(idx, start_seconds, duration_seconds, status, transcript, error)')
       .eq('id', ctx.id).eq('user_id', ctx.user.id).maybeSingle();
     if (error) return NextResponse.json({ error: 'LIVE_STORAGE_ERROR' }, { status: 500 });
     if (!data) return NextResponse.json({ error: 'NOT_FOUND' }, { status: 404 });
@@ -49,6 +49,8 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
       id: data.id, sessionId: data.session_id, title: data.title, status: data.status,
       durationSeconds: data.duration_seconds, slideMarks: data.slide_marks ?? [],
       notes: data.notes, notesGeneratedAt: data.notes_generated_at, createdAt: data.created_at, segments,
+      // For showing the slide a section of the notes refers to.
+      deckUrl: (Array.isArray((data as any).live_sessions) ? (data as any).live_sessions[0] : (data as any).live_sessions)?.deck_url ?? null,
     }, { headers });
   } catch {
     return NextResponse.json({ error: 'LIVE_STORAGE_ERROR' }, { status: 500 });

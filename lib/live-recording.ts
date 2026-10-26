@@ -54,10 +54,18 @@ export const lessonNotesSchema = z.object({
     startSeconds: z.number().min(0).nullable().default(null),
     points: z.array(z.string().min(1).max(1000)).min(1).max(20),
     examples: z.array(z.string().min(1).max(1000)).max(10).default([]),
+    /** What the teacher explicitly stressed: exam hints, common mistakes, must-remembers. */
+    emphasis: z.array(z.string().min(1).max(600)).max(10).default([]),
   })).min(1).max(30),
   keyTerms: z.array(z.object({ term: z.string().min(1).max(120), definition: z.string().min(1).max(600) })).max(30).default([]),
   studentQuestions: z.array(z.object({ question: z.string().min(1).max(600), answer: z.string().max(1500) })).max(30).default([]),
   reviewQuestions: z.array(z.object({ question: z.string().min(1).max(600), answer: z.string().min(1).max(1500) })).max(15).default([]),
+  /**
+   * Deck pages no section covers: never shown while recording, or shown but
+   * not talked about. Worked out by the server, not the model; missing on
+   * notes made before it existed.
+   */
+  uncoveredSlides: z.array(z.object({ page: z.number().int().min(1), title: z.string().max(200) })).max(300).optional(),
 });
 export type LessonNotes = z.infer<typeof lessonNotesSchema>;
 
@@ -77,6 +85,7 @@ export const LESSON_NOTES_JSON_SCHEMA = {
           startSeconds: { type: ['number', 'null'] },
           points: { type: 'array', items: { type: 'string' } },
           examples: { type: 'array', items: { type: 'string' } },
+          emphasis: { type: 'array', items: { type: 'string' } },
         },
         required: ['heading', 'slidePages', 'points'],
       },
@@ -219,11 +228,43 @@ export const TRANSCRIPT_JSON_SCHEMA = {
   required: ['paragraphs'],
 } as const;
 
+/** "3–5, 7" for [3, 4, 5, 7]. */
+export function formatPages(pages: number[]): string {
+  const sorted = Array.from(new Set(pages)).sort((a, b) => a - b);
+  const runs: string[] = [];
+  for (let i = 0; i < sorted.length; i++) {
+    let end = i;
+    while (end + 1 < sorted.length && sorted[end + 1] === sorted[end] + 1) end++;
+    runs.push(end > i ? `${sorted[i]}–${sorted[end]}` : `${sorted[i]}`);
+    i = end;
+  }
+  return runs.join(', ');
+}
+
+/** A slide's title for lists: the start of its text. */
+export function slideTitle(text: string): string {
+  const clean = text.replace(/\s+/g, ' ').trim();
+  return clean.length > 40 ? `${clean.slice(0, 40)}…` : clean;
+}
+
+/**
+ * Deck pages that no section of the notes is about. Sections only list the
+ * pages the teacher talked over, so this is every page never shown while
+ * recording plus every page shown but skipped.
+ */
+export function uncoveredSlides(deck: { page: number; text: string }[], sections: { slidePages: number[] }[]) {
+  const covered = new Set(sections.flatMap((section) => section.slidePages));
+  return deck
+    .filter((slide) => !covered.has(slide.page))
+    .sort((a, b) => a.page - b.page)
+    .map((slide) => ({ page: slide.page, title: slideTitle(slide.text) }));
+}
+
 export function lessonNotesToMarkdown(notes: LessonNotes, zh: boolean): string {
   const lines: string[] = [`# ${notes.title}`, '', notes.summary, ''];
   for (const section of notes.sections) {
     const meta = [
-      section.slidePages.length ? `${zh ? '投影片' : 'Slides'} ${section.slidePages.join(', ')}` : '',
+      section.slidePages.length ? (zh ? `投影片第 ${formatPages(section.slidePages)} 頁` : `Slides ${formatPages(section.slidePages)}`) : '',
       section.startSeconds !== null ? formatClock(section.startSeconds) : '',
     ].filter(Boolean).join(' · ');
     lines.push(`## ${section.heading}`);
@@ -231,6 +272,7 @@ export function lessonNotesToMarkdown(notes: LessonNotes, zh: boolean): string {
     lines.push('');
     for (const point of section.points) lines.push(`- ${point}`);
     for (const example of section.examples) lines.push(`- ${zh ? '例：' : 'Example: '}${example}`);
+    for (const stress of section.emphasis ?? []) lines.push(`- **${zh ? '老師強調' : 'Stressed'}**：${stress}`);
     lines.push('');
   }
   if (notes.keyTerms.length) {
@@ -246,6 +288,11 @@ export function lessonNotesToMarkdown(notes: LessonNotes, zh: boolean): string {
   if (notes.reviewQuestions.length) {
     lines.push(`## ${zh ? '課後複習' : 'Review questions'}`, '');
     notes.reviewQuestions.forEach(({ question, answer }, index) => lines.push(`${index + 1}. ${question}`, `   - ${zh ? '參考答案' : 'Answer'}：${answer}`));
+    lines.push('');
+  }
+  if (notes.uncoveredSlides?.length) {
+    lines.push(`## ${zh ? '這次錄音沒講到的投影片' : 'Slides not covered in this recording'}`, '');
+    for (const { page, title } of notes.uncoveredSlides) lines.push(`- ${zh ? `第 ${page} 頁` : `Slide ${page}`}${title ? `：${title}` : ''}`);
     lines.push('');
   }
   return lines.join('\n').trimEnd() + '\n';

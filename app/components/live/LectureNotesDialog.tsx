@@ -1,15 +1,56 @@
 'use client';
 
-import { useEffect, useState } from 'react';
-import { Check, Copy, Download, Loader2 } from 'lucide-react';
+import { useEffect, useRef, useState } from 'react';
+import { Check, ChevronLeft, ChevronRight, Copy, Download, Loader2, Play, Presentation, Star, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { SegmentedControl } from '@/components/ui/segmented-control';
 import { useLanguage } from '@/app/contexts/LanguageContext';
 import { useCopyFeedback } from '@/hooks/useCopyFeedback';
-import { formatClock, joinTranscript, lessonNotesToMarkdown, transcriptParagraphs, type LessonNotes, type RecordingSegment } from '@/lib/live-recording';
+import { cn } from '@/lib/utils';
+import { formatClock, formatPages, joinTranscript, lessonNotesSchema, lessonNotesToMarkdown, transcriptParagraphs, type LessonNotes, type RecordingSegment } from '@/lib/live-recording';
+import { DeckViewer } from './DeckViewer';
 
-type Detail = { title: string; notes: LessonNotes | null; durationSeconds: number; segments: RecordingSegment[] };
+type Detail = { title: string; notes: LessonNotes | null; durationSeconds: number; segments: RecordingSegment[]; deckUrl?: string | null };
+
+// The slide a part of the notes refers to, shown in place so a student can
+// read the two side by side.
+function SlidePreview({ url, pages, zh, onClose }: { url: string; pages: number[]; zh: boolean; onClose: () => void }) {
+  const [index, setIndex] = useState(0);
+  const [failed, setFailed] = useState(false);
+  const page = pages[Math.min(index, pages.length - 1)];
+  const say = (zhText: string, enText: string) => (zh ? zhText : enText);
+  return (
+    <div className="space-y-2 rounded-xl border bg-muted/30 p-2" role="group" aria-label={say(`投影片第 ${page} 頁`, `Slide ${page}`)}>
+      {failed ? (
+        <p className="py-6 text-center text-xs text-muted-foreground">{say('無法載入這份簡報。', 'Could not load the slides.')}</p>
+      ) : (
+        <div className="aspect-video w-full overflow-hidden rounded-lg bg-background">
+          <DeckViewer url={url} page={page} onError={() => setFailed(true)} className="h-full w-full" />
+        </div>
+      )}
+      <div className="flex items-center justify-between gap-2 text-xs text-muted-foreground">
+        <div className="flex items-center gap-1">
+          {pages.length > 1 && (
+            <Button size="sm" variant="ghost" className="h-7 w-7 p-0" disabled={index === 0} aria-label={say('上一頁', 'Previous slide')} onClick={() => setIndex(index - 1)}>
+              <ChevronLeft className="h-4 w-4" />
+            </Button>
+          )}
+          <span className="tabular-nums">{say(`第 ${page} 頁`, `Slide ${page}`)}</span>
+          {pages.length > 1 && (
+            <Button size="sm" variant="ghost" className="h-7 w-7 p-0" disabled={index >= pages.length - 1} aria-label={say('下一頁', 'Next slide')} onClick={() => setIndex(index + 1)}>
+              <ChevronRight className="h-4 w-4" />
+            </Button>
+          )}
+        </div>
+        <Button size="sm" variant="ghost" className="h-7 px-2" onClick={onClose}>
+          <X className="mr-1 h-3.5 w-3.5" />
+          {say('收起', 'Hide')}
+        </Button>
+      </div>
+    </div>
+  );
+}
 
 export function LectureNotesDialog({ recordingId, initialNotes, onClose }: {
   recordingId: string | null;
@@ -23,18 +64,28 @@ export function LectureNotesDialog({ recordingId, initialNotes, onClose }: {
   const [failed, setFailed] = useState(false);
   const [view, setView] = useState<'notes' | 'transcript'>('notes');
   const { copy, reset: resetCopied, isCopied, tick } = useCopyFeedback();
+  // Which slide preview is open (a section index, or "uncovered:<page>").
+  const [preview, setPreview] = useState<{ key: string; pages: number[] } | null>(null);
+  // A time in the notes was clicked: show that moment of the transcript.
+  const [jump, setJump] = useState<{ seconds: number; key: string | null } | null>(null);
+  const transcriptRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     if (!recordingId) return;
     let cancelled = false;
     setDetail(null);
     setFailed(false);
+    setPreview(null);
+    setJump(null);
     resetCopied();
     fetch(`/api/live-recordings/${recordingId}`, { cache: 'no-store' })
       .then((response) => (response.ok ? response.json() : Promise.reject()))
       .then((body: Detail) => {
         if (cancelled) return;
-        const notes = initialNotes ?? body.notes;
+        // Notes saved before a field existed get its default (e.g. emphasis).
+        const raw = initialNotes ?? body.notes;
+        const normalized = raw ? lessonNotesSchema.safeParse(raw) : null;
+        const notes = normalized?.success ? normalized.data : raw;
         setDetail({ ...body, notes });
         setView(notes ? 'notes' : 'transcript');
       })
@@ -42,7 +93,25 @@ export function LectureNotesDialog({ recordingId, initialNotes, onClose }: {
     return () => { cancelled = true; };
   }, [recordingId, initialNotes, resetCopied]);
 
+  useEffect(() => {
+    if (view !== 'transcript' || !jump || jump.key) return;
+    const rows = Array.from(transcriptRef.current?.querySelectorAll<HTMLElement>('[data-seconds]') ?? []);
+    // The paragraph that was being spoken at that moment.
+    const target = rows.filter((row) => Number(row.dataset.seconds) <= jump.seconds + 1).at(-1) ?? rows[0];
+    if (!target) return;
+    target.scrollIntoView?.({ block: 'center', behavior: 'smooth' });
+    setJump({ ...jump, key: target.dataset.key ?? null });
+  }, [view, jump]);
+
   const notes = detail?.notes ?? null;
+  const deckUrl = detail?.deckUrl ?? null;
+  const togglePreview = (key: string, pages: number[]) =>
+    setPreview((current) => (current?.key === key ? null : { key, pages }));
+  const showMoment = (seconds: number) => {
+    setJump({ seconds, key: null });
+    setView('transcript');
+  };
+  const pageLabel = (pages: number[]) => say(`第 ${formatPages(pages)} 頁`, `Slide${pages.length > 1 ? 's' : ''} ${formatPages(pages)}`);
   const markdown = notes ? lessonNotesToMarkdown(notes, zh) : '';
   const transcriptText = joinTranscript(detail?.segments ?? []);
 
@@ -77,7 +146,7 @@ export function LectureNotesDialog({ recordingId, initialNotes, onClose }: {
               <SegmentedControl
                 label={say('筆記檢視', 'Notes view')}
                 value={view}
-                onChange={setView}
+                onChange={(next) => { setJump(null); setView(next); }}
                 options={[
                   { value: 'notes' as const, label: say('教學筆記', 'Notes') },
                   { value: 'transcript' as const, label: say('逐字稿', 'Transcript') },
@@ -117,18 +186,53 @@ export function LectureNotesDialog({ recordingId, initialNotes, onClose }: {
                   <p className="rounded-xl bg-muted/50 p-4 text-[0.95rem] leading-7">{notes.summary}</p>
                   {notes.sections.map((section, index) => (
                     <section key={index} className="space-y-2">
-                      <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
+                      <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+                        {section.slidePages.length > 0 && (deckUrl ? (
+                          <button
+                            type="button"
+                            className={cn('inline-flex items-center gap-1 rounded-md border px-1.5 py-0.5 text-xs font-medium tabular-nums transition-colors hover:bg-muted', preview?.key === `${index}` && 'border-primary bg-primary/10 text-primary')}
+                            aria-expanded={preview?.key === `${index}`}
+                            aria-label={say(`查看投影片${pageLabel(section.slidePages)}`, `Show ${pageLabel(section.slidePages)}`)}
+                            onClick={() => togglePreview(`${index}`, section.slidePages)}
+                          >
+                            <Presentation className="h-3 w-3" />
+                            {pageLabel(section.slidePages)}
+                          </button>
+                        ) : (
+                          <span className="inline-flex items-center gap-1 rounded-md border px-1.5 py-0.5 text-xs tabular-nums text-muted-foreground">
+                            <Presentation className="h-3 w-3" />
+                            {pageLabel(section.slidePages)}
+                          </span>
+                        ))}
                         <h3 className="text-base font-semibold">{section.heading}</h3>
-                        <span className="text-xs text-muted-foreground">
-                          {[
-                            section.slidePages.length ? say(`投影片 ${section.slidePages.join(', ')}`, `Slides ${section.slidePages.join(', ')}`) : '',
-                            section.startSeconds !== null ? formatClock(section.startSeconds) : '',
-                          ].filter(Boolean).join(' · ')}
-                        </span>
+                        {section.startSeconds !== null && (
+                          <button
+                            type="button"
+                            className="inline-flex items-center gap-1 rounded-md px-1 text-xs tabular-nums text-muted-foreground hover:bg-muted hover:text-foreground"
+                            aria-label={say(`查看 ${formatClock(section.startSeconds)} 的逐字稿`, `Transcript at ${formatClock(section.startSeconds)}`)}
+                            onClick={() => showMoment(section.startSeconds!)}
+                          >
+                            <Play className="h-3 w-3" />
+                            {formatClock(section.startSeconds)}
+                          </button>
+                        )}
                       </div>
+                      {preview?.key === `${index}` && deckUrl && (
+                        <SlidePreview key={preview.key} url={deckUrl} pages={preview.pages} zh={zh} onClose={() => setPreview(null)} />
+                      )}
                       <ul className="list-disc space-y-1 pl-5">
                         {section.points.map((point, pointIndex) => <li key={pointIndex}>{point}</li>)}
                       </ul>
+                      {section.emphasis?.length > 0 && (
+                        <div className="space-y-1 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-[0.85rem] text-amber-950 dark:border-amber-900 dark:bg-amber-950/30 dark:text-amber-100">
+                          {section.emphasis.map((stress, stressIndex) => (
+                            <p key={stressIndex} className="flex gap-1.5">
+                              <Star className="mt-1 h-3 w-3 shrink-0 fill-current text-amber-500" aria-hidden="true" />
+                              <span><span className="font-medium">{say('老師強調：', 'Stressed: ')}</span>{stress}</span>
+                            </p>
+                          ))}
+                        </div>
+                      )}
                       {section.examples.length > 0 && (
                         <div className="rounded-lg border-l-2 border-primary/40 bg-muted/30 px-3 py-2 text-[0.85rem]">
                           {section.examples.map((example, exampleIndex) => <p key={exampleIndex}>{say('例：', 'Example: ')}{example}</p>)}
@@ -176,6 +280,35 @@ export function LectureNotesDialog({ recordingId, initialNotes, onClose }: {
                       </ol>
                     </section>
                   )}
+                  {!!notes.uncoveredSlides?.length && (
+                    <section className="space-y-2">
+                      <h3 className="text-base font-semibold">{say('這次錄音沒講到的投影片', 'Slides not covered in this recording')}</h3>
+                      <p className="text-xs text-muted-foreground">
+                        {say('這些頁面錄音時沒有放出來，或放了但沒有講解。可以自行閱讀，或留待下次上課。', 'These were not shown while recording, or shown without being explained. Read them on your own, or they come next time.')}
+                      </p>
+                      <ul className="divide-y rounded-lg border">
+                        {notes.uncoveredSlides.map(({ page, title }) => {
+                          const key = `uncovered:${page}`;
+                          return (
+                            <li key={page} className="space-y-2 px-3 py-2">
+                              <div className="flex items-center gap-3">
+                                <span className="w-14 shrink-0 text-xs tabular-nums text-muted-foreground">{say(`第 ${page} 頁`, `Slide ${page}`)}</span>
+                                <span className="min-w-0 flex-1 truncate">{title || say('（圖片頁）', '(image only)')}</span>
+                                {deckUrl && (
+                                  <Button size="sm" variant="ghost" className="h-7 px-2 text-xs" aria-expanded={preview?.key === key} onClick={() => togglePreview(key, [page])}>
+                                    {preview?.key === key ? say('收起', 'Hide') : say('查看', 'View')}
+                                  </Button>
+                                )}
+                              </div>
+                              {preview?.key === key && deckUrl && (
+                                <SlidePreview key={key} url={deckUrl} pages={[page]} zh={zh} onClose={() => setPreview(null)} />
+                              )}
+                            </li>
+                          );
+                        })}
+                      </ul>
+                    </section>
+                  )}
                 </article>
               ) : (
                 <p className="rounded-xl border border-dashed px-4 py-8 text-center text-sm text-muted-foreground">
@@ -183,13 +316,18 @@ export function LectureNotesDialog({ recordingId, initialNotes, onClose }: {
                 </p>
               )
             ) : (
-              <div className="space-y-3 text-sm leading-7">
+              <div ref={transcriptRef} className="space-y-3 text-sm leading-7">
                 {detail.segments.length === 0 && (
                   <p className="py-6 text-center text-muted-foreground">{say('還沒有逐字稿。', 'No transcript yet.')}</p>
                 )}
                 {detail.segments.flatMap((segment) => {
                   const row = (key: string, seconds: number, body: React.ReactNode) => (
-                    <div key={key} className="grid grid-cols-[3.5rem_1fr] gap-3">
+                    <div
+                      key={key}
+                      data-seconds={seconds}
+                      data-key={key}
+                      className={cn('grid grid-cols-[3.5rem_1fr] gap-3 rounded-md transition-colors', jump?.key === key && 'bg-amber-100/70 dark:bg-amber-900/30')}
+                    >
                       <span className="pt-0.5 font-mono text-xs tabular-nums text-muted-foreground">{formatClock(seconds)}</span>
                       {body}
                     </div>

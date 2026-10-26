@@ -67,10 +67,20 @@ describe('POST /api/live-recordings/[id]/notes', () => {
       slides: [{ page: 1, text: 'IF 語法' }],
       studentQuestions: ['公開提問'],
     });
-    expect(updates[0]).toMatchObject({ notes });
+    // Pages no section covers are listed for students: 2 was shown but not
+    // talked about, 7 never shown.
+    const saved = { ...notes, uncoveredSlides: [{ page: 2, title: '' }, { page: 7, title: '樞紐分析表' }] };
+    expect(updates[0]).toMatchObject({ notes: saved });
     // Not a heartbeat: an abandoned recording must not look live again.
     expect(updates[0]).not.toHaveProperty('updated_at');
-    expect((await response.json()).notes).toEqual(notes);
+    expect((await response.json()).notes).toEqual(saved);
+  });
+  it('keeps a section from claiming a slide that was never on screen', async () => {
+    mocks.generateLectureNotes.mockResolvedValue({ ...notes, sections: [{ ...notes.sections[0], slidePages: [1, 7] }] });
+    const response = await POST(request({ slides: [{ page: 1, text: 'IF 語法' }, { page: 7, text: '樞紐分析表' }] }), { params: params() });
+    const body = await response.json();
+    expect(body.notes.sections[0].slidePages).toEqual([1]);
+    expect(body.notes.uncoveredSlides).toEqual([{ page: 7, title: '樞紐分析表' }]);
   });
   it('refuses without spending points when nothing has been transcribed', async () => {
     recording.live_recording_segments = [{ idx: 0, start_seconds: 0, duration_seconds: 300, status: 'failed', transcript: null, error: 'x' }];

@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { generateLectureNotes } from '@/lib/gemini';
 import { HttpInputError, readJsonWithLimit } from '@/lib/http-security';
-import { formatClock, joinTranscript, notesRequestSchema, slideTimeline, type RecordingSegment, type SlideMark } from '@/lib/live-recording';
+import { formatClock, joinTranscript, notesRequestSchema, slideTimeline, uncoveredSlides, type RecordingSegment, type SlideMark } from '@/lib/live-recording';
 import { aiFailure, authorizeTeacherAi, claimTeacherAi } from '../../../gemini/security';
 
 export const runtime = 'nodejs';
@@ -61,9 +61,9 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     // over the whole deck let a few seconds of speech come back as notes for
     // the entire deck.
     const shown = new Set(timeline.map((range) => range.page));
-    let notes;
+    let generated;
     try {
-      notes = await generateLectureNotes({
+      generated = await generateLectureNotes({
         language: parsed.data.language,
         title: recording.title,
         transcript: transcript.slice(0, MAX_TRANSCRIPT_CHARS),
@@ -74,6 +74,10 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     } catch (cause) {
       return aiFailure(cause);
     }
+    // A section may only claim a page that was on screen; what no section
+    // claims is listed for students to read on their own.
+    const sections = generated.sections.map((section) => ({ ...section, slidePages: section.slidePages.filter((page) => shown.has(page)) }));
+    const notes = { ...generated, sections, uncoveredSlides: uncoveredSlides(parsed.data.slides, sections) };
     const generatedAt = new Date().toISOString();
     const { error: saveError } = await client.from('live_recordings')
       // updated_at is left alone: it is the recorder's heartbeat, and bumping
