@@ -11,7 +11,7 @@ import { cn } from '@/lib/utils';
 import { formatClock, formatPages, joinTranscript, lessonNotesSchema, lessonNotesToMarkdown, transcriptParagraphs, type LessonNotes, type RecordingSegment } from '@/lib/live-recording';
 import { DeckViewer } from './DeckViewer';
 
-type Detail = { title: string; notes: LessonNotes | null; durationSeconds: number; segments: RecordingSegment[]; deckUrl?: string | null };
+type Detail = { title: string; notes: LessonNotes | null; durationSeconds: number; segments: RecordingSegment[] };
 
 // The slide a part of the notes refers to, shown in place so a student can
 // read the two side by side.
@@ -104,7 +104,9 @@ export function LectureNotesDialog({ recordingId, initialNotes, onClose }: {
   }, [view, jump]);
 
   const notes = detail?.notes ?? null;
-  const deckUrl = detail?.deckUrl ?? null;
+  // The deck the notes were made from (older notes did not keep it; their
+  // pages are shown as plain labels rather than risk a replaced deck).
+  const deckUrl = notes?.deckUrl ?? null;
   const togglePreview = (key: string, pages: number[]) =>
     setPreview((current) => (current?.key === key ? null : { key, pages }));
   const showMoment = (seconds: number) => {

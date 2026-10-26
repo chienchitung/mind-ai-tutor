@@ -41,6 +41,7 @@ beforeEach(() => {
   updates = [];
   recording = {
     id, session_id: '22222222-2222-4222-8222-222222222222', title: '第三課', duration_seconds: 400,
+    live_sessions: { deck_url: 'https://cdn.test/deck-v1.pdf' },
     slide_marks: [{ t: 0, page: 1 }, { t: 120, page: 2 }],
     live_recording_segments: [
       { idx: 1, start_seconds: 300, duration_seconds: 100, status: 'transcribed', transcript: '接著示範巢狀 IF，再用 VLOOKUP 把成績對照到等第，記得第四個參數填 FALSE', error: null },
@@ -69,7 +70,8 @@ describe('POST /api/live-recordings/[id]/notes', () => {
     });
     // Pages no section covers are listed for students: 2 was shown but not
     // talked about, 7 never shown.
-    const saved = { ...notes, uncoveredSlides: [{ page: 2, title: '' }, { page: 7, title: '樞紐分析表' }] };
+    // The deck is kept with the notes: the session's deck may be replaced later.
+    const saved = { ...notes, uncoveredSlides: [{ page: 2, title: '' }, { page: 7, title: '樞紐分析表' }], deckUrl: 'https://cdn.test/deck-v1.pdf' };
     expect(updates[0]).toMatchObject({ notes: saved });
     // Not a heartbeat: an abandoned recording must not look live again.
     expect(updates[0]).not.toHaveProperty('updated_at');

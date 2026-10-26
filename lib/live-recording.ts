@@ -66,6 +66,11 @@ export const lessonNotesSchema = z.object({
    * notes made before it existed.
    */
   uncoveredSlides: z.array(z.object({ page: z.number().int().min(1), title: z.string().max(200) })).max(300).optional(),
+  /**
+   * The deck the page numbers refer to, as it was when the notes were made:
+   * the session's deck can be replaced later. Set by the server.
+   */
+  deckUrl: z.string().max(2000).nullable().optional(),
 });
 export type LessonNotes = z.infer<typeof lessonNotesSchema>;
 

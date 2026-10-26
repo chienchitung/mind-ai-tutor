@@ -16,6 +16,7 @@ const notes = {
   ],
   keyTerms: [], studentQuestions: [], reviewQuestions: [],
   uncoveredSlides: [{ page: 4, title: '巢狀 IF' }, { page: 5, title: '' }],
+  deckUrl: 'https://cdn.test/deck.pdf',
 };
 const segments = [
   { idx: 0, startSeconds: 0, durationSeconds: 300, status: 'transcribed', transcript: '[0:00] 同學好\n\n[1:00] 先看 IF 的語法\n\n[2:30] 接著巢狀', error: null },
@@ -24,7 +25,7 @@ let detail: Record<string, unknown>;
 const scrolled: Element[] = [];
 
 beforeEach(() => {
-  detail = { title: '第三課', notes, durationSeconds: 300, segments, deckUrl: 'https://cdn.test/deck.pdf' };
+  detail = { title: '第三課', notes, durationSeconds: 300, segments };
   vi.stubGlobal('fetch', vi.fn(async () => new Response(JSON.stringify(detail))));
   scrolled.length = 0;
   Element.prototype.scrollIntoView = function scrollIntoView() { scrolled.push(this); };
@@ -65,9 +66,9 @@ it('jumps from a section time to that moment of the transcript', async () => {
   expect((scrolled.at(-1) as HTMLElement).className).toContain('bg-amber');
 });
 
-it('still opens notes made before slides were linked, without a deck', async () => {
-  const { uncoveredSlides: _omit, ...older } = notes;
-  detail = { ...detail, deckUrl: null, notes: { ...older, sections: older.sections.map(({ emphasis: _e, ...section }) => section) } };
+it('still opens notes made before slides were linked, without guessing their deck', async () => {
+  const { uncoveredSlides: _omit, deckUrl: _deck, ...older } = notes;
+  detail = { ...detail, notes: { ...older, sections: older.sections.map(({ emphasis: _e, ...section }) => section) } };
   view();
   expect(await screen.findByText('條件放第一個參數')).toBeTruthy();
   expect(screen.getByText('第 2–3 頁')).toBeTruthy();

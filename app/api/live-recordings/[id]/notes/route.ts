@@ -29,7 +29,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     const userId = access.user!.id;
 
     const { data: recording, error } = await client.from('live_recordings')
-      .select('id, session_id, title, duration_seconds, slide_marks, live_recording_segments(idx, start_seconds, duration_seconds, status, transcript, error)')
+      .select('id, session_id, title, duration_seconds, slide_marks, live_sessions(deck_url), live_recording_segments(idx, start_seconds, duration_seconds, status, transcript, error)')
       .eq('id', id).eq('user_id', userId).maybeSingle();
     if (error) return NextResponse.json({ error: 'LIVE_STORAGE_ERROR' }, { status: 500 });
     if (!recording) return NextResponse.json({ error: 'NOT_FOUND' }, { status: 404 });
@@ -77,7 +77,16 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     // A section may only claim a page that was on screen; what no section
     // claims is listed for students to read on their own.
     const sections = generated.sections.map((section) => ({ ...section, slidePages: section.slidePages.filter((page) => shown.has(page)) }));
-    const notes = { ...generated, sections, uncoveredSlides: uncoveredSlides(parsed.data.slides, sections) };
+    const session = (recording as any).live_sessions;
+    const deckUrl: string | null = (Array.isArray(session) ? session[0] : session)?.deck_url ?? null;
+    const notes = {
+      ...generated,
+      sections,
+      uncoveredSlides: uncoveredSlides(parsed.data.slides, sections),
+      // Kept with the notes: their page numbers mean this deck, even after
+      // the session's deck is replaced.
+      deckUrl,
+    };
     const generatedAt = new Date().toISOString();
     const { error: saveError } = await client.from('live_recordings')
       // updated_at is left alone: it is the recorder's heartbeat, and bumping
