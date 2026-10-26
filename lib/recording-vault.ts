@@ -31,6 +31,8 @@ export type VaultMeta = {
   hasVideo?: boolean;
   /** The teacher saved the download copy; a finished one is then cleared. */
   downloaded?: boolean;
+  /** The lesson audio reached the cloud copy kept for playback. */
+  audioSaved?: boolean;
 };
 
 /** File extension for a download copy of this media type. */

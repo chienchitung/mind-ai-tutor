@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { supabase } from '@/lib/supabase';
 import { RECORDING_BUCKET, RECORDING_HEARTBEAT_MS, SEGMENT_SAMPLE_RATE, SEGMENT_SECONDS, segmentPath, type SlideMark } from '@/lib/live-recording';
 import { concatSamples, downsample, encodeWav } from '@/lib/wav';
+import { uploadLectureAudio } from '@/lib/lecture-audio';
 import { floatToInt16, mediaExtension, openRecordingVault, vaultLockName, type RecordingVault, type VaultMeta } from '@/lib/recording-vault';
 
 export type RecorderPhase = 'idle' | 'starting' | 'recording' | 'stopping' | 'stopped';
@@ -62,6 +63,9 @@ export function useLectureRecorder() {
   // stopped sharing mid-lesson (the voice keeps recording).
   const [hasVideo, setHasVideo] = useState(false);
   const [screenEnded, setScreenEnded] = useState(false);
+  // The lesson audio kept in the cloud for playback with the transcript.
+  const [cloudAudio, setCloudAudio] = useState<'idle' | 'uploading' | 'saved' | 'failed'>('idle');
+  const cloudBlobRef = useRef<Blob | null>(null);
 
   const streamRef = useRef<MediaStream | null>(null);
   const screenRef = useRef<MediaStream | null>(null);
@@ -69,6 +73,10 @@ export function useLectureRecorder() {
   const processorRef = useRef<ScriptProcessorNode | null>(null);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const mediaChunksRef = useRef<Blob[]>([]);
+  // With a screen recording, the voice is also recorded on its own for the
+  // cloud copy (the video itself never leaves the computer).
+  const audioRecorderRef = useRef<MediaRecorder | null>(null);
+  const audioChunksRef = useRef<Blob[]>([]);
   const pcmRef = useRef<Float32Array[]>([]);
   const rateRef = useRef(SEGMENT_SAMPLE_RATE);
   const totalSamplesRef = useRef(0);
@@ -321,6 +329,14 @@ export function useLectureRecorder() {
         recorder.start(10_000);
         mediaRecorderRef.current = recorder;
       }
+      audioChunksRef.current = [];
+      const audioMime = screen ? pickMime(DOWNLOAD_MIME_TYPES) : undefined;
+      if (audioMime) {
+        const voice = new MediaRecorder(stream, { mimeType: audioMime, audioBitsPerSecond: 32_000 });
+        voice.ondataavailable = (event) => { if (event.data.size) audioChunksRef.current.push(event.data); };
+        voice.start(10_000);
+        audioRecorderRef.current = voice;
+      }
 
       streamRef.current = stream;
       screenRef.current = screen;
@@ -369,17 +385,38 @@ export function useLectureRecorder() {
     }
   }, [phase, cutSegment, saveProgress]);
 
+  const saveCloudAudio = useCallback(async () => {
+    const ids = idsRef.current;
+    const blob = cloudBlobRef.current;
+    if (!ids || !blob) { setCloudAudio('idle'); return; }
+    setCloudAudio('uploading');
+    const ok = await uploadLectureAudio(ids.userId, ids.recordingId, blob);
+    // A newer recording may have started meanwhile.
+    if (idsRef.current?.recordingId !== ids.recordingId) return;
+    setCloudAudio(ok ? 'saved' : 'failed');
+    if (ok) {
+      cloudBlobRef.current = null;
+      persistMeta({ audioSaved: true });
+    }
+  }, []);
+
   const stop = useCallback(async () => {
     if (phase !== 'recording') return;
     setPhase('stopping');
     processorRef.current?.disconnect();
     cutSegment();
-    const recorder = mediaRecorderRef.current;
+    const recorders = [mediaRecorderRef.current, audioRecorderRef.current];
     mediaRecorderRef.current = null;
-    if (recorder && recorder.state !== 'inactive') {
-      await new Promise<void>((resolve) => { recorder.onstop = () => resolve(); recorder.stop(); });
-    }
+    audioRecorderRef.current = null;
+    await Promise.all(recorders.map((recorder) => (recorder && recorder.state !== 'inactive'
+      ? new Promise<void>((resolve) => { recorder.onstop = () => resolve(); recorder.stop(); })
+      : undefined)));
     teardownAudio();
+    // The voice alone goes to the cloud: the separate audio copy with a
+    // screen recording, otherwise the download copy itself.
+    const voiceChunks = hasVideo ? audioChunksRef.current : mediaChunksRef.current;
+    cloudBlobRef.current = voiceChunks.length ? new Blob(voiceChunks, { type: voiceChunks[0].type || 'audio/webm' }) : null;
+    audioChunksRef.current = [];
     if (mediaChunksRef.current.length) {
       const type = mediaChunksRef.current[0].type || (hasVideo ? 'video/webm' : 'audio/webm');
       const extension = mediaExtension(type);
@@ -393,7 +430,8 @@ export function useLectureRecorder() {
     // uploading) is left in the vault.
     persistMeta({ finished: true, elapsedSeconds: Math.round(seconds()) });
     setPhase('stopped');
-  }, [phase, cutSegment, saveProgress, hasVideo]);
+    void saveCloudAudio();
+  }, [phase, cutSegment, saveProgress, hasVideo, saveCloudAudio]);
 
   const markSlide = useCallback((page: number) => {
     if (phase !== 'recording') return;
@@ -426,21 +464,25 @@ export function useLectureRecorder() {
     setElapsed(0);
     setHasVideo(false);
     setScreenEnded(false);
+    setCloudAudio('idle');
+    cloudBlobRef.current = null;
     setPhase('idle');
   }, [phase]);
 
   // Leaving mid-lesson would drop the unsent tail and the download copy.
   useEffect(() => {
-    if (phase !== 'recording' && !segments.some((segment) => segment.status === 'uploading' || segment.status === 'transcribing')) return;
+    if (phase !== 'recording' && cloudAudio !== 'uploading'
+      && !segments.some((segment) => segment.status === 'uploading' || segment.status === 'transcribing')) return;
     const warn = (event: BeforeUnloadEvent) => { event.preventDefault(); event.returnValue = ''; };
     window.addEventListener('beforeunload', warn);
     return () => window.removeEventListener('beforeunload', warn);
-  }, [phase, segments]);
+  }, [phase, segments, cloudAudio]);
 
   useEffect(() => () => {
     mediaRecorderRef.current?.stop();
+    audioRecorderRef.current?.stop();
     teardownAudio();
   }, []);
 
-  return { phase, target, elapsed, recordingId, segments, download, error, hasVideo, screenEnded, start, stop, markSlide, retry, reset, markDownloaded };
+  return { phase, target, elapsed, recordingId, segments, download, error, hasVideo, screenEnded, cloudAudio, start, stop, markSlide, retry, reset, markDownloaded, retryCloudAudio: saveCloudAudio };
 }

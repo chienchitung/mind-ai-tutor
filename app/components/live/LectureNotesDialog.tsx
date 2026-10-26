@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
-import { Check, ChevronLeft, ChevronRight, Copy, Download, Loader2, Play, Presentation, Star, X } from 'lucide-react';
+import { Check, ChevronLeft, ChevronRight, Copy, Download, Loader2, Pause, Play, Presentation, Star, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { SegmentedControl } from '@/components/ui/segmented-control';
@@ -10,8 +10,62 @@ import { useCopyFeedback } from '@/hooks/useCopyFeedback';
 import { cn } from '@/lib/utils';
 import { formatClock, formatPages, joinTranscript, lessonNotesSchema, lessonNotesToMarkdown, transcriptParagraphs, type LessonNotes, type RecordingSegment } from '@/lib/live-recording';
 import { DeckViewer } from './DeckViewer';
+import { useLectureAudio, type LectureAudio } from './useLectureAudio';
 
-type Detail = { title: string; notes: LessonNotes | null; durationSeconds: number; segments: RecordingSegment[] };
+type Detail = { title: string; notes: LessonNotes | null; durationSeconds: number; segments: RecordingSegment[]; userId?: string };
+type TranscriptRow = { key: string; seconds: number; kind: 'text' | 'failed' | 'silent'; text: string };
+
+const RATES = [1, 1.25, 1.5, 2];
+
+// Play/pause, position and speed for the lesson audio above the transcript.
+function PlayerBar({ audio, zh, follow, onFollow }: { audio: LectureAudio; zh: boolean; follow: boolean; onFollow: (value: boolean) => void }) {
+  const say = (zhText: string, enText: string) => (zh ? zhText : enText);
+  if (audio.status === 'loading' || audio.status === 'idle') {
+    return (
+      <p className="flex items-center gap-2 rounded-xl border px-3 py-2.5 text-xs text-muted-foreground" role="status">
+        <Loader2 className="h-3.5 w-3.5 animate-spin" />
+        {say('正在載入錄音…', 'Loading the audio…')}
+      </p>
+    );
+  }
+  if (audio.status === 'missing') {
+    return (
+      <p className="rounded-xl border border-dashed px-3 py-2.5 text-xs text-muted-foreground">
+        {say('這份錄音沒有存到雲端（較早的錄音，或上傳沒有成功），只能看逐字稿。', 'This recording\'s audio was not saved to the cloud (an older recording, or the upload failed), so only the transcript is shown.')}
+      </p>
+    );
+  }
+  return (
+    <div className="sticky top-0 z-10 flex flex-wrap items-center gap-x-3 gap-y-2 rounded-xl border bg-background/95 px-3 py-2 shadow-sm backdrop-blur">
+      <Button size="sm" className="h-8 w-8 shrink-0 rounded-full p-0" aria-label={audio.playing ? say('暫停', 'Pause') : say('播放', 'Play')} onClick={audio.toggle}>
+        {audio.playing ? <Pause className="h-3.5 w-3.5 fill-current" /> : <Play className="ml-0.5 h-3.5 w-3.5 fill-current" />}
+      </Button>
+      <input
+        type="range"
+        min={0}
+        max={Math.max(1, Math.round(audio.duration))}
+        step={1}
+        value={Math.min(Math.round(audio.time), Math.round(audio.duration))}
+        onChange={(event) => audio.seek(Number(event.target.value), audio.playing)}
+        aria-label={say('播放位置', 'Position')}
+        className="h-1.5 min-w-[8rem] flex-1 cursor-pointer accent-primary"
+      />
+      <span className="font-mono text-xs tabular-nums text-muted-foreground">{formatClock(audio.time)} / {formatClock(audio.duration)}</span>
+      <button
+        type="button"
+        className="rounded-md border px-1.5 py-0.5 text-xs font-medium tabular-nums hover:bg-muted"
+        aria-label={say(`播放速度 ${audio.rate} 倍`, `Speed ${audio.rate}×`)}
+        onClick={() => audio.setRate(RATES[(RATES.indexOf(audio.rate) + 1) % RATES.length])}
+      >
+        {audio.rate}×
+      </button>
+      <label className="flex items-center gap-1.5 text-xs text-muted-foreground">
+        <input type="checkbox" className="accent-primary" checked={follow} onChange={(event) => onFollow(event.target.checked)} />
+        {say('跟著捲動', 'Follow along')}
+      </label>
+    </div>
+  );
+}
 
 // The slide a part of the notes refers to, shown in place so a student can
 // read the two side by side.
@@ -69,6 +123,9 @@ export function LectureNotesDialog({ recordingId, initialNotes, onClose }: {
   // A time in the notes was clicked: show that moment of the transcript.
   const [jump, setJump] = useState<{ seconds: number; key: string | null } | null>(null);
   const transcriptRef = useRef<HTMLDivElement>(null);
+  const [follow, setFollow] = useState(true);
+  // Loaded once the transcript is opened, or a time in the notes is clicked.
+  const audio = useLectureAudio(detail?.userId ?? null, recordingId, detail?.durationSeconds ?? 0, view === 'transcript');
 
   useEffect(() => {
     if (!recordingId) return;
@@ -112,7 +169,24 @@ export function LectureNotesDialog({ recordingId, initialNotes, onClose }: {
   const showMoment = (seconds: number) => {
     setJump({ seconds, key: null });
     setView('transcript');
+    // Cued, not started: the teacher chooses when to listen.
+    audio.seek(seconds, false);
   };
+
+  // The transcript as rows, each starting at a time in the lesson.
+  const rows = (detail?.segments ?? []).flatMap<TranscriptRow>((segment) => {
+    if (segment.status !== 'transcribed') return [{ key: `${segment.idx}`, seconds: segment.startSeconds, kind: 'failed' as const, text: '' }];
+    const paragraphs = transcriptParagraphs(segment);
+    if (!paragraphs.length) return [{ key: `${segment.idx}`, seconds: segment.startSeconds, kind: 'silent' as const, text: '' }];
+    return paragraphs.map((paragraph, index) => ({ key: `${segment.idx}-${index}`, seconds: paragraph.seconds, kind: 'text' as const, text: paragraph.text }));
+  });
+  // The paragraph being heard right now.
+  const listening = audio.status === 'ready' && (audio.playing || audio.time > 0);
+  const currentKey = listening ? rows.filter((row) => row.seconds <= audio.time + 0.5).at(-1)?.key ?? null : null;
+  useEffect(() => {
+    if (!follow || !audio.playing || !currentKey) return;
+    transcriptRef.current?.querySelector<HTMLElement>(`[data-key="${currentKey}"]`)?.scrollIntoView?.({ block: 'center', behavior: 'smooth' });
+  }, [currentKey, follow, audio.playing]);
   const pageLabel = (pages: number[]) => say(`第 ${formatPages(pages)} 頁`, `Slide${pages.length > 1 ? 's' : ''} ${formatPages(pages)}`);
   const markdown = notes ? lessonNotesToMarkdown(notes, zh) : '';
   const transcriptText = joinTranscript(detail?.segments ?? []);
@@ -144,6 +218,9 @@ export function LectureNotesDialog({ recordingId, initialNotes, onClose }: {
           <div className="flex justify-center py-10"><Loader2 className="h-5 w-5 animate-spin text-muted-foreground" /></div>
         ) : (
           <div className="space-y-4">
+            {/* Played through the transcript's player bar; kept mounted in
+                both views so a time clicked in the notes cues it. */}
+            {audio.status === 'ready' && <audio {...audio.audioProps} className="hidden" />}
             <div className="flex flex-wrap items-center justify-between gap-2">
               <SegmentedControl
                 label={say('筆記檢視', 'Notes view')}
@@ -319,33 +396,42 @@ export function LectureNotesDialog({ recordingId, initialNotes, onClose }: {
               )
             ) : (
               <div ref={transcriptRef} className="space-y-3 text-sm leading-7">
+                {detail.segments.length > 0 && <PlayerBar audio={audio} zh={zh} follow={follow} onFollow={setFollow} />}
                 {detail.segments.length === 0 && (
                   <p className="py-6 text-center text-muted-foreground">{say('還沒有逐字稿。', 'No transcript yet.')}</p>
                 )}
-                {detail.segments.flatMap((segment) => {
-                  const row = (key: string, seconds: number, body: React.ReactNode) => (
-                    <div
-                      key={key}
-                      data-seconds={seconds}
-                      data-key={key}
-                      className={cn('grid grid-cols-[3.5rem_1fr] gap-3 rounded-md transition-colors', jump?.key === key && 'bg-amber-100/70 dark:bg-amber-900/30')}
-                    >
-                      <span className="pt-0.5 font-mono text-xs tabular-nums text-muted-foreground">{formatClock(seconds)}</span>
-                      {body}
-                    </div>
-                  );
-                  if (segment.status !== 'transcribed') {
-                    return [row(`${segment.idx}`, segment.startSeconds, (
+                {rows.map((row) => (
+                  <div
+                    key={row.key}
+                    data-seconds={row.seconds}
+                    data-key={row.key}
+                    aria-current={row.key === currentKey ? 'true' : undefined}
+                    className={cn(
+                      'grid grid-cols-[3.5rem_1fr] gap-3 rounded-md px-1 transition-colors',
+                      row.key === currentKey ? 'bg-primary/10' : jump?.key === row.key && 'bg-amber-100/70 dark:bg-amber-900/30',
+                    )}
+                  >
+                    {audio.status === 'ready' ? (
+                      <button
+                        type="button"
+                        className="h-fit pt-0.5 text-left font-mono text-xs tabular-nums text-primary underline-offset-2 hover:underline"
+                        aria-label={say(`從 ${formatClock(row.seconds)} 播放`, `Play from ${formatClock(row.seconds)}`)}
+                        onClick={() => audio.seek(row.seconds)}
+                      >
+                        {formatClock(row.seconds)}
+                      </button>
+                    ) : (
+                      <span className="pt-0.5 font-mono text-xs tabular-nums text-muted-foreground">{formatClock(row.seconds)}</span>
+                    )}
+                    {row.kind === 'failed' ? (
                       <p className="text-amber-700 dark:text-amber-400">{say('這段轉錄失敗，可在面板中重試。', 'This segment failed. Retry it from the panel.')}</p>
-                    ))];
-                  }
-                  const paragraphs = transcriptParagraphs(segment);
-                  if (!paragraphs.length) {
-                    return [row(`${segment.idx}`, segment.startSeconds, <p className="text-muted-foreground">{say('（這段沒有語音）', '(no speech)')}</p>)];
-                  }
-                  return paragraphs.map((paragraph, index) =>
-                    row(`${segment.idx}-${index}`, paragraph.seconds, <p className="whitespace-pre-wrap">{paragraph.text}</p>));
-                })}
+                    ) : row.kind === 'silent' ? (
+                      <p className="text-muted-foreground">{say('（這段沒有語音）', '(no speech)')}</p>
+                    ) : (
+                      <p className="whitespace-pre-wrap">{row.text}</p>
+                    )}
+                  </div>
+                ))}
               </div>
             )}
           </div>
