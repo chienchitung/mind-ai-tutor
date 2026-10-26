@@ -230,6 +230,10 @@ export function useLectureRecorder() {
       setError('MIC_UNSUPPORTED');
       return;
     }
+    // A start that fails before claiming a new recording goes back to where it
+    // was: a finished recording keeps offering its download.
+    const before = phase;
+    let claimed = false;
     setPhase('starting');
     // Asked first, while the click still counts as the user's: browsers only
     // show the screen picker in direct response to one.
@@ -242,7 +246,7 @@ export function useLectureRecorder() {
         });
       } catch {
         setError('SCREEN_DENIED');
-        setPhase('idle');
+        setPhase(before);
         return;
       }
     }
@@ -253,7 +257,7 @@ export function useLectureRecorder() {
     } catch {
       screen?.getTracks().forEach((track) => track.stop());
       setError('MIC_DENIED');
-      setPhase('idle');
+      setPhase(before);
       return;
     }
     try {
@@ -264,6 +268,7 @@ export function useLectureRecorder() {
       });
       const body = await response.json().catch(() => ({}));
       if (!response.ok) throw new Error(body.error === 'RECORDINGS_NOT_READY' ? 'RECORDINGS_NOT_READY' : 'START_FAILED');
+      claimed = true;
       idsRef.current = { recordingId: body.id, userId: body.userId };
       targetRef.current = next;
       setTarget(next);
@@ -360,7 +365,7 @@ export function useLectureRecorder() {
       stream.getTracks().forEach((track) => track.stop());
       screen?.getTracks().forEach((track) => track.stop());
       setError(cause instanceof Error && cause.message === 'RECORDINGS_NOT_READY' ? 'RECORDINGS_NOT_READY' : 'START_FAILED');
-      setPhase('idle');
+      setPhase(claimed ? 'idle' : before);
     }
   }, [phase, cutSegment, saveProgress]);
 

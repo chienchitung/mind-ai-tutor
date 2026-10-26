@@ -140,3 +140,18 @@ it('falls back to voice only where the browser cannot encode video', async () =>
     FakeRecorder.supported.add('video/webm;codecs=vp9,opus');
   }
 });
+
+it('keeps offering the last recording when a new start is cancelled at the screen picker', async () => {
+  const { result } = renderHook(() => useLectureRecorder());
+  await act(async () => { await result.current.start(target); });
+  await act(async () => { await result.current.stop(); });
+  const download = result.current.download;
+  expect(download).not.toBeNull();
+
+  getDisplayMedia.mockRejectedValueOnce(new DOMException('denied', 'NotAllowedError'));
+  await act(async () => { await result.current.start({ ...target, sessionId: 's-2', video: true }); });
+  expect(result.current.error).toBe('SCREEN_DENIED');
+  expect(result.current.phase).toBe('stopped');
+  expect(result.current.download).toBe(download);
+  expect(result.current.target?.sessionId).toBe('s-1');
+});
