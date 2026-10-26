@@ -23,7 +23,9 @@ export async function extractDeckText(url: string): Promise<{ page: number; text
         .replace(/\s+/g, ' ')
         .trim()
         .slice(0, MAX_CHARS_PER_PAGE);
-      if (text) pages.push({ page, text });
+      // Kept even without text (a picture slide), so the notes can still
+      // list it among the pages that were not covered.
+      pages.push({ page, text });
     }
     return pages;
   } finally {

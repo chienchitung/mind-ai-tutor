@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { findRecordingMatch, formatClock, joinTranscript, lessonNotesSchema, lessonNotesToMarkdown, parseClock, segmentPath, slideTimeline, timedTranscript, transcriptParagraphs } from './live-recording';
+import { findRecordingMatch, formatClock, formatPages, joinTranscript, lessonNotesSchema, lessonNotesToMarkdown, parseClock, segmentPath, slideTimeline, timedTranscript, transcriptParagraphs, uncoveredSlides } from './live-recording';
 
 describe('formatClock', () => {
   it('formats minutes and hours, treating missing values as zero', () => {
@@ -40,23 +40,44 @@ describe('joinTranscript', () => {
 describe('lesson notes', () => {
   const notes = lessonNotesSchema.parse({
     title: 'IF 函數', summary: '介紹 IF 的語法。',
-    sections: [{ heading: '語法', slidePages: [2, 3], startSeconds: 65, points: ['IF(條件, 真, 假)'], examples: ['成績及格判斷'] }],
+    sections: [{ heading: '語法', slidePages: [2, 3], startSeconds: 65, points: ['IF(條件, 真, 假)'], examples: ['成績及格判斷'], emphasis: ['逗號要用半形'] }],
     keyTerms: [{ term: '巢狀 IF', definition: 'IF 裡面再放 IF' }],
     studentQuestions: [{ question: 'IF 可以放幾層？', answer: '最多 64 層' }],
     reviewQuestions: [{ question: 'IF 有幾個參數？', answer: '三個' }],
+    uncoveredSlides: [{ page: 4, title: '巢狀 IF' }, { page: 5, title: '' }],
   });
   it('fills optional arrays when the model omits them', () => {
     const minimal = lessonNotesSchema.parse({ title: 't', summary: 's', sections: [{ heading: 'h', points: ['p'] }] });
-    expect(minimal.sections[0]).toMatchObject({ slidePages: [], startSeconds: null, examples: [] });
+    expect(minimal.sections[0]).toMatchObject({ slidePages: [], startSeconds: null, examples: [], emphasis: [] });
+    // Notes made before the list existed: unknown, not "everything covered".
+    expect(minimal.uncoveredSlides).toBeUndefined();
     expect(minimal.reviewQuestions).toEqual([]);
   });
   it('exports Markdown with slide references and timestamps', () => {
     const markdown = lessonNotesToMarkdown(notes, true);
     expect(markdown).toContain('# IF 函數');
-    expect(markdown).toContain('## 語法\n_投影片 2, 3 · 1:05_');
+    expect(markdown).toContain('## 語法\n_投影片第 2–3 頁 · 1:05_');
     expect(markdown).toContain('- 例：成績及格判斷');
+    expect(markdown).toContain('- **老師強調**：逗號要用半形');
+    expect(markdown).toContain('## 這次錄音沒講到的投影片\n\n- 第 4 頁：巢狀 IF\n- 第 5 頁');
     expect(markdown).toContain('- **巢狀 IF**：IF 裡面再放 IF');
     expect(markdown).toContain('1. IF 有幾個參數？\n   - 參考答案：三個');
+  });
+});
+
+describe('slides and the notes', () => {
+  it('writes page lists as ranges', () => {
+    expect(formatPages([7, 3, 4, 5, 4])).toBe('3–5, 7');
+    expect(formatPages([2])).toBe('2');
+  });
+  it('lists the deck pages no section covers, titled by their text', () => {
+    const deck = [
+      { page: 1, text: '  IF   函數 ' }, { page: 2, text: 'x'.repeat(60) }, { page: 3, text: '' }, { page: 4, text: '巢狀' },
+    ];
+    expect(uncoveredSlides(deck, [{ slidePages: [1] }, { slidePages: [4] }])).toEqual([
+      { page: 2, title: `${'x'.repeat(40)}…` }, { page: 3, title: '' },
+    ]);
+    expect(uncoveredSlides([], [{ slidePages: [1] }])).toEqual([]);
   });
 });
 

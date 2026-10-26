@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { generateLectureNotes } from '@/lib/gemini';
 import { HttpInputError, readJsonWithLimit } from '@/lib/http-security';
-import { formatClock, joinTranscript, notesRequestSchema, slideTimeline, type RecordingSegment, type SlideMark } from '@/lib/live-recording';
+import { formatClock, joinTranscript, notesRequestSchema, slideTimeline, uncoveredSlides, type RecordingSegment, type SlideMark } from '@/lib/live-recording';
 import { aiFailure, authorizeTeacherAi, claimTeacherAi } from '../../../gemini/security';
 
 export const runtime = 'nodejs';
@@ -29,7 +29,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     const userId = access.user!.id;
 
     const { data: recording, error } = await client.from('live_recordings')
-      .select('id, session_id, title, duration_seconds, slide_marks, live_recording_segments(idx, start_seconds, duration_seconds, status, transcript, error)')
+      .select('id, session_id, title, duration_seconds, slide_marks, live_sessions(deck_url), live_recording_segments(idx, start_seconds, duration_seconds, status, transcript, error)')
       .eq('id', id).eq('user_id', userId).maybeSingle();
     if (error) return NextResponse.json({ error: 'LIVE_STORAGE_ERROR' }, { status: 500 });
     if (!recording) return NextResponse.json({ error: 'NOT_FOUND' }, { status: 404 });
@@ -61,9 +61,9 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     // over the whole deck let a few seconds of speech come back as notes for
     // the entire deck.
     const shown = new Set(timeline.map((range) => range.page));
-    let notes;
+    let generated;
     try {
-      notes = await generateLectureNotes({
+      generated = await generateLectureNotes({
         language: parsed.data.language,
         title: recording.title,
         transcript: transcript.slice(0, MAX_TRANSCRIPT_CHARS),
@@ -74,6 +74,19 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     } catch (cause) {
       return aiFailure(cause);
     }
+    // A section may only claim a page that was on screen; what no section
+    // claims is listed for students to read on their own.
+    const sections = generated.sections.map((section) => ({ ...section, slidePages: section.slidePages.filter((page) => shown.has(page)) }));
+    const session = (recording as any).live_sessions;
+    const deckUrl: string | null = (Array.isArray(session) ? session[0] : session)?.deck_url ?? null;
+    const notes = {
+      ...generated,
+      sections,
+      uncoveredSlides: uncoveredSlides(parsed.data.slides, sections),
+      // Kept with the notes: their page numbers mean this deck, even after
+      // the session's deck is replaced.
+      deckUrl,
+    };
     const generatedAt = new Date().toISOString();
     const { error: saveError } = await client.from('live_recordings')
       // updated_at is left alone: it is the recorder's heartbeat, and bumping
