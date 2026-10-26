@@ -33,6 +33,7 @@ const item: RecordingSummary = {
 let finishNotes!: (value: Response) => void;
 beforeEach(() => {
   vaultHolder.vault = null;
+  sessionStorage.clear();
   nav.pathname = '/live/recordings';
   vi.stubGlobal('fetch', vi.fn((url: string) => (url.endsWith('/notes')
     ? new Promise<Response>((resolve) => { finishNotes = resolve; })
@@ -112,7 +113,7 @@ it('offers to finish a recording an earlier visit left behind, and closes it on 
   // Closed with its real length; the download copy is still offered.
   const patch = (fetchMock.mock.calls as unknown as [string, RequestInit][]).find(([url, init]) => url === '/api/live-recordings/crashed' && init.method === 'PATCH')!;
   expect(JSON.parse(String(patch[1].body))).toEqual({ durationSeconds: 330, slideMarks: [{ t: 0, page: 1 }], status: 'stopped' });
-  expect(await screen.findByText('完整錄音檔還保存在這台電腦，可以下載。')).toBeTruthy();
+  expect(await screen.findByText('逐字稿已完成；完整錄音檔還保存在這台電腦，可以下載。')).toBeTruthy();
 });
 
 it('does not offer a recording that another open tab is still making', async () => {
@@ -129,4 +130,53 @@ it('does not offer a recording that another open tab is still making', async () 
   view();
   await act(async () => { await new Promise((resolve) => setTimeout(resolve, 50)); });
   expect(screen.queryByRole('button', { name: /背景工作/ })).toBeNull();
+});
+
+const finishedMeta = (recordingId: string, extra: Partial<VaultMeta> = {}): VaultMeta => ({
+  recordingId, userId: 'teacher-1', sessionId: 's-1', title: 'test', language: 'zh-TW', startedAt: Date.now() - 60_000,
+  tailStartSeconds: 45, nextIdx: 1, elapsedSeconds: 45, marks: [], finished: true, ...extra,
+});
+
+it('says a finished recording is transcribed, not that notes are ready, and can be closed', async () => {
+  const vault = memoryVault();
+  await vault.putMeta(finishedMeta('done-1'));
+  await vault.appendMedia('done-1', new Blob(['opus'], { type: 'audio/webm' }));
+  vaultHolder.vault = vault;
+  vi.stubGlobal('fetch', vi.fn(async () => new Response('{}')));
+  view();
+
+  const pill = await screen.findByRole('button', { name: '背景工作: 轉錄完成・錄音檔可下載' });
+  expect(screen.queryByText(/教學筆記完成/)).toBeNull();
+  fireEvent.click(pill);
+  fireEvent.click(await screen.findByRole('button', { name: '關閉' }));
+  await waitFor(() => expect(screen.queryByRole('button', { name: /背景工作/ })).toBeNull());
+  // Closing only hides it: the copy is still there to download later.
+  expect(await vault.readMedia('done-1')).toHaveLength(1);
+});
+
+it('clears a finished recording whose file was already downloaded', async () => {
+  const vault = memoryVault();
+  await vault.putMeta(finishedMeta('saved-1', { downloaded: true }));
+  await vault.appendMedia('saved-1', new Blob(['opus'], { type: 'audio/webm' }));
+  vaultHolder.vault = vault;
+  vi.stubGlobal('fetch', vi.fn(async () => new Response('{}')));
+  view();
+  await waitFor(async () => expect(await vault.listMeta()).toEqual([]));
+  expect(screen.queryByRole('button', { name: /背景工作/ })).toBeNull();
+});
+
+it('keeps a recording that did not finish even when the teacher closes the rest', async () => {
+  const vault = memoryVault();
+  await vault.putMeta(finishedMeta('done-2'));
+  await vault.appendMedia('done-2', new Blob(['opus'], { type: 'audio/webm' }));
+  await vault.putMeta(finishedMeta('crashed-2', { finished: false, title: '第七課' }));
+  await vault.appendTail('crashed-2', floatToInt16(new Float32Array(16_000 * 10)));
+  vaultHolder.vault = vault;
+  vi.stubGlobal('fetch', vi.fn(async () => new Response('{}')));
+  view();
+  fireEvent.click(await screen.findByRole('button', { name: /背景工作: 有錄音沒有正常結束/ }));
+  fireEvent.click(screen.getByRole('button', { name: '關閉' }));
+  fireEvent.click(await screen.findByRole('button', { name: /背景工作: 有錄音沒有正常結束/ }));
+  expect(screen.getByText('第七課')).toBeTruthy();
+  expect(screen.queryByText('test')).toBeNull();
 });

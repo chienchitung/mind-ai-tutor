@@ -40,6 +40,7 @@ export type Leftover = {
 };
 
 const LEFTOVER_KEEP_MS = 7 * 24 * 60 * 60 * 1000;
+const CLOSED_KEY = 'mindaitutor.lectureJobs.closed';
 
 type LectureJobs = {
   recorder: ReturnType<typeof useLectureRecorder>;
@@ -103,7 +104,8 @@ export function LectureJobsProvider({ children }: { children: ReactNode }) {
           vault.listSegments(meta.recordingId), vault.readTail(meta.recordingId), vault.readMedia(meta.recordingId),
         ]);
         const interrupted = !meta.finished || segments.length > 0;
-        if (!interrupted && (!media.length || Date.now() - meta.startedAt > LEFTOVER_KEEP_MS)) {
+        // A finished recording is only kept for its download copy.
+        if (!interrupted && (!media.length || meta.downloaded || Date.now() - meta.startedAt > LEFTOVER_KEEP_MS)) {
           await vault.remove(meta.recordingId);
           continue;
         }
@@ -178,8 +180,9 @@ export function LectureJobsProvider({ children }: { children: ReactNode }) {
     const leftover = leftovers.find((item) => item.meta.recordingId === recordingId);
     if (!leftover) return;
     void (async () => {
-      const media = await (await openRecordingVault())?.readMedia(recordingId);
-      if (!media?.length) return;
+      const vault = await openRecordingVault();
+      const media = await vault?.readMedia(recordingId);
+      if (!vault || !media?.length) return;
       const type = media[0].type || (leftover.meta.hasVideo ? 'video/webm' : 'audio/webm');
       const extension = mediaExtension(type);
       const url = URL.createObjectURL(new Blob(media, { type }));
@@ -190,6 +193,10 @@ export function LectureJobsProvider({ children }: { children: ReactNode }) {
       link.click();
       link.remove();
       setTimeout(() => URL.revokeObjectURL(url), 10_000);
+      // Saved: the next visit clears it (an interrupted one still needs recovery).
+      const meta = { ...leftover.meta, downloaded: true };
+      await vault.putMeta(meta).catch(() => undefined);
+      patchLeftover(recordingId, { meta });
     })();
   }, [leftovers]);
 
@@ -342,20 +349,26 @@ function useNow(active: boolean) {
 // everything (recording, transcription, notes) when opened.
 function LectureJobsPill() {
   const { recorder, jobs, dismiss, openNotes, leftovers: allLeftovers, recoverLeftover, downloadLeftover, discardLeftover } = useLectureJobs();
-  const leftovers = allLeftovers.filter((item) => item.meta.recordingId !== recorder.recordingId);
   const [confirmDiscard, setConfirmDiscard] = useState<string | null>(null);
   const { language } = useLanguage();
   const zh = language === 'zh-TW';
   const say = (zhText: string, enText: string) => (zh ? zhText : enText);
   const pathname = usePathname() ?? '';
   const [open, setOpen] = useState(false);
+  // What the teacher closed: finished items stay out of the corner for the
+  // rest of this tab's visit (the download copy itself is kept).
+  const [closed, setClosed] = useState<string[]>(() => {
+    try { return JSON.parse(sessionStorage.getItem(CLOSED_KEY) ?? '[]'); } catch { return []; }
+  });
 
   const transcribing = recorder.segments.filter((segment) => segment.status === 'uploading' || segment.status === 'transcribing').length;
   const recordingNow = recorder.phase === 'recording' || recorder.phase === 'stopping';
   const workspacePath = recorder.target ? `/live/${recorder.target.sessionId}/present` : null;
   // The full-lesson audio lives only in this tab's memory; keep offering it
   // until the teacher downloads it or dismisses it.
-  const finishedWithAudio = recorder.phase === 'stopped' && !!recorder.download;
+  const finishedWithAudio = recorder.phase === 'stopped' && !!recorder.download && !closed.includes(`recorder:${recorder.recordingId}`);
+  const leftovers = allLeftovers.filter((item) => item.meta.recordingId !== recorder.recordingId
+    && (item.interrupted || !closed.includes(`leftover:${item.meta.recordingId}`)));
   // The workspace already shows its own recording control.
   const showRecorder = (recordingNow || transcribing > 0 || finishedWithAudio) && pathname !== workspacePath;
   const list = Object.values(jobs).sort((a, b) => b.startedAt - a.startedAt);
@@ -364,6 +377,24 @@ function LectureJobsPill() {
   const onWorkspace = /^\/live\/[^/]+\/present$/.test(pathname);
   if (!showRecorder && list.length === 0 && leftovers.length === 0) return null;
   const interrupted = leftovers.some((item) => item.interrupted);
+  const busy = recordingNow || transcribing > 0 || !!running;
+  const closable = list.length > 0 || leftovers.some((item) => !item.interrupted) || (finishedWithAudio && showRecorder);
+  // Everything finished can be closed in one go; an unfinished recording
+  // (it still needs recovering) and running work stay.
+  const closeFinished = () => {
+    for (const job of list) if (job.status !== 'running') dismiss(job.recordingId);
+    const keys = [
+      ...closed,
+      ...leftovers.filter((item) => !item.interrupted).map((item) => `leftover:${item.meta.recordingId}`),
+      ...(finishedWithAudio && transcribing === 0 ? [`recorder:${recorder.recordingId}`] : []),
+    ];
+    setClosed(keys);
+    try { sessionStorage.setItem(CLOSED_KEY, JSON.stringify(keys)); } catch { /* private mode */ }
+    setOpen(false);
+  };
+  const doneNotes = list.some((job) => job.status === 'done' && job.kind === 'notes');
+  const doneRetry = list.some((job) => job.status === 'done' && job.kind === 'retry');
+  const fileWord = (video?: boolean) => (video ? say('錄影檔', 'video') : say('錄音檔', 'audio'));
 
   const summary = recordingNow && showRecorder
     ? { icon: <span className="h-2 w-2 animate-pulse rounded-full bg-red-500 motion-reduce:animate-none" />, text: `${say('錄音中', 'Recording')} ${formatClock(recorder.elapsed)}` }
@@ -371,13 +402,16 @@ function LectureJobsPill() {
       ? { icon: <Loader2 className="h-3.5 w-3.5 animate-spin text-primary" />, text: `${running.kind === 'notes' ? say('整理教學筆記', 'Writing notes') : say('重新轉錄', 'Re-transcribing')} ${formatClock(Math.floor((now - running.startedAt) / 1000))}` }
       : transcribing > 0 && showRecorder
         ? { icon: <Loader2 className="h-3.5 w-3.5 animate-spin text-primary" />, text: say(`轉錄中 ${transcribing} 段`, `Transcribing ${transcribing}`) }
-        : finishedWithAudio && showRecorder && list.length === 0
-          ? { icon: <Check className="h-3.5 w-3.5 text-emerald-600" />, text: say('錄音完成', 'Recording finished') }
         : interrupted && !running
           ? { icon: <AlertCircle className="h-3.5 w-3.5 text-amber-600" />, text: say('有錄音沒有正常結束', 'A recording did not finish') }
         : list.some((job) => job.status === 'error')
           ? { icon: <AlertCircle className="h-3.5 w-3.5 text-destructive" />, text: say('有工作失敗', 'A job failed') }
-          : { icon: <Check className="h-3.5 w-3.5 text-emerald-600" />, text: say('教學筆記完成', 'Notes ready') };
+        : doneNotes
+          ? { icon: <Check className="h-3.5 w-3.5 text-emerald-600" />, text: say('教學筆記完成', 'Notes ready') }
+        : doneRetry
+          ? { icon: <Check className="h-3.5 w-3.5 text-emerald-600" />, text: say('重新轉錄完成', 'Re-transcribed') }
+          // Only a finished recording is left: its text is in, the file can be saved.
+          : { icon: <Check className="h-3.5 w-3.5 text-emerald-600" />, text: say(`轉錄完成・${fileWord(finishedWithAudio && showRecorder ? recorder.hasVideo : leftovers[0]?.meta.hasVideo)}可下載`, `Transcribed · ${fileWord(finishedWithAudio && showRecorder ? recorder.hasVideo : leftovers[0]?.meta.hasVideo)} to download`) };
 
   return (
     <Popover open={open} onOpenChange={setOpen}>
@@ -397,7 +431,15 @@ function LectureJobsPill() {
         </button>
       </PopoverTrigger>
       <PopoverContent align="end" className="w-[min(92vw,360px)] space-y-2 p-3">
-        <p className="px-1 text-xs font-medium text-muted-foreground">{say('背景工作', 'Background work')}</p>
+        <div className="flex items-center justify-between gap-2 px-1">
+          <p className="text-xs font-medium text-muted-foreground">{say('背景工作', 'Background work')}</p>
+          {!busy && closable && (
+            <button type="button" className="flex items-center gap-1 rounded text-xs text-muted-foreground hover:text-foreground" onClick={closeFinished}>
+              <X className="h-3.5 w-3.5" />
+              {say('關閉', 'Close')}
+            </button>
+          )}
+        </div>
         {showRecorder && recorder.target && (
           <div className="space-y-2 rounded-xl border p-3">
             <p className="truncate text-sm font-medium">{recorder.target.title}</p>
@@ -419,7 +461,7 @@ function LectureJobsPill() {
               )}
               {finishedWithAudio && recorder.download && (
                 <Button asChild size="sm" variant="outline" className="h-8">
-                  <a href={recorder.download.url} download={recorder.download.fileName}>
+                  <a href={recorder.download.url} download={recorder.download.fileName} onClick={recorder.markDownloaded}>
                     <Download className="mr-1.5 h-3.5 w-3.5" />
                     {recorder.hasVideo ? say('下載錄影檔', 'Download video') : say('下載錄音檔', 'Download audio')}
                   </a>
@@ -448,9 +490,9 @@ function LectureJobsPill() {
                     ? say(
                       `錄音沒有正常結束（${new Date(item.meta.startedAt).toLocaleString('zh-TW', { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' })}）。這台電腦還保存著約 ${formatClock(item.unsentSeconds)} 尚未轉錄的錄音。`,
                       `This recording did not finish. About ${formatClock(item.unsentSeconds)} not yet transcribed is saved on this computer.`)
-                    : item.meta.hasVideo
-                      ? say('完整錄影檔還保存在這台電腦，可以下載。', 'The full video is still on this computer.')
-                      : say('完整錄音檔還保存在這台電腦，可以下載。', 'The full audio file is still on this computer.')}
+                    : item.meta.downloaded
+                      ? say(`已下載${fileWord(item.meta.hasVideo)}，下次開啟時會自動從這台電腦清除。`, `The ${fileWord(item.meta.hasVideo)} was saved; it is cleared from this computer next time.`)
+                      : say(`逐字稿已完成；完整${fileWord(item.meta.hasVideo)}還保存在這台電腦，可以下載。`, `Transcribed; the full ${fileWord(item.meta.hasVideo)} is still on this computer to download.`)}
             </p>
             <div className="flex flex-wrap gap-2">
               {item.interrupted && (

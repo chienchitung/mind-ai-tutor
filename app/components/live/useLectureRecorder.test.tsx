@@ -122,6 +122,10 @@ it('records only the voice by default', async () => {
   expect(recorders[0].options.mimeType).toBe('audio/webm;codecs=opus');
   await act(async () => { await result.current.stop(); });
   expect(result.current.download?.fileName).toMatch(/\.webm$/);
+  // Once saved, a later visit does not offer the file again.
+  act(() => result.current.markDownloaded());
+  const vault = vaultHolder.vault as ReturnType<typeof memoryVault>;
+  await vi.waitFor(async () => expect((await vault.listMeta())[0]).toMatchObject({ finished: true, downloaded: true }));
 });
 
 it('falls back to voice only where the browser cannot encode video', async () => {

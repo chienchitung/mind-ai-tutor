@@ -397,6 +397,9 @@ export function useLectureRecorder() {
     marks.push({ t: Math.round(seconds() * 10) / 10, page });
   }, [phase]);
 
+  // The teacher saved the download copy: a later visit need not offer it.
+  const markDownloaded = useCallback(() => persistMeta({ downloaded: true }), []);
+
   const retry = useCallback((idx: number) => {
     const segment = segments.find((item) => item.idx === idx);
     if (segment && segment.status === 'failed') void enqueue(segment);
@@ -434,5 +437,5 @@ export function useLectureRecorder() {
     teardownAudio();
   }, []);
 
-  return { phase, target, elapsed, recordingId, segments, download, error, hasVideo, screenEnded, start, stop, markSlide, retry, reset };
+  return { phase, target, elapsed, recordingId, segments, download, error, hasVideo, screenEnded, start, stop, markSlide, retry, reset, markDownloaded };
 }

@@ -159,7 +159,7 @@ export function LectureRecordingPanel({ sessionId, sessionTitle, deckUrl, deckPa
                   <p className="rounded-lg bg-amber-50 px-3 py-2 text-xs leading-5 text-amber-900 dark:bg-amber-950/40 dark:text-amber-200">
                     {say(`「${recorder.target?.title}」的${fileWord}還沒下載；開始新的錄音後就無法再下載（逐字稿與筆記不受影響）。`, `The ${fileWord} of "${recorder.target?.title}" has not been downloaded; starting a new recording discards it (transcripts and notes are kept).`)}
                     {' '}
-                    <a className="font-medium underline" href={recorder.download.url} download={recorder.download.fileName}>{say('先下載', 'Download first')}</a>
+                    <a className="font-medium underline" href={recorder.download.url} download={recorder.download.fileName} onClick={recorder.markDownloaded}>{say('先下載', 'Download first')}</a>
                   </p>
                 )}
                 {elsewhere && (
@@ -244,7 +244,7 @@ export function LectureRecordingPanel({ sessionId, sessionTitle, deckUrl, deckPa
                 <div className="flex flex-wrap gap-2">
                   {recorder.download && (
                     <Button asChild size="sm" variant="outline" className="h-9">
-                      <a href={recorder.download.url} download={recorder.download.fileName}>
+                      <a href={recorder.download.url} download={recorder.download.fileName} onClick={recorder.markDownloaded}>
                         <Download className="mr-1.5 h-3.5 w-3.5" />
                         {say(`下載${fileWord}`, `Download ${fileWord}`)}
                       </a>
