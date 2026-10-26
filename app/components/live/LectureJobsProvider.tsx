@@ -322,6 +322,7 @@ export function lectureJobError(code: string | undefined, zh: boolean) {
     case 'INSUFFICIENT_POINTS': return zh ? 'AI 點數不足。' : 'Not enough AI points.';
     case 'DAILY_LIMIT': return zh ? '今天的 AI 使用次數已達上限。' : 'Daily AI limit reached.';
     case 'NO_TRANSCRIPT': return zh ? '還沒有完成轉錄的段落，請稍候或重試失敗的段落。' : 'Nothing has been transcribed yet. Wait or retry the failed segments.';
+    case 'TRANSCRIPT_TOO_SHORT': return zh ? '錄到的講解太短，無法整理成筆記（需要至少約半分鐘的講解內容）。沒有扣點數。' : 'The recorded speech is too short to make notes from (about half a minute is needed). No points were used.';
     case 'SEGMENT_NOT_UPLOADED': return zh ? '部分段落的音訊沒有上傳成功，無法重新轉錄。' : 'Some segment audio never finished uploading and cannot be transcribed.';
     default: return zh ? 'AI 產生失敗，請再試一次。' : 'AI generation failed. Please try again.';
   }

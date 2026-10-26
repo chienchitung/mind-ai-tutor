@@ -43,8 +43,8 @@ beforeEach(() => {
     id, session_id: '22222222-2222-4222-8222-222222222222', title: '第三課', duration_seconds: 400,
     slide_marks: [{ t: 0, page: 1 }, { t: 120, page: 2 }],
     live_recording_segments: [
-      { idx: 1, start_seconds: 300, duration_seconds: 100, status: 'transcribed', transcript: '第二段', error: null },
-      { idx: 0, start_seconds: 0, duration_seconds: 300, status: 'transcribed', transcript: '第一段', error: null },
+      { idx: 1, start_seconds: 300, duration_seconds: 100, status: 'transcribed', transcript: '接著示範巢狀 IF，再用 VLOOKUP 把成績對照到等第，記得第四個參數填 FALSE', error: null },
+      { idx: 0, start_seconds: 0, duration_seconds: 300, status: 'transcribed', transcript: '今天先介紹 IF 函數的語法，第一個參數是條件，第二個是成立時的結果', error: null },
     ],
   };
   rpc = vi.fn().mockResolvedValue({ data: [{ text: '公開提問', visibility: 'public' }, { text: '隱藏提問', visibility: 'author_only' }], error: null });
@@ -55,13 +55,14 @@ beforeEach(() => {
 
 describe('POST /api/live-recordings/[id]/notes', () => {
   it('generates notes from the ordered transcript, slide timeline, slide text and public questions, then saves them', async () => {
-    const response = await POST(request({ slides: [{ page: 1, text: 'IF 語法' }, { page: 2, text: ' ' }] }), { params: params() });
+    // Page 7 was never on screen during the recording.
+    const response = await POST(request({ slides: [{ page: 1, text: 'IF 語法' }, { page: 2, text: ' ' }, { page: 7, text: '樞紐分析表' }] }), { params: params() });
     expect(response.status).toBe(200);
     expect(mocks.claimTeacherAi).toHaveBeenCalledWith(expect.anything(), 'lesson_notes');
     expect(mocks.generateLectureNotes).toHaveBeenCalledWith({
       language: 'zh-TW',
       title: '第三課',
-      transcript: '[0:00] 第一段\n\n[5:00] 第二段',
+      transcript: '[0:00] 今天先介紹 IF 函數的語法，第一個參數是條件，第二個是成立時的結果\n\n[5:00] 接著示範巢狀 IF，再用 VLOOKUP 把成績對照到等第，記得第四個參數填 FALSE',
       slideTimeline: [{ page: 1, from: '0:00', to: '2:00' }, { page: 2, from: '2:00', to: '6:40' }],
       slides: [{ page: 1, text: 'IF 語法' }],
       studentQuestions: ['公開提問'],
@@ -75,6 +76,14 @@ describe('POST /api/live-recordings/[id]/notes', () => {
     recording.live_recording_segments = [{ idx: 0, start_seconds: 0, duration_seconds: 300, status: 'failed', transcript: null, error: 'x' }];
     expect((await POST(request(), { params: params() })).status).toBe(409);
     expect(mocks.claimTeacherAi).not.toHaveBeenCalled();
+  });
+  it('refuses without spending points when barely anything was said', async () => {
+    recording.live_recording_segments = [{ idx: 0, start_seconds: 0, duration_seconds: 4, status: 'transcribed', transcript: '[0:00] 大家好', error: null }];
+    const response = await POST(request(), { params: params() });
+    expect(response.status).toBe(409);
+    expect((await response.json()).error).toBe('TRANSCRIPT_TOO_SHORT');
+    expect(mocks.claimTeacherAi).not.toHaveBeenCalled();
+    expect(mocks.generateLectureNotes).not.toHaveBeenCalled();
   });
   it("404s for a recording that isn't the caller's", async () => {
     recording = null;
