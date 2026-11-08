@@ -52,6 +52,14 @@ import { JoinQRCode } from "./JoinQRCode";
 // Long enough to identify a tool after moving the pointer. Keyboard/clicker
 // page changes still leave an already-hidden toolbar undisturbed.
 const CONTROLS_HIDE_DELAY_MS = 2800;
+// With a drawing tool (laser, pen, eraser), moving over the slide is part of
+// teaching, not a request for the controls: like Google Slides, they appear
+// only when the pointer comes near where they are (title and exit at the top
+// corners, the toolbar at the bottom), so pointing at a slide title doesn't.
+const CONTROLS_REACH_PX = 32;
+// Where layout is unknown (no measured boxes), fall back to edge bands.
+const TOP_CONTROLS_BAND_PX = 96;
+const BOTTOM_CONTROLS_BAND_PX = 190;
 const ONBOARDING_SEEN_KEY = "live-presentation-onboarding-seen";
 const ONBOARDING_DURATION_MS = 10000;
 const TOOL_ANNOUNCEMENT_DURATION_MS = 1400;
@@ -422,7 +430,40 @@ export const PresentationStage = forwardRef<HTMLDivElement, Props>(
     };
     const rememberPointer = (event: ReactPointerEvent<HTMLDivElement>) => {
       pointerPosition.current = { x: event.clientX, y: event.clientY };
-      wake();
+      const nearControls = isNearControls(event.clientX, event.clientY);
+      if (tool === "cursor" || toolsDisabled || nearControls) {
+        wake();
+        return;
+      }
+      // Back over the slide with a drawing tool: put the controls away,
+      // unless the presenter is using them from the keyboard.
+      if (
+        stageRef.current?.querySelector("[data-presentation-ui]:focus-within")
+      )
+        return;
+      setVisible(false);
+      if (hideTimer.current) clearTimeout(hideTimer.current);
+    };
+    // Whether the pointer is at (or just beside) one of the hidden controls.
+    const isNearControls = (x: number, y: number) => {
+      const boxes = Array.from(
+        stageRef.current?.querySelectorAll<HTMLElement>(
+          "[data-presentation-chrome] > *",
+        ) ?? [],
+      )
+        .map((element) => element.getBoundingClientRect())
+        .filter((box) => box.width > 0 && box.height > 0);
+      if (!boxes.length) {
+        const height = stageRef.current?.clientHeight || window.innerHeight;
+        return y <= TOP_CONTROLS_BAND_PX || y >= height - BOTTOM_CONTROLS_BAND_PX;
+      }
+      return boxes.some(
+        (box) =>
+          x >= box.left - CONTROLS_REACH_PX &&
+          x <= box.right + CONTROLS_REACH_PX &&
+          y >= box.top - CONTROLS_REACH_PX &&
+          y <= box.bottom + CONTROLS_REACH_PX,
+      );
     };
     const handleDrawingChange = useCallback((active: boolean) => {
       setDrawing(active);
@@ -661,6 +702,7 @@ export const PresentationStage = forwardRef<HTMLDivElement, Props>(
             )}
             <div
               data-presentation-ui=""
+              data-presentation-chrome=""
               className={`absolute inset-x-0 top-0 flex items-center justify-between gap-3 bg-gradient-to-b from-black/85 to-transparent p-4 transition-opacity motion-reduce:transition-none ${shown ? "opacity-100" : "pointer-events-none opacity-0 focus-within:opacity-100"}`}
             >
               <div className="min-w-0 rounded-xl bg-black/70 px-3 py-2 backdrop-blur-sm">
@@ -693,6 +735,7 @@ export const PresentationStage = forwardRef<HTMLDivElement, Props>(
             </div>
             <div
               data-presentation-ui=""
+              data-presentation-chrome=""
               className={`absolute inset-x-0 bottom-20 flex flex-col items-center gap-2 p-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] transition-opacity motion-reduce:transition-none ${shown ? "opacity-100" : "pointer-events-none opacity-0 focus-within:opacity-100"}`}
             >
               <p className="hidden rounded-md bg-black/70 px-3 py-1 text-[11px] text-white/70 lg:block">
