@@ -415,6 +415,60 @@ describe('projection tools', () => {
     fireEvent.pointerMove(screen.getByRole('dialog'), { clientX: 20, clientY: 20, pointerId: 1 });
     toolbars.forEach((toolbar) => expect(toolbar.className).toContain('opacity-100'));
   });
+  // Lays the hidden controls out roughly as on a 1280×800 screen: title box at
+  // the top left, exit at the top right, toolbar at the bottom centre.
+  const layOutControls = () => {
+    const box = (left: number, top: number, right: number, bottom: number) =>
+      ({ x: left, y: top, left, top, right, bottom, width: right - left, height: bottom - top, toJSON: () => ({}) }) as DOMRect;
+    vi.spyOn(Element.prototype, 'getBoundingClientRect').mockImplementation(function rect(this: Element) {
+      const bar = this.parentElement?.hasAttribute('data-presentation-chrome') ? this.parentElement : null;
+      if (bar) {
+        const top = bar.className.includes('top-0');
+        const index = Array.from(bar.children).indexOf(this);
+        if (top) return index === 0 ? box(16, 16, 150, 72) : box(1150, 24, 1260, 64);
+        return index === 0 ? box(440, 610, 840, 640) : box(420, 650, 860, 708);
+      }
+      return box(0, 0, 800, 400);
+    });
+  };
+  it('keeps the controls away while the laser moves over the slide, and shows them near where they are', async () => {
+    vi.stubGlobal('localStorage', { getItem: () => '1', setItem: vi.fn() });
+    render(<Harness />);
+    const surface = await screen.findByRole('img', { name: '投影片標註區' });
+    layOutControls();
+    fireEvent.keyDown(surface, { key: 'l' });
+    const dialog = screen.getByRole('dialog');
+    const toolbars = () => Array.from(document.querySelectorAll('[data-presentation-ui]'))
+      .filter((element) => element.className.includes('transition-opacity'));
+    const move = (x: number, y: number) => fireEvent.pointerMove(dialog, { clientX: x, clientY: y, pointerId: 1 });
+    const expectShown = (shown: boolean) =>
+      toolbars().forEach((toolbar) => expect(toolbar.className).toContain(shown ? 'opacity-100' : 'opacity-0'));
+    move(640, 400);
+    expectShown(false);
+    // A slide title along the top, between the two top controls.
+    move(640, 40);
+    expectShown(false);
+    // The bottom of the slide, away from the toolbar.
+    move(120, 680);
+    expectShown(false);
+    move(640, 690);
+    expectShown(true);
+    move(640, 400);
+    expectShown(false);
+    move(1200, 40);
+    expectShown(true);
+  });
+  it('still shows the controls on any movement with the cursor tool', async () => {
+    vi.stubGlobal('localStorage', { getItem: () => '1', setItem: vi.fn() });
+    render(<Harness />);
+    const surface = await screen.findByRole('img', { name: '投影片標註區' });
+    fireEvent.keyDown(surface, { key: 'l' });
+    fireEvent.keyDown(surface, { key: 'v' });
+    fireEvent.pointerMove(screen.getByRole('dialog'), { clientX: 400, clientY: 400, pointerId: 1 });
+    Array.from(document.querySelectorAll('[data-presentation-ui]'))
+      .filter((element) => element.className.includes('transition-opacity'))
+      .forEach((toolbar) => expect(toolbar.className).toContain('opacity-100'));
+  });
   it('shows a one-time onboarding tip on first open and remembers it was dismissed', async () => {
     let seen: string | null = null;
     vi.stubGlobal('localStorage', {
