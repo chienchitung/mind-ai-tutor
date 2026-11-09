@@ -52,14 +52,13 @@ import { JoinQRCode } from "./JoinQRCode";
 // Long enough to identify a tool after moving the pointer. Keyboard/clicker
 // page changes still leave an already-hidden toolbar undisturbed.
 const CONTROLS_HIDE_DELAY_MS = 2800;
-// With a drawing tool (laser, pen, eraser), moving over the slide is part of
-// teaching, not a request for the controls: like Google Slides, they appear
-// only when the pointer comes near where they are (title and exit at the top
-// corners, the toolbar at the bottom), so pointing at a slide title doesn't.
+// Like Google Slides, the controls are one small toolbar in the bottom-left
+// corner, the spot slides use least. With a drawing tool (laser, pen,
+// eraser), moving over the slide is part of teaching, not a request for the
+// controls: they appear only when the pointer comes near the toolbar.
 const CONTROLS_REACH_PX = 32;
-// Where layout is unknown (no measured boxes), fall back to edge bands.
-const TOP_CONTROLS_BAND_PX = 96;
-const BOTTOM_CONTROLS_BAND_PX = 190;
+// Where layout is unknown (no measured box), fall back to that corner.
+const CONTROLS_CORNER_PX = { width: 520, height: 190 };
 const ONBOARDING_SEEN_KEY = "live-presentation-onboarding-seen";
 const ONBOARDING_DURATION_MS = 10000;
 const TOOL_ANNOUNCEMENT_DURATION_MS = 1400;
@@ -455,7 +454,7 @@ export const PresentationStage = forwardRef<HTMLDivElement, Props>(
         .filter((box) => box.width > 0 && box.height > 0);
       if (!boxes.length) {
         const height = stageRef.current?.clientHeight || window.innerHeight;
-        return y <= TOP_CONTROLS_BAND_PX || y >= height - BOTTOM_CONTROLS_BAND_PX;
+        return x <= CONTROLS_CORNER_PX.width && y >= height - CONTROLS_CORNER_PX.height;
       }
       return boxes.some(
         (box) =>
@@ -667,7 +666,7 @@ export const PresentationStage = forwardRef<HTMLDivElement, Props>(
               dropped from here - it's presenter-facing feedback, not
               something to project to the class. */}
             {(onlineCount ?? 0) > 0 && (
-              <div className="pointer-events-none absolute bottom-24 left-3 z-[65] flex items-center gap-1 rounded-xl border border-white/10 bg-black/60 px-3 py-2 text-[11px] leading-5 text-white/80 backdrop-blur-sm">
+              <div className="pointer-events-none absolute bottom-24 right-3 z-[65] flex items-center gap-1 rounded-xl border border-white/10 bg-black/60 px-3 py-2 text-[11px] leading-5 text-white/80 backdrop-blur-sm">
                 <Users className="h-3 w-3" aria-hidden="true" />
                 {onlineCount}
               </div>
@@ -688,7 +687,10 @@ export const PresentationStage = forwardRef<HTMLDivElement, Props>(
             {showOnboarding && (
               <div className="absolute inset-x-0 top-24 z-[75] flex justify-center px-4">
                 <div className="flex max-w-full flex-wrap items-center gap-3 rounded-2xl border border-white/15 bg-zinc-950/95 px-4 py-3 text-xs text-white shadow-xl backdrop-blur-md">
-                  <span>{t("live_projection_help")}</span>
+                  <span className="space-y-1">
+                    <span className="block font-medium">{t("live_projection_toolbar_hint")}</span>
+                    <span className="block text-white/70">{t("live_projection_help")}</span>
+                  </span>
                   <Button
                     variant="ghost"
                     size="sm"
@@ -703,45 +705,11 @@ export const PresentationStage = forwardRef<HTMLDivElement, Props>(
             <div
               data-presentation-ui=""
               data-presentation-chrome=""
-              className={`absolute inset-x-0 top-0 flex items-center justify-between gap-3 bg-gradient-to-b from-black/85 to-transparent p-4 transition-opacity motion-reduce:transition-none ${shown ? "opacity-100" : "pointer-events-none opacity-0 focus-within:opacity-100"}`}
+              // Faint until the pointer is on it, like Google Slides, so the
+              // corner stays quiet while the class looks at the slide.
+              className={`absolute bottom-20 left-3 max-w-[calc(100%-1.5rem)] pb-[max(0.75rem,env(safe-area-inset-bottom))] transition-opacity motion-reduce:transition-none ${shown ? "opacity-70 hover:opacity-100 focus-within:opacity-100" : "pointer-events-none opacity-0 focus-within:opacity-100"}`}
             >
-              <div className="min-w-0 rounded-xl bg-black/70 px-3 py-2 backdrop-blur-sm">
-                <p className="truncate text-sm font-medium">{title}</p>
-                <p className="mt-1 text-xs text-white/70">
-                  {t("live_join_code_label")}{" "}
-                  <span className="font-mono tracking-widest text-white">
-                    {joinCode}
-                  </span>
-                </p>
-              </div>
-              {onRequestFullscreen && (
-                <Button
-                  variant="ghost"
-                  className={CONTROL}
-                  onClick={onRequestFullscreen}
-                  aria-label={
-                    language === "zh-TW" ? "回到全螢幕" : "Enter fullscreen"
-                  }
-                >
-                  <Maximize className="h-4 w-4" />
-                </Button>
-              )}
-              <Button variant="ghost" className={CONTROL} onClick={onExit}>
-                <Minimize className="h-4 w-4 sm:mr-2" />
-                <span className="sr-only sm:not-sr-only">
-                  {t("live_exit_presentation")}
-                </span>
-              </Button>
-            </div>
-            <div
-              data-presentation-ui=""
-              data-presentation-chrome=""
-              className={`absolute inset-x-0 bottom-20 flex flex-col items-center gap-2 p-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] transition-opacity motion-reduce:transition-none ${shown ? "opacity-100" : "pointer-events-none opacity-0 focus-within:opacity-100"}`}
-            >
-              <p className="hidden rounded-md bg-black/70 px-3 py-1 text-[11px] text-white/70 lg:block">
-                {t("live_projection_help")}
-              </p>
-              <div className="flex max-w-full flex-wrap items-center justify-center gap-1 rounded-2xl border border-white/15 bg-zinc-950/90 p-1.5 shadow-lg backdrop-blur-md">
+              <div className="flex max-w-full flex-wrap items-center gap-0.5 rounded-xl border border-white/15 bg-zinc-950/90 p-1 shadow-lg backdrop-blur-md">
                 <Button
                   variant="ghost"
                   size="icon"
@@ -796,7 +764,7 @@ export const PresentationStage = forwardRef<HTMLDivElement, Props>(
                       data-presentation-ui=""
                       className={MENU}
                       side="top"
-                      align="center"
+                      align="start"
                       sideOffset={12}
                       collisionPadding={8}
                       onCloseAutoFocus={closedMenuFocus}
@@ -845,6 +813,29 @@ export const PresentationStage = forwardRef<HTMLDivElement, Props>(
                   }}
                 >
                   <MessageSquare className="h-4 w-4" />
+                </Button>
+                {onRequestFullscreen && (
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className={CONTROL}
+                    onClick={onRequestFullscreen}
+                    aria-label={
+                      language === "zh-TW" ? "回到全螢幕" : "Enter fullscreen"
+                    }
+                  >
+                    <Maximize className="h-4 w-4" />
+                  </Button>
+                )}
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className={CONTROL}
+                  onClick={onExit}
+                  aria-label={t("live_exit_presentation")}
+                  title={t("live_exit_presentation")}
+                >
+                  <Minimize className="h-4 w-4" />
                 </Button>
               </div>
             </div>

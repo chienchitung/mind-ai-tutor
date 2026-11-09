@@ -398,8 +398,8 @@ describe('projection tools', () => {
     await waitFor(() => {
       const toolbars = Array.from(document.querySelectorAll('[data-presentation-ui]'))
         .filter((element) => element.className.includes('transition-opacity'));
-      expect(toolbars).toHaveLength(2);
-      toolbars.forEach((toolbar) => expect(toolbar.className).toContain('opacity-0'));
+      expect(toolbars).toHaveLength(1);
+      toolbars.forEach((toolbar) => expect(toolbar.className.split(' ')).toContain('opacity-0'));
     });
     expect(screen.queryByRole('button', { name: '固定顯示控制列' })).toBeNull();
   });
@@ -411,27 +411,20 @@ describe('projection tools', () => {
     draw(surface);
     const toolbars = Array.from(document.querySelectorAll('[data-presentation-ui]'))
       .filter((element) => element.className.includes('transition-opacity'));
-    toolbars.forEach((toolbar) => expect(toolbar.className).toContain('opacity-0'));
+    toolbars.forEach((toolbar) => expect(toolbar.className.split(' ')).toContain('opacity-0'));
     fireEvent.pointerMove(screen.getByRole('dialog'), { clientX: 20, clientY: 20, pointerId: 1 });
-    toolbars.forEach((toolbar) => expect(toolbar.className).toContain('opacity-100'));
+    toolbars.forEach((toolbar) => expect(toolbar.className.split(' ')).not.toContain('opacity-0'));
   });
-  // Lays the hidden controls out roughly as on a 1280×800 screen: title box at
-  // the top left, exit at the top right, toolbar at the bottom centre.
+  // Lays the hidden toolbar out as on a 1280×800 screen: bottom-left corner.
   const layOutControls = () => {
     const box = (left: number, top: number, right: number, bottom: number) =>
       ({ x: left, y: top, left, top, right, bottom, width: right - left, height: bottom - top, toJSON: () => ({}) }) as DOMRect;
     vi.spyOn(Element.prototype, 'getBoundingClientRect').mockImplementation(function rect(this: Element) {
-      const bar = this.parentElement?.hasAttribute('data-presentation-chrome') ? this.parentElement : null;
-      if (bar) {
-        const top = bar.className.includes('top-0');
-        const index = Array.from(bar.children).indexOf(this);
-        if (top) return index === 0 ? box(16, 16, 150, 72) : box(1150, 24, 1260, 64);
-        return index === 0 ? box(440, 610, 840, 640) : box(420, 650, 860, 708);
-      }
+      if (this.parentElement?.hasAttribute('data-presentation-chrome')) return box(12, 664, 420, 708);
       return box(0, 0, 800, 400);
     });
   };
-  it('keeps the controls away while the laser moves over the slide, and shows them near where they are', async () => {
+  it('keeps the controls away while the laser moves over the slide, and shows them at the bottom-left toolbar', async () => {
     vi.stubGlobal('localStorage', { getItem: () => '1', setItem: vi.fn() });
     render(<Harness />);
     const surface = await screen.findByRole('img', { name: '投影片標註區' });
@@ -442,21 +435,37 @@ describe('projection tools', () => {
       .filter((element) => element.className.includes('transition-opacity'));
     const move = (x: number, y: number) => fireEvent.pointerMove(dialog, { clientX: x, clientY: y, pointerId: 1 });
     const expectShown = (shown: boolean) =>
-      toolbars().forEach((toolbar) => expect(toolbar.className).toContain(shown ? 'opacity-100' : 'opacity-0'));
+      toolbars().forEach((toolbar) => {
+        const classes = toolbar.className.split(' ');
+        if (shown) expect(classes).not.toContain('opacity-0');
+        else expect(classes).toContain('opacity-0');
+      });
     move(640, 400);
     expectShown(false);
-    // A slide title along the top, between the two top controls.
+    // A slide title along the top: nothing lives there any more.
     move(640, 40);
     expectShown(false);
-    // The bottom of the slide, away from the toolbar.
-    move(120, 680);
+    move(1200, 40);
     expectShown(false);
-    move(640, 690);
+    // The bottom of the slide, away from the toolbar.
+    move(1000, 690);
+    expectShown(false);
+    move(200, 690);
     expectShown(true);
     move(640, 400);
     expectShown(false);
-    move(1200, 40);
-    expectShown(true);
+  });
+  it('puts every control in one bottom-left toolbar, exit included, with nothing at the top', async () => {
+    vi.stubGlobal('localStorage', { getItem: () => '1', setItem: vi.fn() });
+    render(<Harness />);
+    await screen.findByRole('img', { name: '投影片標註區' });
+    const chrome = Array.from(document.querySelectorAll('[data-presentation-chrome]'));
+    expect(chrome).toHaveLength(1);
+    expect(chrome[0].className).toContain('left-3');
+    expect(within(chrome[0] as HTMLElement).getByRole('button', { name: '退出投影' })).toBeTruthy();
+    // The shortcut list is no longer under the toolbar; it's in the first-run tip.
+    // (Screen readers still get it in the dialog's description.)
+    expect(screen.queryAllByText(/右鍵開啟工具/).filter((element) => !element.classList.contains('sr-only'))).toEqual([]);
   });
   it('still shows the controls on any movement with the cursor tool', async () => {
     vi.stubGlobal('localStorage', { getItem: () => '1', setItem: vi.fn() });
@@ -467,7 +476,7 @@ describe('projection tools', () => {
     fireEvent.pointerMove(screen.getByRole('dialog'), { clientX: 400, clientY: 400, pointerId: 1 });
     Array.from(document.querySelectorAll('[data-presentation-ui]'))
       .filter((element) => element.className.includes('transition-opacity'))
-      .forEach((toolbar) => expect(toolbar.className).toContain('opacity-100'));
+      .forEach((toolbar) => expect(toolbar.className.split(' ')).not.toContain('opacity-0'));
   });
   it('shows a one-time onboarding tip on first open and remembers it was dismissed', async () => {
     let seen: string | null = null;
@@ -480,6 +489,9 @@ describe('projection tools', () => {
     render(<Harness />);
     await screen.findByRole('img', { name: '投影片標註區' });
     expect(screen.getByRole('button', { name: '知道了，不再顯示' })).toBeTruthy();
+    // The first-run tip says where the controls are, and lists the shortcuts.
+    expect(screen.getByText('控制列在左下角：滑鼠移到左下角就會出現。')).toBeTruthy();
+    expect(screen.getAllByText(/右鍵開啟工具/).some((element) => !element.classList.contains('sr-only'))).toBe(true);
     fireEvent.click(screen.getByRole('button', { name: '知道了，不再顯示' }));
     expect(screen.queryByRole('button', { name: '知道了，不再顯示' })).toBeNull();
     expect(seen).toBe('1');
