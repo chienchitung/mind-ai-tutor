@@ -367,7 +367,7 @@ describe('projection tools', () => {
     fireEvent.pointerMove(screen.getByRole('dialog'), { clientX: 10, clientY: 10, pointerId: 1 });
     expect(topBar.className).toContain('opacity-100');
   }, 10000);
-  it('shows the selected tool beside the last pointer position', async () => {
+  it('announces the chosen tool to screen readers without putting anything on the slide', async () => {
     vi.stubGlobal('localStorage', { getItem: () => '1', setItem: vi.fn() });
     render(<Harness />);
     const dialog = await screen.findByRole('dialog');
@@ -376,10 +376,10 @@ describe('projection tools', () => {
     const announcement = screen
       .getAllByRole('status')
       .find((element) => element.textContent?.includes('畫筆'))!;
-    expect(announcement.textContent).toContain('畫筆');
-    expect(announcement.textContent).toContain('細');
-    expect((announcement as HTMLElement).style.left).toBe('254px');
-    expect((announcement as HTMLElement).style.top).toBe('174px');
+    expect(announcement.textContent).toBe('畫筆 細');
+    // Not drawn beside the pointer, where it was projected to the class.
+    expect(announcement.className).toContain('sr-only');
+    expect((announcement as HTMLElement).style.left).toBe('');
   });
   it('closes and hides the toolbar after choosing a drawing tool', async () => {
     vi.stubGlobal('localStorage', { getItem: () => '1', setItem: vi.fn() });
@@ -415,16 +415,16 @@ describe('projection tools', () => {
     fireEvent.pointerMove(screen.getByRole('dialog'), { clientX: 20, clientY: 20, pointerId: 1 });
     toolbars.forEach((toolbar) => expect(toolbar.className.split(' ')).not.toContain('opacity-0'));
   });
-  // Lays the hidden toolbar out as on a 1280×800 screen: bottom-left corner.
+  // Lays the hidden toolbar out as on a 1280×800 screen: bottom centre.
   const layOutControls = () => {
     const box = (left: number, top: number, right: number, bottom: number) =>
       ({ x: left, y: top, left, top, right, bottom, width: right - left, height: bottom - top, toJSON: () => ({}) }) as DOMRect;
     vi.spyOn(Element.prototype, 'getBoundingClientRect').mockImplementation(function rect(this: Element) {
-      if (this.parentElement?.hasAttribute('data-presentation-chrome')) return box(12, 664, 420, 708);
+      if (this.parentElement?.hasAttribute('data-presentation-chrome')) return box(420, 664, 860, 708);
       return box(0, 0, 800, 400);
     });
   };
-  it('keeps the controls away while the laser moves over the slide, and shows them at the bottom-left toolbar', async () => {
+  it('keeps the controls away while the laser moves over the slide, and shows them at the toolbar', async () => {
     vi.stubGlobal('localStorage', { getItem: () => '1', setItem: vi.fn() });
     render(<Harness />);
     const surface = await screen.findByRole('img', { name: '投影片標註區' });
@@ -447,21 +447,23 @@ describe('projection tools', () => {
     expectShown(false);
     move(1200, 40);
     expectShown(false);
-    // The bottom of the slide, away from the toolbar.
-    move(1000, 690);
+    // The bottom corners of the slide, away from the toolbar.
+    move(120, 690);
     expectShown(false);
-    move(200, 690);
+    move(1160, 690);
+    expectShown(false);
+    move(640, 690);
     expectShown(true);
     move(640, 400);
     expectShown(false);
   });
-  it('puts every control in one bottom-left toolbar, exit included, with nothing at the top', async () => {
+  it('puts every control in one toolbar at the bottom centre, exit included, with nothing at the top', async () => {
     vi.stubGlobal('localStorage', { getItem: () => '1', setItem: vi.fn() });
     render(<Harness />);
     await screen.findByRole('img', { name: '投影片標註區' });
     const chrome = Array.from(document.querySelectorAll('[data-presentation-chrome]'));
     expect(chrome).toHaveLength(1);
-    expect(chrome[0].className).toContain('left-3');
+    expect(chrome[0].className.split(' ')).toEqual(expect.arrayContaining(['left-1/2', '-translate-x-1/2']));
     expect(within(chrome[0] as HTMLElement).getByRole('button', { name: '退出投影' })).toBeTruthy();
     // The shortcut list is no longer under the toolbar; it's in the first-run tip.
     // (Screen readers still get it in the dialog's description.)
@@ -490,7 +492,7 @@ describe('projection tools', () => {
     await screen.findByRole('img', { name: '投影片標註區' });
     expect(screen.getByRole('button', { name: '知道了，不再顯示' })).toBeTruthy();
     // The first-run tip says where the controls are, and lists the shortcuts.
-    expect(screen.getByText('控制列在左下角：滑鼠移到左下角就會出現。')).toBeTruthy();
+    expect(screen.getByText('控制列在畫面下方中間：滑鼠移過去就會出現。')).toBeTruthy();
     expect(screen.getAllByText(/右鍵開啟工具/).some((element) => !element.classList.contains('sr-only'))).toBe(true);
     fireEvent.click(screen.getByRole('button', { name: '知道了，不再顯示' }));
     expect(screen.queryByRole('button', { name: '知道了，不再顯示' })).toBeNull();
