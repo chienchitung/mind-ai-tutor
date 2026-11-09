@@ -52,13 +52,13 @@ import { JoinQRCode } from "./JoinQRCode";
 // Long enough to identify a tool after moving the pointer. Keyboard/clicker
 // page changes still leave an already-hidden toolbar undisturbed.
 const CONTROLS_HIDE_DELAY_MS = 2800;
-// Like Google Slides, the controls are one small toolbar in the bottom-left
-// corner, the spot slides use least. With a drawing tool (laser, pen,
-// eraser), moving over the slide is part of teaching, not a request for the
-// controls: they appear only when the pointer comes near the toolbar.
+// The controls are one small toolbar at the bottom centre, with nothing at
+// the top. With a drawing tool (laser, pen, eraser), moving over the slide is
+// part of teaching, not a request for the controls: like Google Slides, they
+// appear only when the pointer comes near the toolbar.
 const CONTROLS_REACH_PX = 32;
-// Where layout is unknown (no measured box), fall back to that corner.
-const CONTROLS_CORNER_PX = { width: 520, height: 190 };
+// Where layout is unknown (no measured box), fall back to that area.
+const CONTROLS_AREA_PX = { width: 520, height: 190 };
 const ONBOARDING_SEEN_KEY = "live-presentation-onboarding-seen";
 const ONBOARDING_DURATION_MS = 10000;
 const TOOL_ANNOUNCEMENT_DURATION_MS = 1400;
@@ -310,17 +310,15 @@ export const PresentationStage = forwardRef<HTMLDivElement, Props>(
     const [visible, setVisible] = useState(true);
     const [error, setError] = useState(false);
     const [showOnboarding, setShowOnboarding] = useState(false);
-    const [toolAnnouncement, setToolAnnouncement] = useState<{
-      tool: PresentationTool;
-      x: number;
-      y: number;
-    } | null>(null);
+    // Spoken to screen readers only: a chip beside the pointer was projected
+    // to the class and lingered on the slide.
+    const [toolAnnouncement, setToolAnnouncement] =
+      useState<PresentationTool | null>(null);
     const hideTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
     const onboardingTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
     const toolAnnouncementTimer = useRef<ReturnType<typeof setTimeout> | null>(
       null,
     );
-    const pointerPosition = useRef({ x: 24, y: 96 });
     const history = ink[page] ?? EMPTY_INK;
     const setStageRef = useCallback(
       (node: HTMLDivElement | null) => {
@@ -408,18 +406,7 @@ export const PresentationStage = forwardRef<HTMLDivElement, Props>(
       setToolsOpen(false);
       setVisible(false);
       if (hideTimer.current) clearTimeout(hideTimer.current);
-      const point = pointerPosition.current;
-      setToolAnnouncement({
-        tool: value,
-        x: Math.min(
-          Math.max(point.x + 14, 12),
-          Math.max(12, window.innerWidth - 172),
-        ),
-        y: Math.min(
-          Math.max(point.y + 14, 72),
-          Math.max(72, window.innerHeight - 72),
-        ),
-      });
+      setToolAnnouncement(value);
       if (toolAnnouncementTimer.current)
         clearTimeout(toolAnnouncementTimer.current);
       toolAnnouncementTimer.current = setTimeout(
@@ -428,7 +415,6 @@ export const PresentationStage = forwardRef<HTMLDivElement, Props>(
       );
     };
     const rememberPointer = (event: ReactPointerEvent<HTMLDivElement>) => {
-      pointerPosition.current = { x: event.clientX, y: event.clientY };
       const nearControls = isNearControls(event.clientX, event.clientY);
       if (tool === "cursor" || toolsDisabled || nearControls) {
         wake();
@@ -454,7 +440,11 @@ export const PresentationStage = forwardRef<HTMLDivElement, Props>(
         .filter((box) => box.width > 0 && box.height > 0);
       if (!boxes.length) {
         const height = stageRef.current?.clientHeight || window.innerHeight;
-        return x <= CONTROLS_CORNER_PX.width && y >= height - CONTROLS_CORNER_PX.height;
+        const width = stageRef.current?.clientWidth || window.innerWidth;
+        return (
+          Math.abs(x - width / 2) <= CONTROLS_AREA_PX.width / 2 &&
+          y >= height - CONTROLS_AREA_PX.height
+        );
       }
       return boxes.some(
         (box) =>
@@ -635,29 +625,15 @@ export const PresentationStage = forwardRef<HTMLDivElement, Props>(
               </ContextMenu.Portal>
             </ContextMenu.Root>
             {reactions}
-            {toolAnnouncement && (
-              <div
-                role="status"
-                aria-live="polite"
-                className="pointer-events-none fixed z-[76] flex items-center gap-2 rounded-lg border border-white/15 bg-zinc-950/90 px-3 py-2 text-xs font-medium text-white shadow-xl backdrop-blur-sm"
-                style={{ left: toolAnnouncement.x, top: toolAnnouncement.y }}
-              >
-                <ActiveIcon className="h-4 w-4" aria-hidden="true" />
-                <span>{t(`live_tool_${toolAnnouncement.tool}`)}</span>
-                {toolAnnouncement.tool === "pen" && (
-                  <>
-                    <span
-                      className="h-3.5 w-3.5 rounded-full border border-white/40"
-                      style={{ backgroundColor: color }}
-                      aria-hidden="true"
-                    />
-                    <span className="text-white/70">
-                      {t(width === 3 ? "live_ink_thin" : "live_ink_thick")}
-                    </span>
-                  </>
-                )}
-              </div>
-            )}
+            <div role="status" aria-live="polite" className="sr-only">
+              {toolAnnouncement && (
+                <>
+                  {t(`live_tool_${toolAnnouncement}`)}
+                  {toolAnnouncement === "pen" &&
+                    ` ${t(width === 3 ? "live_ink_thin" : "live_ink_thick")}`}
+                </>
+              )}
+            </div>
             {/* Always on, independent of the toolbar's own auto-hide -
               the point is the presenter can glance at this without first
               having to move the mouse, let alone exit projection. The full
@@ -707,7 +683,7 @@ export const PresentationStage = forwardRef<HTMLDivElement, Props>(
               data-presentation-chrome=""
               // Faint until the pointer is on it, like Google Slides, so the
               // corner stays quiet while the class looks at the slide.
-              className={`absolute bottom-20 left-3 max-w-[calc(100%-1.5rem)] pb-[max(0.75rem,env(safe-area-inset-bottom))] transition-opacity motion-reduce:transition-none ${shown ? "opacity-70 hover:opacity-100 focus-within:opacity-100" : "pointer-events-none opacity-0 focus-within:opacity-100"}`}
+              className={`absolute bottom-20 left-1/2 max-w-[calc(100%-1.5rem)] -translate-x-1/2 pb-[max(0.75rem,env(safe-area-inset-bottom))] transition-opacity motion-reduce:transition-none ${shown ? "opacity-70 hover:opacity-100 focus-within:opacity-100" : "pointer-events-none opacity-0 focus-within:opacity-100"}`}
             >
               <div className="flex max-w-full flex-wrap items-center gap-0.5 rounded-xl border border-white/15 bg-zinc-950/90 p-1 shadow-lg backdrop-blur-md">
                 <Button
@@ -764,7 +740,7 @@ export const PresentationStage = forwardRef<HTMLDivElement, Props>(
                       data-presentation-ui=""
                       className={MENU}
                       side="top"
-                      align="start"
+                      align="center"
                       sideOffset={12}
                       collisionPadding={8}
                       onCloseAutoFocus={closedMenuFocus}
