@@ -164,3 +164,5 @@ npm run build         # production build
 ## 授權
 
 [MIT License](./LICENSE)。
+
+<!-- Codex auto-review check: this PR will be closed without merging. -->
