@@ -16,6 +16,7 @@ import {
   Rows3,
   Settings2,
   Square,
+  Trash2,
   Undo2,
 } from "lucide-react";
 import {
@@ -77,6 +78,7 @@ export function PresentationControls({
   pollVotes = null,
   notice,
   localDeck,
+  onClearQuestions,
 }: {
   sessionId: string;
   questions: LiveQuestion[];
@@ -99,6 +101,8 @@ export function PresentationControls({
   notice?: ReactNode;
   /** The presenter's own slide position, which leads the saved one by a round trip. */
   localDeck?: { url: string | null; page: number };
+  /** Asks to delete every question (the page confirms first). */
+  onClearQuestions?: () => void;
 }) {
   const { language } = useLanguage();
   const { t } = useTranslation(language);
@@ -390,9 +394,22 @@ export function PresentationControls({
                   <MessageSquare className="h-4 w-4 text-muted-foreground" />
                   {t("live_qa_title")}
                 </h2>
-                <span className="text-xs text-muted-foreground">
-                  {zh ? `共 ${questions.length} 則` : `${questions.length} total`}
-                </span>
+                <div className="flex items-center gap-1">
+                  <span className="text-xs text-muted-foreground">
+                    {zh ? `共 ${questions.length} 則` : `${questions.length} total`}
+                  </span>
+                  {onClearQuestions && questions.length > 0 && (
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      className="h-8 px-2 text-xs text-muted-foreground hover:text-destructive"
+                      onClick={onClearQuestions}
+                    >
+                      <Trash2 className="mr-1.5 h-3.5 w-3.5" />
+                      {zh ? "清除問答" : "Clear Q&A"}
+                    </Button>
+                  )}
+                </div>
               </div>
               <div className="grid gap-3 rounded-xl bg-muted/40 p-3">
                 <div className="flex flex-wrap items-center gap-2">

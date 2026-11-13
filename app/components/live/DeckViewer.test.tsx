@@ -160,6 +160,22 @@ describe('DeckViewer', () => {
     expect(page.getViewport).toHaveBeenCalledWith({ scale: 1 });
     expect(page.getViewport.mock.calls.some(([arg]) => arg.scale !== 1)).toBe(true);
   });
+  it('renders at the screen density so slides stay sharp on high-DPI screens and projectors', async () => {
+    vi.stubGlobal('devicePixelRatio', 2);
+    const page = {
+      getViewport: vi.fn(({ scale }: { scale: number }) => ({ width: 100 * scale, height: 80 * scale })),
+      render: vi.fn().mockReturnValue({ promise: Promise.resolve(), cancel: vi.fn() }),
+    };
+    getPage.mockResolvedValue(page);
+    const { container } = render(<DeckViewer url="https://example.test/sharp.pdf" page={1} />);
+    await waitFor(() => expect(container.querySelector('canvas')?.style.width).toBe('375px'));
+    const canvas = container.querySelector('canvas')!;
+    // Fits 400x300 at 3.75x in CSS pixels, drawn with twice the pixels.
+    expect(canvas.width).toBe(750);
+    expect(canvas.height).toBe(600);
+    expect(canvas.style.height).toBe('300px');
+    expect(canvas.parentElement?.style.width).toBe('375px');
+  });
   it('cancels a superseded render instead of letting it surface as an error', async () => {
     const cancel = vi.fn();
     let rejectFirst!: (reason?: unknown) => void;

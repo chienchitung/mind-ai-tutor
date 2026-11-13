@@ -6,6 +6,36 @@ import { useEffect, useRef, useState, type ReactNode } from 'react';
 // both neighbours and one recently shown page - for the stage, the preview
 // and the projected window at once, so a remounted viewer paints at once.
 const MAX_CACHED_PAGES = 12;
+// Canvas pixels are rendered at the screen's density (devicePixelRatio), not
+// CSS pixels - otherwise a Retina screen, or a projector on a 125-200%
+// Windows display scale, stretches every slide and it looks blurry. Capped so
+// one fullscreen page stays a reasonable bitmap.
+const MAX_PIXEL_RATIO = 3;
+const MAX_CANVAS_PIXELS = 16_777_216;
+
+function screenPixelRatio(): number {
+  const ratio = typeof window === 'undefined' ? 1 : window.devicePixelRatio;
+  return Math.min(Math.max(Number.isFinite(ratio) && ratio > 0 ? ratio : 1, 1), MAX_PIXEL_RATIO);
+}
+
+// Follows the window across screens: dragging the projection window onto a
+// projector (or changing the display scale) changes the ratio without a resize.
+function usePixelRatio(): number {
+  const [ratio, setRatio] = useState(screenPixelRatio);
+  useEffect(() => {
+    if (typeof window.matchMedia !== 'function') return;
+    let query: MediaQueryList | null = null;
+    const watch = () => {
+      query?.removeEventListener('change', watch);
+      setRatio(screenPixelRatio());
+      query = window.matchMedia(`(resolution: ${window.devicePixelRatio}dppx)`);
+      query.addEventListener('change', watch);
+    };
+    watch();
+    return () => query?.removeEventListener('change', watch);
+  }, []);
+  return ratio;
+}
 const renderedPages = new Map<string, HTMLCanvasElement>();
 
 // Parsed decks shared by every viewer on the page. The presenter's stage, its
@@ -80,6 +110,7 @@ export function DeckViewer({ url, page, onNumPages, onError, className, overlay 
     height: number;
   } | null>(null);
   const [containerSize, setContainerSize] = useState({ width: 0, height: 0 });
+  const pixelRatio = usePixelRatio();
 
   // The deck should fill whatever box it's given (a small card, or a
   // fullscreen presentation view) rather than render at one fixed scale -
@@ -134,7 +165,7 @@ export function DeckViewer({ url, page, onNumPages, onError, className, overlay 
     // this deck". Tracking the task lets cleanup actually cancel it instead
     // of just ignoring its result.
     let renderTask: any = null;
-    const keyFor = (pageNumber: number) => `${url}:${pageNumber}:${containerSize.width}:${containerSize.height}`;
+    const keyFor = (pageNumber: number) => `${url}:${pageNumber}:${containerSize.width}:${containerSize.height}:${pixelRatio}`;
     const remember = (key: string, canvas: HTMLCanvasElement) => {
       renderedPages.delete(key);
       renderedPages.set(key, canvas);
@@ -149,14 +180,18 @@ export function DeckViewer({ url, page, onNumPages, onError, className, overlay 
       const pdfPage = await doc.getPage(pageNumber);
       if (cancelled) return null;
       // Contain-fit: scale so the page is as large as possible without
-      // overflowing the box in either dimension, then render at exactly
-      // that resolution (crisp, no CSS upscaling blur).
+      // overflowing the box in either dimension, then render that size in
+      // device pixels (crisp, no CSS upscaling blur).
       const unscaled = pdfPage.getViewport({ scale: 1 });
-      const scale = Math.min(containerSize.width / unscaled.width, containerSize.height / unscaled.height);
-      const viewport = pdfPage.getViewport({ scale: Math.max(scale, 0.1) });
+      const scale = Math.max(Math.min(containerSize.width / unscaled.width, containerSize.height / unscaled.height), 0.1);
+      const fitArea = unscaled.width * scale * unscaled.height * scale;
+      const ratio = Math.max(1, Math.min(pixelRatio, Math.sqrt(MAX_CANVAS_PIXELS / Math.max(fitArea, 1))));
+      const viewport = pdfPage.getViewport({ scale: scale * ratio });
       const canvas = document.createElement('canvas');
-      canvas.width = viewport.width;
-      canvas.height = viewport.height;
+      canvas.width = Math.floor(viewport.width);
+      canvas.height = Math.floor(viewport.height);
+      canvas.dataset.cssWidth = String(Math.floor(viewport.width / ratio));
+      canvas.dataset.cssHeight = String(Math.floor(viewport.height / ratio));
       const context = canvas.getContext('2d');
       if (!context) return null;
       renderTask = pdfPage.render({ canvasContext: context, viewport });
@@ -174,7 +209,12 @@ export function DeckViewer({ url, page, onNumPages, onError, className, overlay 
         if (!image || !canvas || cancelled) return;
         canvas.width = image.width; canvas.height = image.height;
         canvas.getContext('2d')?.drawImage(image, 0, 0);
-        setRendered({ url, page, width: image.width, height: image.height });
+        // Shown at its CSS size, so the extra device pixels add sharpness.
+        const width = Number(image.dataset.cssWidth) || image.width;
+        const height = Number(image.dataset.cssHeight) || image.height;
+        canvas.style.width = `${width}px`;
+        canvas.style.height = `${height}px`;
+        setRendered({ url, page, width, height });
       } catch (cause) {
         // A render we cancelled ourselves rejects too (RenderingCancelledException) -
         // that's expected when the page changed again mid-render, not a real failure.
@@ -200,7 +240,7 @@ export function DeckViewer({ url, page, onNumPages, onError, className, overlay 
       cancelled = true;
       renderTask?.cancel();
     };
-  }, [doc, page, containerSize.width, containerSize.height]);
+  }, [doc, page, containerSize.width, containerSize.height, pixelRatio]);
 
   if (error) return null;
   return (

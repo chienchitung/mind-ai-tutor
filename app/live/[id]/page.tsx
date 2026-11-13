@@ -139,6 +139,10 @@ export default function AudiencePage() {
       }
       const json = await response.json();
       setData(json);
+      // No ratings at all means the teacher reset the feedback (perhaps while
+      // this student was offline and missed the broadcast): drop the stale
+      // selection so they can rate again.
+      if (json?.pulse?.pulseTotal === 0) setMyPulse(null);
       setStatus('ready');
     } catch {
       setStatus('error');
@@ -264,6 +268,15 @@ export default function AudiencePage() {
         void loadQuestions();
       })
       .on('broadcast', { event: 'session:deleted' }, () => { void load(); })
+      .on('broadcast', { event: 'activity:cleared' }, ({ payload }) => {
+        // The teacher wiped the Q&A and/or the difficulty feedback: this
+        // student can ask, upvote and rate afresh.
+        // The broadcast can arrive after a question asked just after the
+        // clear, so reload the real state rather than assume it is empty.
+        const cleared = payload as { questions?: boolean; pulse?: boolean };
+        if (cleared.questions) { setUpvotedIds(new Set()); void loadQuestions(); }
+        if (cleared.pulse) { setMyPulse(null); void load(); }
+      })
       .on('broadcast', { event: 'recording:state' }, ({ payload }) => {
         const active = (payload as { active?: unknown }).active === true;
         setData((previous) => (previous ? { ...previous, recording: active } : previous));
@@ -372,7 +385,9 @@ export default function AudiencePage() {
   };
 
   const sendPulse = async (value: number) => {
-    if (!participantId || data?.status !== 'open' || myPulse === value) return;
+    // The same value is sent again too: an upsert, and it restores a rating
+    // the teacher's reset removed while this page still showed it.
+    if (!participantId || data?.status !== 'open') return;
     const previousPulse = myPulse;
     setMyPulse(value);
     try {
