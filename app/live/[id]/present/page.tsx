@@ -163,15 +163,6 @@ export default function PresenterPage() {
   // they go with the feedback.
   const [clearTarget, setClearTarget] = useState<'questions' | 'pulse' | null>(null);
   const [clearing, setClearing] = useState(false);
-  const applyCleared = useCallback((cleared: { questions?: boolean; pulse?: boolean }) => {
-    if (cleared.questions) setQuestions([]);
-    if (cleared.pulse) {
-      setReactionCounts({});
-      setData((previous) => previous
-        ? { ...previous, pulse: { pulseCounts: [0, 0, 0, 0, 0], pulseTotal: 0, pulseAverage: null } }
-        : previous);
-    }
-  }, []);
   const { reactions, push: pushReaction } = useReactionBursts();
   const { onlineCount, registerPing } = useOnlinePresenceCount();
 
@@ -252,6 +243,12 @@ export default function PresenterPage() {
       // Best-effort - the panel just stays empty until the next successful load or broadcast.
     }
   }, [params.id]);
+  // Reloads rather than blanking: a question asked right after the clear can
+  // arrive before the clear's own broadcast or response.
+  const applyCleared = useCallback((cleared: { questions?: boolean; pulse?: boolean }) => {
+    if (cleared.questions) void loadQuestions();
+    if (cleared.pulse) { setReactionCounts({}); void load(); }
+  }, [load, loadQuestions]);
 
   useEffect(() => {
     void load();
