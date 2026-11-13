@@ -29,6 +29,7 @@ import {
   Library,
   FileText,
   Check,
+  RotateCcw,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
@@ -157,6 +158,20 @@ export default function PresenterPage() {
   const [reactionCounts, setReactionCounts] = useState<Record<string, number>>(
     {},
   );
+  // Wiping a class's Q&A or its difficulty feedback (e.g. before reusing the
+  // session for the next class). Reaction counts are only ever held here, so
+  // they go with the feedback.
+  const [clearTarget, setClearTarget] = useState<'questions' | 'pulse' | null>(null);
+  const [clearing, setClearing] = useState(false);
+  const applyCleared = useCallback((cleared: { questions?: boolean; pulse?: boolean }) => {
+    if (cleared.questions) setQuestions([]);
+    if (cleared.pulse) {
+      setReactionCounts({});
+      setData((previous) => previous
+        ? { ...previous, pulse: { pulseCounts: [0, 0, 0, 0, 0], pulseTotal: 0, pulseAverage: null } }
+        : previous);
+    }
+  }, []);
   const { reactions, push: pushReaction } = useReactionBursts();
   const { onlineCount, registerPing } = useOnlinePresenceCount();
 
@@ -329,6 +344,9 @@ export default function PresenterPage() {
       .on('broadcast', { event: 'recording:state' }, ({ payload }) => {
         setRecordingActive((payload as { active?: unknown }).active === true);
       })
+      .on('broadcast', { event: 'activity:cleared' }, ({ payload }) => {
+        applyCleared(payload as { questions?: boolean; pulse?: boolean });
+      })
       .on('broadcast', { event: 'reaction:sent' }, ({ payload }) => {
         const { kind } = payload as { kind: string };
         setReactionCounts((previous) => ({
@@ -348,7 +366,7 @@ export default function PresenterPage() {
     return () => {
       void client.removeChannel(channel);
     };
-  }, [params.id, pushReaction, registerPing, load, loadQuestions, loadRecordingActive]);
+  }, [params.id, pushReaction, registerPing, load, loadQuestions, loadRecordingActive, applyCleared]);
 
   // Drawing stays on this browser's origin, never on the public student channel.
   // A refreshed display asks for the current ink; periodic replay repairs missed messages.
@@ -723,6 +741,22 @@ export default function PresenterPage() {
       document.removeEventListener('fullscreenchange', handleFullscreenChange);
   }, []);
 
+  const confirmClear = async () => {
+    if (!clearTarget || clearing) return;
+    setClearing(true);
+    try {
+      const response = await fetch(`/api/live-sessions/${params.id}/activity?scope=${clearTarget}`, { method: 'DELETE' });
+      if (!response.ok) throw new Error();
+      applyCleared({ [clearTarget]: true });
+      window.dispatchEvent(new Event('live:presentation-refresh'));
+      setClearTarget(null);
+    } catch {
+      toast({ title: t('error'), description: t('live_clear_failed'), variant: 'destructive' });
+    } finally {
+      setClearing(false);
+    }
+  };
+
   const handleModerate = async (item: LiveQuestion) => {
     if (moderatingId) return;
     const nextVisibility =
@@ -834,6 +868,7 @@ export default function PresenterPage() {
           moderatingId={moderatingId}
           onModerate={(item) => void handleModerate(item)}
           localDeck={{ url: data.deckUrl, page: data.deckPage }}
+          onClearQuestions={() => setClearTarget('questions')}
           header={
             <>
               <div className="min-w-0 flex-1 basis-56">
@@ -1252,6 +1287,19 @@ export default function PresenterPage() {
                       {' '}/ 5 · {data.pulse.pulseTotal} {t('live_answered')}
                     </span>
                   </div>
+                  {(data.pulse.pulseTotal > 0 || REACTION_KINDS.some((kind) => reactionCounts[kind])) && (
+                    <div className="-mt-1 mb-2 flex justify-end">
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        className="h-7 px-2 text-xs text-muted-foreground hover:text-destructive"
+                        onClick={() => setClearTarget('pulse')}
+                      >
+                        <RotateCcw className="mr-1.5 h-3.5 w-3.5" />
+                        {t('live_clear_pulse')}
+                      </Button>
+                    </div>
+                  )}
                   <div className="relative h-2 rounded-full bg-gradient-to-r from-emerald-200 via-muted to-amber-300">
                     {pulseAvg !== null && (
                       <span
@@ -1367,6 +1415,15 @@ export default function PresenterPage() {
           </Button>
         </DialogContent>
       </Dialog>
+      <DeleteConfirmation
+        name={clearTarget === 'questions'
+          ? t('live_clear_questions_name', { count: questions.length })
+          : clearTarget === 'pulse' ? t('live_clear_pulse_name') : null}
+        description={t(clearTarget === 'pulse' ? 'live_clear_pulse_confirm' : 'live_clear_questions_confirm')}
+        busy={clearing}
+        onCancel={() => setClearTarget(null)}
+        onConfirm={() => void confirmClear()}
+      />
       <DeleteConfirmation
         name={deckToDelete ? deckToDelete.title ?? t('live_deck_untitled') : null}
         description={t('live_deck_library_delete_confirm')}

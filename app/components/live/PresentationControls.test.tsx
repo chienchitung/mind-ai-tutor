@@ -261,3 +261,20 @@ it("skips the phone-only display tab when moving with the keyboard on wide scree
   expect(screen.getByRole("tab", { name: /投影片/ }).getAttribute("aria-selected")).toBe("true");
   vi.unstubAllGlobals();
 });
+
+it("offers clearing the Q&A only while there are questions", () => {
+  const onClear = vi.fn();
+  const { rerender } = render(
+    <LanguageProvider>
+      <PresentationControls sessionId="test" questions={[questions[0]]} connected={false} onOpen={() => {}} onClearQuestions={onClear} />
+    </LanguageProvider>,
+  );
+  fireEvent.click(screen.getByRole("button", { name: "清除問答" }));
+  expect(onClear).toHaveBeenCalledTimes(1);
+  rerender(
+    <LanguageProvider>
+      <PresentationControls sessionId="test" questions={[]} connected={false} onOpen={() => {}} onClearQuestions={onClear} />
+    </LanguageProvider>,
+  );
+  expect(screen.queryByRole("button", { name: "清除問答" })).toBeNull();
+});

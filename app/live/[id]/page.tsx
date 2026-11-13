@@ -264,6 +264,13 @@ export default function AudiencePage() {
         void loadQuestions();
       })
       .on('broadcast', { event: 'session:deleted' }, () => { void load(); })
+      .on('broadcast', { event: 'activity:cleared' }, ({ payload }) => {
+        // The teacher wiped the Q&A and/or the difficulty feedback: this
+        // student can ask, upvote and rate afresh.
+        const cleared = payload as { questions?: boolean; pulse?: boolean };
+        if (cleared.questions) { setQuestions([]); setUpvotedIds(new Set()); }
+        if (cleared.pulse) setMyPulse(null);
+      })
       .on('broadcast', { event: 'recording:state' }, ({ payload }) => {
         const active = (payload as { active?: unknown }).active === true;
         setData((previous) => (previous ? { ...previous, recording: active } : previous));
