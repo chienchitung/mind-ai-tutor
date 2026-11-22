@@ -47,6 +47,7 @@ import type { Quiz, QuizQuestion } from "@/lib/quiz";
 import { AnnotationLayer } from "./AnnotationLayer";
 import { DeckViewer } from "./DeckViewer";
 import { LivePanel } from "./LivePanel";
+import type { PreparedPoll } from "@/lib/live-session";
 import { JoinQRCode } from "./JoinQRCode";
 
 // Long enough to identify a tool after moving the pointer. Keyboard/clicker
@@ -253,6 +254,9 @@ interface Props {
   quizPickerError?: string;
   onLoadQuizzes?: () => void;
   onPickQuizQuestion?: (question: QuizQuestion) => void;
+  /** Polls set up ahead of class, launched from the panel in one click. */
+  preparedPolls?: PreparedPoll[] | null;
+  onLaunchPrepared?: (poll: PreparedPoll) => void;
 }
 
 /** Kept mounted by the owner: closing presentation does not throw away page notes. */
@@ -288,6 +292,8 @@ export const PresentationStage = forwardRef<HTMLDivElement, Props>(
       quizPickerError,
       onLoadQuizzes,
       onPickQuizQuestion,
+      preparedPolls,
+      onLaunchPrepared,
     },
     forwardedRef,
   ) {
@@ -659,6 +665,8 @@ export const PresentationStage = forwardRef<HTMLDivElement, Props>(
               quizPickerError={quizPickerError ?? ""}
               onLoadQuizzes={onLoadQuizzes ?? (() => {})}
               onPickQuizQuestion={onPickQuizQuestion ?? (() => {})}
+              preparedPolls={preparedPolls ?? null}
+              onLaunchPrepared={onLaunchPrepared}
             />
             {showOnboarding && (
               <div className="absolute inset-x-0 top-24 z-[75] flex justify-center px-4">

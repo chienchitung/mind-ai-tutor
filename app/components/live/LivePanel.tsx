@@ -5,7 +5,7 @@ import { BarChart3, Eye, EyeOff, Loader2, MessageSquare, X } from 'lucide-react'
 import { Button } from '@/components/ui/button';
 import { useLanguage } from '@/app/contexts/LanguageContext';
 import { useTranslation } from '@/lib/translations';
-import type { LivePollState, LiveQuestion } from '@/lib/live-session';
+import type { LivePollState, LiveQuestion, PreparedPoll } from '@/lib/live-session';
 import type { Quiz, QuizQuestion } from '@/lib/quiz';
 
 function sortQuestions(a: LiveQuestion, b: LiveQuestion): number {
@@ -24,6 +24,8 @@ interface Props {
   quizPickerError: string;
   onLoadQuizzes: () => void;
   onPickQuizQuestion: (question: QuizQuestion) => void;
+  preparedPolls?: PreparedPoll[] | null;
+  onLaunchPrepared?: (poll: PreparedPoll) => void;
 }
 
 /** Slido-style Q&A/poll panel, viewable and usable while still projecting -
@@ -35,6 +37,7 @@ interface Props {
 export function LivePanel({
   open, onClose, poll, questions, moderatingId, onModerateQuestion,
   quizzes, quizzesLoading, quizPickerError, onLoadQuizzes, onPickQuizQuestion,
+  preparedPolls = null, onLaunchPrepared,
 }: Props) {
   const { language } = useLanguage();
   const { t } = useTranslation(language);
@@ -141,6 +144,24 @@ export function LivePanel({
               </>
             ) : (
               <p className="py-6 text-sm text-white/60">{t('live_no_active_poll')}</p>
+            )}
+            {preparedPolls && preparedPolls.length > 0 && onLaunchPrepared && (
+              <div className="mt-5 border-t border-white/10 pt-4">
+                <p className="mb-2 text-xs font-medium text-white/60">{t('live_prepared_title')}</p>
+                <div className="space-y-1">
+                  {preparedPolls.map((prepared, index) => (
+                    <button
+                      key={prepared.id}
+                      type="button"
+                      onClick={() => onLaunchPrepared(prepared)}
+                      className={`block w-full whitespace-normal break-words rounded-lg border border-white/10 px-3 py-2 text-left text-sm hover:border-white/30 hover:bg-white/5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/40 ${prepared.used ? 'text-white/50' : ''}`}
+                    >
+                      {index + 1}. {prepared.question}
+                      {prepared.used && <span className="ml-2 text-[10px] uppercase tracking-wide">{t('live_prepared_used')}</span>}
+                    </button>
+                  ))}
+                </div>
+              </div>
             )}
             <div className="mt-5 border-t border-white/10 pt-4">
               <p className="mb-2 text-xs font-medium text-white/60">{t('live_load_from_quiz_pick_question')}</p>
