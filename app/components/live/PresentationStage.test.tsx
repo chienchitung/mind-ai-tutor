@@ -583,6 +583,13 @@ describe('Slido-style Q&A/poll panel', () => {
     expect(screen.getByText('▲ 2')).toBeTruthy();
   });
 
+  it('offers no Q&A or poll controls on the projector window', async () => {
+    renderStage({ panel: false });
+    await screen.findByRole('img', { name: '投影片標註區' });
+    expect(screen.queryByRole('button', { name: '問答與投票' })).toBeNull();
+    expect(screen.queryByText('IF 函數可以巢狀使用嗎？')).toBeNull();
+  });
+
   it('moderates a question from inside the panel without leaving fullscreen', async () => {
     const onModerateQuestion = vi.fn();
     renderStage({ onModerateQuestion });
