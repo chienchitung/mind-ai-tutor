@@ -75,6 +75,8 @@ import {
   SessionStatus,
 } from '@/components/live/LiveSessionUI';
 import type { Quiz, QuizQuestion } from '@/lib/quiz';
+import type { PreparedPoll } from '@/lib/live-session';
+import { PreparedPolls } from '@/components/live/PreparedPolls';
 
 const REACTION_KINDS = ['applause', 'insight', 'resonate', 'pause'] as const;
 const CONTROL_TOOLS = [
@@ -121,6 +123,16 @@ export default function PresenterPage() {
   const [question, setQuestion] = useState('');
   const [options, setOptions] = useState(['', '']);
   const [isOpeningPoll, setIsOpeningPoll] = useState(false);
+  // Poll questions set up ahead of class. null: not available (still
+  // loading, or the prepared-polls migration has not run yet).
+  const [preparedPolls, setPreparedPolls] = useState<PreparedPoll[] | null>(null);
+  const preparedRef = useRef<PreparedPoll[] | null>(null);
+  preparedRef.current = preparedPolls;
+  // What the composer was opened for: launching now, preparing one, or
+  // editing a prepared one (its id).
+  const [composerMode, setComposerMode] = useState<'publish' | 'prepare'>('publish');
+  const [editingPreparedId, setEditingPreparedId] = useState<string | null>(null);
+  const [launchingPreparedId, setLaunchingPreparedId] = useState<string | null>(null);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [uploadingDeck, setUploadingDeck] = useState(false);
@@ -481,18 +493,95 @@ export default function PresenterPage() {
     }
   };
 
-  const handleOpenPoll = async (event: React.FormEvent) => {
-    event.preventDefault();
+  useEffect(() => {
+    let cancelled = false;
+    fetch(`/api/live-sessions/${params.id}/prepared-polls`, { cache: 'no-store' })
+      .then((response) => (response.ok ? response.json() : null))
+      .then((body) => { if (!cancelled) setPreparedPolls(Array.isArray(body?.polls) ? body.polls : null); })
+      .catch(() => undefined);
+    return () => { cancelled = true; };
+  }, [params.id]);
+
+  // Optimistic: the list changes at once and rolls back if the save fails.
+  const savePrepared = async (next: PreparedPoll[]): Promise<boolean> => {
+    const previous = preparedRef.current;
+    setPreparedPolls(next);
+    try {
+      const response = await fetch(`/api/live-sessions/${params.id}/prepared-polls`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ polls: next }),
+      });
+      if (!response.ok) throw new Error();
+      const body = await response.json();
+      setPreparedPolls(body.polls);
+      return true;
+    } catch {
+      setPreparedPolls(previous);
+      toast({ title: t('error'), description: t('live_prepared_failed'), variant: 'destructive' });
+      return false;
+    }
+  };
+
+  const openComposer = (mode: 'publish' | 'prepare', poll?: PreparedPoll) => {
+    // Reopening the same kind of empty composer keeps its unsent draft;
+    // anything else starts from the poll being edited, or blank.
+    const keepDraft = !poll && !editingPreparedId && mode === composerMode;
+    setComposerMode(mode);
+    setEditingPreparedId(poll?.id ?? null);
+    if (!keepDraft) {
+      setQuestion(poll?.question ?? '');
+      setOptions(poll ? [...poll.options] : ['', '']);
+    }
+    setShowComposer(true);
+  };
+
+  const launchPrepared = async (poll: PreparedPoll) => {
+    if (launchingPreparedId) return;
+    setLaunchingPreparedId(poll.id);
+    const ok = await openPoll(poll.question, poll.options);
+    setLaunchingPreparedId(null);
+    if (ok && !poll.used) {
+      void savePrepared((preparedRef.current ?? []).map((item) => (item.id === poll.id ? { ...item, used: true } : item)));
+    }
+  };
+
+  const deletePrepared = (poll: PreparedPoll) => {
+    void savePrepared((preparedRef.current ?? []).filter((item) => item.id !== poll.id));
+  };
+
+  // 'publish' opens it now; 'save' keeps it as a prepared poll; 'both' does both.
+  const submitComposer = async (action: 'publish' | 'save' | 'both') => {
     const cleanOptions = options.map((option) => option.trim()).filter(Boolean);
-    if (!question.trim() || cleanOptions.length < 2 || isOpeningPoll) return;
+    const cleanQuestion = question.trim();
+    if (!cleanQuestion || cleanOptions.length < 2 || isOpeningPoll) return;
     setIsOpeningPoll(true);
-    const ok = await openPoll(question.trim(), cleanOptions);
+    let ok = true;
+    if (action !== 'publish') {
+      const current = preparedRef.current ?? [];
+      const existing = current.find((item) => item.id === editingPreparedId);
+      const entry: PreparedPoll = {
+        id: existing?.id ?? crypto.randomUUID(),
+        question: cleanQuestion,
+        options: cleanOptions,
+        ...(action === 'both' || existing?.used ? { used: true } : {}),
+      };
+      ok = await savePrepared(existing ? current.map((item) => (item.id === existing.id ? entry : item)) : [...current, entry]);
+    }
+    if (ok && action !== 'save') ok = await openPoll(cleanQuestion, cleanOptions);
     setIsOpeningPoll(false);
     if (ok) {
       setShowComposer(false);
+      setEditingPreparedId(null);
       setQuestion('');
       setOptions(['', '']);
     }
+  };
+  const composerPrimary: 'publish' | 'save' = editingPreparedId || composerMode === 'prepare' ? 'save' : 'publish';
+
+  const handleOpenPoll = (event: React.FormEvent) => {
+    event.preventDefault();
+    void submitComposer(composerPrimary);
   };
 
   const handleStatusChange = async (next: LiveSessionStatus, shareDeck?: boolean) => {
@@ -832,6 +921,8 @@ export default function PresenterPage() {
   };
 
   const pickQuizQuestion = (picked: QuizQuestion) => {
+    setComposerMode('publish');
+    setEditingPreparedId(null);
     setQuestion(picked.questionText);
     setOptions(picked.options.slice(0, 6).map((option) => option.text));
     setShowQuizPicker(false);
@@ -1236,7 +1327,7 @@ export default function PresenterPage() {
                         {t('live_poll_remove')}
                       </Button>
                     )}
-                    <Button size="sm" className="h-9" onClick={() => setShowComposer(true)}>
+                    <Button size="sm" className="h-9" onClick={() => openComposer('publish')}>
                       <Plus className="mr-1.5 h-3.5 w-3.5" />
                       {t('live_new_poll')}
                     </Button>
@@ -1297,6 +1388,16 @@ export default function PresenterPage() {
                   <p className="rounded-xl border border-dashed px-4 py-6 text-center text-sm text-muted-foreground">
                     {t('live_no_active_poll')}
                   </p>
+                )}
+                {preparedPolls && (
+                  <PreparedPolls
+                    polls={preparedPolls}
+                    launchingId={launchingPreparedId}
+                    onAdd={() => openComposer('prepare')}
+                    onLaunch={(poll) => void launchPrepared(poll)}
+                    onEdit={(poll) => openComposer('prepare', poll)}
+                    onDelete={deletePrepared}
+                  />
                 )}
               </CardContent>
             </Card>
@@ -1471,7 +1572,9 @@ export default function PresenterPage() {
       <Dialog open={showComposer} onOpenChange={setShowComposer}>
         <DialogContent className="max-h-[85dvh] w-[calc(100%-2rem)] overflow-y-auto rounded-2xl">
           <DialogHeader>
-            <DialogTitle>{t('live_new_poll')}</DialogTitle>
+            <DialogTitle>
+              {t(editingPreparedId ? 'live_prepared_edit_title' : composerMode === 'prepare' ? 'live_prepared_new_title' : 'live_new_poll')}
+            </DialogTitle>
             <DialogDescription>{t('live_options_hint')}</DialogDescription>
           </DialogHeader>
           <form onSubmit={handleOpenPoll} className="space-y-3">
@@ -1539,20 +1642,38 @@ export default function PresenterPage() {
                 </Button>
               )}
             </div>
-            <Button
-              type="submit"
-              className="min-h-11"
-              disabled={
-                isOpeningPoll ||
-                !question.trim() ||
-                options.filter((option) => option.trim()).length < 2
-              }
-            >
-              {isOpeningPoll && (
-                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+            <div className="flex flex-wrap gap-2">
+              <Button
+                type="submit"
+                className="min-h-11"
+                disabled={
+                  isOpeningPoll ||
+                  !question.trim() ||
+                  options.filter((option) => option.trim()).length < 2
+                }
+              >
+                {isOpeningPoll && (
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                )}
+                {t(composerPrimary === 'publish' ? 'live_open_poll'
+                  : editingPreparedId ? 'live_prepared_save_changes' : 'live_prepared_save')}
+              </Button>
+              {preparedPolls && (
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="min-h-11"
+                  disabled={
+                    isOpeningPoll ||
+                    !question.trim() ||
+                    options.filter((option) => option.trim()).length < 2
+                  }
+                  onClick={() => void submitComposer(composerPrimary === 'publish' ? 'save' : 'both')}
+                >
+                  {t(composerPrimary === 'publish' ? 'live_prepared_save' : 'live_prepared_save_and_launch')}
+                </Button>
               )}
-              {t('live_open_poll')}
-            </Button>
+            </div>
           </form>
         </DialogContent>
       </Dialog>
@@ -1573,7 +1694,8 @@ export default function PresenterPage() {
         poll={data.poll} questions={questions} moderatingId={moderatingId}
         onModerateQuestion={(item) => void handleModerate(item)}
         quizzes={quizzes} quizzesLoading={quizzesLoading} quizPickerError={quizPickerError}
-        onLoadQuizzes={() => void loadQuizzesOnce()} onPickQuizQuestion={pickQuizQuestionInPanel} />}
+        onLoadQuizzes={() => void loadQuizzesOnce()} onPickQuizQuestion={pickQuizQuestionInPanel}
+        preparedPolls={preparedPolls} onLaunchPrepared={(poll) => void launchPrepared(poll)} />}
 
       <Dialog open={showQuizPicker} onOpenChange={setShowQuizPicker}>
         <DialogContent className="max-h-[80vh] max-w-lg overflow-y-auto">

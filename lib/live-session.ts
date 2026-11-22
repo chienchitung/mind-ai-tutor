@@ -55,6 +55,16 @@ export const pollDraftSchema = z.object({
   options: z.array(z.string().trim().min(1).max(120)).min(2).max(6),
 });
 
+/** A poll question set up for a session ahead of class (teacher-only). */
+export const preparedPollSchema = pollDraftSchema.extend({
+  id: z.string().uuid(),
+  /** Launched at least once in this session. */
+  used: z.boolean().optional(),
+});
+export const MAX_PREPARED_POLLS = 30;
+export const preparedPollsSchema = z.object({ polls: z.array(preparedPollSchema).max(MAX_PREPARED_POLLS) });
+export type PreparedPoll = z.infer<typeof preparedPollSchema>;
+
 // A session can start blank (no poll yet - the teacher just wants to
 // project a deck or warm up the room) or with its first question already
 // queued up. question/options are deliberately independent of

@@ -390,6 +390,39 @@ describe('Live Session experience', () => {
     );
   });
 
+  it('prepares poll questions ahead of class and launches one with a click', async () => {
+    let stored: unknown[] = [];
+    fetchMock.mockImplementation(async (url: string, init?: RequestInit) => {
+      if (url.endsWith('/prepared-polls')) {
+        if (init?.method === 'PUT') stored = JSON.parse(String(init.body)).polls;
+        return response({ polls: stored });
+      }
+      if (url.endsWith('/polls') && init?.method === 'POST') {
+        const body = JSON.parse(String(init.body));
+        return response({ pollId: 'p-new', ...body, voteCounts: [0, 0], voteTotal: 0 });
+      }
+      return response(url.includes('/questions') ? questions : session);
+    });
+    mount(<PresenterPage />);
+    fireEvent.click(await screen.findByRole('button', { name: '新增預備題目' }));
+    const dialog = screen.getByRole('dialog');
+    fireEvent.change(within(dialog).getByLabelText('題目'), { target: { value: 'IF 的第一個參數是？' } });
+    fireEvent.change(within(dialog).getByLabelText('選項 A'), { target: { value: '條件' } });
+    fireEvent.change(within(dialog).getByLabelText('選項 B'), { target: { value: '結果' } });
+    fireEvent.click(within(dialog).getByRole('button', { name: '存為預備題目' }));
+    // Saved for later: nothing is opened to students yet.
+    await waitFor(() => expect(stored).toEqual([expect.objectContaining({ question: 'IF 的第一個參數是？', options: ['條件', '結果'] })]));
+    expect(fetchMock.mock.calls.some(([url, init]) => String(url).endsWith('/polls') && init?.method === 'POST')).toBe(false);
+
+    fireEvent.click(await screen.findByRole('button', { name: '發布' }));
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledWith(
+      `/api/live-sessions/${session.sessionId}/polls`,
+      expect.objectContaining({ method: 'POST', body: JSON.stringify({ question: 'IF 的第一個參數是？', options: ['條件', '結果'] }) }),
+    ));
+    await waitFor(() => expect(stored).toEqual([expect.objectContaining({ used: true })]));
+    expect(await screen.findByText('已發布')).toBeTruthy();
+  });
+
   it('maps too-easy and too-hard feedback to the correct stored values and names', async () => {
     mount(<AudiencePage />);
     await screen.findByRole('heading', { name: session.title });
