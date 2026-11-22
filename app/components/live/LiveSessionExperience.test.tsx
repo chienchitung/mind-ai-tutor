@@ -496,6 +496,54 @@ describe('Live Session experience', () => {
     );
   });
 
+  it('runs the class timer from the presenter page', async () => {
+    let timer: unknown = null;
+    fetchMock.mockImplementation(async (url: string, init?: RequestInit) => {
+      if (url.endsWith('/timer')) {
+        if (init?.method === 'POST') {
+          const action = JSON.parse(String(init.body));
+          timer = action.action === 'set'
+            ? { durationSeconds: action.seconds, remainingSeconds: action.seconds, endsAt: null }
+            : { durationSeconds: 300, remainingSeconds: 300, endsAt: new Date(Date.now() + 300_000).toISOString() };
+        }
+        return response({ timer, serverNow: Date.now() });
+      }
+      return response(url.includes('/questions') ? questions : session);
+    });
+    mount(<PresenterPage />);
+    fireEvent.click(await screen.findByRole('button', { name: '5 分' }));
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledWith(
+      `/api/live-sessions/${session.sessionId}/timer`,
+      expect.objectContaining({ method: 'POST', body: JSON.stringify({ action: 'set', seconds: 300 }) }),
+    ));
+    fireEvent.click(await screen.findByRole('button', { name: '開始計時' }));
+    await waitFor(() => expect(screen.getByRole('button', { name: '暫停計時' })).toBeTruthy());
+    expect(screen.getAllByRole('timer', { name: '課堂計時器' })[0].textContent).toMatch(/0[45]:\d\d/);
+  });
+
+  it('shows the class timer on a student\'s page when the teacher starts it', async () => {
+    fetchMock.mockImplementation(async (url: string) =>
+      url.endsWith('/timer')
+        ? response({ timer: null, serverNow: Date.now() - 1_000 })
+        : response(url.includes('/questions') ? questions : session),
+    );
+    mount(<AudiencePage />);
+    await screen.findByRole('heading', { name: session.title });
+    // The page's own first read has answered before the broadcast arrives.
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledWith('/api/live/123456/timer', expect.anything()));
+    await act(async () => { await Promise.resolve(); });
+    expect(screen.queryByRole('timer')).toBeNull();
+    act(() => {
+      mocks.events.get('timer:update')?.({ payload: {
+        timer: { durationSeconds: 120, remainingSeconds: 120, endsAt: new Date(Date.now() + 120_000).toISOString() },
+        serverNow: Date.now(),
+      } });
+    });
+    expect(screen.getByRole('timer', { name: '課堂計時器' }).textContent).toMatch(/0[12]:\d\d/);
+    act(() => { mocks.events.get('timer:update')?.({ payload: { timer: null, serverNow: Date.now() } }); });
+    expect(screen.queryByRole('timer')).toBeNull();
+  });
+
   it('maps too-easy and too-hard feedback to the correct stored values and names', async () => {
     mount(<AudiencePage />);
     await screen.findByRole('heading', { name: session.title });

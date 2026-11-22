@@ -23,6 +23,8 @@ import { usePresentationSnapshot } from "@/components/live/usePresentationSnapsh
 import { PresentationContent } from "@/components/live/PresentationContent";
 import { useFastDeckPage } from "@/components/live/useFastDeckPage";
 import { JoinQRCode } from "@/components/live/JoinQRCode";
+import { useLiveTimer } from "@/components/live/useLiveTimer";
+import { LiveTimerBadge } from "@/components/live/LiveTimerBadge";
 
 interface LiveDraft {
   tool: PresentationTool;
@@ -40,6 +42,8 @@ export default function PresentDisplayPage() {
     id,
   );
   const [joinCode, setJoinCode] = useState("");
+  const liveTimer = useLiveTimer(`/api/live-sessions/${id}/timer`);
+  const { apply: applyTimer, load: loadTimer } = liveTimer;
   const [recording, setRecording] = useState(false);
   const [entered, setEntered] = useState(false);
   const [fullscreen, setFullscreen] = useState(false);
@@ -133,13 +137,16 @@ export default function PresentDisplayPage() {
       .on("broadcast", { event: "recording:state" }, ({ payload }) =>
         setRecording((payload as { active?: unknown })?.active === true),
       )
+      .on("broadcast", { event: "timer:update" }, ({ payload }) =>
+        applyTimer(payload as { timer?: unknown; serverNow?: unknown }),
+      )
       .subscribe((state) => {
-        if (state === "SUBSCRIBED") void refresh();
+        if (state === "SUBSCRIBED") { void refresh(); void loadTimer(); }
       });
     return () => {
       void client.removeChannel(channel);
     };
-  }, [id, pushReaction, refresh]);
+  }, [id, pushReaction, refresh, applyTimer, loadTimer]);
   useEffect(() => {
     if (typeof BroadcastChannel === "undefined") return;
     const channel = new BroadcastChannel(`live-ink:${id}`);
@@ -231,6 +238,11 @@ export default function PresentDisplayPage() {
       ref={containerRef}
       className="fixed inset-0 h-[100dvh] w-screen overflow-hidden bg-slate-950 text-white"
     >
+      {liveTimer.timer && entered && (
+        <div className="pointer-events-none absolute left-1/2 top-4 z-[90] -translate-x-1/2">
+          <LiveTimerBadge zh={zh} size="lg" remaining={liveTimer.remaining} running={liveTimer.running} finished={liveTimer.finished} />
+        </div>
+      )}
       {!entered && (
         <div className="absolute inset-0 z-50 flex flex-col items-center justify-center gap-5 bg-slate-950 p-8 text-center">
           <h1 className="text-2xl">{snapshot.title}</h1>

@@ -39,6 +39,8 @@ import {
   useReactionBursts,
 } from '@/components/live/ReactionBurst';
 import { useOnlinePresenceCount } from '@/components/live/usePresenceHeartbeat';
+import { useLiveTimer } from '@/components/live/useLiveTimer';
+import { LiveTimerBadge } from '@/components/live/LiveTimerBadge';
 
 const HEARTBEAT_INTERVAL_MS = 10000;
 
@@ -67,6 +69,8 @@ export default function AudiencePage() {
   const params = useParams<{ id: string }>();
   const code = params.id;
   const presentation = usePresentationSnapshot(`/api/live/${code}/presentation`);
+  const liveTimer = useLiveTimer(`/api/live/${code}/timer`);
+  const { apply: applyTimer, load: loadTimer } = liveTimer;
   const qaRef = useRef<HTMLDivElement>(null);
   const { language } = useLanguage();
   const { t } = useTranslation(language);
@@ -298,12 +302,13 @@ export default function AudiencePage() {
         registerPing((payload as { participantId: string }).participantId);
       })
       .on('broadcast', { event: 'presentation:changed' }, () => { void presentation.refresh(); })
+      .on('broadcast', { event: 'timer:update' }, ({ payload }) => applyTimer(payload as { timer?: unknown; serverNow?: unknown }))
       .subscribe((subscribeStatus) => {
         // Sending before the channel has actually joined would silently
         // drop the message - wait for confirmation, then the interval
         // below keeps it alive every HEARTBEAT_INTERVAL_MS after that.
         if (subscribeStatus === 'SUBSCRIBED') {
-          void load(); void loadQuestions(); void presentation.refresh();
+          void load(); void loadQuestions(); void presentation.refresh(); void loadTimer();
           if (wasOfflineRef.current) {
             // Briefly confirm recovery rather than just silently going back
             // to normal - a student who saw "offline" deserves to see it
@@ -349,6 +354,8 @@ export default function AudiencePage() {
     registerPing,
     load,
     presentation.refresh,
+    applyTimer,
+    loadTimer,
   ]);
 
   const selectOption = (optionIndex: number) => {
@@ -607,6 +614,12 @@ export default function AudiencePage() {
         reactions={reactions}
         className="fixed inset-0 z-[60]"
       />
+      {liveTimer.timer && (
+        // Stays in view while the student scrolls to answer or ask.
+        <div className="sticky top-2 z-40 flex justify-center px-4 pt-2">
+          <LiveTimerBadge zh={language === 'zh-TW'} remaining={liveTimer.remaining} running={liveTimer.running} finished={liveTimer.finished} />
+        </div>
+      )}
       <main className="mx-auto max-w-5xl space-y-5 px-4 py-6 sm:px-6 sm:py-8">
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div className="min-w-0">
