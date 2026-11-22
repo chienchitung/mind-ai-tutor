@@ -23,6 +23,7 @@ import {
   Calendar,
   Bell,
   MessageSquare,
+  Timer,
   Wand2
 } from "lucide-react";
 import { useLanguage } from "@/app/contexts/LanguageContext";
@@ -111,6 +112,12 @@ export function CommandMenu() {
       name: t('ai_quiz'),
       path: "/ai-quiz",
       keywords: "quiz questions assessment test ai artificial intelligence gemini",
+    },
+    {
+      icon: Timer,
+      name: t('classroom_tools'),
+      path: "/classroom-tools",
+      keywords: "timer countdown clock group team random draw order presentation 計時 抽籤 分組",
     },
     {
       icon: MessageSquare,

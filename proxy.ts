@@ -70,6 +70,7 @@ export async function proxy(request: NextRequest) {
     '/live/new',
     '/live/sessions',
     '/live/recordings',
+    '/classroom-tools',
   ];
   const isProtectedPath = PROTECTED_PATHS.some((path) =>
     request.nextUrl.pathname.startsWith(path)
@@ -142,6 +143,7 @@ export const config = {
     '/live/sessions/:path*',
     '/live/recordings/:path*',
     '/live/:id/present/:path*',
+    '/classroom-tools/:path*',
     '/login',
     '/auth/callback',
   ],

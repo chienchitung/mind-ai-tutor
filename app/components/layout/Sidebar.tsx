@@ -16,6 +16,7 @@ import {
   MessageSquare,
   PanelLeft,
   Radio,
+  Timer,
   ShieldCheck,
   Users,
   Wand2,
@@ -90,6 +91,7 @@ export function Sidebar({
           { name: t('digital_games'), href: '/digital-games', icon: Gamepad2 },
           { name: t('ai_quiz'), href: '/ai-quiz', icon: Wand2 },
           { name: t('live_session'), href: '/live/sessions', icon: Radio },
+          { name: t('classroom_tools'), href: '/classroom-tools', icon: Timer },
         ],
       },
       {

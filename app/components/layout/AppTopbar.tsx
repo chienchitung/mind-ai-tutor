@@ -39,6 +39,8 @@ export function AppTopbar({ onOpenMenu, user }: AppTopbarProps) {
                   ? t('reports')
                   : pathname.startsWith('/live')
                     ? t('live_session')
+                    : pathname.startsWith('/classroom-tools')
+                    ? t('classroom_tools')
                     : pathname.startsWith('/admin')
                       ? (language === 'zh-TW' ? '系統管理' : 'Administration')
                       : pathname.startsWith('/settings')

@@ -73,6 +73,7 @@ describe('authenticated-only pages redirect anonymous visitors to login', () => 
     '/live/sessions',
     '/live/recordings',
     '/live/abc123/present',
+    '/classroom-tools',
   ])('redirects anonymous visitors from %s', async (path) => {
     const response = await proxy(new NextRequest(`https://test.local${path}`));
     expect(response.status).toBe(307);

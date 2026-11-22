@@ -13,6 +13,7 @@ const APP_SHELL_ROUTES = [
   '/profile',
   '/subscription',
   '/admin',
+  '/classroom-tools',
 ] as const;
 
 const LIVE_SHELL_ROUTES = ['/live/new', '/live/sessions', '/live/recordings'] as const;

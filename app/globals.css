@@ -125,3 +125,15 @@
     @apply text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground;
   }
 }
+
+/* Classroom tools: confetti when the course timer runs out. */
+@keyframes classroom-confetti-fall {
+  0% { transform: translate3d(0, -10vh, 0) rotate(0deg); opacity: 1; }
+  100% { transform: translate3d(var(--drift, 0), 105vh, 0) rotate(720deg); opacity: 0.9; }
+}
+.classroom-confetti {
+  animation: classroom-confetti-fall var(--fall, 2.6s) cubic-bezier(0.2, 0.6, 0.4, 1) var(--delay, 0s) forwards;
+}
+@media (prefers-reduced-motion: reduce) {
+  .classroom-confetti { display: none; }
+}
