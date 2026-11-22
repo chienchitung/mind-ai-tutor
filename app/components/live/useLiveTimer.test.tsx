@@ -24,8 +24,19 @@ it('ignores a read that started before a newer broadcast', async () => {
   const { result } = renderHook(() => useLiveTimer('/api/live/482910/timer'));
   act(() => result.current.apply({ timer: running(), serverNow: Date.now() }));
   expect(result.current.running).toBe(true);
-  await act(async () => { release(reply({ timer: paused, serverNow: Date.now() })); });
+  // The read reflects the server a moment before the broadcast's write.
+  await act(async () => { release(reply({ timer: paused, serverNow: Date.now() - 500 })); });
   expect(result.current.running).toBe(true);
+});
+
+it('drops a delayed broadcast older than a later pause', () => {
+  const { result } = renderHook(() => useLiveTimer('/api/live/482910/timer'));
+  const t = Date.now();
+  act(() => result.current.apply({ timer: paused, serverNow: t + 2_000 }));
+  act(() => result.current.apply({ timer: running(), serverNow: t + 1_000 }));
+  expect(result.current.running).toBe(false);
+  act(() => result.current.apply({ timer: null, serverNow: t + 3_000 }));
+  expect(result.current.timer).toBeNull();
 });
 
 it('repairs a missed broadcast by re-reading every so often', async () => {

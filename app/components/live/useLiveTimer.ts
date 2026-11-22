@@ -16,30 +16,29 @@ export function useLiveTimer(url: string, commandUrl?: string) {
   const [available, setAvailable] = useState(true);
   const skewRef = useRef(0);
   const [now, setNow] = useState(() => Date.now());
-  // Bumped by every update that is not a read (a broadcast or a command's
-  // own answer): a read that started before one is older than the screen.
-  const generationRef = useRef(0);
+  // Every answer carries the server time it reflects (a write's time, or a
+  // read's). Anything older than what is on screen - a delayed broadcast or
+  // a slow read - is dropped, whatever order they arrive in.
+  const shownAtRef = useRef(0);
 
   const show = useCallback((payload: Payload) => {
-    if (typeof payload.serverNow === 'number') skewRef.current = payload.serverNow - Date.now();
+    if (typeof payload.serverNow === 'number') {
+      if (payload.serverNow < shownAtRef.current) return;
+      shownAtRef.current = payload.serverNow;
+      skewRef.current = payload.serverNow - Date.now();
+    }
     setTimer(readTimer(payload.timer));
     setNow(Date.now());
   }, []);
-  const apply = useCallback((payload: Payload) => {
-    generationRef.current += 1;
-    show(payload);
-  }, [show]);
+  const apply = show;
 
   const load = useCallback(async () => {
-    const startedAt = generationRef.current;
     try {
       const response = await fetch(url, { cache: 'no-store' });
       if (response.status === 503) { setAvailable(false); return; }
       if (!response.ok) return;
-      const payload = await response.json();
-      if (generationRef.current !== startedAt) return;
       setAvailable(true);
-      show(payload);
+      show(await response.json());
     } catch {
       // Keep what is on screen; the next read or broadcast repairs it.
     }
