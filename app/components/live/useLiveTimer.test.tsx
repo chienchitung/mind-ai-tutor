@@ -47,3 +47,18 @@ it('repairs a missed broadcast by re-reading every so often', async () => {
   await act(async () => { await vi.advanceTimersByTimeAsync(20_000); });
   expect(result.current.timer).toBeNull();
 });
+
+it('keeps its clock offset when a broadcast arrives late', async () => {
+  const { result } = renderHook(() => useLiveTimer('/api/live/482910/timer'));
+  await act(async () => { await vi.advanceTimersByTimeAsync(0); });
+  // The teacher starts a 2:00 timer a second later; its broadcast takes 5
+  // seconds to arrive. The deadline is 2:00 after the write, so 1:55 is
+  // left on arrival - not 2:00 as if the write had just happened.
+  const writtenAt = Date.now() + 1_000;
+  await act(async () => { await vi.advanceTimersByTimeAsync(6_000); });
+  act(() => result.current.apply({
+    timer: { durationSeconds: 120, remainingSeconds: 120, endsAt: new Date(writtenAt + 120_000).toISOString() },
+    serverNow: writtenAt,
+  }));
+  expect(Math.round(result.current.remaining)).toBe(115);
+});

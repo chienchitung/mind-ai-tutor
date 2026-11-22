@@ -21,24 +21,29 @@ export function useLiveTimer(url: string, commandUrl?: string) {
   // a slow read - is dropped, whatever order they arrive in.
   const shownAtRef = useRef(0);
 
-  const show = useCallback((payload: Payload) => {
+  // The clock offset is measured only on requests this screen makes, taking
+  // the server time as of the round trip's midpoint. A broadcast's serverNow
+  // is the write's time, not "now", so it orders updates but never resets
+  // the offset (its delivery delay would otherwise shift the countdown).
+  const show = useCallback((payload: Payload, sentAt?: number) => {
     if (typeof payload.serverNow === 'number') {
       if (payload.serverNow < shownAtRef.current) return;
       shownAtRef.current = payload.serverNow;
-      skewRef.current = payload.serverNow - Date.now();
+      if (sentAt !== undefined) skewRef.current = payload.serverNow - (sentAt + Date.now()) / 2;
     }
     setTimer(readTimer(payload.timer));
     setNow(Date.now());
   }, []);
-  const apply = show;
+  const apply = useCallback((payload: Payload) => show(payload), [show]);
 
   const load = useCallback(async () => {
     try {
+      const sentAt = Date.now();
       const response = await fetch(url, { cache: 'no-store' });
       if (response.status === 503) { setAvailable(false); return; }
       if (!response.ok) return;
       setAvailable(true);
-      show(await response.json());
+      show(await response.json(), sentAt);
     } catch {
       // Keep what is on screen; the next read or broadcast repairs it.
     }
@@ -67,18 +72,19 @@ export function useLiveTimer(url: string, commandUrl?: string) {
   const command = useCallback(async (action: TimerAction): Promise<boolean> => {
     if (!commandUrl) return false;
     try {
+      const sentAt = Date.now();
       const response = await fetch(commandUrl, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(action),
       });
       if (!response.ok) return false;
-      apply(await response.json());
+      show(await response.json(), sentAt);
       return true;
     } catch {
       return false;
     }
-  }, [commandUrl, apply]);
+  }, [commandUrl, show]);
 
   const remaining = timer ? timerRemaining(timer, now + skewRef.current) : 0;
   return {
