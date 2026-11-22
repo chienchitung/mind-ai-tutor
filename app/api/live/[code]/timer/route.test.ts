@@ -19,7 +19,12 @@ it('returns the class timer by code with the server time', async () => {
 });
 
 it('shows no timer before the migration, and rejects a malformed code', async () => {
-  rpc.mockResolvedValue({ data: null, error: { message: 'function not found' } });
+  rpc.mockResolvedValue({ data: null, error: { code: 'PGRST202', message: 'function not found' } });
   expect((await (await GET(request(), { params: params() })).json()).timer).toBeNull();
   expect((await GET(request(), { params: params('abc') })).status).toBe(400);
+});
+
+it('reports a database failure as an error, so a student keeps the countdown on screen', async () => {
+  rpc.mockResolvedValue({ data: null, error: { code: '57014', message: 'statement timeout' } });
+  expect((await GET(request(), { params: params() })).status).toBe(500);
 });
