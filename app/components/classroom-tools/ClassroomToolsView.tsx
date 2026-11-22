@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Maximize, Minimize, Pencil } from 'lucide-react';
+import { Maximize, Minimize, Pencil, Timer as TimerIcon, Users } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useLanguage } from '@/app/contexts/LanguageContext';
 import { cn } from '@/lib/utils';
@@ -49,6 +49,7 @@ export function ClassroomToolsView() {
   const [settings, setSettings] = useState<ClassroomToolSettings | null>(null);
   const [fullscreen, setFullscreen] = useState(false);
   const [confetti, setConfetti] = useState(0);
+  const [timerRunning, setTimerRunning] = useState(false);
   const stageRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => { setSettings(loadSettings(zh)); }, []);
@@ -99,7 +100,35 @@ export function ClassroomToolsView() {
         </Button>
       </div>
 
-      <div className="grid items-start gap-6 lg:grid-cols-2">
+      <div role="tablist" aria-label={zh ? '課堂工具' : 'Classroom tools'} className="mb-6 inline-flex rounded-xl border bg-muted/40 p-1">
+        {([
+          ['timer', zh ? '課程計時器' : 'Course timer', TimerIcon],
+          ['groups', zh ? '抽籤報告順序' : 'Presentation order', Users],
+        ] as const).map(([value, label, Icon]) => (
+          <button
+            key={value}
+            type="button"
+            role="tab"
+            id={`classroom-tab-${value}`}
+            aria-selected={settings.tab === value}
+            aria-controls={`classroom-panel-${value}`}
+            onClick={() => update({ tab: value })}
+            className={cn(
+              'flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
+              settings.tab === value ? 'bg-background text-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground',
+            )}
+          >
+            <Icon className="h-4 w-4" />
+            {label}
+            {value === 'timer' && timerRunning && settings.tab !== 'timer' && (
+              <span className="h-2 w-2 rounded-full bg-emerald-500" aria-label={zh ? '倒數中' : 'Running'} />
+            )}
+          </button>
+        ))}
+      </div>
+
+      {/* Both stay mounted: switching tabs never stops a running timer. */}
+      <div role="tabpanel" id="classroom-panel-timer" aria-labelledby="classroom-tab-timer" hidden={settings.tab !== 'timer'}>
         <ClassroomTimer
           zh={zh}
           large={fullscreen}
@@ -108,7 +137,10 @@ export function ClassroomToolsView() {
           onDurationChange={(durationSeconds) => update({ durationSeconds })}
           onMutedChange={(muted) => update({ muted })}
           onFinish={() => setConfetti(Date.now())}
+          onRunningChange={setTimerRunning}
         />
+      </div>
+      <div role="tabpanel" id="classroom-panel-groups" aria-labelledby="classroom-tab-groups" hidden={settings.tab !== 'groups'}>
         <GroupDraw
           zh={zh}
           large={fullscreen}

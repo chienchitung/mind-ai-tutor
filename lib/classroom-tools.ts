@@ -13,6 +13,8 @@ export interface ClassroomToolSettings {
   durationSeconds: number;
   groupNames: string[];
   muted: boolean;
+  /** The tool on screen. */
+  tab: 'timer' | 'groups';
 }
 
 export function defaultGroupName(index: number, zh: boolean): string {
@@ -25,6 +27,7 @@ export function defaultSettings(zh: boolean): ClassroomToolSettings {
     durationSeconds: 5 * 60,
     groupNames: Array.from({ length: 4 }, (_, index) => defaultGroupName(index, zh)),
     muted: false,
+    tab: 'timer',
   };
 }
 
@@ -70,6 +73,7 @@ export function loadSettings(zh: boolean): ClassroomToolSettings {
       durationSeconds: typeof value.durationSeconds === 'number' && value.durationSeconds > 0 ? clampSeconds(value.durationSeconds) : fallback.durationSeconds,
       groupNames: resizeGroups(names, names.length, zh),
       muted: value.muted === true,
+      tab: value.tab === 'groups' ? 'groups' : 'timer',
     };
   } catch {
     return fallback;

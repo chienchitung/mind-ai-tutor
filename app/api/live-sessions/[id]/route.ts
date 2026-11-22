@@ -91,13 +91,14 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
     if (parsed.data.deckUrl !== undefined) update.deck_url = parsed.data.deckUrl;
     if (parsed.data.deckPage !== undefined) update.deck_page = parsed.data.deckPage;
     if (parsed.data.shareDeck !== undefined) update.share_deck_after_close = parsed.data.shareDeck;
+    if (parsed.data.title !== undefined) update.title = parsed.data.title;
 
     // Replacing or clearing the deck leaves the PDF in the teacher's 簡報庫 so
     // it can be picked again later; only an explicit library delete removes it.
     const { data, error } = await client.from('live_sessions')
       .update(update)
       .eq('id', id).eq('user_id', user.id)
-      .select('id, status, deck_url, deck_page').maybeSingle();
+      .select('id, title, status, deck_url, deck_page').maybeSingle();
     if (error) return NextResponse.json({ error: 'LIVE_STORAGE_ERROR' }, { status: 500 });
     if (!data) return NextResponse.json({ error: 'NOT_FOUND' }, { status: 404 });
 
@@ -114,13 +115,20 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
     // deckUrl and deckPage always land in the same PATCH in practice (a deck
     // upload/swap/removal resets the page too), so one event carries both -
     // the display window never needs a follow-up fetch to pick up a swap.
+    // Students' pages and the projector window show the course name too.
+    if (parsed.data.title !== undefined) {
+      after(() => Promise.all([
+        broadcastLiveUpdate(id, 'session:renamed', { title: data.title }),
+        broadcastLiveUpdate(id, 'presentation:changed', {}),
+      ]).catch((cause) => console.error('live-sessions rename broadcast failed:', cause)));
+    }
     if (parsed.data.deckPage !== undefined) {
       after(() => broadcastLiveUpdate(id, 'deck:sync', { page: data.deck_page, deckUrl: data.deck_url ?? null })
         .catch((cause) => console.error('live-sessions deck sync broadcast failed:', cause)));
     }
 
     return NextResponse.json(
-      { id: data.id, status: data.status, deckUrl: data.deck_url ?? null, deckPage: data.deck_page ?? 1 },
+      { id: data.id, title: data.title, status: data.status, deckUrl: data.deck_url ?? null, deckPage: data.deck_page ?? 1 },
       { headers: { 'Cache-Control': 'private, no-store' } },
     );
   } catch {
