@@ -222,7 +222,9 @@ interface Props {
     pointer: InkPoint | null;
   }) => void;
   remoteOverlay?: ReactNode;
-  onOpenPanel?: () => void;
+  /** Offer the Q&A and poll panel. Off on the projector window, which has
+   * no teacher data and is what the whole class sees. */
+  panel?: boolean;
   onRequestFullscreen?: () => void;
   toolsDisabled?: boolean;
   url: string;
@@ -280,7 +282,7 @@ export const PresentationStage = forwardRef<HTMLDivElement, Props>(
       onAnnotationAction,
       onLiveChange,
       remoteOverlay,
-      onOpenPanel,
+      panel = true,
       onRequestFullscreen,
       toolsDisabled = false,
       poll,
@@ -778,26 +780,22 @@ export const PresentationStage = forwardRef<HTMLDivElement, Props>(
                   <Redo2 className="h-4 w-4" />
                 </Button>
                 <span className="mx-1 h-5 w-px bg-white/20" />
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className={CONTROL}
-                  aria-label={
-                    onOpenPanel
-                      ? language === "zh-TW"
-                        ? "回到老師控制台"
-                        : "Open teacher controls"
-                      : t("live_panel_toggle")
-                  }
-                  aria-pressed={panelOpen}
-                  onClick={() => {
-                    if (onOpenPanel) onOpenPanel();
-                    else setPanelOpen((current) => !current);
-                    wake();
-                  }}
-                >
-                  <MessageSquare className="h-4 w-4" />
-                </Button>
+                {panel && (
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className={CONTROL}
+                    aria-label={t("live_panel_toggle")}
+                    title={t("live_panel_toggle")}
+                    aria-pressed={panelOpen}
+                    onClick={() => {
+                      setPanelOpen((current) => !current);
+                      wake();
+                    }}
+                  >
+                    <MessageSquare className="h-4 w-4" />
+                  </Button>
+                )}
                 {onRequestFullscreen && (
                   <Button
                     variant="ghost"

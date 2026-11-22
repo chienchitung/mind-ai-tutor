@@ -292,10 +292,10 @@ export default function PresentDisplayPage() {
               inkChannelRef.current?.postMessage({ type: "deck-preview", deckUrl: snapshot.deckUrl, page });
               navigation.navigate(page);
             }}
-            onOpenPanel={() => {
-              if (window.opener && !window.opener.closed) window.opener.focus();
-              else window.open(`/live/${id}/present`, "_blank", "noopener");
-            }}
+            // Browsers refuse to bring the teacher's own window forward from
+            // here, and the projector screen is what the class sees, so it
+            // carries no teacher controls.
+            panel={false}
             reactions={
               <>
                 <ReactionBurstOverlay
