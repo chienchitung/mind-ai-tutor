@@ -185,6 +185,7 @@ describe('Live Session experience', () => {
                 status: 'open',
                 joinCode: '123456',
                 createdAt: '2026-08-31T10:00:00Z',
+                hasDeck: true,
               },
               {
                 id: 'b',
@@ -214,13 +215,17 @@ describe('Live Session experience', () => {
     fireEvent.click(screen.getByRole('button', { name: '取消' }));
     expect(screen.queryByRole('alertdialog')).toBeNull();
     fireEvent.click(screen.getByRole('button', { name: '結束' }));
+    // Sharing the slides after class is offered, and off unless ticked.
+    const share = screen.getByRole('checkbox', { name: /課後讓學生查看投影片/ });
+    expect(share.getAttribute('aria-checked')).toBe('false');
+    fireEvent.click(share);
     fireEvent.click(screen.getByRole('button', { name: '結束場次' }));
     await waitFor(() =>
       expect(fetchMock).toHaveBeenCalledWith(
         '/api/live-sessions/a',
         expect.objectContaining({
           method: 'PATCH',
-          body: JSON.stringify({ status: 'closed' }),
+          body: JSON.stringify({ status: 'closed', shareDeck: true }),
         }),
       ),
     );

@@ -11,7 +11,7 @@ vi.mock('next/server', async (importOriginal) => ({
   ...(await importOriginal<typeof import('next/server')>()),
   after: (callback: () => unknown) => { void callback(); },
 }));
-import { POST } from './route';
+import { DELETE, POST } from './route';
 
 const id = 'd325432e-0e37-4a6d-a9c8-3fa333b4f077';
 const draft = { question: '哪個函數可以查表？', options: ['VLOOKUP', 'SUMIF'] };
@@ -74,5 +74,32 @@ describe('POST /api/live-sessions/[id]/polls', () => {
     pollsChain.single.mockResolvedValue({ data: null, error: { code: '42501' } });
     expect((await POST(request(), { params: params() })).status).toBe(500);
     expect(sessionsChain.update).not.toHaveBeenCalled();
+  });
+});
+
+describe('DELETE /api/live-sessions/[id]/polls', () => {
+  const removal = (origin = 'https://test.local') =>
+    new Request(`https://test.local/api/live-sessions/${id}/polls`, { method: 'DELETE', headers: { origin } });
+  let rpc: ReturnType<typeof vi.fn>;
+  beforeEach(() => {
+    rpc = vi.fn().mockResolvedValue({ data: null, error: null });
+    getServerClient.mockResolvedValue({ auth: { getUser: auth }, from, rpc });
+  });
+  it('rejects cross-origin, malformed and signed-out requests before the database', async () => {
+    expect((await DELETE(removal('https://other.local'), { params: params() })).status).toBe(403);
+    expect((await DELETE(removal(), { params: params('nope') })).status).toBe(400);
+    auth.mockResolvedValue({ data: { user: null }, error: null });
+    expect((await DELETE(removal(), { params: params() })).status).toBe(401);
+    expect(rpc).not.toHaveBeenCalled();
+  });
+  it('removes the current poll and tells every screen', async () => {
+    expect((await DELETE(removal(), { params: params() })).status).toBe(204);
+    expect(rpc).toHaveBeenCalledWith('remove_live_poll', { p_session_id: id });
+    expect(broadcastLiveUpdate.mock.calls.map(([, event]) => event)).toEqual(['poll:removed', 'presentation:changed']);
+  });
+  it("answers 404 for someone else's session", async () => {
+    rpc.mockResolvedValue({ data: null, error: { message: 'FORBIDDEN' } });
+    expect((await DELETE(removal(), { params: params() })).status).toBe(404);
+    expect(broadcastLiveUpdate).not.toHaveBeenCalled();
   });
 });

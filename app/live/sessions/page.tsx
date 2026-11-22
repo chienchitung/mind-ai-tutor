@@ -33,6 +33,7 @@ interface LiveSessionSummary {
   status: LiveSessionStatus;
   joinCode: string;
   createdAt: string;
+  hasDeck?: boolean;
 }
 
 function LiveSessionsList() {
@@ -65,7 +66,7 @@ function LiveSessionsList() {
     void load();
   }, [load]);
 
-  const closeSession = async (id: string) => {
+  const closeSession = async (id: string, shareDeck = false) => {
     if (closingId || deleting) return;
     setClosingId(id);
     const previous = sessions;
@@ -78,7 +79,7 @@ function LiveSessionsList() {
       const response = await fetch(`/api/live-sessions/${id}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ status: 'closed' }),
+        body: JSON.stringify({ status: 'closed', shareDeck }),
       });
       if (!response.ok) throw new Error();
     } catch {
@@ -279,7 +280,8 @@ function LiveSessionsList() {
                     {session.status !== 'closed' && (
                       <EndSessionButton
                         disabled={closingId !== null || deleting}
-                        onConfirm={() => void closeSession(session.id)}
+                        offerDeckShare={session.hasDeck === true}
+                        onConfirm={({ shareDeck }) => void closeSession(session.id, shareDeck)}
                       />
                     )}
                     {session.status === 'closed' && <Button variant="ghost" className="min-h-11 text-destructive hover:text-destructive" disabled={closingId !== null || deleting} onClick={() => setDeleteTarget(session)}>

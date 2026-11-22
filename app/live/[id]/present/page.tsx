@@ -162,6 +162,8 @@ export default function PresenterPage() {
   // session for the next class). Reaction counts are only ever held here, so
   // they go with the feedback.
   const [clearTarget, setClearTarget] = useState<'questions' | 'pulse' | null>(null);
+  const [confirmRemovePoll, setConfirmRemovePoll] = useState(false);
+  const [removingPoll, setRemovingPoll] = useState(false);
   const [clearing, setClearing] = useState(false);
   const { reactions, push: pushReaction } = useReactionBursts();
   const { onlineCount, registerPing } = useOnlinePresenceCount();
@@ -268,6 +270,9 @@ export default function PresenterPage() {
             ? { ...previous, poll: payload as LiveSessionOwnerState['poll'] }
             : previous,
         );
+      })
+      .on('broadcast', { event: 'poll:removed' }, () => {
+        setData((previous) => (previous ? { ...previous, poll: null } : previous));
       })
       .on('broadcast', { event: 'poll:tally' }, ({ payload }) => {
         setData((previous) => {
@@ -490,7 +495,7 @@ export default function PresenterPage() {
     }
   };
 
-  const handleStatusChange = async (next: LiveSessionStatus) => {
+  const handleStatusChange = async (next: LiveSessionStatus, shareDeck?: boolean) => {
     if (!data || data.status === next || statusChangePending.current) return;
     statusChangePending.current = true;
     setChangingStatus(true);
@@ -504,7 +509,7 @@ export default function PresenterPage() {
       const response = await fetch(`/api/live-sessions/${params.id}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ status: next }),
+        body: JSON.stringify(shareDeck === undefined ? { status: next } : { status: next, shareDeck }),
       });
       if (!response.ok) throw new Error();
       window.dispatchEvent(new Event('live:presentation-refresh'));
@@ -738,6 +743,22 @@ export default function PresenterPage() {
       document.removeEventListener('fullscreenchange', handleFullscreenChange);
   }, []);
 
+  const removePoll = async () => {
+    if (removingPoll) return;
+    setRemovingPoll(true);
+    try {
+      const response = await fetch(`/api/live-sessions/${params.id}/polls`, { method: 'DELETE' });
+      if (!response.ok) throw new Error();
+      setData((previous) => (previous ? { ...previous, poll: null } : previous));
+      window.dispatchEvent(new Event('live:presentation-refresh'));
+      setConfirmRemovePoll(false);
+    } catch {
+      toast({ title: t('error'), description: t('live_poll_remove_failed'), variant: 'destructive' });
+    } finally {
+      setRemovingPoll(false);
+    }
+  };
+
   const confirmClear = async () => {
     if (!clearTarget || clearing) return;
     setClearing(true);
@@ -932,7 +953,8 @@ export default function PresenterPage() {
                   <EndSessionButton
                     compact
                     disabled={changingStatus}
-                    onConfirm={() => void handleStatusChange('closed')}
+                    offerDeckShare={Boolean(data.deckUrl)}
+                    onConfirm={({ shareDeck }) => void handleStatusChange('closed', shareDeck)}
                   />
                 )}
               </div>
@@ -1203,6 +1225,17 @@ export default function PresenterPage() {
                       <ListChecks className="mr-1.5 h-3.5 w-3.5" />
                       {t('live_load_from_quiz')}
                     </Button>
+                    {data.poll && (
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        className="h-9 text-muted-foreground hover:text-destructive"
+                        onClick={() => setConfirmRemovePoll(true)}
+                      >
+                        <Trash2 className="mr-1.5 h-3.5 w-3.5" />
+                        {t('live_poll_remove')}
+                      </Button>
+                    )}
                     <Button size="sm" className="h-9" onClick={() => setShowComposer(true)}>
                       <Plus className="mr-1.5 h-3.5 w-3.5" />
                       {t('live_new_poll')}
@@ -1412,6 +1445,13 @@ export default function PresenterPage() {
           </Button>
         </DialogContent>
       </Dialog>
+      <DeleteConfirmation
+        name={confirmRemovePoll ? data.poll?.question ?? null : null}
+        description={t('live_poll_remove_confirm')}
+        busy={removingPoll}
+        onCancel={() => setConfirmRemovePoll(false)}
+        onConfirm={() => void removePoll()}
+      />
       <DeleteConfirmation
         name={clearTarget === 'questions'
           ? t('live_clear_questions_name', { count: questions.length })

@@ -16,13 +16,13 @@ export async function GET() {
     const { data: { user }, error: authError } = await client.auth.getUser();
     if (authError || !user) return NextResponse.json({ error: 'UNAUTHORIZED' }, { status: 401 });
     const { data, error } = await client.from('live_sessions')
-      .select('id, title, status, join_code, created_at')
+      .select('id, title, status, join_code, created_at, deck_url')
       .eq('user_id', user.id)
       .order('created_at', { ascending: false })
       .limit(50);
     if (error) return databaseError(error.code);
     return NextResponse.json(
-      (data ?? []).map((row) => ({ id: row.id, title: row.title, status: row.status, joinCode: row.join_code, createdAt: row.created_at })),
+      (data ?? []).map((row) => ({ id: row.id, title: row.title, status: row.status, joinCode: row.join_code, createdAt: row.created_at, hasDeck: Boolean(row.deck_url) })),
       { headers: { 'Cache-Control': 'private, no-store' } },
     );
   } catch {

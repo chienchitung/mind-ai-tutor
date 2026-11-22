@@ -1,6 +1,6 @@
 'use client';
 
-import type { ReactNode } from 'react';
+import { useState, type ReactNode } from 'react';
 import Link from 'next/link';
 import { ArrowLeft, Loader2, Radio, Square } from 'lucide-react';
 import { BrandLogo } from '@/components/layout/BrandLogo';
@@ -18,6 +18,7 @@ import {
 } from '@/components/ui/alert-dialog';
 import { useLanguage } from '@/app/contexts/LanguageContext';
 import { useTranslation } from '@/lib/translations';
+import { Checkbox } from '@/components/ui/checkbox';
 import type { LiveSessionStatus } from '@/lib/live-session';
 
 export function SessionStatus({ status }: { status: LiveSessionStatus }) {
@@ -111,16 +112,22 @@ export function EndSessionButton({
   onConfirm,
   disabled,
   compact = false,
+  offerDeckShare = false,
 }: {
-  onConfirm: () => void;
+  /** shareDeck: whether students may still open the slides afterwards. */
+  onConfirm: (options: { shareDeck: boolean }) => void;
   disabled?: boolean;
+  /** The session has slides: ask whether students keep access to them. */
+  offerDeckShare?: boolean;
   /** Icon only on narrow screens (the presenter's top bar). */
   compact?: boolean;
 }) {
   const { language } = useLanguage();
   const { t } = useTranslation(language);
+  // Off by default every time the dialog opens: sharing is a deliberate choice.
+  const [shareDeck, setShareDeck] = useState(false);
   return (
-    <AlertDialog>
+    <AlertDialog onOpenChange={(open) => { if (open) setShareDeck(false); }}>
       <AlertDialogTrigger asChild>
         <Button
           type="button"
@@ -139,9 +146,22 @@ export function EndSessionButton({
             {t('live_end_confirm_desc')}
           </AlertDialogDescription>
         </AlertDialogHeader>
+        {offerDeckShare && (
+          <label className="flex cursor-pointer items-start gap-3 rounded-xl border bg-muted/40 p-3 text-sm">
+            <Checkbox
+              className="mt-0.5"
+              checked={shareDeck}
+              onCheckedChange={(value) => setShareDeck(value === true)}
+            />
+            <span className="space-y-0.5">
+              <span className="block font-medium">{t('live_end_share_deck')}</span>
+              <span className="block text-xs text-muted-foreground">{t('live_end_share_deck_hint')}</span>
+            </span>
+          </label>
+        )}
         <AlertDialogFooter>
           <AlertDialogCancel>{t('cancel')}</AlertDialogCancel>
-          <AlertDialogAction onClick={onConfirm}>
+          <AlertDialogAction onClick={() => onConfirm({ shareDeck: offerDeckShare && shareDeck })}>
             {t('live_end_confirm_action')}
           </AlertDialogAction>
         </AlertDialogFooter>

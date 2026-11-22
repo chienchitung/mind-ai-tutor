@@ -204,6 +204,11 @@ export default function AudiencePage() {
             : previous,
         );
       })
+      .on('broadcast', { event: 'poll:removed' }, () => {
+        setMyVote(null);
+        setSelectedOption(null);
+        setData((previous) => (previous ? { ...previous, poll: null } : previous));
+      })
       .on('broadcast', { event: 'poll:tally' }, ({ payload }) => {
         setData((previous) => {
           if (

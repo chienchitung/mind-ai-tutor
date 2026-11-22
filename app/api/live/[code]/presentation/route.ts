@@ -14,6 +14,11 @@ export async function GET(
   if (error)
     return NextResponse.json({ error: "LIVE_STORAGE_ERROR" }, { status: 500 });
   if (!data) return NextResponse.json({ error: "NOT_FOUND" }, { status: 404 });
+  // An ended class keeps its slides private unless the teacher shared them.
+  if (data.status === "closed" && data.deckUrl) {
+    const shared = await client.rpc("live_session_shares_deck", { p_code: code });
+    if (shared.error || shared.data !== true) data.deckUrl = null;
+  }
   return NextResponse.json(data, {
     headers: { "Cache-Control": "private, no-store" },
   });
