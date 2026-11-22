@@ -475,9 +475,11 @@ describe('Live Session experience', () => {
     fireEvent.change(within(dialog).getByLabelText('選項 B'), { target: { value: 'B' } });
     fireEvent.click(within(dialog).getByRole('button', { name: '儲存並發布' }));
     await waitFor(() => expect(launches).toBe(1));
+    // Students never got it, so it is not marked launched.
+    expect(stored).toEqual([expect.not.objectContaining({ used: true })]);
     fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: '儲存並發布' }));
     await waitFor(() => expect(launches).toBe(2));
-    expect(stored).toHaveLength(1);
+    await waitFor(() => expect(stored).toEqual([expect.objectContaining({ used: true })]));
   });
 
   it('maps too-easy and too-hard feedback to the correct stored values and names', async () => {

@@ -137,6 +137,9 @@ export default function PresenterPage() {
   const [composerMode, setComposerMode] = useState<'publish' | 'prepare'>('publish');
   const [editingPreparedId, setEditingPreparedId] = useState<string | null>(null);
   const [launchingPreparedId, setLaunchingPreparedId] = useState<string | null>(null);
+  // The prepared poll the composer just saved (state updates land too late
+  // for the launch that follows in the same submit).
+  const editingPreparedIdAfterSave = useRef<string | null>(null);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [uploadingDeck, setUploadingDeck] = useState(false);
@@ -574,21 +577,27 @@ export default function PresenterPage() {
     if (!cleanQuestion || cleanOptions.length < 2 || isOpeningPoll) return;
     setIsOpeningPoll(true);
     let ok = true;
+    editingPreparedIdAfterSave.current = null;
     if (action !== 'publish') {
       const id = editingPreparedId ?? crypto.randomUUID();
       ok = await savePrepared((current) => {
         const existing = current.find((item) => item.id === id);
         const entry: PreparedPoll = {
           id, question: cleanQuestion, options: cleanOptions,
-          ...(action === 'both' || existing?.used ? { used: true } : {}),
+          ...(existing?.used ? { used: true } : {}),
         };
         return existing ? current.map((item) => (item.id === id ? entry : item)) : [...current, entry];
       });
       // Saved: if launching it then fails, a retry updates this same poll
       // instead of adding a copy.
-      if (ok) setEditingPreparedId(id);
+      if (ok) { setEditingPreparedId(id); editingPreparedIdAfterSave.current = id; }
     }
     if (ok && action !== 'save') ok = await openPoll(cleanQuestion, cleanOptions);
+    // Marked launched only once students actually got it.
+    if (ok && action === 'both' && editingPreparedIdAfterSave.current) {
+      const launchedId = editingPreparedIdAfterSave.current;
+      void savePrepared((current) => current.map((item) => (item.id === launchedId ? { ...item, used: true } : item)));
+    }
     setIsOpeningPoll(false);
     if (ok) {
       setShowComposer(false);
