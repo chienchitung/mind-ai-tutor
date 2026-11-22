@@ -127,7 +127,11 @@ export default function PresenterPage() {
   // loading, or the prepared-polls migration has not run yet).
   const [preparedPolls, setPreparedPolls] = useState<PreparedPoll[] | null>(null);
   const preparedRef = useRef<PreparedPoll[] | null>(null);
-  preparedRef.current = preparedPolls;
+  // The list as last confirmed by the server, for rolling back a failed save.
+  const confirmedPreparedRef = useRef<PreparedPoll[] | null>(null);
+  // Saves replace the whole list, so they run one at a time, each applied to
+  // the list as the previous one left it - two quick deletes can't undo each other.
+  const preparedQueueRef = useRef<Promise<boolean>>(Promise.resolve(true));
   // What the composer was opened for: launching now, preparing one, or
   // editing a prepared one (its id).
   const [composerMode, setComposerMode] = useState<'publish' | 'prepare'>('publish');
@@ -497,30 +501,43 @@ export default function PresenterPage() {
     let cancelled = false;
     fetch(`/api/live-sessions/${params.id}/prepared-polls`, { cache: 'no-store' })
       .then((response) => (response.ok ? response.json() : null))
-      .then((body) => { if (!cancelled) setPreparedPolls(Array.isArray(body?.polls) ? body.polls : null); })
+      .then((body) => {
+        if (cancelled) return;
+        const polls = Array.isArray(body?.polls) ? body.polls : null;
+        preparedRef.current = polls;
+        confirmedPreparedRef.current = polls;
+        setPreparedPolls(polls);
+      })
       .catch(() => undefined);
     return () => { cancelled = true; };
   }, [params.id]);
 
-  // Optimistic: the list changes at once and rolls back if the save fails.
-  const savePrepared = async (next: PreparedPoll[]): Promise<boolean> => {
-    const previous = preparedRef.current;
-    setPreparedPolls(next);
-    try {
-      const response = await fetch(`/api/live-sessions/${params.id}/prepared-polls`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ polls: next }),
-      });
-      if (!response.ok) throw new Error();
-      const body = await response.json();
-      setPreparedPolls(body.polls);
-      return true;
-    } catch {
-      setPreparedPolls(previous);
-      toast({ title: t('error'), description: t('live_prepared_failed'), variant: 'destructive' });
-      return false;
-    }
+  // Shown as soon as it runs; a failed save goes back to the server's list.
+  const savePrepared = (update: (current: PreparedPoll[]) => PreparedPoll[]): Promise<boolean> => {
+    const show = (polls: PreparedPoll[] | null) => { preparedRef.current = polls; setPreparedPolls(polls); };
+    const run = async () => {
+      const next = update(preparedRef.current ?? []);
+      show(next);
+      try {
+        const response = await fetch(`/api/live-sessions/${params.id}/prepared-polls`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ polls: next }),
+        });
+        if (!response.ok) throw new Error();
+        const body = await response.json();
+        confirmedPreparedRef.current = body.polls;
+        if (preparedRef.current === next) show(body.polls);
+        return true;
+      } catch {
+        show(confirmedPreparedRef.current);
+        toast({ title: t('error'), description: t('live_prepared_failed'), variant: 'destructive' });
+        return false;
+      }
+    };
+    const queued = preparedQueueRef.current.then(run, run);
+    preparedQueueRef.current = queued;
+    return queued;
   };
 
   const openComposer = (mode: 'publish' | 'prepare', poll?: PreparedPoll) => {
@@ -542,12 +559,12 @@ export default function PresenterPage() {
     const ok = await openPoll(poll.question, poll.options);
     setLaunchingPreparedId(null);
     if (ok && !poll.used) {
-      void savePrepared((preparedRef.current ?? []).map((item) => (item.id === poll.id ? { ...item, used: true } : item)));
+      void savePrepared((current) => current.map((item) => (item.id === poll.id ? { ...item, used: true } : item)));
     }
   };
 
   const deletePrepared = (poll: PreparedPoll) => {
-    void savePrepared((preparedRef.current ?? []).filter((item) => item.id !== poll.id));
+    void savePrepared((current) => current.filter((item) => item.id !== poll.id));
   };
 
   // 'publish' opens it now; 'save' keeps it as a prepared poll; 'both' does both.
@@ -558,15 +575,18 @@ export default function PresenterPage() {
     setIsOpeningPoll(true);
     let ok = true;
     if (action !== 'publish') {
-      const current = preparedRef.current ?? [];
-      const existing = current.find((item) => item.id === editingPreparedId);
-      const entry: PreparedPoll = {
-        id: existing?.id ?? crypto.randomUUID(),
-        question: cleanQuestion,
-        options: cleanOptions,
-        ...(action === 'both' || existing?.used ? { used: true } : {}),
-      };
-      ok = await savePrepared(existing ? current.map((item) => (item.id === existing.id ? entry : item)) : [...current, entry]);
+      const id = editingPreparedId ?? crypto.randomUUID();
+      ok = await savePrepared((current) => {
+        const existing = current.find((item) => item.id === id);
+        const entry: PreparedPoll = {
+          id, question: cleanQuestion, options: cleanOptions,
+          ...(action === 'both' || existing?.used ? { used: true } : {}),
+        };
+        return existing ? current.map((item) => (item.id === id ? entry : item)) : [...current, entry];
+      });
+      // Saved: if launching it then fails, a retry updates this same poll
+      // instead of adding a copy.
+      if (ok) setEditingPreparedId(id);
     }
     if (ok && action !== 'save') ok = await openPoll(cleanQuestion, cleanOptions);
     setIsOpeningPoll(false);

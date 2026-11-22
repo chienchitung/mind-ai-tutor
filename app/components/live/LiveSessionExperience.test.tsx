@@ -423,6 +423,63 @@ describe('Live Session experience', () => {
     expect(await screen.findByText('已發布')).toBeTruthy();
   });
 
+  it('applies quick prepared-poll deletions one after another, so none is undone', async () => {
+    const polls = [
+      { id: '11111111-1111-4111-8111-111111111111', question: '第一題', options: ['A', 'B'] },
+      { id: '22222222-2222-4222-8222-222222222222', question: '第二題', options: ['A', 'B'] },
+    ];
+    const puts: unknown[][] = [];
+    let releaseFirst!: () => void;
+    const firstPut = new Promise<void>((resolve) => { releaseFirst = resolve; });
+    fetchMock.mockImplementation(async (url: string, init?: RequestInit) => {
+      if (url.endsWith('/prepared-polls')) {
+        if (init?.method !== 'PUT') return response({ polls });
+        const sent = JSON.parse(String(init.body)).polls;
+        puts.push(sent);
+        if (puts.length === 1) await firstPut;
+        return response({ polls: sent });
+      }
+      return response(url.includes('/questions') ? questions : session);
+    });
+    mount(<PresenterPage />);
+    fireEvent.click(await screen.findByRole('button', { name: '刪除第 1 題預備題目' }));
+    await waitFor(() => expect(puts).toHaveLength(1));
+    fireEvent.click(screen.getByRole('button', { name: '刪除第 1 題預備題目' }));
+    // The second save waits for the first, then starts from its result.
+    expect(puts).toHaveLength(1);
+    releaseFirst();
+    await waitFor(() => expect(puts).toEqual([[polls[1]], []]));
+    await waitFor(() => expect(screen.queryByText('第二題')).toBeNull());
+  });
+
+  it('keeps a saved poll when launching it fails, so a retry does not add a copy', async () => {
+    let stored: unknown[] = [];
+    let launches = 0;
+    fetchMock.mockImplementation(async (url: string, init?: RequestInit) => {
+      if (url.endsWith('/prepared-polls')) {
+        if (init?.method === 'PUT') stored = JSON.parse(String(init.body)).polls;
+        return response({ polls: stored });
+      }
+      if (url.endsWith('/polls') && init?.method === 'POST') {
+        launches += 1;
+        if (launches === 1) return { ok: false, status: 500, json: async () => ({}) } as Response;
+        return response({ pollId: 'p-new', question: 'Q', options: ['A', 'B'], voteCounts: [0, 0], voteTotal: 0 });
+      }
+      return response(url.includes('/questions') ? questions : session);
+    });
+    mount(<PresenterPage />);
+    fireEvent.click(await screen.findByRole('button', { name: '新增預備題目' }));
+    const dialog = screen.getByRole('dialog');
+    fireEvent.change(within(dialog).getByLabelText('題目'), { target: { value: 'Q' } });
+    fireEvent.change(within(dialog).getByLabelText('選項 A'), { target: { value: 'A' } });
+    fireEvent.change(within(dialog).getByLabelText('選項 B'), { target: { value: 'B' } });
+    fireEvent.click(within(dialog).getByRole('button', { name: '儲存並發布' }));
+    await waitFor(() => expect(launches).toBe(1));
+    fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: '儲存並發布' }));
+    await waitFor(() => expect(launches).toBe(2));
+    expect(stored).toHaveLength(1);
+  });
+
   it('maps too-easy and too-hard feedback to the correct stored values and names', async () => {
     mount(<AudiencePage />);
     await screen.findByRole('heading', { name: session.title });
