@@ -90,6 +90,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
     if (parsed.data.status !== undefined) update.status = parsed.data.status;
     if (parsed.data.deckUrl !== undefined) update.deck_url = parsed.data.deckUrl;
     if (parsed.data.deckPage !== undefined) update.deck_page = parsed.data.deckPage;
+    if (parsed.data.shareDeck !== undefined) update.share_deck_after_close = parsed.data.shareDeck;
 
     // Replacing or clearing the deck leaves the PDF in the teacher's 簡報庫 so
     // it can be picked again later; only an explicit library delete removes it.

@@ -108,16 +108,16 @@ describe('GET /api/live-sessions', () => {
   it('returns the owner\'s own sessions, most recent first, mapped to camelCase', async () => {
     listChain.limit.mockResolvedValue({
       data: [
-        { id: 's1', title: 'Excel 樞紐分析入門', status: 'open', join_code: '482910', created_at: '2026-01-02T00:00:00Z' },
-        { id: 's2', title: '舊場次', status: 'closed', join_code: '111222', created_at: '2026-01-01T00:00:00Z' },
+        { id: 's1', title: 'Excel 樞紐分析入門', status: 'open', join_code: '482910', created_at: '2026-01-02T00:00:00Z', deck_url: 'https://example.test/deck.pdf' },
+        { id: 's2', title: '舊場次', status: 'closed', join_code: '111222', created_at: '2026-01-01T00:00:00Z', deck_url: null },
       ],
       error: null,
     });
     const response = await GET();
     expect(response.status).toBe(200);
     expect(await response.json()).toEqual([
-      { id: 's1', title: 'Excel 樞紐分析入門', status: 'open', joinCode: '482910', createdAt: '2026-01-02T00:00:00Z' },
-      { id: 's2', title: '舊場次', status: 'closed', joinCode: '111222', createdAt: '2026-01-01T00:00:00Z' },
+      { id: 's1', title: 'Excel 樞紐分析入門', status: 'open', joinCode: '482910', createdAt: '2026-01-02T00:00:00Z', hasDeck: true },
+      { id: 's2', title: '舊場次', status: 'closed', joinCode: '111222', createdAt: '2026-01-01T00:00:00Z', hasDeck: false },
     ]);
     expect(listChain.eq).toHaveBeenCalledWith('user_id', 'owner');
     expect(listChain.order).toHaveBeenCalledWith('created_at', { ascending: false });

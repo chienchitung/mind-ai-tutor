@@ -50,6 +50,19 @@ describe('GET /api/live/[code]', () => {
     expect(response.status).toBe(200);
     expect((await response.json()).recording).toBe(false);
   });
+  it('keeps the slides from an ended class unless the teacher shared them', async () => {
+    const closed = { ...row, status: 'closed' };
+    let shares: { data: unknown; error: unknown } = { data: false, error: null };
+    rpc.mockImplementation(async (fn: string) => (fn === 'get_live_session_by_code' ? { data: [closed], error: null }
+      : fn === 'live_session_shares_deck' ? shares : { data: false, error: null }));
+    expect((await (await GET(request(), { params: params() })).json()).deckUrl).toBeNull();
+    expect(rpc).toHaveBeenCalledWith('live_session_shares_deck', { p_code: '482910' });
+    shares = { data: true, error: null };
+    expect((await (await GET(request(), { params: params() })).json()).deckUrl).toBe('https://example.test/deck.pdf');
+    // Before the migration runs, nothing is shared.
+    shares = { data: null, error: { message: 'function not found' } };
+    expect((await (await GET(request(), { params: params() })).json()).deckUrl).toBeNull();
+  });
   it('returns 404 for an unknown code', async () => {
     rpc.mockResolvedValue({ data: [], error: null });
     expect((await GET(request(), { params: params() })).status).toBe(404);

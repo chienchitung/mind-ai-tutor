@@ -13,16 +13,21 @@ export async function GET(request: Request, { params }: { params: Promise<{ code
     const { code } = await params;
     if (!codePattern.test(code)) return NextResponse.json({ error: 'INVALID_CODE' }, { status: 400 });
     const client = await getServerClient();
-    const [{ data, error }, recording] = await Promise.all([
+    const [{ data, error }, recording, sharesDeck] = await Promise.all([
       client.rpc('get_live_session_by_code', { p_code: code }),
       client.rpc('is_live_session_recording', { p_code: code }),
+      client.rpc('live_session_shares_deck', { p_code: code }),
     ]);
     if (error) return NextResponse.json({ error: 'LIVE_STORAGE_ERROR' }, { status: 500 });
     const row = Array.isArray(data) ? data[0] : data;
     if (!row) return NextResponse.json({ error: 'NOT_FOUND' }, { status: 404 });
     // Missing until the recording-notice migration runs: no notice, not an error.
+    const session = mapSessionByCodeRow(row);
+    // Once the class has ended the slides stay with the teacher unless they
+    // chose to share them.
+    const deckUrl = session.status === 'closed' && !(!sharesDeck.error && sharesDeck.data === true) ? null : session.deckUrl;
     return NextResponse.json(
-      { ...mapSessionByCodeRow(row), recording: !recording.error && recording.data === true },
+      { ...session, deckUrl, recording: !recording.error && recording.data === true },
       { headers: { 'Cache-Control': 'private, no-store' } },
     );
   } catch {
