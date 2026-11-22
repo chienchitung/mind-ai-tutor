@@ -36,7 +36,7 @@ function playChime() {
 }
 
 export function ClassroomTimer({
-  zh, durationSeconds, muted, large, onDurationChange, onMutedChange, onFinish,
+  zh, durationSeconds, muted, large, onDurationChange, onMutedChange, onFinish, onRunningChange,
 }: {
   zh: boolean;
   durationSeconds: number;
@@ -46,6 +46,8 @@ export function ClassroomTimer({
   onDurationChange: (seconds: number) => void;
   onMutedChange: (muted: boolean) => void;
   onFinish: () => void;
+  /** Lets the page mark the timer's tab while it counts down elsewhere. */
+  onRunningChange?: (running: boolean) => void;
 }) {
   const [finished, setFinished] = useState(false);
   const { remaining, running, start, pause, reset, adjust } = useCountdown(durationSeconds, () => {
@@ -55,6 +57,7 @@ export function ClassroomTimer({
   });
   const [customMinutes, setCustomMinutes] = useState('');
   const audioRef = useRef<HTMLAudioElement | null>(null);
+  useEffect(() => { onRunningChange?.(running); }, [running, onRunningChange]);
 
   // Background music while the timer runs (as in the workshop timer).
   useEffect(() => {
@@ -85,8 +88,8 @@ export function ClassroomTimer({
           // never spill out of it on a projector; h:mm:ss needs a smaller size.
           'leading-none',
           remaining >= 3600
-            ? (large ? 'text-[min(20cqw,12rem)]' : 'text-[min(20cqw,4.5rem)]')
-            : (large ? 'text-[min(29cqw,16rem)]' : 'text-[min(29cqw,6rem)]'),
+            ? (large ? 'text-[min(20cqw,12rem)]' : 'text-[min(20cqw,6rem)]')
+            : (large ? 'text-[min(29cqw,16rem)]' : 'text-[min(29cqw,8rem)]'),
           finished ? 'text-destructive' : lastMinute ? 'text-amber-500' : 'text-foreground',
         )}
       >

@@ -69,6 +69,7 @@ import {
 } from '@/components/live/ReactionBurst';
 import { useOnlinePresenceCount } from '@/components/live/usePresenceHeartbeat';
 import {
+  EditableSessionTitle,
   EndSessionButton,
   LiveHeader,
   LivePageState,
@@ -893,6 +894,26 @@ export default function PresenterPage() {
     }
   };
 
+  // Optimistic: the new name shows at once, and goes back if the save fails.
+  const renameSession = async (title: string): Promise<boolean> => {
+    const previous = data?.title;
+    setData((current) => (current ? { ...current, title } : current));
+    try {
+      const response = await fetch(`/api/live-sessions/${params.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ title }),
+      });
+      if (!response.ok) throw new Error();
+      window.dispatchEvent(new Event('live:presentation-refresh'));
+      return true;
+    } catch {
+      if (previous !== undefined) setData((current) => (current ? { ...current, title: previous } : current));
+      toast({ title: t('error'), description: t('error_updating_session'), variant: 'destructive' });
+      return false;
+    }
+  };
+
   const handleModerate = async (item: LiveQuestion) => {
     if (moderatingId) return;
     const nextVisibility =
@@ -1010,9 +1031,7 @@ export default function PresenterPage() {
           header={
             <>
               <div className="min-w-0 flex-1 basis-56">
-                <h1 className="truncate text-lg font-semibold tracking-tight sm:text-xl" title={data.title}>
-                  {data.title}
-                </h1>
+                <EditableSessionTitle title={data.title} onSave={renameSession} />
                 <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1">
                   <SessionStatus status={data.status} />
                   <span className="flex items-center gap-1.5 text-xs text-muted-foreground">

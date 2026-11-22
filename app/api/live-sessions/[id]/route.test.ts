@@ -69,6 +69,17 @@ describe('PATCH /api/live-sessions/[id]', () => {
     expect(response.status).toBe(200);
     expect(broadcastLiveUpdate).toHaveBeenCalledWith(id, 'deck:sync', { page: 1, deckUrl: null });
   });
+  it('renames the session and tells the students and the projector window', async () => {
+    chain.maybeSingle.mockResolvedValue({ data: { id, title: '第三課：IF 函數', status: 'open', deck_url: null, deck_page: 1 }, error: null });
+    const response = await PATCH(request({ title: '  第三課：IF 函數  ' }), { params: params() });
+    expect(response.status).toBe(200);
+    expect((await response.json()).title).toBe('第三課：IF 函數');
+    expect(chain.update).toHaveBeenCalledWith(expect.objectContaining({ title: '第三課：IF 函數' }));
+    expect(chain.eq).toHaveBeenCalledWith('user_id', 'owner');
+    expect(broadcastLiveUpdate).toHaveBeenCalledWith(id, 'session:renamed', { title: '第三課：IF 函數' });
+    expect(broadcastLiveUpdate).toHaveBeenCalledWith(id, 'presentation:changed', {});
+    expect((await PATCH(request({ title: '   ' }), { params: params() })).status).toBe(400);
+  });
   it('returns 404 when nothing owned by this user matched', async () => {
     chain.maybeSingle.mockResolvedValue({ data: null, error: null });
     expect((await PATCH(request(), { params: params() })).status).toBe(404);

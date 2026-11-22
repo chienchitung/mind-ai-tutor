@@ -233,6 +233,10 @@ export default function AudiencePage() {
             : previous,
         );
       })
+      .on('broadcast', { event: 'session:renamed' }, ({ payload }) => {
+        const title = (payload as { title?: unknown }).title;
+        if (typeof title === 'string') setData((previous) => (previous ? { ...previous, title } : previous));
+      })
       .on('broadcast', { event: 'session:status' }, ({ payload }) => {
         setData((previous) =>
           previous

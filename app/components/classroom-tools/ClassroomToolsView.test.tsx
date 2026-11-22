@@ -55,6 +55,7 @@ it('takes a custom length in minutes, and mutes the music', () => {
 it('lets the teacher rename the course and the groups, change the count, and draws an order of every group', () => {
   const { unmount } = view();
   fireEvent.change(screen.getByLabelText('課程名稱'), { target: { value: 'PMA 儀表板工作坊' } });
+  fireEvent.click(screen.getByRole('tab', { name: /抽籤報告順序/ }));
   fireEvent.change(screen.getByLabelText('組數'), { target: { value: '3' } });
   fireEvent.blur(screen.getByLabelText('組數'));
   expect(screen.getAllByLabelText(/^第 \d 組名稱$/)).toHaveLength(3);
@@ -69,6 +70,19 @@ it('lets the teacher rename the course and the groups, change the count, and dra
   unmount();
   view();
   expect((screen.getByLabelText('課程名稱') as HTMLInputElement).value).toBe('PMA 儀表板工作坊');
+  // It reopens on the tab last used.
+  expect(screen.getByRole('tab', { name: /抽籤報告順序/ }).getAttribute('aria-selected')).toBe('true');
   expect((screen.getByLabelText('第 2 組名稱') as HTMLInputElement).value).toBe('藍隊');
   expect(screen.getAllByLabelText(/^第 \d 組名稱$/)).toHaveLength(3);
+});
+
+it('keeps the timer running on its own tab while the draw is on screen', () => {
+  view();
+  expect(screen.getByRole('tabpanel', { name: /課程計時器/ })).toBeTruthy();
+  fireEvent.click(screen.getByRole('button', { name: '開始' }));
+  fireEvent.click(screen.getByRole('tab', { name: /抽籤報告順序/ }));
+  expect(screen.getByLabelText('倒數中')).toBeTruthy();
+  advance(30_000);
+  fireEvent.click(screen.getByRole('tab', { name: /課程計時器/ }));
+  expect(clock()).toBe('04:30');
 });

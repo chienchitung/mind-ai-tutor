@@ -30,8 +30,8 @@ describe('classroom tools', () => {
   });
 
   it('remembers the course name, duration, groups and sound in this browser', () => {
-    saveSettings({ courseName: '第三課：IF 函數', durationSeconds: 600, groupNames: ['甲', '乙', '丙'], muted: true });
-    expect(loadSettings(true)).toEqual({ courseName: '第三課：IF 函數', durationSeconds: 600, groupNames: ['甲', '乙', '丙'], muted: true });
+    saveSettings({ courseName: '第三課：IF 函數', durationSeconds: 600, groupNames: ['甲', '乙', '丙'], muted: true, tab: 'groups' });
+    expect(loadSettings(true)).toEqual({ courseName: '第三課：IF 函數', durationSeconds: 600, groupNames: ['甲', '乙', '丙'], muted: true, tab: 'groups' });
     window.localStorage.setItem('classroom-tools:v1', '{not json');
     expect(loadSettings(true).groupNames).toEqual(['第 1 組', '第 2 組', '第 3 組', '第 4 組']);
   });

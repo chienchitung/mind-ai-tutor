@@ -2,7 +2,7 @@
 
 import { useState, type ReactNode } from 'react';
 import Link from 'next/link';
-import { ArrowLeft, Loader2, Radio, Square } from 'lucide-react';
+import { ArrowLeft, Check, Loader2, Pencil, Radio, Square, X } from 'lucide-react';
 import { BrandLogo } from '@/components/layout/BrandLogo';
 import { Button } from '@/components/ui/button';
 import {
@@ -40,6 +40,70 @@ export function SessionStatus({ status }: { status: LiveSessionStatus }) {
       />
       {t(`live_status_${status}`)}
     </span>
+  );
+}
+
+// The course name at the top of the presenter page, renamed in place:
+// Enter or the check saves, Escape or the cross cancels.
+export function EditableSessionTitle({
+  title, onSave,
+}: {
+  title: string;
+  /** Resolves false when the save failed, keeping the editor open. */
+  onSave: (title: string) => Promise<boolean>;
+}) {
+  const { language } = useLanguage();
+  const zh = language === 'zh-TW';
+  const [draft, setDraft] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
+  const save = async () => {
+    const next = draft?.trim() ?? '';
+    if (!next || saving) return;
+    if (next === title) { setDraft(null); return; }
+    setSaving(true);
+    const ok = await onSave(next);
+    setSaving(false);
+    if (ok) setDraft(null);
+  };
+  if (draft === null) {
+    return (
+      <div className="group flex min-w-0 items-center gap-1">
+        <h1 className="truncate text-lg font-semibold tracking-tight sm:text-xl" title={title}>{title}</h1>
+        <Button
+          type="button"
+          variant="ghost"
+          size="icon"
+          className="h-8 w-8 shrink-0 text-muted-foreground"
+          aria-label={zh ? '修改課程名稱' : 'Rename course'}
+          onClick={() => setDraft(title)}
+        >
+          <Pencil className="h-3.5 w-3.5" />
+        </Button>
+      </div>
+    );
+  }
+  return (
+    <form
+      className="flex min-w-0 items-center gap-1"
+      onSubmit={(event) => { event.preventDefault(); void save(); }}
+    >
+      <input
+        autoFocus
+        value={draft}
+        maxLength={200}
+        disabled={saving}
+        onChange={(event) => setDraft(event.target.value)}
+        onKeyDown={(event) => { if (event.key === 'Escape') setDraft(null); }}
+        aria-label={zh ? '課程名稱' : 'Course name'}
+        className="h-9 min-w-0 flex-1 rounded-md border bg-background px-2 text-lg font-semibold tracking-tight outline-none focus-visible:ring-2 focus-visible:ring-ring"
+      />
+      <Button type="submit" size="icon" className="h-9 w-9 shrink-0" disabled={saving || !draft.trim()} aria-label={zh ? '儲存課程名稱' : 'Save course name'}>
+        {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Check className="h-4 w-4" />}
+      </Button>
+      <Button type="button" variant="ghost" size="icon" className="h-9 w-9 shrink-0" disabled={saving} aria-label={zh ? '取消' : 'Cancel'} onClick={() => setDraft(null)}>
+        <X className="h-4 w-4" />
+      </Button>
+    </form>
   );
 }
 

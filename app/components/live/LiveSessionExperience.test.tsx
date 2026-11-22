@@ -482,6 +482,20 @@ describe('Live Session experience', () => {
     await waitFor(() => expect(stored).toEqual([expect.objectContaining({ used: true })]));
   });
 
+  it('renames the course in place from the presenter page', async () => {
+    mount(<PresenterPage />);
+    await screen.findByRole('heading', { name: session.title });
+    fireEvent.click(screen.getByRole('button', { name: '修改課程名稱' }));
+    const input = screen.getByLabelText('課程名稱');
+    fireEvent.change(input, { target: { value: '第三課：IF 函數' } });
+    fireEvent.submit(input.closest('form')!);
+    expect(await screen.findByRole('heading', { name: '第三課：IF 函數' })).toBeTruthy();
+    expect(fetchMock).toHaveBeenCalledWith(
+      `/api/live-sessions/${session.sessionId}`,
+      expect.objectContaining({ method: 'PATCH', body: JSON.stringify({ title: '第三課：IF 函數' }) }),
+    );
+  });
+
   it('maps too-easy and too-hard feedback to the correct stored values and names', async () => {
     mount(<AudiencePage />);
     await screen.findByRole('heading', { name: session.title });

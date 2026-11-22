@@ -88,6 +88,7 @@ export const sessionPatchSchema = z.object({
   deckPage: z.number().int().min(1).optional(),
   /** Whether students may still open the slides once the class has ended. */
   shareDeck: z.boolean().optional(),
+  title: z.string().trim().min(1).max(200).optional(),
 }).refine((value) => Object.keys(value).length > 0, 'At least one field is required');
 
 export const voteSchema = z.object({
