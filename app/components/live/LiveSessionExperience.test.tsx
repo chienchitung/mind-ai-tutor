@@ -522,8 +522,16 @@ describe('Live Session experience', () => {
   });
 
   it('shows the class timer on a student\'s page when the teacher starts it', async () => {
+    fetchMock.mockImplementation(async (url: string) =>
+      url.endsWith('/timer')
+        ? response({ timer: null, serverNow: Date.now() - 1_000 })
+        : response(url.includes('/questions') ? questions : session),
+    );
     mount(<AudiencePage />);
     await screen.findByRole('heading', { name: session.title });
+    // The page's own first read has answered before the broadcast arrives.
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledWith('/api/live/123456/timer', expect.anything()));
+    await act(async () => { await Promise.resolve(); });
     expect(screen.queryByRole('timer')).toBeNull();
     act(() => {
       mocks.events.get('timer:update')?.({ payload: {
