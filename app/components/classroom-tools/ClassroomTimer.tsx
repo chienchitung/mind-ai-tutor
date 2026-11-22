@@ -71,7 +71,7 @@ export function ClassroomTimer({
   const choose = (seconds: number) => { setFinished(false); rewindMusic(); reset(); onDurationChange(seconds); };
 
   return (
-    <section aria-label={zh ? '課程計時器' : 'Course timer'} className="flex flex-col items-center rounded-3xl border bg-card p-6 text-center shadow-sm sm:p-8">
+    <section aria-label={zh ? '課程計時器' : 'Course timer'} className="flex flex-col items-center rounded-3xl border bg-card p-6 text-center shadow-sm sm:p-8" style={{ containerType: 'inline-size' }}>
       <audio ref={audioRef} src={MUSIC_SRC} loop preload="none" />
       <h2 className="flex items-center gap-2 self-start text-sm font-semibold text-muted-foreground">
         <TimerIcon className="h-4 w-4" />{zh ? '課程計時器' : 'Course timer'}
@@ -81,7 +81,12 @@ export function ClassroomTimer({
         aria-live="off"
         className={cn(
           'my-4 font-mono font-black tabular-nums tracking-tight transition-colors',
-          large ? 'text-[min(22vw,16rem)] leading-none' : 'text-7xl sm:text-8xl',
+          // Sized to the card's own width (container units), so the digits
+          // never spill out of it on a projector; h:mm:ss needs a smaller size.
+          'leading-none',
+          remaining >= 3600
+            ? (large ? 'text-[min(20cqw,12rem)]' : 'text-[min(20cqw,4.5rem)]')
+            : (large ? 'text-[min(29cqw,16rem)]' : 'text-[min(29cqw,6rem)]'),
           finished ? 'text-destructive' : lastMinute ? 'text-amber-500' : 'text-foreground',
         )}
       >
