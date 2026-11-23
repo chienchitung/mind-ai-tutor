@@ -7,6 +7,9 @@ import { useCallback, useEffect, useState } from "react";
 // window at once (the storage event reaches the other window), and the
 // projector's own toolbar button updates the presenter page the same way.
 export const JOIN_BAR_KEY = "live:join-bar-hidden";
+// The storage event never reaches the window that wrote the value, so the
+// other users of the hook in that same window hear about it through this.
+const SAME_WINDOW_EVENT = "live:join-bar-hidden-change";
 
 function read(): boolean {
   try {
@@ -23,8 +26,13 @@ export function useJoinBarHidden(): [boolean, (hidden: boolean) => void] {
     const sync = (event: StorageEvent) => {
       if (event.key === JOIN_BAR_KEY || event.key === null) setHidden(read());
     };
+    const syncHere = (event: Event) => setHidden((event as CustomEvent<boolean>).detail);
     window.addEventListener("storage", sync);
-    return () => window.removeEventListener("storage", sync);
+    window.addEventListener(SAME_WINDOW_EVENT, syncHere);
+    return () => {
+      window.removeEventListener("storage", sync);
+      window.removeEventListener(SAME_WINDOW_EVENT, syncHere);
+    };
   }, []);
   const set = useCallback((next: boolean) => {
     setHidden(next);
@@ -33,6 +41,7 @@ export function useJoinBarHidden(): [boolean, (hidden: boolean) => void] {
     } catch {
       /* preference only: this window still follows the click */
     }
+    window.dispatchEvent(new CustomEvent(SAME_WINDOW_EVENT, { detail: next }));
   }, []);
   return [hidden, set];
 }

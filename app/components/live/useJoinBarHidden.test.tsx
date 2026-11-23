@@ -35,3 +35,14 @@ it('starts hidden when it was hidden before', () => {
   const { result } = renderHook(() => useJoinBarHidden());
   expect(result.current[0]).toBe(true);
 });
+
+it('keeps every user of the switch in the same window in step', () => {
+  // e.g. the projector toolbar and the projector page around it, or the
+  // presenter's switch and its own single-screen stage.
+  const first = renderHook(() => useJoinBarHidden());
+  const second = renderHook(() => useJoinBarHidden());
+  act(() => first.result.current[1](true));
+  expect(second.result.current[0]).toBe(true);
+  act(() => second.result.current[1](false));
+  expect(first.result.current[0]).toBe(false);
+});
