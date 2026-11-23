@@ -150,7 +150,15 @@ describe("reliable projected display", () => {
     await waitFor(() =>
       expect(Element.prototype.requestFullscreen).toHaveBeenCalled(),
     );
-    expect(screen.getByRole("button", { name: "回到全螢幕" })).toBeTruthy();
+    // The toolbar's full-screen button says what it is on hover and asks
+    // for full screen again.
+    const full = screen.getByRole("button", { name: "全螢幕顯示" });
+    expect(full.getAttribute("title")).toBe("全螢幕顯示（填滿整個投影螢幕）");
+    vi.mocked(Element.prototype.requestFullscreen).mockClear();
+    fireEvent.click(full);
+    await waitFor(() =>
+      expect(Element.prototype.requestFullscreen).toHaveBeenCalled(),
+    );
   });
   it("refetches authoritative deck state rather than trusting a broadcast payload", async () => {
     await mount();

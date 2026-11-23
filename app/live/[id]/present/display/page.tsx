@@ -468,7 +468,8 @@ export default function PresentDisplayPage() {
           className="absolute right-3 top-14 z-40"
           variant="secondary"
           onClick={() => void enter()}
-          aria-label={zh ? "回到全螢幕" : "Enter fullscreen"}
+          aria-label={zh ? "全螢幕顯示" : "Full screen"}
+          title={zh ? "全螢幕顯示（填滿整個投影螢幕）" : "Full screen (fill the projector screen)"}
         >
           <Maximize className="h-4 w-4" />
         </Button>

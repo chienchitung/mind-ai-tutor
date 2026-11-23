@@ -30,6 +30,8 @@ import {
   Maximize,
   Users,
   MessageSquare,
+  PanelBottomClose,
+  PanelBottomOpen,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useLanguage } from "@/app/contexts/LanguageContext";
@@ -53,6 +55,10 @@ import { JoinQRCode } from "./JoinQRCode";
 // Long enough to identify a tool after moving the pointer. Keyboard/clicker
 // page changes still leave an already-hidden toolbar undisturbed.
 const CONTROLS_HIDE_DELAY_MS = 2800;
+// Whether the join bar (link, code, QR) under the slide is hidden, kept per
+// browser: once everyone has joined, the teacher can give the slide the
+// whole screen.
+const JOIN_BAR_KEY = "live:join-bar-hidden";
 // The controls are one small toolbar at the bottom centre, with nothing at
 // the top. With a drawing tool (laser, pen, eraser), moving over the slide is
 // part of teaching, not a request for the controls: like Google Slides, they
@@ -315,6 +321,25 @@ export const PresentationStage = forwardRef<HTMLDivElement, Props>(
     const [contextOpen, setContextOpen] = useState(false);
     const [toolsOpen, setToolsOpen] = useState(false);
     const [panelOpen, setPanelOpen] = useState(false);
+    const [joinBarHidden, setJoinBarHidden] = useState(false);
+    useEffect(() => {
+      try {
+        setJoinBarHidden(window.localStorage.getItem(JOIN_BAR_KEY) === "1");
+      } catch {
+        /* storage blocked: the bar starts shown */
+      }
+    }, []);
+    const toggleJoinBar = () => {
+      setJoinBarHidden((current) => {
+        const next = !current;
+        try {
+          window.localStorage.setItem(JOIN_BAR_KEY, next ? "1" : "0");
+        } catch {
+          /* preference only */
+        }
+        return next;
+      });
+    };
     const [visible, setVisible] = useState(true);
     const [error, setError] = useState(false);
     const [showOnboarding, setShowOnboarding] = useState(false);
@@ -580,7 +605,7 @@ export const PresentationStage = forwardRef<HTMLDivElement, Props>(
             <ContextMenu.Root onOpenChange={setContextOpen} modal={false}>
               <ContextMenu.Trigger asChild>
                 <div
-                  className="h-[calc(100%-5rem)] w-full"
+                  className={`${joinBarHidden ? "h-full" : "h-[calc(100%-5rem)]"} w-full`}
                   data-presentation-slide=""
                 >
                   {error ? (
@@ -650,7 +675,7 @@ export const PresentationStage = forwardRef<HTMLDivElement, Props>(
               dropped from here - it's presenter-facing feedback, not
               something to project to the class. */}
             {(onlineCount ?? 0) > 0 && (
-              <div className="pointer-events-none absolute bottom-24 right-3 z-[65] flex items-center gap-1 rounded-xl border border-white/10 bg-black/60 px-3 py-2 text-[11px] leading-5 text-white/80 backdrop-blur-sm">
+              <div className={`pointer-events-none absolute ${joinBarHidden ? "bottom-4" : "bottom-24"} right-3 z-[65] flex items-center gap-1 rounded-xl border border-white/10 bg-black/60 px-3 py-2 text-[11px] leading-5 text-white/80 backdrop-blur-sm`}>
                 <Users className="h-3 w-3" aria-hidden="true" />
                 {onlineCount}
               </div>
@@ -693,7 +718,7 @@ export const PresentationStage = forwardRef<HTMLDivElement, Props>(
               data-presentation-chrome=""
               // Faint until the pointer is on it, like Google Slides, so the
               // corner stays quiet while the class looks at the slide.
-              className={`absolute bottom-20 left-1/2 max-w-[calc(100%-1.5rem)] -translate-x-1/2 pb-[max(0.75rem,env(safe-area-inset-bottom))] transition-opacity motion-reduce:transition-none ${shown ? "opacity-70 hover:opacity-100 focus-within:opacity-100" : "pointer-events-none opacity-0 focus-within:opacity-100"}`}
+              className={`absolute ${joinBarHidden ? "bottom-0" : "bottom-20"} left-1/2 max-w-[calc(100%-1.5rem)] -translate-x-1/2 pb-[max(0.75rem,env(safe-area-inset-bottom))] transition-opacity motion-reduce:transition-none ${shown ? "opacity-70 hover:opacity-100 focus-within:opacity-100" : "pointer-events-none opacity-0 focus-within:opacity-100"}`}
             >
               <div className="flex max-w-full flex-wrap items-center gap-0.5 rounded-xl border border-white/15 bg-zinc-950/90 p-1 shadow-lg backdrop-blur-md">
                 <Button
@@ -701,6 +726,7 @@ export const PresentationStage = forwardRef<HTMLDivElement, Props>(
                   size="icon"
                   className={CONTROL}
                   aria-label={t("live_deck_prev")}
+                  title={t("live_deck_prev")}
                   disabled={page <= 1}
                   onClick={() => onPageChange(page - 1)}
                 >
@@ -721,6 +747,7 @@ export const PresentationStage = forwardRef<HTMLDivElement, Props>(
                   size="icon"
                   className={CONTROL}
                   aria-label={t("live_deck_next")}
+                  title={t("live_deck_next")}
                   disabled={page >= numPages}
                   onClick={() => onPageChange(page + 1)}
                 >
@@ -737,6 +764,7 @@ export const PresentationStage = forwardRef<HTMLDivElement, Props>(
                       variant="ghost"
                       className={`${CONTROL} gap-2 px-2 sm:px-3`}
                       aria-label={t("live_tools")}
+                      title={t("live_tools")}
                     >
                       <ActiveIcon className="h-4 w-4" />
                       <span className="hidden sm:inline">
@@ -765,6 +793,7 @@ export const PresentationStage = forwardRef<HTMLDivElement, Props>(
                   className={CONTROL}
                   disabled={!history.past.length}
                   aria-label={t("live_ink_undo")}
+                  title={t("live_ink_undo")}
                   onClick={undo}
                 >
                   <Undo2 className="h-4 w-4" />
@@ -775,6 +804,7 @@ export const PresentationStage = forwardRef<HTMLDivElement, Props>(
                   className={`${CONTROL} hidden sm:inline-flex`}
                   disabled={!history.future.length}
                   aria-label={t("live_ink_redo")}
+                  title={t("live_ink_redo")}
                   onClick={redo}
                 >
                   <Redo2 className="h-4 w-4" />
@@ -796,6 +826,32 @@ export const PresentationStage = forwardRef<HTMLDivElement, Props>(
                     <MessageSquare className="h-4 w-4" />
                   </Button>
                 )}
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className={CONTROL}
+                  aria-pressed={joinBarHidden}
+                  aria-label={
+                    language === "zh-TW"
+                      ? joinBarHidden ? "顯示加入代碼列" : "隱藏加入代碼列"
+                      : joinBarHidden ? "Show the join bar" : "Hide the join bar"
+                  }
+                  title={
+                    language === "zh-TW"
+                      ? joinBarHidden ? "顯示加入代碼列" : "隱藏加入代碼列"
+                      : joinBarHidden ? "Show the join bar" : "Hide the join bar"
+                  }
+                  onClick={() => {
+                    toggleJoinBar();
+                    wake();
+                  }}
+                >
+                  {joinBarHidden ? (
+                    <PanelBottomOpen className="h-4 w-4" />
+                  ) : (
+                    <PanelBottomClose className="h-4 w-4" />
+                  )}
+                </Button>
                 {onRequestFullscreen && (
                   <Button
                     variant="ghost"
@@ -803,7 +859,12 @@ export const PresentationStage = forwardRef<HTMLDivElement, Props>(
                     className={CONTROL}
                     onClick={onRequestFullscreen}
                     aria-label={
-                      language === "zh-TW" ? "回到全螢幕" : "Enter fullscreen"
+                      language === "zh-TW" ? "全螢幕顯示" : "Full screen"
+                    }
+                    title={
+                      language === "zh-TW"
+                        ? "全螢幕顯示（填滿整個投影螢幕）"
+                        : "Full screen (fill the projector screen)"
                     }
                   >
                     <Maximize className="h-4 w-4" />
@@ -821,6 +882,15 @@ export const PresentationStage = forwardRef<HTMLDivElement, Props>(
                 </Button>
               </div>
             </div>
+            {joinBarHidden ? (
+              // Students must still be told the lesson is being recorded.
+              recording && (
+                <span role="status" className="pointer-events-none absolute bottom-4 left-3 z-[65] flex items-center gap-2 rounded-full bg-red-500/20 px-3 py-1 text-xs font-medium text-red-100 backdrop-blur-sm">
+                  <span aria-hidden="true" className="h-2 w-2 animate-pulse rounded-full bg-red-500 motion-reduce:animate-none" />
+                  {language === "zh-TW" ? "錄音中" : "Recording"}
+                </span>
+              )
+            ) : (
             <footer
               className="absolute inset-x-0 bottom-0 flex h-20 items-center justify-between gap-3 border-t border-white/10 bg-slate-950 px-3 sm:px-6"
               aria-label={language === "zh-TW" ? "加入課堂" : "Join session"}
@@ -844,6 +914,7 @@ export const PresentationStage = forwardRef<HTMLDivElement, Props>(
                 {joinCode && <JoinQRCode code={joinCode} />}
               </div>
             </footer>
+            )}
           </Dialog.Content>
         </Dialog.Portal>
       </Dialog.Root>
