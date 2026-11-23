@@ -421,13 +421,14 @@ export default function PresenterPage() {
         previewPageRef.current(message.deckUrl, message.page);
       }
       if (message?.type === 'ready') {
-        // A projector window that was not connected gets the panel's data
-        // with its first ping; after that, changes are pushed as they happen.
-        const fresh = Date.now() - lastDisplayPing.current >= 6000;
         lastDisplayPing.current = Date.now();
         setDisplayConnected(true);
         channel.postMessage({ type: 'ink', ...inkSnapshotRef.current });
-        if (fresh) channel.postMessage({ type: 'panel', data: panelDataRef.current });
+      }
+      // A projector window without the panel's data (just opened or
+      // reloaded) asks for it; after that, changes are pushed as they happen.
+      if (message?.type === 'panel-request' && panelDataRef.current) {
+        channel.postMessage({ type: 'panel', data: panelDataRef.current });
       }
       const panelAction = readPanelAction(message);
       if (panelAction) panelActionRef.current(panelAction);

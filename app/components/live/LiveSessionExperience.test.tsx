@@ -691,9 +691,9 @@ describe('dual-screen presenting', () => {
       type: 'panel',
       data: expect.objectContaining({ questions: [expect.objectContaining({ id: 'q1' })] }),
     }));
-    // A projector window that connects is sent the panel's data at once.
+    // A projector window that asks (opened or reloaded) is sent it at once.
     mocks.inkSend.mockClear();
-    act(() => ink.onmessage?.({ data: { type: 'ready' } }));
+    act(() => ink.onmessage?.({ data: { type: 'panel-request' } }));
     expect(mocks.inkSend).toHaveBeenCalledWith(expect.objectContaining({ type: 'panel' }));
     act(() => ink.onmessage?.({ data: { type: 'panel-action', action: 'moderate', questionId: 'q1' } }));
     await waitFor(() => expect(fetchMock).toHaveBeenCalledWith(

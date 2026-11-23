@@ -230,8 +230,11 @@ describe("reliable projected display", () => {
   it("offers the presenter page's Q&A and poll panel and sends its clicks back there", async () => {
     await mount();
     fireEvent.click(screen.getByRole("button", { name: "開始投影" }));
-    // Nothing to show until the presenter page is connected and sends it.
+    // Nothing to show until the presenter page is connected and sends it,
+    // which this window asks for (also after a reload).
     expect(screen.queryByRole("button", { name: "問答與投票" })).toBeNull();
+    const requests = mocks.channels.find((c) => c.name === "live-ink:123456");
+    expect(requests.postMessage).toHaveBeenCalledWith({ type: "panel-request" });
     ink({ type: "ink", page: 1, deckUrl: "/deck.pdf", strokes: [] });
     ink({
       type: "panel",

@@ -109,7 +109,10 @@ export default function PresentDisplayPage() {
   );
   useEffect(() => {
     readyRef.current = !!snapshot && !error;
-    if (readyRef.current) inkChannelRef.current?.postMessage({ type: "ready" });
+    if (readyRef.current) {
+      inkChannelRef.current?.postMessage({ type: "ready" });
+      if (!panelDataRef.current) inkChannelRef.current?.postMessage({ type: "panel-request" });
+    }
   }, [snapshot, error]);
   const containerRef = useRef<HTMLDivElement>(null);
   const { reactions, push: pushReaction } = useReactionBursts();
@@ -205,6 +208,8 @@ export default function PresentDisplayPage() {
     const ping = () => {
       if (readyRef.current) {
         channel.postMessage({ type: "ready" });
+        // Until the Q&A panel's data has arrived, ask for it with every ping.
+        if (!panelDataRef.current) channel.postMessage({ type: "panel-request" });
         const content = containerRef.current?.querySelector(
           "[data-projection-scroll]",
         );
