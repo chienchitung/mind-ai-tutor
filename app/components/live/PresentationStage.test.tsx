@@ -528,6 +528,55 @@ describe('projection tools', () => {
   });
 });
 
+describe('join bar', () => {
+  function renderStage(recording = false) {
+    return render(
+      <LanguageProvider>
+        <PresentationStage
+          open
+          url="/fixture.pdf"
+          page={1}
+          numPages={3}
+          title="Test deck"
+          joinCode="482910"
+          recording={recording}
+          onExit={() => {}}
+          onPageChange={() => {}}
+          onNumPages={() => {}}
+        />
+      </LanguageProvider>,
+    );
+  }
+
+  it('hides and shows the join bar, remembers the choice, and keeps the recording notice', async () => {
+    const values = new Map<string, string>();
+    vi.stubGlobal('localStorage', {
+      getItem: (key: string) => values.get(key) ?? null,
+      setItem: (key: string, value: string) => values.set(key, value),
+    });
+    const { unmount } = renderStage(true);
+    await screen.findByRole('img', { name: '投影片標註區' });
+    expect(screen.getByRole('contentinfo', { name: '加入課堂' })).toBeTruthy();
+    const hide = screen.getByRole('button', { name: '隱藏加入代碼列' });
+    expect(hide.getAttribute('title')).toBe('隱藏加入代碼列');
+    fireEvent.click(hide);
+    expect(screen.queryByRole('contentinfo', { name: '加入課堂' })).toBeNull();
+    expect(screen.queryByText('482910')).toBeNull();
+    // The class is still told it is being recorded.
+    expect(screen.getByText('錄音中')).toBeTruthy();
+    expect(values.get('live:join-bar-hidden')).toBe('1');
+
+    // Next time it opens the same way, and can be brought back.
+    unmount();
+    renderStage();
+    await screen.findByRole('img', { name: '投影片標註區' });
+    expect(screen.queryByRole('contentinfo', { name: '加入課堂' })).toBeNull();
+    fireEvent.click(screen.getByRole('button', { name: '顯示加入代碼列' }));
+    expect(screen.getByRole('contentinfo', { name: '加入課堂' })).toBeTruthy();
+    expect(values.get('live:join-bar-hidden')).toBe('0');
+  });
+});
+
 describe('Slido-style Q&A/poll panel', () => {
   const poll = {
     pollId: 'poll-1',
