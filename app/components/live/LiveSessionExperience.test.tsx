@@ -676,6 +676,32 @@ describe('dual-screen presenting', () => {
     expect(screen.getByText('第 3 / 1 頁')).toBeTruthy();
   });
 
+  it("serves the projector window's Q&A panel and carries out its clicks", async () => {
+    const channels: { name: string; onmessage: ((event: { data: unknown }) => void) | null }[] = [];
+    vi.stubGlobal('BroadcastChannel', class {
+      onmessage = null;
+      postMessage = mocks.inkSend;
+      close() {}
+      constructor(public name: string) { channels.push(this as never); }
+    });
+    mount(<PresenterPage />);
+    await screen.findByRole('heading', { name: session.title });
+    const ink = channels.find((channel) => channel.name === 'live-ink:123456')!;
+    await waitFor(() => expect(mocks.inkSend).toHaveBeenCalledWith({
+      type: 'panel',
+      data: expect.objectContaining({ questions: [expect.objectContaining({ id: 'q1' })] }),
+    }));
+    // A projector window that asks (opened or reloaded) is sent it at once.
+    mocks.inkSend.mockClear();
+    act(() => ink.onmessage?.({ data: { type: 'panel-request' } }));
+    expect(mocks.inkSend).toHaveBeenCalledWith(expect.objectContaining({ type: 'panel' }));
+    act(() => ink.onmessage?.({ data: { type: 'panel-action', action: 'moderate', questionId: 'q1' } }));
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledWith(
+      '/api/live-sessions/123456/questions/q1',
+      expect.objectContaining({ method: 'PATCH', body: JSON.stringify({ visibility: 'author_only' }) }),
+    ));
+  });
+
   it('opens a second window for the projector and shows the drawing toolbar', async () => {
     const displayWindow = { closed: false, close: vi.fn() };
     const open = vi.fn().mockReturnValue(displayWindow);

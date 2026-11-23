@@ -23,6 +23,8 @@ import { usePresentationSnapshot } from "@/components/live/usePresentationSnapsh
 import { PresentationContent } from "@/components/live/PresentationContent";
 import { useFastDeckPage } from "@/components/live/useFastDeckPage";
 import { JoinQRCode } from "@/components/live/JoinQRCode";
+import type { LivePanelAction, LivePanelData } from "@/lib/live-panel-relay";
+import type { QuizQuestion } from "@/lib/quiz";
 
 interface LiveDraft {
   tool: PresentationTool;
@@ -71,6 +73,33 @@ export default function PresentDisplayPage() {
     (value: unknown) => inkChannelRef.current?.postMessage(value),
     [],
   );
+  // The Q&A and poll panel, as the presenter page has it. Clicks are sent
+  // back there to be carried out.
+  const [panelData, setPanelData] = useState<LivePanelData | null>(null);
+  const panelDataRef = useRef(panelData);
+  panelDataRef.current = panelData;
+  const sendPanelAction = useCallback(
+    (action: LivePanelAction) =>
+      inkChannelRef.current?.postMessage({ type: "panel-action", ...action }),
+    [],
+  );
+  const loadQuizzes = useCallback(
+    () => sendPanelAction({ action: "load-quizzes" }),
+    [sendPanelAction],
+  );
+  const pickQuizQuestion = useCallback(
+    (question: QuizQuestion) => {
+      const quizzes = panelDataRef.current?.quizzes ?? [];
+      for (let quizIndex = 0; quizIndex < quizzes.length; quizIndex++) {
+        const questionIndex = quizzes[quizIndex].questions.indexOf(question);
+        if (questionIndex >= 0) {
+          sendPanelAction({ action: "pick-quiz-question", quizIndex, questionIndex });
+          return;
+        }
+      }
+    },
+    [sendPanelAction],
+  );
   const drawing = useProjectionInk(
     snapshot?.deckUrl ?? null,
     navigation.page,
@@ -80,7 +109,10 @@ export default function PresentDisplayPage() {
   );
   useEffect(() => {
     readyRef.current = !!snapshot && !error;
-    if (readyRef.current) inkChannelRef.current?.postMessage({ type: "ready" });
+    if (readyRef.current) {
+      inkChannelRef.current?.postMessage({ type: "ready" });
+      if (!panelDataRef.current) inkChannelRef.current?.postMessage({ type: "panel-request" });
+    }
   }, [snapshot, error]);
   const containerRef = useRef<HTMLDivElement>(null);
   const { reactions, push: pushReaction } = useReactionBursts();
@@ -165,6 +197,8 @@ export default function PresentDisplayPage() {
           behavior: "smooth",
         });
       }
+      if (data?.type === "panel" && data.data && typeof data.data === "object")
+        setPanelData(data.data as LivePanelData);
       if (data?.type === "live") {
         setLive({ ...data.payload, page: data.page, deckUrl: data.deckUrl });
         clearTimeout(idle);
@@ -174,6 +208,8 @@ export default function PresentDisplayPage() {
     const ping = () => {
       if (readyRef.current) {
         channel.postMessage({ type: "ready" });
+        // Until the Q&A panel's data has arrived, ask for it with every ping.
+        if (!panelDataRef.current) channel.postMessage({ type: "panel-request" });
         const content = containerRef.current?.querySelector(
           "[data-projection-scroll]",
         );
@@ -292,10 +328,20 @@ export default function PresentDisplayPage() {
               inkChannelRef.current?.postMessage({ type: "deck-preview", deckUrl: snapshot.deckUrl, page });
               navigation.navigate(page);
             }}
-            // Browsers refuse to bring the teacher's own window forward from
-            // here, and the projector screen is what the class sees, so it
-            // carries no teacher controls.
-            panel={false}
+            // The same Q&A and poll panel as on the presenter page, once
+            // that page is connected and has sent its data.
+            panel={connected && panelData !== null}
+            poll={panelData?.poll ?? null}
+            questions={panelData?.questions ?? []}
+            moderatingId={panelData?.moderatingId ?? null}
+            onModerateQuestion={(item) => sendPanelAction({ action: "moderate", questionId: item.id })}
+            quizzes={panelData?.quizzes ?? null}
+            quizzesLoading={panelData?.quizzesLoading ?? false}
+            quizPickerError={panelData?.quizPickerError ?? ""}
+            onLoadQuizzes={loadQuizzes}
+            onPickQuizQuestion={pickQuizQuestion}
+            preparedPolls={panelData?.preparedPolls ?? null}
+            onLaunchPrepared={(poll) => sendPanelAction({ action: "launch-prepared", pollId: poll.id })}
             reactions={
               <>
                 <ReactionBurstOverlay

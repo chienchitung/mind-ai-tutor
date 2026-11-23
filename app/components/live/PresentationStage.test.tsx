@@ -583,7 +583,7 @@ describe('Slido-style Q&A/poll panel', () => {
     expect(screen.getByText('▲ 2')).toBeTruthy();
   });
 
-  it('offers no Q&A or poll controls on the projector window', async () => {
+  it('offers no Q&A or poll panel when it is turned off', async () => {
     renderStage({ panel: false });
     await screen.findByRole('img', { name: '投影片標註區' });
     expect(screen.queryByRole('button', { name: '問答與投票' })).toBeNull();
