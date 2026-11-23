@@ -701,6 +701,7 @@ export const PresentationStage = forwardRef<HTMLDivElement, Props>(
                   size="icon"
                   className={CONTROL}
                   aria-label={t("live_deck_prev")}
+                  title={t("live_deck_prev")}
                   disabled={page <= 1}
                   onClick={() => onPageChange(page - 1)}
                 >
@@ -721,6 +722,7 @@ export const PresentationStage = forwardRef<HTMLDivElement, Props>(
                   size="icon"
                   className={CONTROL}
                   aria-label={t("live_deck_next")}
+                  title={t("live_deck_next")}
                   disabled={page >= numPages}
                   onClick={() => onPageChange(page + 1)}
                 >
@@ -737,6 +739,7 @@ export const PresentationStage = forwardRef<HTMLDivElement, Props>(
                       variant="ghost"
                       className={`${CONTROL} gap-2 px-2 sm:px-3`}
                       aria-label={t("live_tools")}
+                      title={t("live_tools")}
                     >
                       <ActiveIcon className="h-4 w-4" />
                       <span className="hidden sm:inline">
@@ -765,6 +768,7 @@ export const PresentationStage = forwardRef<HTMLDivElement, Props>(
                   className={CONTROL}
                   disabled={!history.past.length}
                   aria-label={t("live_ink_undo")}
+                  title={t("live_ink_undo")}
                   onClick={undo}
                 >
                   <Undo2 className="h-4 w-4" />
@@ -775,6 +779,7 @@ export const PresentationStage = forwardRef<HTMLDivElement, Props>(
                   className={`${CONTROL} hidden sm:inline-flex`}
                   disabled={!history.future.length}
                   aria-label={t("live_ink_redo")}
+                  title={t("live_ink_redo")}
                   onClick={redo}
                 >
                   <Redo2 className="h-4 w-4" />
@@ -803,7 +808,12 @@ export const PresentationStage = forwardRef<HTMLDivElement, Props>(
                     className={CONTROL}
                     onClick={onRequestFullscreen}
                     aria-label={
-                      language === "zh-TW" ? "回到全螢幕" : "Enter fullscreen"
+                      language === "zh-TW" ? "全螢幕顯示" : "Full screen"
+                    }
+                    title={
+                      language === "zh-TW"
+                        ? "全螢幕顯示（填滿整個投影螢幕）"
+                        : "Full screen (fill the projector screen)"
                     }
                   >
                     <Maximize className="h-4 w-4" />
