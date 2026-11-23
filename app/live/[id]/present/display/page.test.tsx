@@ -160,6 +160,17 @@ describe("reliable projected display", () => {
       expect(Element.prototype.requestFullscreen).toHaveBeenCalled(),
     );
   });
+  it("hides the join bar when the presenter page switches it off", async () => {
+    await mount();
+    expect(await screen.findByText("482910")).toBeTruthy();
+    window.localStorage.setItem("live:join-bar-hidden", "1");
+    act(() => { window.dispatchEvent(new StorageEvent("storage", { key: "live:join-bar-hidden" })); });
+    expect(screen.queryByText("482910")).toBeNull();
+    window.localStorage.setItem("live:join-bar-hidden", "0");
+    act(() => { window.dispatchEvent(new StorageEvent("storage", { key: "live:join-bar-hidden" })); });
+    expect(screen.getByText("482910")).toBeTruthy();
+    window.localStorage.removeItem("live:join-bar-hidden");
+  });
   it("refetches authoritative deck state rather than trusting a broadcast payload", async () => {
     await mount();
     current = { ...current, deckPage: 4 };

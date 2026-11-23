@@ -51,14 +51,12 @@ import { DeckViewer } from "./DeckViewer";
 import { LivePanel } from "./LivePanel";
 import type { PreparedPoll } from "@/lib/live-session";
 import { JoinQRCode } from "./JoinQRCode";
+import { useJoinBarHidden } from "./useJoinBarHidden";
 
 // Long enough to identify a tool after moving the pointer. Keyboard/clicker
 // page changes still leave an already-hidden toolbar undisturbed.
 const CONTROLS_HIDE_DELAY_MS = 2800;
-// Whether the join bar (link, code, QR) under the slide is hidden, kept per
-// browser: once everyone has joined, the teacher can give the slide the
-// whole screen.
-const JOIN_BAR_KEY = "live:join-bar-hidden";
+
 // The controls are one small toolbar at the bottom centre, with nothing at
 // the top. With a drawing tool (laser, pen, eraser), moving over the slide is
 // part of teaching, not a request for the controls: like Google Slides, they
@@ -321,25 +319,10 @@ export const PresentationStage = forwardRef<HTMLDivElement, Props>(
     const [contextOpen, setContextOpen] = useState(false);
     const [toolsOpen, setToolsOpen] = useState(false);
     const [panelOpen, setPanelOpen] = useState(false);
-    const [joinBarHidden, setJoinBarHidden] = useState(false);
-    useEffect(() => {
-      try {
-        setJoinBarHidden(window.localStorage.getItem(JOIN_BAR_KEY) === "1");
-      } catch {
-        /* storage blocked: the bar starts shown */
-      }
-    }, []);
-    const toggleJoinBar = () => {
-      setJoinBarHidden((current) => {
-        const next = !current;
-        try {
-          window.localStorage.setItem(JOIN_BAR_KEY, next ? "1" : "0");
-        } catch {
-          /* preference only */
-        }
-        return next;
-      });
-    };
+    // Once everyone has joined, the teacher can give the slide the whole
+    // screen.
+    const [joinBarHidden, setJoinBarHidden] = useJoinBarHidden();
+    const toggleJoinBar = () => setJoinBarHidden(!joinBarHidden);
     const [visible, setVisible] = useState(true);
     const [error, setError] = useState(false);
     const [showOnboarding, setShowOnboarding] = useState(false);
