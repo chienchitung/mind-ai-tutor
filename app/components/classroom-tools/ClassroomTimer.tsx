@@ -5,14 +5,14 @@ import { Minus, Pause, Play, Plus, RotateCcw, Timer as TimerIcon, Volume2, Volum
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { cn } from '@/lib/utils';
-import { MAX_TIMER_MINUTES, TIMER_PRESETS_MINUTES, formatClock } from '@/lib/classroom-tools';
+import { MAX_TIMER_MINUTES, TIMER_PRESETS_MINUTES, formatClock, type TimerSnapshot } from '@/lib/classroom-tools';
 import { useCountdown } from './useCountdown';
 import { playChime } from './chime';
 
 const MUSIC_SRC = '/classroom-tools/timer-music.mp3';
 
 export function ClassroomTimer({
-  zh, durationSeconds, muted, large, onDurationChange, onMutedChange, onFinish, onRunningChange,
+  zh, durationSeconds, muted, large, onDurationChange, onMutedChange, onFinish, onRunningChange, onStateChange,
 }: {
   zh: boolean;
   durationSeconds: number;
@@ -24,9 +24,11 @@ export function ClassroomTimer({
   onFinish: () => void;
   /** Lets the page mark the timer's tab while it counts down elsewhere. */
   onRunningChange?: (running: boolean) => void;
+  /** Mirrors the countdown to the projector window. */
+  onStateChange?: (state: TimerSnapshot) => void;
 }) {
   const [finished, setFinished] = useState(false);
-  const { remaining, running, start, pause, reset, adjust } = useCountdown(durationSeconds, () => {
+  const { remaining, endsAt, running, start, pause, reset, adjust } = useCountdown(durationSeconds, () => {
     setFinished(true);
     playChime();
     onFinish();
@@ -34,6 +36,11 @@ export function ClassroomTimer({
   const [customMinutes, setCustomMinutes] = useState('');
   const audioRef = useRef<HTMLAudioElement | null>(null);
   useEffect(() => { onRunningChange?.(running); }, [running, onRunningChange]);
+  // While running the end time is enough; the seconds left matter only when paused.
+  const pausedRemaining = running ? 0 : remaining;
+  useEffect(() => {
+    onStateChange?.({ durationSeconds, remaining: pausedRemaining, endsAt, finished });
+  }, [durationSeconds, pausedRemaining, endsAt, finished, onStateChange]);
 
   // Background music while the timer runs (as in the workshop timer).
   useEffect(() => {

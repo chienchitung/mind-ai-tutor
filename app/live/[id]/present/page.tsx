@@ -78,10 +78,6 @@ import {
 import type { Quiz, QuizQuestion } from '@/lib/quiz';
 import type { PreparedPoll } from '@/lib/live-session';
 import { PreparedPolls } from '@/components/live/PreparedPolls';
-import { useLiveTimer } from '@/components/live/useLiveTimer';
-import { LiveTimerControl } from '@/components/live/LiveTimerControl';
-import { LiveTimerBadge } from '@/components/live/LiveTimerBadge';
-import { playChime } from '@/components/classroom-tools/chime';
 
 const REACTION_KINDS = ['applause', 'insight', 'resonate', 'pause'] as const;
 const CONTROL_TOOLS = [
@@ -182,16 +178,6 @@ export default function PresenterPage() {
   const [reactionCounts, setReactionCounts] = useState<Record<string, number>>(
     {},
   );
-  // The class timer, shown on the projector and the students' pages.
-  const timerUrl = `/api/live-sessions/${params.id}/timer`;
-  const liveTimer = useLiveTimer(timerUrl, timerUrl);
-  const { apply: applyTimer, load: loadTimer } = liveTimer;
-  const timerFinishedRef = useRef(false);
-  useEffect(() => {
-    // The teacher's computer drives the room's sound: chime once at zero.
-    if (liveTimer.finished && !timerFinishedRef.current) playChime();
-    timerFinishedRef.current = liveTimer.finished;
-  }, [liveTimer.finished]);
   // Wiping a class's Q&A or its difficulty feedback (e.g. before reusing the
   // session for the next class). Reaction counts are only ever held here, so
   // they go with the feedback.
@@ -398,12 +384,11 @@ export default function PresenterPage() {
         registerPing((payload as { participantId: string }).participantId);
       })
       .on('broadcast', { event: 'presentation:changed' }, () => window.dispatchEvent(new Event('live:presentation-refresh')))
-      .on('broadcast', { event: 'timer:update' }, ({ payload }) => applyTimer(payload as { timer?: unknown; serverNow?: unknown }))
-      .subscribe((state) => { if (state === 'SUBSCRIBED') { void load(); void loadQuestions(); void loadRecordingActive(); void loadTimer(); window.dispatchEvent(new Event('live:presentation-refresh')); } });
+      .subscribe((state) => { if (state === 'SUBSCRIBED') { void load(); void loadQuestions(); void loadRecordingActive(); window.dispatchEvent(new Event('live:presentation-refresh')); } });
     return () => {
       void client.removeChannel(channel);
     };
-  }, [params.id, pushReaction, registerPing, load, loadQuestions, loadRecordingActive, applyCleared, applyTimer, loadTimer]);
+  }, [params.id, pushReaction, registerPing, load, loadQuestions, loadRecordingActive, applyCleared]);
 
   // Drawing stays on this browser's origin, never on the public student channel.
   // A refreshed display asks for the current ink; periodic replay repairs missed messages.
@@ -1467,19 +1452,6 @@ export default function PresenterPage() {
           )}
           aside={
             <>
-              <LiveTimerControl
-                zh={language === 'zh-TW'}
-                timer={liveTimer.timer}
-                remaining={liveTimer.remaining}
-                running={liveTimer.running}
-                finished={liveTimer.finished}
-                available={liveTimer.available}
-                onCommand={async (action) => {
-                  const ok = await liveTimer.command(action);
-                  if (!ok) toast({ title: t('error'), description: language === 'zh-TW' ? '計時器更新失敗，請再試一次。' : 'Could not update the timer. Please try again.', variant: 'destructive' });
-                  return ok;
-                }}
-              />
               <Card>
                 <CardContent className="p-4 md:p-4">
                   <div className="mb-3 flex items-center justify-between gap-2">
@@ -1762,14 +1734,7 @@ export default function PresenterPage() {
       {data.deckUrl && <PresentationStage key={data.deckUrl} ref={presentRef} open={presenting}
         url={data.deckUrl} page={data.deckPage} numPages={numDeckPages} title={data.title} joinCode={data.joinCode}
         onExit={exitPresentation} onPageChange={(page) => void changeDeckPage(page)} onNumPages={setNumDeckPages}
-        reactions={<>
-          <ReactionBurstOverlay reactions={reactions} className="absolute inset-0 z-[75]" />
-          {liveTimer.timer && (
-            <div className="pointer-events-none absolute left-1/2 top-4 z-[76] -translate-x-1/2">
-              <LiveTimerBadge zh={language === 'zh-TW'} size="lg" remaining={liveTimer.remaining} running={liveTimer.running} finished={liveTimer.finished} />
-            </div>
-          )}
-        </>}
+        reactions={<ReactionBurstOverlay reactions={reactions} className="absolute inset-0 z-[75]" />}
         annotationState={controlInk} onAnnotationAction={dispatchControlInk}
         onLiveChange={live => inkChannelRef.current?.postMessage({ type: 'live', page: data.deckPage, deckUrl: data.deckUrl, payload: live })}
         onlineCount={onlineCount}

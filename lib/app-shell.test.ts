@@ -24,6 +24,7 @@ describe('usesAppShell', () => {
     '/live/123456',
     '/live/session-id/present',
     '/live/session-id/present/display',
+    '/classroom-tools/display',
     '/quiz/quiz-id',
   ])('leaves public and presentation routes unwrapped for %s', (pathname) => {
     expect(usesAppShell(pathname)).toBe(false);

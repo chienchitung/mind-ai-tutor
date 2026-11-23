@@ -8,6 +8,36 @@ export const MAX_TIMER_MINUTES = 180;
 export const TIMER_PRESETS_MINUTES = [3, 5, 10, 15] as const;
 const STORAGE_KEY = 'classroom-tools:v1';
 
+// The projector window (/classroom-tools/display) mirrors the tools page over
+// a BroadcastChannel: both are windows of the same browser, so no server is
+// involved and the projector never lags behind the teacher's controls.
+export const DISPLAY_CHANNEL = 'classroom-tools:display';
+
+export interface TimerSnapshot {
+  durationSeconds: number;
+  /** Seconds left while paused; while running, `endsAt` (epoch ms) rules. */
+  remaining: number;
+  endsAt: number | null;
+  finished: boolean;
+}
+
+export interface ClassroomDisplayState {
+  courseName: string;
+  tab: 'timer' | 'groups';
+  timer: TimerSnapshot;
+  order: string[];
+  drawing: boolean;
+}
+
+export type ClassroomDisplayMessage =
+  | { type: 'hello' }
+  | { type: 'state'; state: ClassroomDisplayState };
+
+/** Seconds left on a mirrored timer at `now`. */
+export function snapshotRemaining(timer: TimerSnapshot, now: number): number {
+  return timer.endsAt === null ? timer.remaining : Math.max(0, (timer.endsAt - now) / 1000);
+}
+
 export interface ClassroomToolSettings {
   courseName: string;
   durationSeconds: number;
