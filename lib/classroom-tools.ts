@@ -29,9 +29,12 @@ export interface ClassroomDisplayState {
   drawing: boolean;
 }
 
+// Every message names the tools window it belongs to (`source`, passed to
+// the projector window in its URL), so a second tools tab never takes over a
+// projector that another one opened.
 export type ClassroomDisplayMessage =
-  | { type: 'hello' }
-  | { type: 'state'; state: ClassroomDisplayState };
+  | { type: 'hello'; source: string | null }
+  | { type: 'state'; source: string; state: ClassroomDisplayState };
 
 /** Seconds left on a mirrored timer at `now`. */
 export function snapshotRemaining(timer: TimerSnapshot, now: number): number {

@@ -28,6 +28,8 @@ beforeEach(() => {
 });
 afterEach(() => {
   cleanup();
+  window.sessionStorage.clear();
+  window.history.replaceState(null, '', '/');
   FakeChannel.open.clear();
   vi.unstubAllGlobals();
   vi.useRealTimers();
@@ -35,6 +37,17 @@ afterEach(() => {
 
 // Each call is its own act(), so a message delivered in one has its effects
 // (e.g. the projector's ticking) in place for the next.
+// Clicks the tools page's button and puts this document at the URL it opens.
+function openFrom(controls: ReturnType<typeof within>) {
+  const open = vi.spyOn(window, 'open').mockReturnValue(null);
+  fireEvent.click(controls.getByRole('button', { name: '開啟投影視窗' }));
+  const [url, name] = open.mock.calls[0] as [string, string];
+  expect(url).toMatch(/^\/classroom-tools\/display\?source=/);
+  expect(name).toMatch(/^classroom-tools-display-/);
+  open.mockRestore();
+  window.history.replaceState(null, '', url);
+}
+
 const advance = (ms: number) => act(() => { vi.advanceTimersByTime(ms); });
 
 it('waits for the tools page when opened on its own', () => {
@@ -47,7 +60,8 @@ it('mirrors the course name, the countdown and the draw of the tools page', () =
   const controls = within(tools.container);
   fireEvent.change(controls.getByLabelText('課程名稱'), { target: { value: '資料視覺化' } });
 
-  // Opened later: it asks the tools page for the current state.
+  // Opened later, from the tools page: it asks that page for the current state.
+  openFrom(controls);
   const projector = render(<LanguageProvider><ClassroomToolsDisplay /></LanguageProvider>);
   const screenView = within(projector.container);
   advance(10);
@@ -81,9 +95,18 @@ it('mirrors the course name, the countdown and the draw of the tools page', () =
   expect(screenView.getByRole('status').textContent).toBe('報告順序');
 });
 
-it('opens the projector window from the tools page', () => {
-  const open = vi.spyOn(window, 'open').mockReturnValue(null);
-  render(<LanguageProvider><ClassroomToolsView /></LanguageProvider>);
-  fireEvent.click(screen.getByRole('button', { name: '開啟投影視窗' }));
-  expect(open).toHaveBeenCalledWith('/classroom-tools/display', 'classroom-tools-display', expect.any(String));
+it('follows only the tools tab that opened it', () => {
+  const first = render(<LanguageProvider><ClassroomToolsView /></LanguageProvider>);
+  fireEvent.change(within(first.container).getByLabelText('課程名稱'), { target: { value: '第一班' } });
+  openFrom(within(first.container));
+  const projector = within(render(<LanguageProvider><ClassroomToolsDisplay /></LanguageProvider>).container);
+  advance(10);
+  expect(projector.getByRole('heading', { name: '第一班' })).toBeTruthy();
+
+  // Another tools tab (its own session storage, so its own id).
+  window.sessionStorage.clear();
+  const second = render(<LanguageProvider><ClassroomToolsView /></LanguageProvider>);
+  fireEvent.change(within(second.container).getByLabelText('課程名稱'), { target: { value: '第二班' } });
+  advance(10);
+  expect(projector.getByRole('heading', { name: '第一班' })).toBeTruthy();
 });

@@ -25,11 +25,15 @@ export function ClassroomToolsDisplay() {
 
   useEffect(() => {
     if (typeof BroadcastChannel === 'undefined') return;
+    // Only the tools window that opened this one drives it.
+    const source = new URLSearchParams(window.location.search).get('source');
     const channel = new BroadcastChannel(DISPLAY_CHANNEL);
     channel.onmessage = (event: MessageEvent<ClassroomDisplayMessage>) => {
-      if (event.data?.type === 'state') { setState(event.data.state); setNow(Date.now()); }
+      if (event.data?.type !== 'state' || event.data.source !== source) return;
+      setState(event.data.state);
+      setNow(Date.now());
     };
-    channel.postMessage({ type: 'hello' } satisfies ClassroomDisplayMessage);
+    channel.postMessage({ type: 'hello', source } satisfies ClassroomDisplayMessage);
     return () => channel.close();
   }, []);
 
@@ -62,7 +66,9 @@ export function ClassroomToolsDisplay() {
       <main className="flex min-h-dvh flex-col items-center justify-center gap-4 bg-background px-6 text-center">
         <MonitorUp className="h-10 w-10 text-muted-foreground" />
         <p role="status" className="max-w-md text-lg text-muted-foreground">
-          {zh ? '等待課堂工具頁連線⋯ 請保持課堂工具頁在同一個瀏覽器中開啟。' : 'Waiting for the classroom tools page… keep it open in this browser.'}
+          {zh
+            ? '等待課堂工具頁連線⋯ 請從課堂工具頁的「開啟投影視窗」開啟這個視窗，並保持課堂工具頁開著。'
+            : 'Waiting for the classroom tools page… open this window with its “Projector window” button and keep that page open.'}
         </p>
       </main>
     );

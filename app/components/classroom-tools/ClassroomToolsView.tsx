@@ -13,6 +13,21 @@ import { ClassroomTimer } from './ClassroomTimer';
 import { GroupDraw } from './GroupDraw';
 import { Confetti } from './Confetti';
 
+// This tab's id for its projector window, kept across reloads of the tab so
+// a projector it opened before a reload follows it again.
+function tabSource(): string {
+  const key = 'classroom-tools:source';
+  try {
+    const saved = window.sessionStorage.getItem(key);
+    if (saved) return saved;
+  } catch { /* storage blocked: a fresh id still works until a reload */ }
+  const id = typeof crypto !== 'undefined' && 'randomUUID' in crypto
+    ? crypto.randomUUID()
+    : `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+  try { window.sessionStorage.setItem(key, id); } catch { /* see above */ }
+  return id;
+}
+
 // The course timer and the random presentation order on one screen, which
 // can go full screen, or open a projector window that mirrors them (for a
 // second screen) while this page keeps the controls. The course name, timer length, group
@@ -39,21 +54,27 @@ export function ClassroomToolsView() {
   const displayStateRef = useRef(displayState);
   displayStateRef.current = displayState;
   const channelRef = useRef<BroadcastChannel | null>(null);
+  const sourceRef = useRef('');
   useEffect(() => {
+    sourceRef.current = tabSource();
     if (typeof BroadcastChannel === 'undefined') return;
     const channel = new BroadcastChannel(DISPLAY_CHANNEL);
     channelRef.current = channel;
     channel.onmessage = (event: MessageEvent<ClassroomDisplayMessage>) => {
       const state = displayStateRef.current;
-      if (event.data?.type === 'hello' && state) channel.postMessage({ type: 'state', state } satisfies ClassroomDisplayMessage);
+      const source = sourceRef.current;
+      if (event.data?.type === 'hello' && event.data.source === source && state) {
+        channel.postMessage({ type: 'state', source, state } satisfies ClassroomDisplayMessage);
+      }
     };
     return () => { channel.close(); channelRef.current = null; };
   }, []);
   useEffect(() => {
-    if (displayState) channelRef.current?.postMessage({ type: 'state', state: displayState } satisfies ClassroomDisplayMessage);
+    if (displayState) channelRef.current?.postMessage({ type: 'state', source: sourceRef.current, state: displayState } satisfies ClassroomDisplayMessage);
   }, [displayState]);
   const openDisplay = () => {
-    window.open('/classroom-tools/display', 'classroom-tools-display', 'popup,width=1280,height=720');
+    const source = sourceRef.current;
+    window.open(`/classroom-tools/display?source=${encodeURIComponent(source)}`, `classroom-tools-display-${source}`, 'popup,width=1280,height=720');
   };
 
   useEffect(() => { setSettings(loadSettings(zh)); }, []);
