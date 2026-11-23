@@ -222,8 +222,8 @@ interface Props {
     pointer: InkPoint | null;
   }) => void;
   remoteOverlay?: ReactNode;
-  /** Offer the Q&A and poll panel. Off on the projector window, which has
-   * no teacher data and is what the whole class sees. */
+  /** Offer the Q&A and poll panel. The projector window turns it on once
+   * the presenter page has sent it the panel's data. */
   panel?: boolean;
   onRequestFullscreen?: () => void;
   toolsDisabled?: boolean;
@@ -656,7 +656,7 @@ export const PresentationStage = forwardRef<HTMLDivElement, Props>(
               </div>
             )}
             <LivePanel
-              open={panelOpen}
+              open={panel && panelOpen}
               onClose={() => setPanelOpen(false)}
               poll={poll ?? null}
               questions={questions ?? []}

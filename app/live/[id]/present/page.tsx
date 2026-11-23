@@ -78,6 +78,7 @@ import {
 import type { Quiz, QuizQuestion } from '@/lib/quiz';
 import type { PreparedPoll } from '@/lib/live-session';
 import { PreparedPolls } from '@/components/live/PreparedPolls';
+import { readPanelAction, type LivePanelAction, type LivePanelData } from '@/lib/live-panel-relay';
 
 const REACTION_KINDS = ['applause', 'insight', 'resonate', 'pause'] as const;
 const CONTROL_TOOLS = [
@@ -220,6 +221,10 @@ export default function PresenterPage() {
   const [displayConnected, setDisplayConnected] = useState(false);
   const inkChannelRef = useRef<BroadcastChannel | null>(null);
   const lastDisplayPing = useRef(0);
+  // The projector window's Q&A and poll panel: what it shows, and what its
+  // clicks do (both set further down, once the handlers exist).
+  const panelDataRef = useRef<LivePanelData | null>(null);
+  const panelActionRef = useRef<(action: LivePanelAction) => void>(() => {});
 
   const loadSequence = useRef(0);
   const load = useCallback(async () => {
@@ -416,10 +421,16 @@ export default function PresenterPage() {
         previewPageRef.current(message.deckUrl, message.page);
       }
       if (message?.type === 'ready') {
+        // A projector window that was not connected gets the panel's data
+        // with its first ping; after that, changes are pushed as they happen.
+        const fresh = Date.now() - lastDisplayPing.current >= 6000;
         lastDisplayPing.current = Date.now();
         setDisplayConnected(true);
         channel.postMessage({ type: 'ink', ...inkSnapshotRef.current });
+        if (fresh) channel.postMessage({ type: 'panel', data: panelDataRef.current });
       }
+      const panelAction = readPanelAction(message);
+      if (panelAction) panelActionRef.current(panelAction);
     };
     const timer = setInterval(() => setDisplayConnected(Date.now() - lastDisplayPing.current < 6000), 2000);
     return () => { clearInterval(timer); channel.close(); inkChannelRef.current = null; };
@@ -986,6 +997,31 @@ export default function PresenterPage() {
   const pickQuizQuestionInPanel = (picked: QuizQuestion) => {
     void openPoll(picked.questionText, picked.options.slice(0, 6).map((option) => option.text));
   };
+
+  // The projector window's panel works on the same data and handlers as
+  // the one on this page.
+  panelActionRef.current = (action) => {
+    if (action.action === 'moderate') {
+      const item = questions.find((entry) => entry.id === action.questionId);
+      if (item) void handleModerate(item);
+    } else if (action.action === 'launch-prepared') {
+      const prepared = preparedPolls?.find((entry) => entry.id === action.pollId);
+      if (prepared) void launchPrepared(prepared);
+    } else if (action.action === 'load-quizzes') {
+      void loadQuizzesOnce();
+    } else {
+      const picked = quizzes?.[action.quizIndex]?.questions[action.questionIndex];
+      if (picked) pickQuizQuestionInPanel(picked);
+    }
+  };
+  const panelPoll = data?.poll ?? null;
+  useEffect(() => {
+    const panelData: LivePanelData = {
+      poll: panelPoll, questions, moderatingId, preparedPolls, quizzes, quizzesLoading, quizPickerError,
+    };
+    panelDataRef.current = panelData;
+    inkChannelRef.current?.postMessage({ type: 'panel', data: panelData });
+  }, [panelPoll, questions, moderatingId, preparedPolls, quizzes, quizzesLoading, quizPickerError]);
 
   if (status === 'loading') {
     return <LivePageState presenter loading message={t('live_loading')} />;

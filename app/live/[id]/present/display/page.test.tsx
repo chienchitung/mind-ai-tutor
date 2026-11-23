@@ -226,4 +226,29 @@ describe("reliable projected display", () => {
     );
     expect(await screen.findByText("歡迎加入，等待老師開始")).toBeTruthy();
   });
+
+  it("offers the presenter page's Q&A and poll panel and sends its clicks back there", async () => {
+    await mount();
+    fireEvent.click(screen.getByRole("button", { name: "開始投影" }));
+    // Nothing to show until the presenter page is connected and sends it.
+    expect(screen.queryByRole("button", { name: "問答與投票" })).toBeNull();
+    ink({ type: "ink", page: 1, deckUrl: "/deck.pdf", strokes: [] });
+    ink({
+      type: "panel",
+      data: {
+        poll: null,
+        questions: [{ id: "q1", text: "IF 可以巢狀嗎？", lens: "clarify", visibility: "public", upvotes: 2, createdAt: "2026-01-01T00:00:00Z" }],
+        moderatingId: null,
+        preparedPolls: [{ id: "p1", question: "最常用的函數？", options: ["SUM", "IF"], used: false }],
+        quizzes: [],
+        quizzesLoading: false,
+        quizPickerError: "",
+      },
+    });
+    fireEvent.click(await screen.findByRole("button", { name: "問答與投票" }));
+    expect(screen.getByText("IF 可以巢狀嗎？")).toBeTruthy();
+    const channel = mocks.channels.find((c) => c.name === "live-ink:123456");
+    fireEvent.click(screen.getByRole("button", { name: "隱藏" }));
+    expect(channel.postMessage).toHaveBeenCalledWith({ type: "panel-action", action: "moderate", questionId: "q1" });
+  });
 });
