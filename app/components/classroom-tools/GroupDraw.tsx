@@ -13,13 +13,15 @@ const SHUFFLE_STEP_MS = 80;
 // Draws a random presentation order for the class's groups. The count and
 // every group's name are editable; changing them clears the last draw.
 export function GroupDraw({
-  zh, groupNames, large, onGroupCountChange, onGroupNameChange,
+  zh, groupNames, large, onGroupCountChange, onGroupNameChange, onOrderChange,
 }: {
   zh: boolean;
   groupNames: string[];
   large: boolean;
   onGroupCountChange: (count: number) => void;
   onGroupNameChange: (index: number, name: string) => void;
+  /** Mirrors the draw to the projector window. */
+  onOrderChange?: (order: string[], drawing: boolean) => void;
 }) {
   const [order, setOrder] = useState<string[]>([]);
   const [drawing, setDrawing] = useState(false);
@@ -27,6 +29,7 @@ export function GroupDraw({
   const timerRef = useRef<number | null>(null);
 
   useEffect(() => { setCountDraft(String(groupNames.length)); }, [groupNames.length]);
+  useEffect(() => { onOrderChange?.(order, drawing); }, [order, drawing, onOrderChange]);
   useEffect(() => () => { if (timerRef.current !== null) window.clearInterval(timerRef.current); }, []);
 
   const names = groupNames.map((name, index) => name.trim() || (zh ? `第 ${index + 1} 組` : `Group ${index + 1}`));

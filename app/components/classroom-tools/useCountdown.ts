@@ -68,5 +68,5 @@ export function useCountdown(durationSeconds: number, onFinish: () => void) {
     setEndsAt(Date.now() + left * 1000);
   }, []);
 
-  return { remaining, running: endsAt !== null, start, pause, reset, adjust };
+  return { remaining, endsAt, running: endsAt !== null, start, pause, reset, adjust };
 }

@@ -1,47 +1,36 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Maximize, Minimize, Pencil, Timer as TimerIcon, Users } from 'lucide-react';
+import { Maximize, Minimize, MonitorUp, Pencil, Timer as TimerIcon, Users } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useLanguage } from '@/app/contexts/LanguageContext';
 import { cn } from '@/lib/utils';
 import {
-  loadSettings, resizeGroups, saveSettings, type ClassroomToolSettings,
+  DISPLAY_CHANNEL, loadSettings, resizeGroups, saveSettings,
+  type ClassroomDisplayMessage, type ClassroomDisplayState, type ClassroomToolSettings, type TimerSnapshot,
 } from '@/lib/classroom-tools';
 import { ClassroomTimer } from './ClassroomTimer';
 import { GroupDraw } from './GroupDraw';
+import { Confetti } from './Confetti';
 
-const CONFETTI_COLORS = ['#2563eb', '#f59e0b', '#10b981', '#ef4444', '#a855f7', '#ffffff'];
-
-function Confetti({ burst }: { burst: number }) {
-  const pieces = useMemo(() => Array.from({ length: 60 }, (_, index) => ({
-    left: Math.random() * 100,
-    drift: `${(Math.random() - 0.5) * 30}vw`,
-    delay: `${Math.random() * 0.5}s`,
-    fall: `${2.2 + Math.random() * 1.4}s`,
-    color: CONFETTI_COLORS[index % CONFETTI_COLORS.length],
-    size: 6 + Math.random() * 8,
-  // A new burst re-rolls the pieces.
-  })), [burst]);
-  if (!burst) return null;
-  return (
-    <div key={burst} aria-hidden="true" className="pointer-events-none fixed inset-0 z-[80] overflow-hidden">
-      {pieces.map((piece, index) => (
-        <span
-          key={index}
-          className="classroom-confetti absolute top-0 rounded-sm"
-          style={{
-            left: `${piece.left}%`, width: piece.size, height: piece.size * 0.6, background: piece.color,
-            ['--drift' as string]: piece.drift, ['--delay' as string]: piece.delay, ['--fall' as string]: piece.fall,
-          }}
-        />
-      ))}
-    </div>
-  );
+// This tab's id for its projector window, kept across reloads of the tab so
+// a projector it opened before a reload follows it again.
+function tabSource(): string {
+  const key = 'classroom-tools:source';
+  try {
+    const saved = window.sessionStorage.getItem(key);
+    if (saved) return saved;
+  } catch { /* storage blocked: a fresh id still works until a reload */ }
+  const id = typeof crypto !== 'undefined' && 'randomUUID' in crypto
+    ? crypto.randomUUID()
+    : `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+  try { window.sessionStorage.setItem(key, id); } catch { /* see above */ }
+  return id;
 }
 
 // The course timer and the random presentation order on one screen, which
-// can go full screen for the projector. The course name, timer length, group
+// can go full screen, or open a projector window that mirrors them (for a
+// second screen) while this page keeps the controls. The course name, timer length, group
 // count and names are saved in this browser for next time.
 export function ClassroomToolsView() {
   const { language } = useLanguage();
@@ -51,6 +40,42 @@ export function ClassroomToolsView() {
   const [confetti, setConfetti] = useState(0);
   const [timerRunning, setTimerRunning] = useState(false);
   const stageRef = useRef<HTMLDivElement>(null);
+  const [timerState, setTimerState] = useState<TimerSnapshot | null>(null);
+  const [draw, setDraw] = useState<{ order: string[]; drawing: boolean }>({ order: [], drawing: false });
+  const onOrderChange = useCallback((order: string[], drawing: boolean) => setDraw({ order, drawing }), []);
+
+  // What the projector window shows, re-sent on every change and whenever a
+  // projector window opens (it says hello).
+  const displayState = useMemo<ClassroomDisplayState | null>(() => (
+    settings && timerState
+      ? { courseName: settings.courseName, tab: settings.tab, timer: timerState, order: draw.order, drawing: draw.drawing }
+      : null
+  ), [settings, timerState, draw]);
+  const displayStateRef = useRef(displayState);
+  displayStateRef.current = displayState;
+  const channelRef = useRef<BroadcastChannel | null>(null);
+  const sourceRef = useRef('');
+  useEffect(() => {
+    sourceRef.current = tabSource();
+    if (typeof BroadcastChannel === 'undefined') return;
+    const channel = new BroadcastChannel(DISPLAY_CHANNEL);
+    channelRef.current = channel;
+    channel.onmessage = (event: MessageEvent<ClassroomDisplayMessage>) => {
+      const state = displayStateRef.current;
+      const source = sourceRef.current;
+      if (event.data?.type === 'hello' && event.data.source === source && state) {
+        channel.postMessage({ type: 'state', source, state } satisfies ClassroomDisplayMessage);
+      }
+    };
+    return () => { channel.close(); channelRef.current = null; };
+  }, []);
+  useEffect(() => {
+    if (displayState) channelRef.current?.postMessage({ type: 'state', source: sourceRef.current, state: displayState } satisfies ClassroomDisplayMessage);
+  }, [displayState]);
+  const openDisplay = () => {
+    const source = sourceRef.current;
+    window.open(`/classroom-tools/display?source=${encodeURIComponent(source)}`, `classroom-tools-display-${source}`, 'popup,width=1280,height=720');
+  };
 
   useEffect(() => { setSettings(loadSettings(zh)); }, []);
   useEffect(() => { if (settings) saveSettings(settings); }, [settings]);
@@ -94,6 +119,10 @@ export function ClassroomToolsView() {
           />
           <Pencil aria-hidden="true" className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground opacity-0 transition-opacity group-hover:opacity-100" />
         </label>
+        <Button variant="outline" className="h-11 shrink-0" onClick={openDisplay} title={zh ? '開新視窗，拖到投影螢幕後按全螢幕；這個頁面繼續操作' : 'Opens a window for the projector screen; keep controlling from this page'}>
+          <MonitorUp className="h-4 w-4 sm:mr-2" />
+          <span className="sr-only sm:not-sr-only">{zh ? '開啟投影視窗' : 'Projector window'}</span>
+        </Button>
         <Button variant="outline" className="h-11 shrink-0" onClick={toggleFullscreen}>
           {fullscreen ? <Minimize className="h-4 w-4 sm:mr-2" /> : <Maximize className="h-4 w-4 sm:mr-2" />}
           <span className="sr-only sm:not-sr-only">{fullscreen ? (zh ? '離開全螢幕' : 'Exit full screen') : (zh ? '全螢幕投影' : 'Full screen')}</span>
@@ -138,6 +167,7 @@ export function ClassroomToolsView() {
           onMutedChange={(muted) => update({ muted })}
           onFinish={() => setConfetti(Date.now())}
           onRunningChange={setTimerRunning}
+          onStateChange={setTimerState}
         />
       </div>
       <div role="tabpanel" id="classroom-panel-groups" aria-labelledby="classroom-tab-groups" hidden={settings.tab !== 'groups'}>
@@ -147,6 +177,7 @@ export function ClassroomToolsView() {
           groupNames={settings.groupNames}
           onGroupCountChange={(count) => update({ groupNames: resizeGroups(settings.groupNames, count, zh) })}
           onGroupNameChange={(index, name) => update({ groupNames: settings.groupNames.map((item, itemIndex) => (itemIndex === index ? name : item)) })}
+          onOrderChange={onOrderChange}
         />
       </div>
     </div>
