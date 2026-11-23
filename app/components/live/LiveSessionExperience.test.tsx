@@ -718,6 +718,16 @@ describe('dual-screen presenting', () => {
     expect(screen.queryByRole('button', { name: '畫筆' })).toBeNull();
   });
 
+  it('hides the join bar on the projector from the presenter page', async () => {
+    mount(<PresenterPage />);
+    await screen.findByRole('heading', { name: session.title });
+    const hide = await screen.findByRole('button', { name: '隱藏加入代碼列' });
+    fireEvent.click(hide);
+    expect(localStorage.getItem('live:join-bar-hidden')).toBe('1');
+    fireEvent.click(screen.getByRole('button', { name: '顯示加入代碼列' }));
+    expect(localStorage.getItem('live:join-bar-hidden')).toBe('0');
+  });
+
   it('shows a destructive toast when the popup is blocked', async () => {
     vi.stubGlobal('open', vi.fn().mockReturnValue(null));
     mount(<PresenterPage />);

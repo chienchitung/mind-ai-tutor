@@ -23,6 +23,7 @@ import { usePresentationSnapshot } from "@/components/live/usePresentationSnapsh
 import { PresentationContent } from "@/components/live/PresentationContent";
 import { useFastDeckPage } from "@/components/live/useFastDeckPage";
 import { JoinQRCode } from "@/components/live/JoinQRCode";
+import { useJoinBarHidden } from "@/components/live/useJoinBarHidden";
 import type { LivePanelAction, LivePanelData } from "@/lib/live-panel-relay";
 import type { QuizQuestion } from "@/lib/quiz";
 
@@ -42,6 +43,8 @@ export default function PresentDisplayPage() {
     id,
   );
   const [joinCode, setJoinCode] = useState("");
+  // Hidden from the presenter page's switch or this window's toolbar.
+  const [joinBarHidden] = useJoinBarHidden();
   const [recording, setRecording] = useState(false);
   const [entered, setEntered] = useState(false);
   const [fullscreen, setFullscreen] = useState(false);
@@ -282,7 +285,7 @@ export default function PresentDisplayPage() {
         </div>
       )}
       {snapshot.status === "closed" || snapshot.mode !== "deck" ? (
-        <div className={hidden ? "h-full" : "h-[calc(100dvh-5rem)]"}>
+        <div className={hidden || joinBarHidden ? "h-full" : "h-[calc(100dvh-5rem)]"}>
           <PresentationContent
             key={`${snapshot.mode}:${snapshot.poll?.pollId}:${snapshot.questions.map((q) => q.id).join()}`}
             snapshot={snapshot}
@@ -402,7 +405,7 @@ export default function PresentDisplayPage() {
             page={navigation.page}
             onNumPages={setNumPages}
             onError={() => setDeckError(true)}
-            className="h-[calc(100dvh-5rem)] w-full"
+            className={`${joinBarHidden ? "h-full" : "h-[calc(100dvh-5rem)]"} w-full`}
             overlay={
               <RemoteInkOverlay
                 strokes={inkMatches ? ink!.strokes : []}
@@ -421,7 +424,14 @@ export default function PresentDisplayPage() {
           {zh ? "歡迎加入，等待老師開始" : "Welcome! Waiting for the teacher"}
         </div>
       )}
-      {!hidden && (
+      {!hidden && joinBarHidden && recording && (
+        // Students must still be told the lesson is being recorded.
+        <span role="status" className="pointer-events-none absolute bottom-4 left-3 z-[5] flex items-center gap-2 rounded-full bg-red-500/20 px-3 py-1 text-sm font-medium text-red-100">
+          <span aria-hidden="true" className="h-2 w-2 animate-pulse rounded-full bg-red-500 motion-reduce:animate-none" />
+          {zh ? "錄音中" : "Recording"}
+        </span>
+      )}
+      {!hidden && !joinBarHidden && (
         <footer className="absolute inset-x-0 bottom-0 flex h-20 items-center justify-between gap-4 border-t border-white/10 bg-slate-950 px-6">
           <div className="min-w-0">
             <p className="truncate text-sm text-white/60">{snapshot.title}</p>

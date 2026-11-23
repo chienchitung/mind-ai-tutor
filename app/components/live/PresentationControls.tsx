@@ -11,6 +11,8 @@ import {
   MessageSquare,
   MonitorPlay,
   MonitorOff,
+  PanelBottomClose,
+  PanelBottomOpen,
   Presentation,
   RefreshCw,
   Rows3,
@@ -38,6 +40,7 @@ import {
 import { usePresentationSnapshot } from "./usePresentationSnapshot";
 import { DeckViewer } from "./DeckViewer";
 import { PresentationContent } from "./PresentationContent";
+import { useJoinBarHidden } from "./useJoinBarHidden";
 import type { LiveQuestion } from "@/lib/live-session";
 // control_live_presentation always sets mode back to "poll" on a phase
 // transition (see supabase/migrations/20260904051713_live_presentation_flow.sql),
@@ -106,6 +109,7 @@ export function PresentationControls({
 }) {
   const { language } = useLanguage();
   const { t } = useTranslation(language);
+  const [joinBarHidden, setJoinBarHidden] = useJoinBarHidden();
   const zh = language === "zh-TW";
   const { snapshot, error, pending, command, retry } = usePresentationSnapshot(
     `/api/live-sessions/${sessionId}/presentation`,
@@ -691,6 +695,18 @@ export function PresentationControls({
               >
                 <Square className={cn("mr-2 h-4 w-4", mode === "blank" && "fill-current")} />
                 {zh ? "暫時遮幕" : "Blank screen"}
+              </Button>
+              <Button
+                variant={joinBarHidden ? "secondary" : "outline"}
+                className="col-span-2"
+                aria-pressed={joinBarHidden}
+                title={zh ? "投影畫面底部的網址、加入代碼與 QR code" : "The link, join code and QR code under the projected slide"}
+                onClick={() => setJoinBarHidden(!joinBarHidden)}
+              >
+                {joinBarHidden ? <PanelBottomOpen className="mr-2 h-4 w-4" /> : <PanelBottomClose className="mr-2 h-4 w-4" />}
+                {joinBarHidden
+                  ? zh ? "顯示加入代碼列" : "Show the join bar"
+                  : zh ? "隱藏加入代碼列" : "Hide the join bar"}
               </Button>
             </div>
             {snapshot && connected &&
