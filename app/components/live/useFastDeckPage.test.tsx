@@ -72,3 +72,17 @@ it('lets a turn made in the other window replace a page already saved here',asyn
  act(()=>result.current.preview('deck.pdf',5));
  expect(result.current.page).toBe(5);
 });
+it('lets a turn from the other window win over a page still being saved here',async()=>{
+ let finish!: (value:any)=>void;
+ vi.stubGlobal('fetch',vi.fn().mockImplementationOnce(()=>new Promise(r=>{finish=r;})).mockResolvedValue({ok:true}));
+ const refresh=vi.fn().mockResolvedValue(undefined);
+ const {result}=renderHook(()=>useFastDeckPage('s','deck.pdf',1,refresh));
+ act(()=>result.current.navigate(2));
+ act(()=>result.current.preview('deck.pdf',3));
+ expect(result.current.page).toBe(3);
+ // The earlier save finishing here does not take the screen back.
+ await act(async()=>finish({ok:true}));
+ await waitFor(()=>expect(refresh).toHaveBeenCalled());
+ await act(async()=>{});
+ expect(result.current.page).toBe(3);
+});

@@ -58,8 +58,10 @@ export function useFastDeckPage(
   }, [target, deckUrl, serverPage]);
   const preview = (url: string, page: number) => {
     if (url === deckUrl && Number.isInteger(page) && page > 0) {
-      // A turn made in the other window wins over one already saved here.
-      setTarget((current) => (current?.saved ? null : current));
+      // A turn made in the other window is the latest one: it wins over a
+      // turn made here, whether saved or still being saved (its write still
+      // finishes, but no longer holds the screen).
+      setTarget(null);
       setRemote({ url, page });
     }
   };
