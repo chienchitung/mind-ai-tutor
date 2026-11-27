@@ -3,6 +3,7 @@ import type { IslandLayout, IslandSpot } from './layout'
 import { REGION_CENTERS, islandSpots } from './layout'
 import type { IslandModelName, IslandTheme } from './themes'
 import { DECORATION_MODELS } from './themes'
+import { ownerPoint, standPoint } from './walker'
 
 export type IslandModels = Partial<Record<IslandModelName, THREE.Object3D>>
 export type StopStatus = 'done' | 'current' | 'locked'
@@ -105,11 +106,15 @@ export function buildLand(theme: IslandTheme, layout: IslandLayout, models: Isla
   let boat: THREE.Object3D | null = null
   let lake: IslandLand['lake'] = null
 
+  const stands = [...spots.map(standPoint), ...spots.map(ownerPoint)]
   const decorate = (spot: IslandSpot, g: THREE.Group, near: boolean) => {
     for (let k = 0; k < 3; k++) {
       const a = rand() * Math.PI * 2, d = near ? 0.6 + rand() * 0.4 : 1.6 + rand() * 0.8
+      const x = spot.x + Math.cos(a) * d, z = spot.z + Math.sin(a) * d
+      // Keep the player's and the owner's spots at every stop clear
+      if (stands.some(p => Math.hypot(p.x - x, p.z - z) < 1.1)) continue
       const deco = decoration(kit, rand)
-      deco.position.set(spot.x + Math.cos(a) * d, spot.y, spot.z + Math.sin(a) * d)
+      deco.position.set(x, spot.y, z)
       g.add(deco)
     }
   }
@@ -418,26 +423,4 @@ export function animateIsland(root: THREE.Object3D, time: number) {
     if (o.userData.flicker) o.scale.y = 0.85 + Math.abs(Math.sin(time * 9 + o.id)) * 0.3
     if (o.userData.wave) o.rotation.y = Math.sin(time * 2) * 0.25
   })
-}
-
-/** The island owner: the template's mentor on a round standee in the template's accent colour. */
-export function standeeTexture(avatarUrl: string, accent: string) {
-  const canvas = document.createElement('canvas')
-  canvas.width = canvas.height = 256
-  const ctx = canvas.getContext('2d')
-  const texture = new THREE.CanvasTexture(canvas)
-  texture.colorSpace = THREE.SRGBColorSpace
-  const draw = (image?: HTMLImageElement) => {
-    if (!ctx) return
-    ctx.clearRect(0, 0, 256, 256)
-    ctx.beginPath(); ctx.arc(128, 128, 124, 0, Math.PI * 2); ctx.fillStyle = accent; ctx.fill()
-    ctx.beginPath(); ctx.arc(128, 128, 112, 0, Math.PI * 2); ctx.fillStyle = '#ffffff'; ctx.fill()
-    if (image) { ctx.save(); ctx.beginPath(); ctx.arc(128, 128, 108, 0, Math.PI * 2); ctx.clip(); ctx.drawImage(image, 20, 20, 216, 216); ctx.restore() }
-    texture.needsUpdate = true
-  }
-  draw()
-  const image = new Image()
-  image.onload = () => draw(image)
-  image.src = avatarUrl
-  return texture
 }
