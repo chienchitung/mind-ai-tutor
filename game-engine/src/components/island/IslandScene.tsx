@@ -1,0 +1,164 @@
+'use client'
+
+import { useEffect, useMemo, useRef } from 'react'
+import * as THREE from 'three'
+import { Canvas, useFrame, useThree, type ThreeEvent } from '@react-three/fiber'
+import { Float, Html, MeshReflectorMaterial, OrbitControls, Sparkles, Stars, useGLTF } from '@react-three/drei'
+import { Bloom, EffectComposer } from '@react-three/postprocessing'
+import type { GameVisualTemplate } from '../../types/game'
+import { LAYOUT_FOR_TEMPLATE, regionsInUse } from '../../lib/island/layout'
+import { ISLAND_MODELS, ISLAND_THEMES } from '../../lib/island/themes'
+import { animateIsland, buildLand, buildRoute, markShared, standeeTexture, type IslandModels, type IslandRouteStop } from '../../lib/island/builder'
+import { gameAssetPath } from '../../lib/game-asset-path'
+
+export interface IslandSceneStop extends IslandRouteStop { label: string; ariaLabel: string }
+
+interface IslandSceneProps {
+  template: GameVisualTemplate
+  stops: IslandSceneStop[]
+  selected: number
+  /** Where the island owner stands: the lesson the student is on. */
+  ownerAt: number
+  ownerAvatar: string
+  onSelect: (index: number) => void
+  reduceMotion: boolean
+  /** Bloom and reflections cost GPU time; small screens skip them. */
+  richEffects: boolean
+}
+
+const MODEL_URLS = ISLAND_MODELS.map(name => gameAssetPath(`/island/kenney/${name}.glb`))
+const hex = (value: number) => `#${value.toString(16).padStart(6, '0')}`
+
+function useIslandModels(): IslandModels {
+  // No Draco: the Kenney models are plain glTF, so no decoder is fetched.
+  const gltfs = useGLTF(MODEL_URLS, false)
+  return useMemo(() => Object.fromEntries(ISLAND_MODELS.map((name, i) => [name, markShared(gltfs[i].scene)])) as IslandModels, [gltfs])
+}
+
+function Sea({ template, reduceMotion }: { template: GameVisualTemplate; reduceMotion: boolean }) {
+  const theme = ISLAND_THEMES[template]
+  const geometry = useMemo(() => {
+    const geo = new THREE.PlaneGeometry(160, 160, 48, 48)
+    geo.rotateX(-Math.PI / 2)
+    return geo
+  }, [])
+  const base = useMemo(() => Float32Array.from(geometry.attributes.position.array), [geometry])
+  useEffect(() => () => geometry.dispose(), [geometry])
+  useFrame(({ clock }) => {
+    if (reduceMotion || theme.sea === 'void') return
+    const t = clock.elapsedTime, p = geometry.attributes.position.array as Float32Array, amp = theme.sea === 'grid' ? 0.05 : 1
+    for (let k = 0; k < p.length; k += 3) p[k + 1] = base[k + 1] + (Math.sin(p[k] * 0.35 + t * 0.9) * 0.12 + Math.cos(p[k + 2] * 0.3 + t * 0.7) * 0.1) * amp
+    geometry.attributes.position.needsUpdate = true
+    geometry.computeVertexNormals()
+  })
+  if (theme.sea === 'void') return null
+  return <>
+    <mesh geometry={geometry} position={[0, -0.35, 0]} receiveShadow>
+      <meshStandardMaterial color={theme.seaColor} flatShading roughness={0.6} metalness={0.05} />
+    </mesh>
+    {theme.sea === 'grid' && <gridHelper args={[160, 80, 0xff4fd8, 0x49e7ff]} position={[0, -0.2, 0]} material-transparent material-opacity={0.35} />}
+  </>
+}
+
+function World({ template, stops, selected, ownerAt, ownerAvatar, onSelect, reduceMotion, richEffects }: IslandSceneProps) {
+  const theme = ISLAND_THEMES[template]
+  const layout = LAYOUT_FOR_TEMPLATE[template]
+  const models = useIslandModels()
+  const land = useMemo(() => buildLand(theme, layout, models), [theme, layout, models])
+  useEffect(() => () => land.dispose(), [land])
+  // Rebuilt only when a lesson's state changes, not on every render
+  const stopsKey = stops.map(stop => `${stop.status}${stop.intro ? 'i' : ''}${stop.final ? 'f' : ''}`).join(',')
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  const route = useMemo(() => buildRoute(theme, land.spots, stops, models), [theme, land, models, stopsKey])
+  useEffect(() => () => route.dispose(), [route])
+
+  useEffect(() => {
+    const used = regionsInUse(stops.length)
+    land.regions.forEach((group, r) => { group.visible = used[r] })
+    land.stages.forEach(stage => { stage.visible = stage.userData.spotIndex < stops.length })
+  }, [land, stops.length])
+
+  const owner = land.spots[Math.min(ownerAt, stops.length - 1)]
+  const standee = useMemo(() => standeeTexture(ownerAvatar, hex(theme.ring)), [ownerAvatar, theme.ring])
+  useEffect(() => () => standee.dispose(), [standee])
+
+  // Camera follows the selected plot
+  const controls = useThree(state => state.controls) as unknown as { target: THREE.Vector3; update: () => void } | null
+  const focus = useMemo(() => new THREE.Vector3(), [])
+  const ring = useRef<THREE.Mesh>(null)
+  useFrame(({ clock }) => {
+    const spot = land.spots[Math.min(selected, stops.length - 1)]
+    focus.set(spot.x, spot.y + 0.4, spot.z)
+    if (controls) { controls.target.lerp(focus, reduceMotion ? 1 : 0.06); controls.update() }
+    if (reduceMotion) return
+    const t = clock.elapsedTime
+    animateIsland(land.root, t)
+    animateIsland(route.root, t)
+    if (land.boat) { land.boat.position.y = -0.25 + Math.sin(t * 1.3) * 0.06; land.boat.rotation.z = Math.sin(t * 1.1) * 0.05 }
+    if (layout === 'floaters' || layout === 'station') land.regions.forEach((group, r) => { group.position.y = Math.sin(t * 0.6 + r) * 0.08 })
+    if (ring.current) {
+      const material = ring.current.material as THREE.MeshBasicMaterial
+      material.opacity = 0.55 + Math.sin(t * 3) * 0.3
+      ring.current.scale.setScalar(1 + Math.sin(t * 3) * 0.05)
+    }
+  })
+
+  const pick = (event: ThreeEvent<MouseEvent>) => {
+    let object: THREE.Object3D | null = event.object
+    while (object && object.userData.lessonIndex === undefined) object = object.parent
+    if (!object) return
+    event.stopPropagation()
+    onSelect(object.userData.lessonIndex as number)
+  }
+
+  const current = stops.findIndex(stop => stop.status === 'current')
+  const currentSpot = current >= 0 ? land.spots[current] : null
+
+  return <>
+    <color attach="background" args={[theme.sky]} />
+    <fog attach="fog" args={[theme.sky, 40, 90]} />
+    <hemisphereLight args={[theme.hemi[0], theme.hemi[1], theme.hemi[2]]} />
+    <directionalLight castShadow position={[12, 22, 10]} intensity={theme.sun} shadow-mapSize={[1024, 1024]}
+      shadow-camera-left={-18} shadow-camera-right={18} shadow-camera-top={18} shadow-camera-bottom={-18} />
+    <Sea template={template} reduceMotion={reduceMotion} />
+    {theme.stars && <Stars radius={70} depth={30} count={1500} factor={3} saturation={0} fade speed={reduceMotion ? 0 : 0.5} />}
+    {template === 'arcane-archive' && <Sparkles count={70} scale={[30, 8, 30]} position={[0, 3, -1]} size={3} speed={reduceMotion ? 0 : 0.3} color="#f0d28c" />}
+    <primitive object={land.root} />
+    {land.lake && <mesh rotation-x={-Math.PI / 2} position={[land.lake.x, land.lake.y, land.lake.z]}>
+      <circleGeometry args={[land.lake.radius, 40]} />
+      {richEffects
+        ? <MeshReflectorMaterial color="#5aa0a8" blur={[200, 80]} resolution={512} mixBlur={1} mixStrength={2} roughness={0.6} depthScale={0.6} minDepthThreshold={0.4} maxDepthThreshold={1.2} metalness={0.2} mirror={0.6} />
+        : <meshStandardMaterial color="#5aa0a8" roughness={0.3} />}
+    </mesh>}
+    <primitive object={route.root} onClick={pick} />
+    {currentSpot && <>
+      <mesh ref={ring} rotation-x={-Math.PI / 2} position={[currentSpot.x, currentSpot.y + 0.06, currentSpot.z]}>
+        <ringGeometry args={[0.85, 1.05, 32]} />
+        <meshBasicMaterial color={theme.ring} transparent opacity={0.85} side={THREE.DoubleSide} toneMapped={false} />
+      </mesh>
+      <Sparkles count={18} scale={[2, 2, 2]} position={[currentSpot.x, currentSpot.y + 1, currentSpot.z]} size={4} speed={reduceMotion ? 0 : 0.6} color={hex(theme.ring)} />
+    </>}
+    {owner && <group position={[owner.x + 1.6, owner.y, owner.z - 1.2]}>
+      <mesh position={[0, 0.3, 0]} castShadow><cylinderGeometry args={[0.04, 0.04, 0.6, 6]} /><meshStandardMaterial color="#9a9a9a" /></mesh>
+      <Float enabled={!reduceMotion} speed={2} rotationIntensity={0} floatIntensity={0.4} floatingRange={[0, 0.12]}>
+        <sprite position={[0, 1.3, 0]} scale={[1.6, 1.6, 1]}>
+          <spriteMaterial map={standee} transparent toneMapped={false} />
+        </sprite>
+      </Float>
+    </group>}
+    {route.labels.map((position, i) => <Html key={i} position={position} center zIndexRange={[30, 0]}>
+      <button type="button" className={`island-badge is-${stops[i].status}${stops[i].final ? ' is-final' : ''}${i === selected ? ' is-selected' : ''}`}
+        aria-label={stops[i].ariaLabel} aria-pressed={i === selected} onClick={() => onSelect(i)}>{stops[i].label}</button>
+    </Html>)}
+    {richEffects && theme.glow && <EffectComposer>
+      <Bloom mipmapBlur luminanceThreshold={0.75} intensity={0.9} />
+    </EffectComposer>}
+  </>
+}
+
+export default function IslandScene(props: IslandSceneProps) {
+  return <Canvas shadows flat dpr={[1, 1.75]} camera={{ position: [14, 17, 22], fov: 42, near: 0.1, far: 220 }} aria-label="島嶼地圖">
+    <OrbitControls makeDefault enableDamping minDistance={10} maxDistance={46} maxPolarAngle={Math.PI * 0.44} />
+    <World {...props} />
+  </Canvas>
+}
