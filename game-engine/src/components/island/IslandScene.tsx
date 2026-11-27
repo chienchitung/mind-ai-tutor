@@ -100,10 +100,10 @@ function World({ template, stops, selected, walkTo, ownerAt, refusals, onSelect,
   useEffect(() => () => owner.dispose(), [owner])
   const ownerStop = Math.min(ownerAt, stops.length - 1)
   useEffect(() => {
-    const p = ownerPoint(land.spots[ownerStop])
+    const p = ownerPoint(land.spots[ownerStop], layout)
     owner.root.position.set(p.x, p.y, p.z)
     owner.root.rotation.y = FACE_CAMERA
-  }, [owner, land, ownerStop])
+  }, [owner, land, layout, ownerStop])
   const walk = usePlayerWalk(layout, land.spots, Math.min(walkTo, stops.length - 1), reduceMotion)
   const refusedAt = useRef(-Infinity)
   useEffect(() => { if (refusals) refusedAt.current = performance.now() }, [refusals])
@@ -190,7 +190,7 @@ function World({ template, stops, selected, walkTo, ownerAt, refusals, onSelect,
 /** Keeps the player's walk along the route, re-planning from where it is whenever the target changes. */
 function usePlayerWalk(layout: IslandLayout, spots: IslandSpot[], target: number, reduceMotion: boolean) {
   const state = useRef<{ walk: Walk; travelled: number } | null>(null)
-  if (!state.current) state.current = { walk: planWalk(layout, spots, standPoint(spots[target]), target, target, target), travelled: 0 }
+  if (!state.current) state.current = { walk: planWalk(layout, spots, standPoint(spots[target], layout), target, target, target), travelled: 0 }
   useEffect(() => {
     const s = state.current!
     if (s.walk.target === target) return

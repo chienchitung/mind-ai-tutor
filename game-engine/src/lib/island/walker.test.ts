@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { islandSpots } from './layout'
-import { planWalk, redirectWalk, sampleWalk, standPoint, walkPath } from './walker'
+import { HEX_STAGE_RADIUS, ownerPoint, planWalk, redirectWalk, sampleWalk, standPoint, walkPath } from './walker'
 
 const spots = islandSpots('archipelago')
 const at = (i: number) => standPoint(spots[i])
@@ -19,6 +19,16 @@ describe('island owner walk', () => {
     })
   })
 
+  it('keeps both figures on the arcade stages, and the stages apart', () => {
+    const hexes = islandSpots('hexes')
+    // Inner radius of the hexagon, less room for the figure's feet
+    const room = HEX_STAGE_RADIUS * Math.cos(Math.PI / 6) - 0.3
+    hexes.forEach(spot => {
+      for (const p of [standPoint(spot, 'hexes'), ownerPoint(spot, 'hexes')]) expect(Math.hypot(p.x - spot.x, p.z - spot.z)).toBeLessThan(room)
+    })
+    hexes.forEach((a, i) => hexes.slice(i + 1).forEach(b => expect(Math.hypot(a.x - b.x, a.z - b.z)).toBeGreaterThan(HEX_STAGE_RADIUS * 2)))
+  })
+
   it('walks from one stop to another along the route and stops there', () => {
     const walk = planWalk('archipelago', spots, at(1), 1, 2, 4)
     expect(walk.stops).toEqual([1, 2, 3, 4])
@@ -34,7 +44,7 @@ describe('island owner walk', () => {
   it('jumps between separate stages and islets, and walks on one island', () => {
     expect(planWalk('archipelago', spots, at(0), 0, 1, 6).hops.some(Boolean)).toBe(false)
     const hexes = islandSpots('hexes')
-    const hop = planWalk('hexes', hexes, standPoint(hexes[0]), 0, 1, 1)
+    const hop = planWalk('hexes', hexes, standPoint(hexes[0], 'hexes'), 0, 1, 1)
     expect(hop.hops).toEqual([true])
     expect(sampleWalk(hop, hop.total / 2).position.y).toBeGreaterThan(Math.max(hexes[0].y, hexes[1].y) + 0.3)
     const floaters = islandSpots('floaters')

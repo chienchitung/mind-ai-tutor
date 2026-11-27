@@ -3,14 +3,24 @@ import { regionOf } from './layout'
 
 export interface Point { x: number; y: number; z: number }
 
+/** Arcade stops are separate hexagonal stages; the figures stand closer in so they stay on them. */
+export const HEX_STAGE_RADIUS = 1.75
+const OFFSETS = {
+  open: { player: [1.15, 0.9], owner: [-1.2, 0.75] },
+  hexes: { player: [0.85, 0.65], owner: [-0.9, 0.55] },
+} as const
+const offsetsFor = (layout?: IslandLayout) => (layout === 'hexes' ? OFFSETS.hexes : OFFSETS.open)
+
 /** Where the player stands at a stop: just in front of the building, toward the camera. */
-export function standPoint(spot: IslandSpot): Point {
-  return { x: spot.x + 1.15, y: spot.y, z: spot.z + 0.9 }
+export function standPoint(spot: IslandSpot, layout?: IslandLayout): Point {
+  const [dx, dz] = offsetsFor(layout).player
+  return { x: spot.x + dx, y: spot.y, z: spot.z + dz }
 }
 
 /** Where the island owner waits at the student's current lesson: the other side of the building. */
-export function ownerPoint(spot: IslandSpot): Point {
-  return { x: spot.x - 1.2, y: spot.y, z: spot.z + 0.75 }
+export function ownerPoint(spot: IslandSpot, layout?: IslandLayout): Point {
+  const [dx, dz] = offsetsFor(layout).owner
+  return { x: spot.x + dx, y: spot.y, z: spot.z + dz }
 }
 
 /** Lesson indexes the owner passes through, in order, to get from one stop to another. */
@@ -46,7 +56,7 @@ function crossesGap(layout: IslandLayout, a: number, b: number) {
  */
 export function planWalk(layout: IslandLayout, spots: IslandSpot[], start: Point, from: number, next: number, target: number): Walk {
   const indexes = walkPath(next, target)
-  const points = [start, ...indexes.map(i => standPoint(spots[i]))]
+  const points = [start, ...indexes.map(i => standPoint(spots[i], layout))]
   const stopsAlong = [from, ...indexes]
   const lengths: number[] = [], hops: boolean[] = []
   for (let k = 0; k < points.length - 1; k++) {
@@ -101,7 +111,7 @@ function headingOf(walk: Walk, leg: number) {
  */
 export function redirectWalk(layout: IslandLayout, spots: IslandSpot[], walk: Walk, travelled: number, target: number): Walk {
   const now = sampleWalk(walk, travelled)
-  if (now.done) return planWalk(layout, spots, standPoint(spots[walk.target]), walk.target, nextToward(walk.target, target), target)
+  if (now.done) return planWalk(layout, spots, standPoint(spots[walk.target], layout), walk.target, nextToward(walk.target, target), target)
   const from = walk.stops[now.leg], ahead = walk.stops[now.leg + 1]
   const sameWay = Math.sign(ahead - from) === Math.sign(target - from) && target !== from
   return sameWay
