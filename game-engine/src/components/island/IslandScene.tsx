@@ -9,8 +9,8 @@ import type { GameVisualTemplate } from '../../types/game'
 import { LAYOUT_FOR_TEMPLATE, regionsInUse, type IslandLayout, type IslandSpot } from '../../lib/island/layout'
 import { ISLAND_MODELS, ISLAND_THEMES } from '../../lib/island/themes'
 import { animateIsland, buildLand, buildRoute, markShared, type IslandModels, type IslandRouteStop } from '../../lib/island/builder'
-import { animateCharacter, buildOwner, buildPlayer } from '../../lib/island/character'
-import { FACE_CAMERA, WALK_SPEED, ownerPoint, planWalk, redirectWalk, sampleWalk, standPoint, type Walk } from '../../lib/island/walker'
+import { animateCharacter, buildPlayer } from '../../lib/island/character'
+import { FACE_CAMERA, WALK_SPEED, planWalk, redirectWalk, sampleWalk, standPoint, type Walk } from '../../lib/island/walker'
 import { gameAssetPath } from '../../lib/game-asset-path'
 
 export interface IslandSceneStop extends IslandRouteStop { label: string; ariaLabel: string }
@@ -21,9 +21,7 @@ interface IslandSceneProps {
   selected: number
   /** Stop the player walks to; it starts at the student's current lesson. */
   walkTo: number
-  /** The lesson the student is on: the island owner waits there. */
-  ownerAt: number
-  /** Bumped when the student picks a stop that isn't open yet: the owner shakes its head. */
+  /** Bumped when the student picks a stop that isn't open yet: the player shakes its head. */
   refusals: number
   onSelect: (index: number) => void
   reduceMotion: boolean
@@ -31,8 +29,8 @@ interface IslandSceneProps {
   richEffects: boolean
 }
 
-/** Figures are about this tall; badges of the stops they stand at move up to stay clear. */
-const FIGURE_HEIGHT = 2
+/** The player is about this tall; the badge of the stop it stands at moves up to stay clear. */
+const PLAYER_HEIGHT = 2
 const MODEL_URLS = ISLAND_MODELS.map(name => gameAssetPath(`/island/kenney/${name}.glb`))
 const hex = (value: number) => `#${value.toString(16).padStart(6, '0')}`
 
@@ -67,7 +65,7 @@ function Sea({ template, reduceMotion }: { template: GameVisualTemplate; reduceM
   </>
 }
 
-function World({ template, stops, selected, walkTo, ownerAt, refusals, onSelect, reduceMotion, richEffects }: IslandSceneProps) {
+function World({ template, stops, selected, walkTo, refusals, onSelect, reduceMotion, richEffects }: IslandSceneProps) {
   const theme = ISLAND_THEMES[template]
   const layout = LAYOUT_FOR_TEMPLATE[template]
   const models = useIslandModels()
@@ -85,7 +83,7 @@ function World({ template, stops, selected, walkTo, ownerAt, refusals, onSelect,
     land.stages.forEach(stage => { stage.visible = stage.userData.spotIndex < stops.length })
   }, [land, stops.length])
 
-  // The player walks the route; the island owner waits at the lesson the student is on.
+  // The player walks the route
   const player = useMemo(() => {
     const figure = buildPlayer(template)
     // A ring in the template's accent marks the player wherever it walks
@@ -96,14 +94,6 @@ function World({ template, stops, selected, walkTo, ownerAt, refusals, onSelect,
     return figure
   }, [template, theme.ring])
   useEffect(() => () => player.dispose(), [player])
-  const owner = useMemo(() => buildOwner(template), [template])
-  useEffect(() => () => owner.dispose(), [owner])
-  const ownerStop = Math.min(ownerAt, stops.length - 1)
-  useEffect(() => {
-    const p = ownerPoint(land.spots[ownerStop], layout)
-    owner.root.position.set(p.x, p.y, p.z)
-    owner.root.rotation.y = FACE_CAMERA
-  }, [owner, land, layout, ownerStop])
   const walk = usePlayerWalk(layout, land.spots, Math.min(walkTo, stops.length - 1), reduceMotion)
   const refusedAt = useRef(-Infinity)
   useEffect(() => { if (refusals) refusedAt.current = performance.now() }, [refusals])
@@ -116,12 +106,11 @@ function World({ template, stops, selected, walkTo, ownerAt, refusals, onSelect,
     const frame = walk.advance(delta)
     player.root.position.set(frame.position.x, frame.position.y, frame.position.z)
     player.root.rotation.y = frame.heading
-    // Reduced motion: the walk is instant and the figures hold still
+    // Reduced motion: the walk is instant and the player holds still
     const time = reduceMotion ? 0 : clock.elapsedTime
-    animateCharacter(player, time, { moving: frame.moving, hopping: frame.hopping, shake: 0 })
-    // The owner shakes its head when the student picks a stop that isn't open yet
+    // The player shakes its head when the student picks a stop that isn't open yet
     const shake = reduceMotion ? 0 : Math.max(0, 1 - (performance.now() - refusedAt.current) / 700)
-    animateCharacter(owner, time, { moving: false, hopping: false, shake })
+    animateCharacter(player, time, { moving: frame.moving, hopping: frame.hopping, shake })
     // While the player walks the camera follows; otherwise it frames the picked stop.
     const spot = land.spots[Math.min(selected, stops.length - 1)]
     if (frame.moving) focus.set(frame.position.x, frame.position.y + 0.4, frame.position.z)
@@ -176,8 +165,7 @@ function World({ template, stops, selected, walkTo, ownerAt, refusals, onSelect,
       <Sparkles count={18} scale={[2, 2, 2]} position={[currentSpot.x, currentSpot.y + 1, currentSpot.z]} size={4} speed={reduceMotion ? 0 : 0.6} color={hex(theme.ring)} />
     </>}
     <primitive object={player.root} />
-    <primitive object={owner.root} />
-    {route.labels.map((position, i) => <Html key={i} position={i === walkTo || i === ownerStop ? [position.x, position.y + FIGURE_HEIGHT * 0.75, position.z] : position} center zIndexRange={[30, 0]}>
+    {route.labels.map((position, i) => <Html key={i} position={i === walkTo ? [position.x, position.y + PLAYER_HEIGHT * 0.75, position.z] : position} center zIndexRange={[30, 0]}>
       <button type="button" className={`island-badge is-${stops[i].status}${stops[i].final ? ' is-final' : ''}${i === selected ? ' is-selected' : ''}`}
         aria-label={stops[i].ariaLabel} aria-pressed={i === selected} onClick={() => onSelect(i)}>{stops[i].label}</button>
     </Html>)}

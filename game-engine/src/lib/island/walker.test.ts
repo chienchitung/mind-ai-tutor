@@ -1,11 +1,11 @@
 import { describe, expect, it } from 'vitest'
 import { REGION_CENTERS, islandSpots } from './layout'
-import { HEX_STAGE_RADIUS, ownerPoint, planWalk, redirectWalk, sampleWalk, standPoint, walkPath } from './walker'
+import { HEX_STAGE_RADIUS, planWalk, redirectWalk, sampleWalk, standPoint, walkPath } from './walker'
 
 const spots = islandSpots('archipelago')
 const at = (i: number) => standPoint(spots[i])
 
-describe('island owner walk', () => {
+describe('island player walk', () => {
   it('passes every stop in between, in either direction', () => {
     expect(walkPath(2, 5)).toEqual([2, 3, 4, 5])
     expect(walkPath(5, 2)).toEqual([5, 4, 3, 2])
@@ -19,27 +19,25 @@ describe('island owner walk', () => {
     })
   })
 
-  it('keeps both figures on the arcade stages, and the stages apart', () => {
+  it('keeps the player on the arcade stages, and the stages apart', () => {
     const hexes = islandSpots('hexes')
     // Inner radius of the hexagon, less room for the figure's feet
     const room = HEX_STAGE_RADIUS * Math.cos(Math.PI / 6) - 0.3
     hexes.forEach(spot => {
-      for (const p of [standPoint(spot, 'hexes'), ownerPoint(spot, 'hexes')]) expect(Math.hypot(p.x - spot.x, p.z - spot.z)).toBeLessThan(room)
+      const p = standPoint(spot, 'hexes')
+      expect(Math.hypot(p.x - spot.x, p.z - spot.z)).toBeLessThan(room)
     })
     hexes.forEach((a, i) => hexes.slice(i + 1).forEach(b => expect(Math.hypot(a.x - b.x, a.z - b.z)).toBeGreaterThan(HEX_STAGE_RADIUS * 2)))
   })
 
-  it.each(['floaters', 'station'] as const)('keeps both figures on the %s platforms, clear of the building', layout => {
+  it.each(['floaters', 'station'] as const)('keeps the player on the %s platforms, clear of the building', layout => {
     // Islets have radius 4.2 and station discs 4.1; leave room for the figure's feet
     const room = 4.1 - 0.5
     islandSpots(layout).forEach(spot => {
       const [cx, cz] = REGION_CENTERS[layout][spot.region]
-      for (const p of [standPoint(spot, layout), ownerPoint(spot, layout)]) {
-        expect(Math.hypot(p.x - cx, p.z - cz)).toBeLessThan(room)
-        expect(Math.hypot(p.x - spot.x, p.z - spot.z)).toBeGreaterThan(0.9)
-      }
-      const player = standPoint(spot, layout), owner = ownerPoint(spot, layout)
-      expect(Math.hypot(player.x - owner.x, player.z - owner.z)).toBeGreaterThan(1)
+      const p = standPoint(spot, layout)
+      expect(Math.hypot(p.x - cx, p.z - cz)).toBeLessThan(room)
+      expect(Math.hypot(p.x - spot.x, p.z - spot.z)).toBeGreaterThan(0.9)
     })
   })
 

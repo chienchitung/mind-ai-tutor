@@ -3,18 +3,15 @@ import { REGION_CENTERS, regionOf } from './layout'
 
 export interface Point { x: number; y: number; z: number }
 
-/** Arcade stops are separate hexagonal stages; the figures stand closer in so they stay on them. */
+/** Arcade stops are separate hexagonal stages; the player stands closer in so it stays on them. */
 export const HEX_STAGE_RADIUS = 1.75
-const OFFSETS = {
-  open: { player: [1.15, 0.9], owner: [-1.2, 0.75] },
-  hexes: { player: [0.85, 0.65], owner: [-0.9, 0.55] },
-} as const
+const OFFSETS = { open: [1.15, 0.9], hexes: [0.85, 0.65] } as const
 const offsetsFor = (layout?: IslandLayout) => (layout === 'hexes' ? OFFSETS.hexes : OFFSETS.open)
 
 /**
  * Islets and station discs are round, with the stops on a ring near the rim: a fixed offset
- * would push some figures over the edge. There they step in from the stop toward the
- * platform's centre instead, the player to one side of that line and the owner to the other.
+ * would push the player over the edge on some of them. There it steps in from the stop
+ * toward the platform's centre instead, a little to one side.
  */
 function inward(spot: IslandSpot, layout: 'floaters' | 'station', turn: number): Point {
   const [cx, cz] = REGION_CENTERS[layout][spot.region]
@@ -26,18 +23,11 @@ const ringLayout = (layout?: IslandLayout): layout is 'floaters' | 'station' => 
 /** Where the player stands at a stop: just in front of the building, toward the camera. */
 export function standPoint(spot: IslandSpot, layout?: IslandLayout): Point {
   if (ringLayout(layout)) return inward(spot, layout, 0.6)
-  const [dx, dz] = offsetsFor(layout).player
+  const [dx, dz] = offsetsFor(layout)
   return { x: spot.x + dx, y: spot.y, z: spot.z + dz }
 }
 
-/** Where the island owner waits at the student's current lesson: the other side of the building. */
-export function ownerPoint(spot: IslandSpot, layout?: IslandLayout): Point {
-  if (ringLayout(layout)) return inward(spot, layout, -0.6)
-  const [dx, dz] = offsetsFor(layout).owner
-  return { x: spot.x + dx, y: spot.y, z: spot.z + dz }
-}
-
-/** Lesson indexes the owner passes through, in order, to get from one stop to another. */
+/** Lesson indexes the player passes through, in order, to get from one stop to another. */
 export function walkPath(from: number, to: number): number[] {
   const step = to >= from ? 1 : -1
   const path: number[] = []
@@ -65,7 +55,7 @@ function crossesGap(layout: IslandLayout, a: number, b: number) {
 }
 
 /**
- * Plans a walk along the route. `start` is where the owner is now (a stand point, or a
+ * Plans a walk along the route. `start` is where the player is now (a stand point, or a
  * point between two when the walk is redirected midway); `next` is the first stop it heads for.
  */
 export function planWalk(layout: IslandLayout, spots: IslandSpot[], start: Point, from: number, next: number, target: number): Walk {
@@ -91,7 +81,7 @@ export interface WalkSample {
   hopping: boolean
 }
 
-/** Where the owner is after travelling `distance` along a planned walk. */
+/** Where the player is after travelling `distance` along a planned walk. */
 export function sampleWalk(walk: Walk, distance: number): WalkSample {
   const last = walk.points[walk.points.length - 1]
   if (walk.lengths.length === 0 || distance >= walk.total) {

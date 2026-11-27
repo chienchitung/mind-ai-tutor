@@ -86,7 +86,7 @@ export function IslandMap({ template, lessons, completedLessons, signedIn, href,
     <div className="island-stage">
       <IslandBoundary onError={onUnavailable}>
         <Suspense fallback={<IslandLoading />}>
-          <IslandScene template={template} stops={stops} selected={selected} walkTo={walkTo} ownerAt={ownerAt}
+          <IslandScene template={template} stops={stops} selected={selected} walkTo={walkTo}
             refusals={refusals} onSelect={pick}
             reduceMotion={env.reduceMotion} richEffects={env.richEffects} />
         </Suspense>

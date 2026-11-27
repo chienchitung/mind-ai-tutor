@@ -3,7 +3,7 @@ import type { IslandLayout, IslandSpot } from './layout'
 import { REGION_CENTERS, islandSpots } from './layout'
 import type { IslandModelName, IslandTheme } from './themes'
 import { DECORATION_MODELS } from './themes'
-import { HEX_STAGE_RADIUS, ownerPoint, standPoint } from './walker'
+import { HEX_STAGE_RADIUS, standPoint } from './walker'
 
 export type IslandModels = Partial<Record<IslandModelName, THREE.Object3D>>
 export type StopStatus = 'done' | 'current' | 'locked'
@@ -106,12 +106,12 @@ export function buildLand(theme: IslandTheme, layout: IslandLayout, models: Isla
   let boat: THREE.Object3D | null = null
   let lake: IslandLand['lake'] = null
 
-  const stands = [...spots.map(p => standPoint(p, layout)), ...spots.map(p => ownerPoint(p, layout))]
+  const stands = spots.map(p => standPoint(p, layout))
   const decorate = (spot: IslandSpot, g: THREE.Group, near: boolean) => {
     for (let k = 0; k < 3; k++) {
       const a = rand() * Math.PI * 2, d = near ? 0.6 + rand() * 0.4 : 1.6 + rand() * 0.8
       const x = spot.x + Math.cos(a) * d, z = spot.z + Math.sin(a) * d
-      // Keep the player's and the owner's spots at every stop clear
+      // Keep the player's spot at every stop clear
       if (stands.some(p => Math.hypot(p.x - x, p.z - z) < 1.1)) continue
       const deco = decoration(kit, rand)
       deco.position.set(x, spot.y, z)
@@ -160,7 +160,7 @@ export function buildLand(theme: IslandTheme, layout: IslandLayout, models: Isla
       const edges = kit.neonEdges(geo, i % 2 ? 0x49e7ff : 0xff4fd8); edges.position.copy(tile.position); stage.add(edges)
       const pillar = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.05, p.y + 0.4, 6), new THREE.MeshBasicMaterial({ color: 0x7c5cff, transparent: true, opacity: 0.6 }))
       pillar.position.set(p.x, (p.y - 0.5) / 2 - 0.2, p.z); stage.add(pillar)
-      // Behind the building, clear of where the figures stand at the front
+      // Behind the building, clear of where the player stands at the front
       if (rand() < 0.6) { const d = decoration(kit, rand); d.position.set(p.x + (rand() > 0.5 ? 0.8 : -0.8), p.y, p.z - 0.7 - rand() * 0.3); d.scale.multiplyScalar(0.7); stage.add(d) }
     })
   } else if (layout === 'floaters' || layout === 'station') {
