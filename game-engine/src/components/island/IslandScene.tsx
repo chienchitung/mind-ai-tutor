@@ -116,10 +116,12 @@ function World({ template, stops, selected, walkTo, ownerAt, refusals, onSelect,
     const frame = walk.advance(delta)
     player.root.position.set(frame.position.x, frame.position.y, frame.position.z)
     player.root.rotation.y = frame.heading
-    animateCharacter(player, clock.elapsedTime, { moving: frame.moving, hopping: frame.hopping, shake: 0 })
+    // Reduced motion: the walk is instant and the figures hold still
+    const time = reduceMotion ? 0 : clock.elapsedTime
+    animateCharacter(player, time, { moving: frame.moving, hopping: frame.hopping, shake: 0 })
     // The owner shakes its head when the student picks a stop that isn't open yet
     const shake = reduceMotion ? 0 : Math.max(0, 1 - (performance.now() - refusedAt.current) / 700)
-    animateCharacter(owner, reduceMotion ? 0 : clock.elapsedTime, { moving: false, hopping: false, shake })
+    animateCharacter(owner, time, { moving: false, hopping: false, shake })
     // While the player walks the camera follows; otherwise it frames the picked stop.
     const spot = land.spots[Math.min(selected, stops.length - 1)]
     if (frame.moving) focus.set(frame.position.x, frame.position.y + 0.4, frame.position.z)

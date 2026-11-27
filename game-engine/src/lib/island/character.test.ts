@@ -60,6 +60,14 @@ describe('island figures', () => {
     }
   })
 
+  it('holds still at time zero, which is what reduced motion passes', () => {
+    const c = buildPlayer('discovery')
+    animateCharacter(c, 0, { moving: false, hopping: false, shake: 0 })
+    expect(c.body.position.y).toBe(0)
+    expect(c.armL.rotation.x).toBe(0)
+    expect(c.armR.rotation.x).toBe(-0)
+  })
+
   it('shakes its head when refused, and only then', () => {
     const c = buildOwner('forest-camp')
     animateCharacter(c, 0.05, { moving: false, hopping: false, shake: 1 })
