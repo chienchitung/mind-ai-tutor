@@ -499,12 +499,25 @@
 
 .quest-shell[data-experience-layout="chapter-index"] .quest-home-grid { grid-template-columns:1fr; grid-template-areas:"journey" "side"; }
 .quest-shell[data-experience-layout="chapter-index"] .quest-map { position:relative; padding:34px 42px; }
-.quest-shell[data-experience-layout="chapter-index"] .quest-map:after { content:""; position:absolute; top:24px; bottom:24px; left:50%; width:1px; background:#c9ad78; box-shadow:7px 0 14px #5b3c6620; }
-.quest-shell[data-experience-layout="chapter-index"] .quest-path { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:18px 40px; }
-.quest-shell[data-experience-layout="chapter-index"] .quest-stop { display:block; padding:0; }
-.quest-shell[data-experience-layout="chapter-index"] .quest-stop:before { display:none; }
-.quest-shell[data-experience-layout="chapter-index"] .quest-node { width:40px; height:40px; margin:0 0 -10px 18px; border-radius:50%; font-size:15px; }
-.quest-shell[data-experience-layout="chapter-index"] .quest-stop-card { padding-top:24px; }
+/* A table of contents: one column read top to bottom, each chapter a row with dotted leaders to its action. */
+.quest-shell[data-experience-layout="chapter-index"] .quest-path { display:block; padding-top:18px; }
+.quest-shell[data-experience-layout="chapter-index"] .quest-stop { grid-template-columns:44px minmax(0,1fr); gap:14px; padding-bottom:6px; }
+.quest-shell[data-experience-layout="chapter-index"] .quest-stop:not(:last-child):before { display:block; top:50px; left:21px; border-left:2px dotted #c9ad78; }
+.quest-shell[data-experience-layout="chapter-index"] .quest-stop.is-done:before { border-left:2px solid #3c7a65; }
+.quest-shell[data-experience-layout="chapter-index"] .quest-node { width:40px; height:40px; margin-top:18px; border-radius:50%; font-size:15px; color:#7a6a58; background:#f7efd9; border:2px solid #c9ad78; box-shadow:none; }
+.quest-shell[data-experience-layout="chapter-index"] .quest-stop.is-current .quest-node { color:#fff; background:#704487; border-color:#f0d28c; box-shadow:0 0 0 4px #d8c8dd; }
+.quest-shell[data-experience-layout="chapter-index"] .quest-stop.is-done .quest-node { color:#fff; background:#3c7a65; border-color:#9fcbb5; box-shadow:none; }
+.quest-shell[data-experience-layout="chapter-index"] .quest-stop-card,
+.quest-shell[data-experience-layout="chapter-index"] .quest-stop.is-done .quest-stop-card { position:relative; display:grid; grid-template-columns:minmax(0,auto) minmax(24px,1fr) auto; grid-template-areas:"top top top" "title leader action" "summary summary summary"; align-items:center; column-gap:12px; padding:14px 18px 16px; background:transparent; border:0; border-bottom:1px solid #e3d3ad; border-radius:0; box-shadow:none; }
+.quest-shell[data-experience-layout="chapter-index"] .quest-stop.is-current .quest-stop-card { padding-right:46px; background:#fff7dc; border:1px solid #b48fc4; border-radius:12px; box-shadow:0 3px 0 #d8c8dd; }
+.quest-shell[data-experience-layout="chapter-index"] .quest-stop-card:after { content:""; grid-area:leader; align-self:end; margin-bottom:9px; border-bottom:2px dotted #cdb88c; }
+.quest-shell[data-experience-layout="chapter-index"] .quest-stop.is-current .quest-stop-card:before { content:""; position:absolute; top:-1px; right:16px; width:16px; height:30px; background:#704487; clip-path:polygon(0 0,100% 0,100% 100%,50% 72%,0 100%); }
+.quest-shell[data-experience-layout="chapter-index"] .quest-stop-top { grid-area:top; justify-content:flex-start; gap:10px; }
+.quest-shell[data-experience-layout="chapter-index"] .quest-stop h3 { grid-area:title; margin-top:4px; font-size:17px; }
+.quest-shell[data-experience-layout="chapter-index"] .quest-stop-summary { grid-area:summary; margin-top:2px; -webkit-line-clamp:1; }
+.quest-shell[data-experience-layout="chapter-index"] .quest-stop-footer { grid-area:action; margin-top:4px; }
+.quest-shell[data-experience-layout="chapter-index"] .quest-stop-footer > span:first-child { display:none; }
+.quest-shell[data-experience-layout="chapter-index"] .quest-stop.is-pending :is(h3,.quest-stop-summary) { opacity:.72; }
 .quest-shell[data-experience-layout="chapter-index"] .quest-sidebar { position:static; grid-template-columns:1.2fr 1fr 1fr; }
 .quest-shell[data-experience-layout="chapter-index"] .quest-secondary-action { grid-column:1 / -1; }
 
@@ -537,10 +550,14 @@
   .quest-shell[data-experience-layout] .quest-sidebar { grid-template-columns:1fr; }
   .quest-shell[data-experience-layout] .quest-current,.quest-shell[data-experience-layout] .quest-secondary-action { grid-column:auto; }
   .quest-shell[data-experience-layout="build-board"] .quest-path,
-  .quest-shell[data-experience-layout="chapter-index"] .quest-path,
   .quest-shell[data-experience-layout="mission-control"] .quest-path { grid-template-columns:1fr; }
   .quest-shell[data-experience-layout="chapter-index"] .quest-map { padding:22px 16px; }
-  .quest-shell[data-experience-layout="chapter-index"] .quest-map:after { display:none; }
+  .quest-shell[data-experience-layout="chapter-index"] .quest-stop { grid-template-columns:34px minmax(0,1fr); gap:10px; }
+  .quest-shell[data-experience-layout="chapter-index"] .quest-stop:not(:last-child):before { left:16px; top:46px; }
+  .quest-shell[data-experience-layout="chapter-index"] .quest-node { width:32px; height:32px; font-size:13px; }
+  .quest-shell[data-experience-layout="chapter-index"] .quest-stop-card,
+  .quest-shell[data-experience-layout="chapter-index"] .quest-stop.is-done .quest-stop-card { grid-template-columns:minmax(0,1fr); grid-template-areas:"top" "title" "summary" "action"; padding:12px 12px 14px; }
+  .quest-shell[data-experience-layout="chapter-index"] .quest-stop-card:after { display:none; }
   .quest-flight-telemetry { grid-template-columns:1fr; }
   .quest-shell[data-experience-layout="trail"] .quest-stop,
   .quest-shell[data-experience-layout="trail"] .quest-stop:nth-child(even) { grid-template-columns:48px minmax(0,1fr); }
@@ -551,9 +568,10 @@
 
 /* ---- 3D island view (an alternative to the route map) ---- */
 .quest-view-toggle { display:inline-flex; gap:2px; padding:3px; border-radius:999px; background:color-mix(in srgb, var(--quest-primary) 10%, transparent); border:1px solid color-mix(in srgb, var(--quest-primary) 25%, transparent); }
-.quest-view-toggle button { font:inherit; font-size:12px; font-weight:700; padding:5px 12px; border:0; border-radius:999px; background:transparent; color:inherit; cursor:pointer; }
+.quest-view-toggle button { font:inherit; font-size:12px; font-weight:700; padding:5px 12px; border:0; border-radius:999px; background:transparent; color:inherit; cursor:pointer; white-space:nowrap; }
 .quest-view-toggle button[aria-pressed="true"] { background:var(--quest-primary); color:#fff; }
 .quest-view-toggle button:focus-visible { outline:3px solid var(--quest-accent); outline-offset:2px; }
+@media (max-width:760px) { .quest-section-heading { flex-wrap:wrap; } .quest-view-toggle { flex:none; } }
 .island-map { display:grid; gap:14px; margin-top:6px; }
 .island-stage { position:relative; height:min(62vh, 560px); min-height:380px; border-radius:16px; overflow:hidden; background:#0d1b26; }
 .island-stage canvas { display:block; touch-action:none; }

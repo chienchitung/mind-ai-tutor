@@ -3,12 +3,14 @@
 import { useEffect, useMemo, useRef } from 'react'
 import * as THREE from 'three'
 import { Canvas, useFrame, useThree, type ThreeEvent } from '@react-three/fiber'
-import { Float, Html, MeshReflectorMaterial, OrbitControls, Sparkles, Stars, useGLTF } from '@react-three/drei'
+import { Html, MeshReflectorMaterial, OrbitControls, Sparkles, Stars, useGLTF } from '@react-three/drei'
 import { Bloom, EffectComposer } from '@react-three/postprocessing'
 import type { GameVisualTemplate } from '../../types/game'
-import { LAYOUT_FOR_TEMPLATE, regionsInUse } from '../../lib/island/layout'
+import { LAYOUT_FOR_TEMPLATE, regionsInUse, type IslandLayout, type IslandSpot } from '../../lib/island/layout'
 import { ISLAND_MODELS, ISLAND_THEMES } from '../../lib/island/themes'
-import { animateIsland, buildLand, buildRoute, markShared, standeeTexture, type IslandModels, type IslandRouteStop } from '../../lib/island/builder'
+import { animateIsland, buildLand, buildRoute, markShared, type IslandModels, type IslandRouteStop } from '../../lib/island/builder'
+import { animateCharacter, buildPlayer } from '../../lib/island/character'
+import { FACE_CAMERA, WALK_SPEED, planWalk, redirectWalk, sampleWalk, standPoint, type Walk } from '../../lib/island/walker'
 import { gameAssetPath } from '../../lib/game-asset-path'
 
 export interface IslandSceneStop extends IslandRouteStop { label: string; ariaLabel: string }
@@ -17,15 +19,18 @@ interface IslandSceneProps {
   template: GameVisualTemplate
   stops: IslandSceneStop[]
   selected: number
-  /** Where the island owner stands: the lesson the student is on. */
-  ownerAt: number
-  ownerAvatar: string
+  /** Stop the player walks to; it starts at the student's current lesson. */
+  walkTo: number
+  /** Bumped when the student picks a stop that isn't open yet: the player shakes its head. */
+  refusals: number
   onSelect: (index: number) => void
   reduceMotion: boolean
   /** Bloom and reflections cost GPU time; small screens skip them. */
   richEffects: boolean
 }
 
+/** The player is about this tall; the badge of the stop it stands at moves up to stay clear. */
+const PLAYER_HEIGHT = 2
 const MODEL_URLS = ISLAND_MODELS.map(name => gameAssetPath(`/island/kenney/${name}.glb`))
 const hex = (value: number) => `#${value.toString(16).padStart(6, '0')}`
 
@@ -60,7 +65,7 @@ function Sea({ template, reduceMotion }: { template: GameVisualTemplate; reduceM
   </>
 }
 
-function World({ template, stops, selected, ownerAt, ownerAvatar, onSelect, reduceMotion, richEffects }: IslandSceneProps) {
+function World({ template, stops, selected, walkTo, refusals, onSelect, reduceMotion, richEffects }: IslandSceneProps) {
   const theme = ISLAND_THEMES[template]
   const layout = LAYOUT_FOR_TEMPLATE[template]
   const models = useIslandModels()
@@ -78,17 +83,38 @@ function World({ template, stops, selected, ownerAt, ownerAvatar, onSelect, redu
     land.stages.forEach(stage => { stage.visible = stage.userData.spotIndex < stops.length })
   }, [land, stops.length])
 
-  const owner = land.spots[Math.min(ownerAt, stops.length - 1)]
-  const standee = useMemo(() => standeeTexture(ownerAvatar, hex(theme.ring)), [ownerAvatar, theme.ring])
-  useEffect(() => () => standee.dispose(), [standee])
+  // The player walks the route
+  const player = useMemo(() => {
+    const figure = buildPlayer(template)
+    // A ring in the template's accent marks the player wherever it walks
+    const marker = new THREE.Mesh(new THREE.RingGeometry(0.34, 0.44, 32), new THREE.MeshBasicMaterial({ color: theme.ring, transparent: true, opacity: 0.85, side: THREE.DoubleSide, toneMapped: false }))
+    marker.rotation.x = -Math.PI / 2
+    marker.position.y = 0.03
+    figure.root.add(marker)
+    return figure
+  }, [template, theme.ring])
+  useEffect(() => () => player.dispose(), [player])
+  const walk = usePlayerWalk(layout, land.spots, Math.min(walkTo, stops.length - 1), reduceMotion)
+  const refusedAt = useRef(-Infinity)
+  useEffect(() => { if (refusals) refusedAt.current = performance.now() }, [refusals])
 
   // Camera follows the selected plot
   const controls = useThree(state => state.controls) as unknown as { target: THREE.Vector3; update: () => void } | null
   const focus = useMemo(() => new THREE.Vector3(), [])
   const ring = useRef<THREE.Mesh>(null)
-  useFrame(({ clock }) => {
+  useFrame(({ clock }, delta) => {
+    const frame = walk.advance(delta)
+    player.root.position.set(frame.position.x, frame.position.y, frame.position.z)
+    player.root.rotation.y = frame.heading
+    // Reduced motion: the walk is instant and the player holds still
+    const time = reduceMotion ? 0 : clock.elapsedTime
+    // The player shakes its head when the student picks a stop that isn't open yet
+    const shake = reduceMotion ? 0 : Math.max(0, 1 - (performance.now() - refusedAt.current) / 700)
+    animateCharacter(player, time, { moving: frame.moving, hopping: frame.hopping, shake })
+    // While the player walks the camera follows; otherwise it frames the picked stop.
     const spot = land.spots[Math.min(selected, stops.length - 1)]
-    focus.set(spot.x, spot.y + 0.4, spot.z)
+    if (frame.moving) focus.set(frame.position.x, frame.position.y + 0.4, frame.position.z)
+    else focus.set(spot.x, spot.y + 0.4, spot.z)
     if (controls) { controls.target.lerp(focus, reduceMotion ? 1 : 0.06); controls.update() }
     if (reduceMotion) return
     const t = clock.elapsedTime
@@ -138,15 +164,8 @@ function World({ template, stops, selected, ownerAt, ownerAvatar, onSelect, redu
       </mesh>
       <Sparkles count={18} scale={[2, 2, 2]} position={[currentSpot.x, currentSpot.y + 1, currentSpot.z]} size={4} speed={reduceMotion ? 0 : 0.6} color={hex(theme.ring)} />
     </>}
-    {owner && <group position={[owner.x + 1.6, owner.y, owner.z - 1.2]}>
-      <mesh position={[0, 0.3, 0]} castShadow><cylinderGeometry args={[0.04, 0.04, 0.6, 6]} /><meshStandardMaterial color="#9a9a9a" /></mesh>
-      <Float enabled={!reduceMotion} speed={2} rotationIntensity={0} floatIntensity={0.4} floatingRange={[0, 0.12]}>
-        <sprite position={[0, 1.3, 0]} scale={[1.6, 1.6, 1]}>
-          <spriteMaterial map={standee} transparent toneMapped={false} />
-        </sprite>
-      </Float>
-    </group>}
-    {route.labels.map((position, i) => <Html key={i} position={position} center zIndexRange={[30, 0]}>
+    <primitive object={player.root} />
+    {route.labels.map((position, i) => <Html key={i} position={i === walkTo ? [position.x, position.y + PLAYER_HEIGHT * 0.75, position.z] : position} center zIndexRange={[30, 0]}>
       <button type="button" className={`island-badge is-${stops[i].status}${stops[i].final ? ' is-final' : ''}${i === selected ? ' is-selected' : ''}`}
         aria-label={stops[i].ariaLabel} aria-pressed={i === selected} onClick={() => onSelect(i)}>{stops[i].label}</button>
     </Html>)}
@@ -156,9 +175,29 @@ function World({ template, stops, selected, ownerAt, ownerAvatar, onSelect, redu
   </>
 }
 
+/** Keeps the player's walk along the route, re-planning from where it is whenever the target changes. */
+function usePlayerWalk(layout: IslandLayout, spots: IslandSpot[], target: number, reduceMotion: boolean) {
+  const state = useRef<{ walk: Walk; travelled: number } | null>(null)
+  if (!state.current) state.current = { walk: planWalk(layout, spots, standPoint(spots[target], layout), target, target, target), travelled: 0 }
+  useEffect(() => {
+    const s = state.current!
+    if (s.walk.target === target) return
+    s.walk = redirectWalk(layout, spots, s.walk, s.travelled, target)
+    s.travelled = 0
+  }, [layout, spots, target])
+  return {
+    advance(delta: number) {
+      const s = state.current!
+      s.travelled = reduceMotion ? s.walk.total : s.travelled + Math.min(delta, 0.1) * WALK_SPEED
+      const frame = sampleWalk(s.walk, s.travelled)
+      return { position: frame.position, heading: frame.done ? FACE_CAMERA : frame.heading, moving: !frame.done, hopping: frame.hopping }
+    },
+  }
+}
+
 export default function IslandScene(props: IslandSceneProps) {
-  return <Canvas shadows flat dpr={[1, 1.75]} camera={{ position: [14, 17, 22], fov: 42, near: 0.1, far: 220 }} aria-label="島嶼地圖">
-    <OrbitControls makeDefault enableDamping minDistance={10} maxDistance={46} maxPolarAngle={Math.PI * 0.44} />
+  return <Canvas shadows flat dpr={[1, 1.75]} camera={{ position: [11, 13.5, 17.5], fov: 42, near: 0.1, far: 220 }} aria-label="島嶼地圖">
+    <OrbitControls makeDefault enableDamping minDistance={7} maxDistance={46} maxPolarAngle={Math.PI * 0.44} />
     <World {...props} />
   </Canvas>
 }

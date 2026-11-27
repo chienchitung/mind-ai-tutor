@@ -45,7 +45,15 @@ export function IslandMap({ template, lessons, completedLessons, signedIn, href,
   const currentIndex = lessons.findIndex(lesson => !completedLessons.includes(lesson.lesson_id))
   const ownerAt = currentIndex >= 0 ? currentIndex : lessons.length - 1
   const [selected, setSelected] = useState(ownerAt)
-  useEffect(() => { setSelected(ownerAt) }, [ownerAt])
+  // The player walks to stops the student has reached; further ones are still fogged in.
+  const [walkTo, setWalkTo] = useState(ownerAt)
+  const [refusals, setRefusals] = useState(0)
+  useEffect(() => { setSelected(ownerAt); setWalkTo(ownerAt) }, [ownerAt])
+  const pick = (index: number) => {
+    setSelected(index)
+    if (index <= ownerAt) setWalkTo(index)
+    else setRefusals(count => count + 1)
+  }
 
   const [env, setEnv] = useState({ reduceMotion: false, richEffects: true })
   useEffect(() => {
@@ -78,8 +86,8 @@ export function IslandMap({ template, lessons, completedLessons, signedIn, href,
     <div className="island-stage">
       <IslandBoundary onError={onUnavailable}>
         <Suspense fallback={<IslandLoading />}>
-          <IslandScene template={template} stops={stops} selected={selected} ownerAt={ownerAt}
-            ownerAvatar={gameAssetPath(mentor.avatarPath)} onSelect={setSelected}
+          <IslandScene template={template} stops={stops} selected={selected} walkTo={walkTo}
+            refusals={refusals} onSelect={pick}
             reduceMotion={env.reduceMotion} richEffects={env.richEffects} />
         </Suspense>
       </IslandBoundary>

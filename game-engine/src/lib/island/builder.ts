@@ -3,6 +3,7 @@ import type { IslandLayout, IslandSpot } from './layout'
 import { REGION_CENTERS, islandSpots } from './layout'
 import type { IslandModelName, IslandTheme } from './themes'
 import { DECORATION_MODELS } from './themes'
+import { HEX_STAGE_RADIUS, standPoint } from './walker'
 
 export type IslandModels = Partial<Record<IslandModelName, THREE.Object3D>>
 export type StopStatus = 'done' | 'current' | 'locked'
@@ -105,11 +106,15 @@ export function buildLand(theme: IslandTheme, layout: IslandLayout, models: Isla
   let boat: THREE.Object3D | null = null
   let lake: IslandLand['lake'] = null
 
+  const stands = spots.map(p => standPoint(p, layout))
   const decorate = (spot: IslandSpot, g: THREE.Group, near: boolean) => {
     for (let k = 0; k < 3; k++) {
       const a = rand() * Math.PI * 2, d = near ? 0.6 + rand() * 0.4 : 1.6 + rand() * 0.8
+      const x = spot.x + Math.cos(a) * d, z = spot.z + Math.sin(a) * d
+      // Keep the player's spot at every stop clear
+      if (stands.some(p => Math.hypot(p.x - x, p.z - z) < 1.1)) continue
       const deco = decoration(kit, rand)
-      deco.position.set(spot.x + Math.cos(a) * d, spot.y, spot.z + Math.sin(a) * d)
+      deco.position.set(x, spot.y, z)
       g.add(deco)
     }
   }
@@ -149,13 +154,14 @@ export function buildLand(theme: IslandTheme, layout: IslandLayout, models: Isla
     dockAt(regions[0], spots[0])
   } else if (layout === 'hexes') {
     spots.forEach((p, i) => {
-      const geo = new THREE.CylinderGeometry(1.35, 1.2, 0.5, 6)
+      const geo = new THREE.CylinderGeometry(HEX_STAGE_RADIUS, HEX_STAGE_RADIUS - 0.15, 0.5, 6)
       const stage = new THREE.Group(); stage.userData.spotIndex = i; regions[p.region].add(stage); stages.push(stage)
       const tile = kit.mesh(geo, kit.mat(theme.grass[p.region]), false, false); tile.position.set(p.x, p.y - 0.25, p.z); stage.add(tile)
       const edges = kit.neonEdges(geo, i % 2 ? 0x49e7ff : 0xff4fd8); edges.position.copy(tile.position); stage.add(edges)
       const pillar = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.05, p.y + 0.4, 6), new THREE.MeshBasicMaterial({ color: 0x7c5cff, transparent: true, opacity: 0.6 }))
       pillar.position.set(p.x, (p.y - 0.5) / 2 - 0.2, p.z); stage.add(pillar)
-      if (rand() < 0.6) { const d = decoration(kit, rand); d.position.set(p.x + (rand() > 0.5 ? 0.8 : -0.8), p.y, p.z + (rand() - 0.5) * 0.8); d.scale.multiplyScalar(0.7); stage.add(d) }
+      // Behind the building, clear of where the player stands at the front
+      if (rand() < 0.6) { const d = decoration(kit, rand); d.position.set(p.x + (rand() > 0.5 ? 0.8 : -0.8), p.y, p.z - 0.7 - rand() * 0.3); d.scale.multiplyScalar(0.7); stage.add(d) }
     })
   } else if (layout === 'floaters' || layout === 'station') {
     REGION_CENTERS[layout].forEach(([cx, cz, cy], r) => {
@@ -418,26 +424,4 @@ export function animateIsland(root: THREE.Object3D, time: number) {
     if (o.userData.flicker) o.scale.y = 0.85 + Math.abs(Math.sin(time * 9 + o.id)) * 0.3
     if (o.userData.wave) o.rotation.y = Math.sin(time * 2) * 0.25
   })
-}
-
-/** The island owner: the template's mentor on a round standee in the template's accent colour. */
-export function standeeTexture(avatarUrl: string, accent: string) {
-  const canvas = document.createElement('canvas')
-  canvas.width = canvas.height = 256
-  const ctx = canvas.getContext('2d')
-  const texture = new THREE.CanvasTexture(canvas)
-  texture.colorSpace = THREE.SRGBColorSpace
-  const draw = (image?: HTMLImageElement) => {
-    if (!ctx) return
-    ctx.clearRect(0, 0, 256, 256)
-    ctx.beginPath(); ctx.arc(128, 128, 124, 0, Math.PI * 2); ctx.fillStyle = accent; ctx.fill()
-    ctx.beginPath(); ctx.arc(128, 128, 112, 0, Math.PI * 2); ctx.fillStyle = '#ffffff'; ctx.fill()
-    if (image) { ctx.save(); ctx.beginPath(); ctx.arc(128, 128, 108, 0, Math.PI * 2); ctx.clip(); ctx.drawImage(image, 20, 20, 216, 216); ctx.restore() }
-    texture.needsUpdate = true
-  }
-  draw()
-  const image = new Image()
-  image.onload = () => draw(image)
-  image.src = avatarUrl
-  return texture
 }
