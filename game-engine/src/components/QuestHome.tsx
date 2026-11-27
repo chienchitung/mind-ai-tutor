@@ -1,3 +1,4 @@
+import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import { Activity, ArrowRight, Check, ChevronDown, ChevronRight, Compass, Flag, LockKeyhole, Orbit, Radio, RotateCcw, Star, Trophy } from 'lucide-react'
 import type { GameDefinition, GameVisualTemplate } from '../types/game'
@@ -8,6 +9,8 @@ import { gameAssetPath } from '../lib/game-asset-path'
 import { MentorAvatar } from './MentorAvatar'
 import { mentorForTemplate } from '../lib/mentor'
 import { experienceForTemplate } from '../lib/template-experience'
+import { islandSupports } from '../lib/island/layout'
+import { IslandMap, webglAvailable } from './island/IslandMap'
 
 interface QuestHomeProps {
   game?: GameDefinition | null
@@ -66,6 +69,20 @@ export function QuestHome(props: QuestHomeProps) {
   const template = gameVisualTemplate(game?.settings.theme)
   const mentor = mentorForTemplate(template)
   const experience = experienceForTemplate(template)
+  // The 3D island is an alternative view of the same route; the 2D map stays the default.
+  const viewKey = `quest-map-view:${gameId || 'legacy'}`
+  const [view, setView] = useState<'route' | 'island'>('route')
+  const [islandReady, setIslandReady] = useState(false)
+  useEffect(() => {
+    if (!islandSupports(lessons.length) || !webglAvailable()) { setIslandReady(false); return }
+    setIslandReady(true)
+    try { if (window.localStorage.getItem(viewKey) === 'island') setView('island') } catch { /* preference only */ }
+  }, [viewKey, lessons.length])
+  const chooseView = (next: 'route' | 'island') => {
+    setView(next)
+    try { window.localStorage.setItem(viewKey, next) } catch { /* preference only */ }
+  }
+  const showIsland = islandReady && view === 'island'
   return <div className="quest-shell" data-quest-template={template} data-experience-layout={experience.home.layout} style={gameThemeStyle(game?.settings.theme)}>
     <a className="quest-skip" href="#mission-map">跳至任務地圖</a>
     <header className="quest-header"><div className="quest-header-inner">
@@ -99,9 +116,13 @@ export function QuestHome(props: QuestHomeProps) {
 
       <div className="quest-home-grid">
         <section id="mission-map" className="quest-map" aria-labelledby="map-title">
-          <div className="quest-section-heading"><div><span className="quest-kicker">{experience.home.journeyKicker}</span><h2 id="map-title">{experience.home.journeyTitle}</h2></div><span className="quest-small-label">{template === 'orbital-lab' && <i className="quest-live-signal" aria-hidden="true" />}{!lessons.length ? '尚未設定內容' : allDone ? experience.home.completeTitle : `目前第 ${Math.max(currentIndex + 1, 1)} / ${lessons.length} ${experience.home.journeyUnit}`}</span></div>
+          <div className="quest-section-heading"><div><span className="quest-kicker">{experience.home.journeyKicker}</span><h2 id="map-title">{experience.home.journeyTitle}</h2></div><span className="quest-small-label">{template === 'orbital-lab' && <i className="quest-live-signal" aria-hidden="true" />}{!lessons.length ? '尚未設定內容' : allDone ? experience.home.completeTitle : `目前第 ${Math.max(currentIndex + 1, 1)} / ${lessons.length} ${experience.home.journeyUnit}`}</span>
+            {islandReady && <div className="quest-view-toggle" role="group" aria-label="地圖顯示方式">
+              <button type="button" aria-pressed={!showIsland} onClick={() => chooseView('route')}>路線圖</button>
+              <button type="button" aria-pressed={showIsland} onClick={() => chooseView('island')}>3D 島嶼</button>
+            </div>}</div>
           {!signedIn && <p className="quest-map-note">先點選「開始學習」登入，再依序進入關卡。</p>}
-          <ol className="quest-path">
+          {showIsland ? <IslandMap template={template} lessons={lessons} completedLessons={completedLessons} signedIn={signedIn} href={href} onUnavailable={() => { setIslandReady(false); setView('route') }} /> : <ol className="quest-path">
             {lessons.map((lesson, index) => {
               const done = completedLessons.includes(lesson.lesson_id)
               const unlocked = canEnterLesson(lessons, index, completedLessons, signedIn)
@@ -119,7 +140,7 @@ export function QuestHome(props: QuestHomeProps) {
                 </div>
               </li>
             })}
-          </ol>
+          </ol>}
           {allDone && <div className="quest-map-finish"><Flag /><div><strong>{experience.home.completeTitle}</strong><p>{experience.home.completeMessage}</p></div></div>}
         </section>
 
