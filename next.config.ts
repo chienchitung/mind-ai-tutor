@@ -18,6 +18,9 @@ const scriptSource = process.env.NODE_ENV === 'development'
 
 const nextConfig: NextConfig = {
   reactStrictMode: true,
+  experimental: {
+    agentUpgrade: 'security',
+  },
 
   async headers() {
     return [
