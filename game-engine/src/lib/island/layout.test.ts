@@ -4,6 +4,7 @@ import { LAYOUT_FOR_TEMPLATE, MAX_ISLAND_LESSONS, islandSpots, islandSupports, r
 import { ISLAND_MODELS, ISLAND_THEMES } from './themes'
 import { existsSync } from 'node:fs'
 import { join } from 'node:path'
+import { fileURLToPath } from 'node:url'
 
 const templates: GameVisualTemplate[] = ['discovery', 'neo-brutal', 'arcade', 'forest-camp', 'arcane-archive', 'orbital-lab']
 
@@ -44,7 +45,7 @@ describe('island themes', () => {
   })
 
   it('ships every Kenney model it loads, with the CC0 licence', () => {
-    const dir = join(process.cwd(), 'public/island/kenney')
+    const dir = fileURLToPath(new URL('../../../public/island/kenney', import.meta.url))
     ISLAND_MODELS.forEach(name => expect(existsSync(join(dir, `${name}.glb`)), name).toBe(true))
     expect(existsSync(join(dir, 'License.txt'))).toBe(true)
   })
