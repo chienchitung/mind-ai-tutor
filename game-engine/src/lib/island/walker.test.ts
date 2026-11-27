@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { islandSpots } from './layout'
+import { REGION_CENTERS, islandSpots } from './layout'
 import { HEX_STAGE_RADIUS, ownerPoint, planWalk, redirectWalk, sampleWalk, standPoint, walkPath } from './walker'
 
 const spots = islandSpots('archipelago')
@@ -29,6 +29,20 @@ describe('island owner walk', () => {
     hexes.forEach((a, i) => hexes.slice(i + 1).forEach(b => expect(Math.hypot(a.x - b.x, a.z - b.z)).toBeGreaterThan(HEX_STAGE_RADIUS * 2)))
   })
 
+  it.each(['floaters', 'station'] as const)('keeps both figures on the %s platforms, clear of the building', layout => {
+    // Islets have radius 4.2 and station discs 4.1; leave room for the figure's feet
+    const room = 4.1 - 0.5
+    islandSpots(layout).forEach(spot => {
+      const [cx, cz] = REGION_CENTERS[layout][spot.region]
+      for (const p of [standPoint(spot, layout), ownerPoint(spot, layout)]) {
+        expect(Math.hypot(p.x - cx, p.z - cz)).toBeLessThan(room)
+        expect(Math.hypot(p.x - spot.x, p.z - spot.z)).toBeGreaterThan(0.9)
+      }
+      const player = standPoint(spot, layout), owner = ownerPoint(spot, layout)
+      expect(Math.hypot(player.x - owner.x, player.z - owner.z)).toBeGreaterThan(1)
+    })
+  })
+
   it('walks from one stop to another along the route and stops there', () => {
     const walk = planWalk('archipelago', spots, at(1), 1, 2, 4)
     expect(walk.stops).toEqual([1, 2, 3, 4])
@@ -48,7 +62,7 @@ describe('island owner walk', () => {
     expect(hop.hops).toEqual([true])
     expect(sampleWalk(hop, hop.total / 2).position.y).toBeGreaterThan(Math.max(hexes[0].y, hexes[1].y) + 0.3)
     const floaters = islandSpots('floaters')
-    expect(planWalk('floaters', floaters, standPoint(floaters[3]), 3, 4, 6).hops).toEqual([false, true, false])
+    expect(planWalk('floaters', floaters, standPoint(floaters[3], 'floaters'), 3, 4, 6).hops).toEqual([false, true, false])
   })
 
   it('turns round mid-walk when the student picks a stop behind, and carries on when ahead', () => {

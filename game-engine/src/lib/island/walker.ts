@@ -1,5 +1,5 @@
 import type { IslandLayout, IslandSpot } from './layout'
-import { regionOf } from './layout'
+import { REGION_CENTERS, regionOf } from './layout'
 
 export interface Point { x: number; y: number; z: number }
 
@@ -11,14 +11,28 @@ const OFFSETS = {
 } as const
 const offsetsFor = (layout?: IslandLayout) => (layout === 'hexes' ? OFFSETS.hexes : OFFSETS.open)
 
+/**
+ * Islets and station discs are round, with the stops on a ring near the rim: a fixed offset
+ * would push some figures over the edge. There they step in from the stop toward the
+ * platform's centre instead, the player to one side of that line and the owner to the other.
+ */
+function inward(spot: IslandSpot, layout: 'floaters' | 'station', turn: number): Point {
+  const [cx, cz] = REGION_CENTERS[layout][spot.region]
+  const angle = Math.atan2(cz - spot.z, cx - spot.x) + turn
+  return { x: spot.x + Math.cos(angle) * 1.2, y: spot.y, z: spot.z + Math.sin(angle) * 1.2 }
+}
+const ringLayout = (layout?: IslandLayout): layout is 'floaters' | 'station' => layout === 'floaters' || layout === 'station'
+
 /** Where the player stands at a stop: just in front of the building, toward the camera. */
 export function standPoint(spot: IslandSpot, layout?: IslandLayout): Point {
+  if (ringLayout(layout)) return inward(spot, layout, 0.6)
   const [dx, dz] = offsetsFor(layout).player
   return { x: spot.x + dx, y: spot.y, z: spot.z + dz }
 }
 
 /** Where the island owner waits at the student's current lesson: the other side of the building. */
 export function ownerPoint(spot: IslandSpot, layout?: IslandLayout): Point {
+  if (ringLayout(layout)) return inward(spot, layout, -0.6)
   const [dx, dz] = offsetsFor(layout).owner
   return { x: spot.x + dx, y: spot.y, z: spot.z + dz }
 }
