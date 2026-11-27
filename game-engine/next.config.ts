@@ -37,6 +37,10 @@ const nextConfig: NextConfig = {
   // gameId-less) becomes /games, app/lessons/[id] becomes /games/lessons/[id].
   basePath: '/games',
 
+  experimental: {
+    agentUpgrade: 'security',
+  },
+
   async headers() {
     return [{
       source: '/:path*',
