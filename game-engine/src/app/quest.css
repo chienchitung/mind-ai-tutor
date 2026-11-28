@@ -571,7 +571,7 @@
 .island-regions li { padding:4px 10px; border-radius:999px; font-size:12px; background:#ffffffb8; color:#4d6567; border:1px dashed #00000033; }
 .island-regions li.is-open { background:#fffffff0; color:#1d3436; border:1px solid var(--quest-primary); }
 .island-regions li span { margin-left:6px; font-size:11px; opacity:.75; }
-.island-badge { min-width:28px; height:28px; padding:0 8px; border-radius:999px; border:2px solid #fff; font:inherit; font-size:13px; font-weight:800; color:#fff; background:var(--quest-primary); box-shadow:0 2px 6px #00000040; cursor:pointer; white-space:nowrap; }
+.island-badge { display:inline-flex; align-items:center; justify-content:center; min-width:28px; height:28px; padding:0 8px; border-radius:999px; border:2px solid #fff; font:inherit; font-size:13px; font-weight:800; color:#fff; background:var(--quest-primary); box-shadow:0 2px 6px #00000040; cursor:pointer; white-space:nowrap; }
 .island-badge.is-locked { background:#8a9a9b; }
 .island-badge.is-current { background:#f2b13c; color:#2d1f00; }
 .island-badge.is-final { background:var(--quest-accent); }
