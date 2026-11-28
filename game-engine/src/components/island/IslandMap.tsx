@@ -7,9 +7,7 @@ import { ChevronRight, LockKeyhole } from 'lucide-react'
 import type { GameVisualTemplate } from '../../types/game'
 import type { Lesson } from '../../types/lesson'
 import { canEnterLesson } from '../../lib/mission'
-import { mentorForTemplate } from '../../lib/mentor'
 import { experienceForTemplate } from '../../lib/template-experience'
-import { gameAssetPath } from '../../lib/game-asset-path'
 import { ISLAND_THEMES } from '../../lib/island/themes'
 import { regionOf } from '../../lib/island/layout'
 import type { IslandSceneStop } from './IslandScene'
@@ -40,18 +38,18 @@ interface IslandMapProps {
 
 export function IslandMap({ template, lessons, completedLessons, signedIn, href, onUnavailable }: IslandMapProps) {
   const experience = experienceForTemplate(template)
-  const mentor = mentorForTemplate(template)
   const theme = ISLAND_THEMES[template]
   const currentIndex = lessons.findIndex(lesson => !completedLessons.includes(lesson.lesson_id))
-  const ownerAt = currentIndex >= 0 ? currentIndex : lessons.length - 1
-  const [selected, setSelected] = useState(ownerAt)
+  // The furthest stop the student has reached: the lesson they are on, or the last one when all are done
+  const reachedTo = currentIndex >= 0 ? currentIndex : lessons.length - 1
+  const [selected, setSelected] = useState(reachedTo)
   // The player walks to stops the student has reached; further ones are still fogged in.
-  const [walkTo, setWalkTo] = useState(ownerAt)
+  const [walkTo, setWalkTo] = useState(reachedTo)
   const [refusals, setRefusals] = useState(0)
-  useEffect(() => { setSelected(ownerAt); setWalkTo(ownerAt) }, [ownerAt])
+  useEffect(() => { setSelected(reachedTo); setWalkTo(reachedTo) }, [reachedTo])
   const pick = (index: number) => {
     setSelected(index)
-    if (index <= ownerAt) setWalkTo(index)
+    if (index <= reachedTo) setWalkTo(index)
     else setRefusals(count => count + 1)
   }
 
@@ -79,8 +77,6 @@ export function IslandMap({ template, lessons, completedLessons, signedIn, href,
   const unlocked = canEnterLesson(lessons, selected, completedLessons, signedIn)
   const active = selected === currentIndex
   const prerequisite = selected > 0 ? lessons[selected - 1]?.title : undefined
-  const ownerLesson = lessons[ownerAt]
-  const ownerMessage = currentIndex < 0 ? experience.home.completeMessage : ownerLesson?.mission?.mentorMessage || mentor.homeMessage
 
   return <div className="island-map">
     <div className="island-stage">
@@ -91,12 +87,6 @@ export function IslandMap({ template, lessons, completedLessons, signedIn, href,
             reduceMotion={env.reduceMotion} richEffects={env.richEffects} />
         </Suspense>
       </IslandBoundary>
-      <section className="island-owner" aria-label={`島主 ${mentor.name}`}>
-        {/* Local avatar under the Game Engine base path. */}
-        {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img src={gameAssetPath(mentor.avatarPath)} alt="" width={44} height={44} />
-        <div><strong>島主 {mentor.name}</strong><span>{mentor.role}</span><p>{ownerMessage}</p></div>
-      </section>
       <ol className="island-regions" aria-label="島嶼區域">
         {theme.regions.map((name, region) => {
           const open = lessons.some((_, index) => regionOf(index) === region)
