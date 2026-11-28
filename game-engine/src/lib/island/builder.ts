@@ -124,6 +124,7 @@ export function buildLand(theme: IslandTheme, layout: IslandLayout, models: Isla
     land.position.set(x, top - h / 2, z); land.rotation.y = rand() * Math.PI; g.add(land)
     const beach = kit.mesh(new THREE.CylinderGeometry(radius * 1.18, radius * 1.3, 0.9, seg), kit.mat(theme.base), false, false)
     beach.position.set(x, -0.5, z); beach.rotation.y = land.rotation.y; g.add(beach)
+    if (theme.shallow !== undefined) g.add(shoal(x, z, radius * 1.25, radius * 2.1, theme.shallow))
   }
   const dockAt = (g: THREE.Group, spot: IslandSpot) => {
     const wood = kit.mat(0xa8744a)
@@ -158,6 +159,9 @@ export function buildLand(theme: IslandTheme, layout: IslandLayout, models: Isla
       const stage = new THREE.Group(); stage.userData.spotIndex = i; regions[p.region].add(stage); stages.push(stage)
       const tile = kit.mesh(geo, kit.mat(theme.grass[p.region]), false, false); tile.position.set(p.x, p.y - 0.25, p.z); stage.add(tile)
       const edges = kit.neonEdges(geo, i % 2 ? 0x49e7ff : 0xff4fd8); edges.position.copy(tile.position); stage.add(edges)
+      // A glowing rim on the top face: the stages are the brightest thing in the dark scene
+      const rim = kit.glowMesh(new THREE.RingGeometry(HEX_STAGE_RADIUS - 0.16, HEX_STAGE_RADIUS - 0.04, 6, 1, Math.PI / 2), i % 2 ? 0x49e7ff : 0xff4fd8)
+      rim.rotation.x = -Math.PI / 2; rim.position.set(p.x, p.y + 0.005, p.z); stage.add(rim)
       const pillar = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.05, p.y + 0.4, 6), new THREE.MeshBasicMaterial({ color: 0x7c5cff, transparent: true, opacity: 0.6 }))
       pillar.position.set(p.x, (p.y - 0.5) / 2 - 0.2, p.z); stage.add(pillar)
       // Behind the building, clear of where the player stands at the front
@@ -395,6 +399,27 @@ export function buildRoute(theme: IslandTheme, spots: IslandSpot[], stops: Islan
   })
   return { root, labels, dispose: () => disposeObject(root) }
 }
+
+/**
+ * Shallow water around an island: a ring that fades from the shore colour to clear, so the
+ * coast reads at a glance. It sits just above the highest wave, so the waves never hide it.
+ */
+function shoal(x: number, z: number, inner: number, outer: number, color: number) {
+  const geo = new THREE.RingGeometry(inner, outer, 40, 1)
+  const c = new THREE.Color(color), alpha: number[] = []
+  const pos = geo.attributes.position
+  for (let k = 0; k < pos.count; k++) {
+    const fade = Math.hypot(pos.getX(k), pos.getY(k)) < (inner + outer) / 2 ? 0.75 : 0
+    alpha.push(c.r, c.g, c.b, fade)
+  }
+  geo.setAttribute('color', new THREE.Float32BufferAttribute(alpha, 4))
+  const ring = new THREE.Mesh(geo, new THREE.MeshBasicMaterial({ vertexColors: true, transparent: true, depthWrite: false }))
+  ring.rotation.x = -Math.PI / 2
+  ring.position.set(x, SHOAL_Y, z)
+  return ring
+}
+/** Waves reach about -0.13; the shoal floats just over them. */
+const SHOAL_Y = -0.1
 
 /** Frees GPU memory; shared model geometry is left alone (it belongs to the loader cache). */
 export function disposeObject(object: THREE.Object3D) {

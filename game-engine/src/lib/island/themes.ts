@@ -35,12 +35,14 @@ export interface IslandTheme {
   daySky?: boolean
   /** Water inside the island (the lake layout); clearer than the sea around it. */
   lake?: number
+  /** Shallow water ringing the coast; templates without it have no shoreline shoals. */
+  shallow?: number
 }
 
 export const ISLAND_THEMES: Record<GameVisualTemplate, IslandTheme> = {
   discovery: {
     regions: ['海灣碼頭', '雨林小徑', '瞭望山丘', '燈塔海岬'],
-    sky: 0xd6ecf8, sea: 'water', seaColor: 0x3fb0d8,
+    sky: 0xd6ecf8, sea: 'water', seaColor: 0x2a92bf, shallow: 0x9fe6ee,
     grass: [0x6ed174, 0x4db85c, 0x84d468, 0x5cc47a], base: 0xe8d3a1,
     roofs: [0xd8664a, 0x2f7f8f, 0xd9a441, 0xc4574a], wall: 0xf4ecdc,
     path: 0xd9d5c8, pathDone: 0xe3c27a, ring: 0xffc94d,
@@ -67,7 +69,7 @@ export const ISLAND_THEMES: Record<GameVisualTemplate, IslandTheme> = {
   },
   'forest-camp': {
     regions: ['湖畔營地', '松林步道', '溪谷吊橋', '山頂瞭望'],
-    sky: 0xeef3e2, sea: 'water', seaColor: 0x9cccca, lake: 0x6bbdc4,
+    sky: 0xeef3e2, sea: 'water', seaColor: 0x6fa8a4, lake: 0x6bbdc4, shallow: 0xbfe2d8,
     grass: [0x8cb04a, 0x6f9a36, 0x9db752, 0xa8bb5e], base: 0xd8b36d,
     roofs: [0xc37438, 0xe3ad48, 0x6f8d52, 0xb5532f], wall: 0xfff7dd,
     path: 0xcdbf98, pathDone: 0xa0703f, ring: 0xe3ad48,
