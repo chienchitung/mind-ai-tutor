@@ -1,0 +1,15 @@
+{
+  "name": "game-engine-visual",
+  "private": true,
+  "type": "module",
+  "description": "Snapshots every template's quest home and compares them with the base branch (see README.md).",
+  "scripts": {
+    "snapshots": "node snapshots.mjs",
+    "diff": "node diff.mjs"
+  },
+  "devDependencies": {
+    "pixelmatch": "7.1.0",
+    "playwright": "1.63.0",
+    "pngjs": "7.0.0"
+  }
+}

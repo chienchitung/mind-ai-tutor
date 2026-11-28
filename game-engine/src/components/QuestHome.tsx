@@ -122,7 +122,7 @@ export function QuestHome(props: QuestHomeProps) {
               <button type="button" aria-pressed={showIsland} onClick={() => chooseView('island')}>3D 島嶼</button>
             </div>}</div>
           {!signedIn && <p className="quest-map-note">先點選「開始學習」登入，再依序進入關卡。</p>}
-          {showIsland ? <IslandMap template={template} lessons={lessons} completedLessons={completedLessons} signedIn={signedIn} href={href} onUnavailable={() => { setIslandReady(false); setView('route') }} /> : <ol className="quest-path">
+          {showIsland ? <IslandMap template={template} gameId={gameId} lessons={lessons} completedLessons={completedLessons} signedIn={signedIn} href={href} onUnavailable={() => { setIslandReady(false); setView('route') }} /> : <ol className="quest-path">
             {lessons.map((lesson, index) => {
               const done = completedLessons.includes(lesson.lesson_id)
               const unlocked = canEnterLesson(lessons, index, completedLessons, signedIn)

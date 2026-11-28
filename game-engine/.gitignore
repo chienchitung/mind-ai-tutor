@@ -39,3 +39,6 @@ next-env.d.ts
 
 # local env files
 .env*
+# visual snapshot check (visual/README.md)
+/visual/node_modules
+/visual/out
