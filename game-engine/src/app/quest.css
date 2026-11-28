@@ -464,24 +464,28 @@
 @keyframes game-loading-shimmer { to { background-position:-150% 0; } }
 
 /* Each world now has a different home information structure, not only a different skin. */
-.quest-home-grid { grid-template-areas:"journey side"; }
+/*
+ * One information architecture for every template: the map runs full width (route list or 3D
+ * island), then a row of cards (current mission | learning companion | record) with the
+ * leaderboard link under them. Templates differ in look and in how the route list is drawn,
+ * not in where things are.
+ */
+.quest-home-grid { grid-template-columns:minmax(0,1fr); grid-template-areas:"journey" "side"; }
 .quest-map { grid-area:journey; min-width:0; }
-.quest-sidebar { grid-area:side; }
+.quest-sidebar { grid-area:side; position:static; grid-template-columns:1.2fr 1fr 1fr; align-items:stretch; }
 .quest-sidebar > * { min-width:0; }
+.quest-sidebar > :is(.quest-secondary-action,.quest-caption) { grid-column:1 / -1; }
+@media (max-width:1000px) { .quest-sidebar { grid-template-columns:1fr 1fr; } .quest-sidebar > .quest-current { grid-column:1 / -1; } }
+@media (max-width:760px) { .quest-sidebar { grid-template-columns:1fr; } }
 
-.quest-shell[data-experience-layout="build-board"] .quest-home-grid { grid-template-columns:1fr; grid-template-areas:"side" "journey"; }
-.quest-shell[data-experience-layout="build-board"] .quest-sidebar { position:static; grid-template-columns:1.25fr 1fr 1fr; align-items:stretch; }
-.quest-shell[data-experience-layout="build-board"] .quest-secondary-action { grid-column:3; }
 .quest-shell[data-experience-layout="build-board"] .quest-path { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:22px; }
 .quest-shell[data-experience-layout="build-board"] .quest-stop { grid-template-columns:52px minmax(0,1fr); padding:0; }
 .quest-shell[data-experience-layout="build-board"] .quest-stop:before { display:none; }
 .quest-shell[data-experience-layout="build-board"] .quest-node { margin-top:0; align-self:start; }
 .quest-shell[data-experience-layout="build-board"] .quest-stop-card { min-height:100%; }
 
-.quest-shell[data-experience-layout="level-select"] .quest-home-grid { grid-template-columns:1fr; grid-template-areas:"side" "journey"; }
 .quest-shell[data-experience-layout="level-select"] .quest-map { overflow:hidden; }
-.quest-shell[data-experience-layout="level-select"] .quest-sidebar { position:static; grid-template-columns:1.35fr 1fr 1fr; }
-.quest-shell[data-experience-layout="level-select"] .quest-secondary-action { grid-column:1 / -1; border:1px solid #3d3775; }
+.quest-shell[data-experience-layout="level-select"] .quest-secondary-action { border:1px solid #3d3775; }
 .quest-shell[data-experience-layout="level-select"] .quest-path { display:flex; gap:18px; overflow-x:auto; padding:28px 4px 18px; scroll-snap-type:x proximity; scrollbar-color:#7c5cff #171330; }
 .quest-shell[data-experience-layout="level-select"] .quest-stop { flex:0 0 270px; display:block; padding:0; scroll-snap-align:start; }
 .quest-shell[data-experience-layout="level-select"] .quest-stop:before { display:none; }
@@ -497,7 +501,6 @@
 .quest-shell[data-experience-layout="trail"] .quest-stop:nth-child(even):before { left:auto; right:31px; }
 .quest-shell[data-experience-layout="trail"] .quest-node { border-radius:50% 50% 42% 42%; }
 
-.quest-shell[data-experience-layout="chapter-index"] .quest-home-grid { grid-template-columns:1fr; grid-template-areas:"journey" "side"; }
 .quest-shell[data-experience-layout="chapter-index"] .quest-map { position:relative; padding:34px 42px; }
 /* A table of contents: one column read top to bottom, each chapter a row with dotted leaders to its action. */
 .quest-shell[data-experience-layout="chapter-index"] .quest-path { display:block; padding-top:18px; }
@@ -518,11 +521,7 @@
 .quest-shell[data-experience-layout="chapter-index"] .quest-stop-footer { grid-area:action; margin-top:4px; }
 .quest-shell[data-experience-layout="chapter-index"] .quest-stop-footer > span:first-child { display:none; }
 .quest-shell[data-experience-layout="chapter-index"] .quest-stop.is-pending :is(h3,.quest-stop-summary) { opacity:.72; }
-.quest-shell[data-experience-layout="chapter-index"] .quest-sidebar { position:static; grid-template-columns:1.2fr 1fr 1fr; }
-.quest-shell[data-experience-layout="chapter-index"] .quest-secondary-action { grid-column:1 / -1; }
 
-.quest-shell[data-experience-layout="mission-control"] .quest-home-grid { grid-template-columns:330px minmax(0,1fr); grid-template-areas:"side journey"; }
-.quest-shell[data-experience-layout="mission-control"] .quest-sidebar { position:sticky; }
 .quest-shell[data-experience-layout="mission-control"] .quest-path { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:16px; }
 .quest-shell[data-experience-layout="mission-control"] .quest-stop { display:block; padding:0; }
 .quest-shell[data-experience-layout="mission-control"] .quest-stop:before { display:none; }
@@ -534,12 +533,6 @@
 .quest-shell[data-quest-template="orbital-lab"][data-experience-layout="mission-control"] .quest-stop-card { min-height:204px; padding:30px 18px 18px; }
 .quest-shell[data-quest-template="orbital-lab"][data-experience-layout="mission-control"] .quest-stop.is-current .quest-stop-card { min-height:174px; }
 
-@media (max-width:900px) {
-  .quest-shell[data-experience-layout] .quest-home-grid { grid-template-columns:1fr; grid-template-areas:"side" "journey"; }
-  .quest-shell[data-experience-layout] .quest-sidebar { position:static; grid-template-columns:1fr 1fr; }
-  .quest-shell[data-experience-layout] .quest-current { grid-column:1 / -1; }
-  .quest-shell[data-experience-layout] .quest-secondary-action { grid-column:1 / -1; }
-}
 @media (max-width:650px) {
   .game-loading-shell header { height:68px; padding:12px 16px; }
   .game-loading-shell main { padding:20px 16px; }
@@ -547,8 +540,6 @@
   .game-loading-stat { width:78px; }
   .game-loading-grid { grid-template-columns:1fr; }
   .game-loading-grid aside { display:none; }
-  .quest-shell[data-experience-layout] .quest-sidebar { grid-template-columns:1fr; }
-  .quest-shell[data-experience-layout] .quest-current,.quest-shell[data-experience-layout] .quest-secondary-action { grid-column:auto; }
   .quest-shell[data-experience-layout="build-board"] .quest-path,
   .quest-shell[data-experience-layout="mission-control"] .quest-path { grid-template-columns:1fr; }
   .quest-shell[data-experience-layout="chapter-index"] .quest-map { padding:22px 16px; }
@@ -573,14 +564,9 @@
 .quest-view-toggle button:focus-visible { outline:3px solid var(--quest-accent); outline-offset:2px; }
 @media (max-width:760px) { .quest-section-heading { flex-wrap:wrap; } .quest-view-toggle { flex:none; } }
 .island-map { display:grid; gap:14px; margin-top:6px; }
-.island-stage { position:relative; height:min(62vh, 560px); min-height:380px; border-radius:16px; overflow:hidden; background:#0d1b26; }
+.island-stage { position:relative; height:clamp(420px, 64vh, 640px); border-radius:16px; overflow:hidden; background:#0d1b26; }
 .island-stage canvas { display:block; touch-action:none; }
 .island-loading { position:absolute; inset:0; display:grid; place-items:center; color:#fff; font-size:14px; background:linear-gradient(160deg,#1c4a5a,#0d1b26); }
-.island-owner { position:absolute; top:12px; left:12px; max-width:min(340px, calc(100% - 24px)); display:flex; gap:10px; align-items:flex-start; padding:10px 12px; border-radius:14px; background:#fffffff0; color:#1d3436; box-shadow:0 6px 18px #0000002e; font-size:13px; line-height:1.5; }
-.island-owner img { width:44px; height:44px; border-radius:50%; object-fit:cover; flex:none; border:2px solid var(--quest-primary); }
-.island-owner strong { display:block; font-size:14px; }
-.island-owner span { color:#4d6567; font-size:12px; }
-.island-owner p { margin:4px 0 0; }
 .island-regions { position:absolute; right:12px; bottom:12px; display:flex; flex-wrap:wrap; justify-content:flex-end; gap:6px; margin:0; padding:0; list-style:none; max-width:calc(100% - 24px); }
 .island-regions li { padding:4px 10px; border-radius:999px; font-size:12px; background:#ffffffb8; color:#4d6567; border:1px dashed #00000033; }
 .island-regions li.is-open { background:#fffffff0; color:#1d3436; border:1px solid var(--quest-primary); }
@@ -597,13 +583,11 @@
 .island-card-footer { display:flex; flex-wrap:wrap; align-items:center; justify-content:space-between; gap:10px; margin-top:6px; }
 @media (max-width:760px) {
   .island-stage { height:68vh; min-height:340px; }
-  .island-owner { font-size:12px; padding:8px 10px; }
-  .island-owner p { display:none; }
   .island-regions { left:12px; justify-content:flex-start; }
 }
 /* Night islands: dark panels so the scene stays the brightest thing */
-.quest-shell:is([data-quest-template="arcade"],[data-quest-template="arcane-archive"],[data-quest-template="orbital-lab"]) :is(.island-owner,.island-card,.island-regions li.is-open) { background:#141230f0; color:#eef0ff; border-color:var(--quest-primary); }
-.quest-shell:is([data-quest-template="arcade"],[data-quest-template="arcane-archive"],[data-quest-template="orbital-lab"]) :is(.island-owner span,.island-card p,.island-regions li) { color:#b9b6dc; }
+.quest-shell:is([data-quest-template="arcade"],[data-quest-template="arcane-archive"],[data-quest-template="orbital-lab"]) :is(.island-card,.island-regions li.is-open) { background:#141230f0; color:#eef0ff; border-color:var(--quest-primary); }
+.quest-shell:is([data-quest-template="arcade"],[data-quest-template="arcane-archive"],[data-quest-template="orbital-lab"]) :is(.island-card p,.island-regions li) { color:#b9b6dc; }
 .quest-shell:is([data-quest-template="arcade"],[data-quest-template="arcane-archive"],[data-quest-template="orbital-lab"]) .island-regions li { background:#141230b8; border-color:#ffffff33; }
 .quest-shell:is([data-quest-template="arcade"],[data-quest-template="arcane-archive"],[data-quest-template="orbital-lab"]) .island-card { border:1px solid var(--quest-primary); }
 .quest-shell:is([data-quest-template="arcade"],[data-quest-template="arcane-archive"],[data-quest-template="orbital-lab"]) .island-card .quest-stop-link { color:#f4f1ff; }
