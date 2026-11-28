@@ -20,7 +20,7 @@ export const MAX_DISTANCE = 46
 /** Land and decoration reach about this far around each stop. */
 const LAND_MARGIN = 2
 const AROUND = [[0, 0], [LAND_MARGIN, 0], [-LAND_MARGIN, 0], [0, LAND_MARGIN], [0, -LAND_MARGIN]] as const
-/** Stop badges float about this high over the ground. */
+/** Stop badges float about this high over the ground, unless the caller gives each stop's height. */
 const BADGE_HEIGHT = 2.5
 /** Keep a little air between the outermost point and the frame edge. */
 const FRAME_FILL = 0.94
@@ -34,7 +34,7 @@ const normalize = (a: Vec) => { const l = Math.hypot(a.x, a.y, a.z); return { x:
  * Frames the part of the island the student's route has opened, so it fills the view:
  * a two-region island is shown close up, and the camera pulls back as regions open.
  */
-export function frameOpenIsland(spots: IslandSpot[], stopCount: number, aspect: number, fovDegrees: number): IslandFrame {
+export function frameOpenIsland(spots: IslandSpot[], stopCount: number, aspect: number, fovDegrees: number, badgeHeights: number[] = []): IslandFrame {
   const open = spots.slice(0, Math.max(1, Math.min(stopCount, spots.length)))
   const xs = open.map(s => s.x), zs = open.map(s => s.z), ys = open.map(s => s.y)
   const minX = Math.min(...xs), maxX = Math.max(...xs), minZ = Math.min(...zs), maxZ = Math.max(...zs)
@@ -48,12 +48,12 @@ export function frameOpenIsland(spots: IslandSpot[], stopCount: number, aspect: 
   const tanV = Math.tan((fovDegrees * Math.PI) / 360) * FRAME_FILL
   const tanH = Math.tan((fovDegrees * Math.PI) / 360) * Math.max(aspect, 0.1) * FRAME_FILL
   let distance = MIN_DISTANCE
-  for (const s of open) for (const [dx, dz] of AROUND) for (const lift of [0, BADGE_HEIGHT]) {
+  open.forEach((s, i) => { for (const [dx, dz] of AROUND) for (const lift of [0, badgeHeights[i] ?? BADGE_HEIGHT]) {
     const v = { x: s.x + dx - center.x, y: s.y + lift - center.y, z: s.z + dz - center.z }
     // Depth in front of the camera is distance - v·VIEW_DIRECTION; the point fits when its offset
     // across (or up) is within that depth times the half-angle's tangent
     const back = dot(v, VIEW_DIRECTION)
     distance = Math.max(distance, Math.abs(dot(v, right)) / tanH + back, Math.abs(dot(v, up)) / tanV + back)
-  }
+  } })
   return { center, distance }
 }

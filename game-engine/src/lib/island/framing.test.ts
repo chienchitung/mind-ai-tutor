@@ -33,14 +33,17 @@ describe('island framing', () => {
 
 describe('island framing on screen', () => {
   // Projects every open stop (and a badge's height above it) through the real camera
+  // A completed final stop's badge floats 4.3 up, and 1.5 more while the player stands there
+  const TALLEST = 4.3 + 1.5
   const offscreen = (layout: Parameters<typeof islandSpots>[0], count: number, aspect: number) => {
     const spots = islandSpots(layout)
-    const { center, distance } = frameOpenIsland(spots, count, aspect, 42)
+    const heights = spots.map(() => TALLEST)
+    const { center, distance } = frameOpenIsland(spots, count, aspect, 42, heights)
     const camera = new THREE.PerspectiveCamera(42, aspect, 0.1, 400)
     camera.position.set(center.x + VIEW_DIRECTION.x * distance, center.y + VIEW_DIRECTION.y * distance, center.z + VIEW_DIRECTION.z * distance)
     camera.lookAt(center.x, center.y, center.z)
     camera.updateMatrixWorld()
-    return spots.slice(0, count).flatMap((s, i) => [0, 2.5].map(lift => ({ i, p: new THREE.Vector3(s.x, s.y + lift, s.z).project(camera) })))
+    return spots.slice(0, count).flatMap((s, i) => [0, heights[i]].map(lift => ({ i, p: new THREE.Vector3(s.x, s.y + lift, s.z).project(camera) })))
       .filter(({ p }) => Math.abs(p.x) > 1 || Math.abs(p.y) > 1).map(({ i }) => i)
   }
 

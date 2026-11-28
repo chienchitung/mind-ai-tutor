@@ -106,7 +106,9 @@ function World({ template, stops, selected, walkTo, refusals, onSelect, reduceMo
   const camera = useThree(state => state.camera)
   const scene = useThree(state => state.scene)
   const aspect = useThree(state => state.size.width / Math.max(1, state.size.height))
-  const framing = useMemo(() => frameOpenIsland(land.spots, stops.length, aspect, CAMERA_FOV), [land, stops.length, aspect])
+  // Each badge's real height, plus the lift it gets while the player stands at its stop
+  const badgeHeights = useMemo(() => route.labels.map((label, i) => label.y - land.spots[i].y + PLAYER_HEIGHT * 0.75), [route, land])
+  const framing = useMemo(() => frameOpenIsland(land.spots, stops.length, aspect, CAMERA_FOV, badgeHeights), [land, stops.length, aspect, badgeHeights])
   useEffect(() => {
     const { center, distance } = framing
     camera.position.set(center.x + VIEW_DIRECTION.x * distance, center.y + VIEW_DIRECTION.y * distance, center.z + VIEW_DIRECTION.z * distance)
