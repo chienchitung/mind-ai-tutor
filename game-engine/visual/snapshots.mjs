@@ -1,7 +1,7 @@
 // Takes a picture of every template's game home from a running game-engine started with
 // VISUAL_QA=1. Usage: node snapshots.mjs <base url, e.g. http://localhost:3300/games> <out dir>
 // Fails when a page throws, or when the 3D island draws nothing (a blank or one-colour stage).
-import { mkdirSync, readFileSync } from 'node:fs'
+import { mkdirSync } from 'node:fs'
 import { join } from 'node:path'
 import { chromium } from 'playwright'
 import { PNG } from 'pngjs'
@@ -11,14 +11,18 @@ const [base, out] = process.argv.slice(2)
 if (!base || !out) { console.error('usage: node snapshots.mjs <base url> <out dir>'); process.exit(2) }
 mkdirSync(out, { recursive: true })
 
-/** Spread of brightness across the picture: near zero means nothing was drawn. */
-function contrast(file) {
-  const png = PNG.sync.read(readFileSync(file))
-  let sum = 0, square = 0
-  const n = png.width * png.height
-  for (let i = 0; i < png.data.length; i += 4) {
-    const y = 0.2126 * png.data[i] + 0.7152 * png.data[i + 1] + 0.0722 * png.data[i + 2]
-    sum += y; square += y * y
+/**
+ * Spread of brightness across the middle of the picture: near zero means nothing was drawn.
+ * The edges are left out: the stage's rounded corners show the page behind it.
+ */
+function contrast(buffer) {
+  const png = PNG.sync.read(buffer)
+  const mx = Math.round(png.width * 0.1), my = Math.round(png.height * 0.1)
+  let sum = 0, square = 0, n = 0
+  for (let y = my; y < png.height - my; y++) for (let x = mx; x < png.width - mx; x++) {
+    const i = (y * png.width + x) * 4
+    const v = 0.2126 * png.data[i] + 0.7152 * png.data[i + 1] + 0.0722 * png.data[i + 2]
+    sum += v; square += v * v; n++
   }
   const mean = sum / n
   return Math.sqrt(Math.max(0, square / n - mean * mean))
@@ -46,7 +50,10 @@ for (const c of CASES) {
     const file = join(out, `${c.name}.png`)
     await page.locator(c.selector).screenshot({ path: file, animations: 'disabled', timeout: 120_000 })
     if (c.webgl) {
-      const spread = contrast(file)
+      // Judge the drawing alone: hide the HTML badges and labels laid over the canvas
+      const overlays = await page.addStyleTag({ content: `${c.selector} * { visibility: hidden !important; } ${c.selector} canvas { visibility: visible !important; }` })
+      const spread = contrast(await page.locator(c.selector).screenshot({ animations: 'disabled', timeout: 120_000 }))
+      await overlays.evaluate(node => node.remove())
       if (spread < 6) problems.push(`${c.name}: the island looks blank (brightness spread ${spread.toFixed(1)})`)
     }
     console.log(`captured ${c.name}`)

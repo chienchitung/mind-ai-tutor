@@ -55,17 +55,22 @@ export function IslandMap({ template, gameId, lessons, completedLessons, signedI
   const [walkTo, setWalkTo] = useState(arrival ?? reachedTo)
   const [refusals, setRefusals] = useState(0)
   const [cheered, setCheered] = useState(false)
-  useEffect(() => { if (signedIn) rememberSeenStop(gameId, reachedTo) }, [gameId, reachedTo, signedIn])
+  // Nothing starts until the island is on screen: a slow model download must not skip the walk,
+  // and the stop is only remembered as seen once the student could actually see it.
+  const [sceneReady, setSceneReady] = useState(false)
+  useEffect(() => { if (signedIn && sceneReady) rememberSeenStop(gameId, reachedTo) }, [gameId, reachedTo, signedIn, sceneReady])
   const opened = useRef(false)
   useEffect(() => {
+    if (!sceneReady) return
     if (!opened.current) {
       opened.current = true
       // A short pause on the old stop, so the walk to the new one is seen
       if (arrival !== null) { const timer = setTimeout(() => setWalkTo(reachedTo), 700); return () => clearTimeout(timer) }
+      setWalkTo(reachedTo)
       return
     }
     setSelected(reachedTo); setWalkTo(reachedTo)
-  }, [reachedTo, arrival])
+  }, [reachedTo, arrival, sceneReady])
   useEffect(() => {
     if (!cheered) return
     const timer = setTimeout(() => setCheered(false), 4500)
@@ -110,7 +115,7 @@ export function IslandMap({ template, gameId, lessons, completedLessons, signedI
       <IslandBoundary onError={onUnavailable}>
         <Suspense fallback={<IslandLoading />}>
           <IslandScene template={template} stops={stops} selected={selected} walkTo={walkTo}
-            refusals={refusals} onSelect={pick} celebrate={celebrate} onCelebrate={() => setCheered(true)}
+            refusals={refusals} onSelect={pick} celebrate={celebrate} onCelebrate={() => setCheered(true)} onReady={() => setSceneReady(true)}
             reduceMotion={env.reduceMotion} richEffects={env.richEffects} />
         </Suspense>
       </IslandBoundary>

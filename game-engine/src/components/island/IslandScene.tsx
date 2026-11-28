@@ -32,6 +32,8 @@ interface IslandSceneProps {
   celebrate: number | null
   /** Called once, when the player arrives at `celebrate`. */
   onCelebrate: () => void
+  /** Called once the models have loaded and the island is on screen. */
+  onReady: () => void
   reduceMotion: boolean
   /** Bloom and reflections cost GPU time; small screens skip them. */
   richEffects: boolean
@@ -109,7 +111,7 @@ function Confetti({ at, colors, startedAt }: { at: IslandSpot; colors: number[];
   return <instancedMesh ref={mesh} args={[geometry, material, pieces.length]} visible={false} frustumCulled={false} />
 }
 
-function World({ template, stops, selected, walkTo, refusals, onSelect, celebrate, onCelebrate, reduceMotion, richEffects }: IslandSceneProps) {
+function World({ template, stops, selected, walkTo, refusals, onSelect, celebrate, onCelebrate, onReady, reduceMotion, richEffects }: IslandSceneProps) {
   const theme = ISLAND_THEMES[template]
   const layout = LAYOUT_FOR_TEMPLATE[template]
   const models = useIslandModels()
@@ -146,6 +148,10 @@ function World({ template, stops, selected, walkTo, refusals, onSelect, celebrat
   const celebrated = useRef(false)
   const announce = useRef(onCelebrate)
   announce.current = onCelebrate
+  // World renders only once the models have loaded (useIslandModels suspends until then)
+  const ready = useRef(onReady)
+  ready.current = onReady
+  useEffect(() => { ready.current() }, [])
   const confettiColors = useMemo(() => [theme.ring, 0xffffff, 0xf2b13c], [theme.ring])
   const [arrived, setArrived] = useState(false)
 
