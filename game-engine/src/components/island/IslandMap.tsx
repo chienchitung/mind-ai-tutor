@@ -66,7 +66,8 @@ export function IslandMap({ template, lessons, completedLessons, signedIn, href,
     const status = done ? 'done' : index === currentIndex ? 'current' : 'locked'
     const intro = lesson.role === 'intro'
     const final = lesson.role === 'final'
-    const label = intro ? '序' : final ? '★' : String(lesson.number)
+    // The first stop is drawn with a flag (see IslandScene); the last with a star
+    const label = intro ? '' : final ? '★' : String(lesson.number)
     const state = done ? '已完成' : status === 'current' ? '目前關卡' : '尚未解鎖'
     return { status, intro, final, label, ariaLabel: `${experience.home.stopLabel(lesson.role, lesson.number)}：${lesson.title}（${state}）` }
   }), [lessons, completedLessons, currentIndex, experience])

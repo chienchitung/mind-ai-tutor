@@ -5,6 +5,7 @@ import * as THREE from 'three'
 import { Canvas, useFrame, useThree, type ThreeEvent } from '@react-three/fiber'
 import { Html, MeshReflectorMaterial, OrbitControls, Sparkles, Stars, useGLTF } from '@react-three/drei'
 import { Bloom, EffectComposer } from '@react-three/postprocessing'
+import { Flag } from 'lucide-react'
 import type { GameVisualTemplate } from '../../types/game'
 import { LAYOUT_FOR_TEMPLATE, regionsInUse, type IslandLayout, type IslandSpot } from '../../lib/island/layout'
 import { ISLAND_MODELS, ISLAND_THEMES } from '../../lib/island/themes'
@@ -185,7 +186,7 @@ function World({ template, stops, selected, walkTo, refusals, onSelect, reduceMo
     <primitive object={player.root} />
     {route.labels.map((position, i) => <Html key={i} position={i === walkTo ? [position.x, position.y + PLAYER_HEIGHT * 0.75, position.z] : position} center zIndexRange={[30, 0]}>
       <button type="button" className={`island-badge is-${stops[i].status}${stops[i].final ? ' is-final' : ''}${i === selected ? ' is-selected' : ''}`}
-        aria-label={stops[i].ariaLabel} aria-pressed={i === selected} onClick={() => onSelect(i)}>{stops[i].label}</button>
+        aria-label={stops[i].ariaLabel} aria-pressed={i === selected} onClick={() => onSelect(i)}>{stops[i].intro ? <Flag size={14} strokeWidth={2.5} aria-hidden="true" /> : stops[i].label}</button>
     </Html>)}
     {richEffects && theme.glow && <EffectComposer>
       <Bloom mipmapBlur luminanceThreshold={0.75} intensity={0.9} />
