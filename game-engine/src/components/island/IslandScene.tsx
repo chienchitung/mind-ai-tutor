@@ -11,6 +11,7 @@ import { ISLAND_MODELS, ISLAND_THEMES } from '../../lib/island/themes'
 import { animateIsland, buildLand, buildRoute, markShared, type IslandModels, type IslandRouteStop } from '../../lib/island/builder'
 import { animateCharacter, buildPlayer } from '../../lib/island/character'
 import { FACE_CAMERA, WALK_SPEED, planWalk, redirectWalk, sampleWalk, standPoint, type Walk } from '../../lib/island/walker'
+import { MAX_DISTANCE, VIEW_DIRECTION, frameOpenIsland } from '../../lib/island/framing'
 import { gameAssetPath } from '../../lib/game-asset-path'
 
 export interface IslandSceneStop extends IslandRouteStop { label: string; ariaLabel: string }
@@ -31,6 +32,7 @@ interface IslandSceneProps {
 
 /** The player is about this tall; the badge of the stop it stands at moves up to stay clear. */
 const PLAYER_HEIGHT = 2
+const CAMERA_FOV = 42
 const MODEL_URLS = ISLAND_MODELS.map(name => gameAssetPath(`/island/kenney/${name}.glb`))
 const hex = (value: number) => `#${value.toString(16).padStart(6, '0')}`
 
@@ -98,8 +100,22 @@ function World({ template, stops, selected, walkTo, refusals, onSelect, reduceMo
   const refusedAt = useRef(-Infinity)
   useEffect(() => { if (refusals) refusedAt.current = performance.now() }, [refusals])
 
-  // Camera follows the selected plot
+  // The camera frames the island's open part until the student picks a stop, then follows the pick
   const controls = useThree(state => state.controls) as unknown as { target: THREE.Vector3; update: () => void } | null
+  const camera = useThree(state => state.camera)
+  const scene = useThree(state => state.scene)
+  const aspect = useThree(state => state.size.width / Math.max(1, state.size.height))
+  const framing = useMemo(() => frameOpenIsland(land.spots, stops.length, aspect, CAMERA_FOV), [land, stops.length, aspect])
+  useEffect(() => {
+    const { center, distance } = framing
+    camera.position.set(center.x + VIEW_DIRECTION.x * distance, center.y + VIEW_DIRECTION.y * distance, center.z + VIEW_DIRECTION.z * distance)
+    if (controls) { controls.target.set(center.x, center.y, center.z); controls.update() }
+    // Haze begins past the island, however far back the camera is
+    if (scene.fog instanceof THREE.Fog) { scene.fog.near = distance + 10; scene.fog.far = distance + 75 }
+  }, [framing, camera, controls, scene])
+  const firstSelection = useRef(selected)
+  const picked = useRef(false)
+  if (selected !== firstSelection.current) picked.current = true
   const focus = useMemo(() => new THREE.Vector3(), [])
   const ring = useRef<THREE.Mesh>(null)
   useFrame(({ clock }, delta) => {
@@ -111,10 +127,11 @@ function World({ template, stops, selected, walkTo, refusals, onSelect, reduceMo
     // The player shakes its head when the student picks a stop that isn't open yet
     const shake = reduceMotion ? 0 : Math.max(0, 1 - (performance.now() - refusedAt.current) / 700)
     animateCharacter(player, time, { moving: frame.moving, hopping: frame.hopping, shake })
-    // While the player walks the camera follows; otherwise it frames the picked stop.
+    // While the player walks the camera follows; after a pick it frames the picked stop.
     const spot = land.spots[Math.min(selected, stops.length - 1)]
     if (frame.moving) focus.set(frame.position.x, frame.position.y + 0.4, frame.position.z)
-    else focus.set(spot.x, spot.y + 0.4, spot.z)
+    else if (picked.current) focus.set(spot.x, spot.y + 0.4, spot.z)
+    else focus.set(framing.center.x, framing.center.y, framing.center.z)
     if (controls) { controls.target.lerp(focus, reduceMotion ? 1 : 0.06); controls.update() }
     if (reduceMotion) return
     const t = clock.elapsedTime
@@ -147,6 +164,7 @@ function World({ template, stops, selected, walkTo, refusals, onSelect, reduceMo
     <directionalLight castShadow position={[12, 22, 10]} intensity={theme.sun} shadow-mapSize={[1024, 1024]}
       shadow-camera-left={-18} shadow-camera-right={18} shadow-camera-top={18} shadow-camera-bottom={-18} />
     <Sea template={template} reduceMotion={reduceMotion} />
+    {theme.skyTop !== undefined && <SkyDome top={theme.skyTop} bottom={theme.sky} />}
     {theme.stars && <Stars radius={70} depth={30} count={1500} factor={3} saturation={0} fade speed={reduceMotion ? 0 : 0.5} />}
     {template === 'arcane-archive' && <Sparkles count={70} scale={[30, 8, 30]} position={[0, 3, -1]} size={3} speed={reduceMotion ? 0 : 0.3} color="#f0d28c" />}
     <primitive object={land.root} />
@@ -195,9 +213,27 @@ function usePlayerWalk(layout: IslandLayout, spots: IslandSpot[], target: number
   }
 }
 
+/** A large sphere seen from inside, coloured from `top` overhead down to `bottom` at the horizon. */
+function SkyDome({ top, bottom }: { top: number; bottom: number }) {
+  const geometry = useMemo(() => {
+    const geo = new THREE.SphereGeometry(SKY_RADIUS, 32, 16)
+    const low = new THREE.Color(bottom), high = new THREE.Color(top), c = new THREE.Color(), colors: number[] = []
+    const pos = geo.attributes.position
+    for (let k = 0; k < pos.count; k++) {
+      c.copy(low).lerp(high, THREE.MathUtils.smoothstep(pos.getY(k) / SKY_RADIUS, -0.05, 0.6))
+      colors.push(c.r, c.g, c.b)
+    }
+    geo.setAttribute('color', new THREE.Float32BufferAttribute(colors, 3))
+    return geo
+  }, [top, bottom])
+  useEffect(() => () => geometry.dispose(), [geometry])
+  return <mesh geometry={geometry}><meshBasicMaterial vertexColors side={THREE.BackSide} fog={false} depthWrite={false} /></mesh>
+}
+const SKY_RADIUS = 150
+
 export default function IslandScene(props: IslandSceneProps) {
-  return <Canvas shadows flat dpr={[1, 1.75]} camera={{ position: [11, 13.5, 17.5], fov: 42, near: 0.1, far: 220 }} aria-label="島嶼地圖">
-    <OrbitControls makeDefault enableDamping minDistance={7} maxDistance={46} maxPolarAngle={Math.PI * 0.44} />
+  return <Canvas shadows flat dpr={[1, 1.75]} camera={{ position: [11, 13.5, 17.5], fov: CAMERA_FOV, near: 0.1, far: 220 }} aria-label="島嶼地圖">
+    <OrbitControls makeDefault enableDamping minDistance={7} maxDistance={MAX_DISTANCE} maxPolarAngle={Math.PI * 0.44} />
     <World {...props} />
   </Canvas>
 }

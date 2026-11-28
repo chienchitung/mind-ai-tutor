@@ -31,6 +31,8 @@ export interface IslandTheme {
   /** Self-lit roofs and stones, with bloom (night templates). */
   glow?: boolean
   stars?: boolean
+  /** Sky overhead; the sky fades from it down to `sky` at the horizon. Without it the sky is flat. */
+  skyTop?: number
   /** Daylight sky dome and clouds. */
   daySky?: boolean
   /** Water inside the island (the lake layout); clearer than the sea around it. */
@@ -42,7 +44,7 @@ export interface IslandTheme {
 export const ISLAND_THEMES: Record<GameVisualTemplate, IslandTheme> = {
   discovery: {
     regions: ['海灣碼頭', '雨林小徑', '瞭望山丘', '燈塔海岬'],
-    sky: 0xd6ecf8, sea: 'water', seaColor: 0x2a92bf, shallow: 0x9fe6ee,
+    sky: 0xd6ecf8, skyTop: 0x6fbde6, sea: 'water', seaColor: 0x2a92bf, shallow: 0x9fe6ee,
     grass: [0x6ed174, 0x4db85c, 0x84d468, 0x5cc47a], base: 0xe8d3a1,
     roofs: [0xd8664a, 0x2f7f8f, 0xd9a441, 0xc4574a], wall: 0xf4ecdc,
     path: 0xd9d5c8, pathDone: 0xe3c27a, ring: 0xffc94d,
@@ -51,7 +53,7 @@ export const ISLAND_THEMES: Record<GameVisualTemplate, IslandTheme> = {
   },
   'neo-brutal': {
     regions: ['底板區', '零件區', '組裝區', '成品台'],
-    sky: 0xfff1b8, sea: 'water', seaColor: 0x57e5f7,
+    sky: 0xfff1b8, skyTop: 0xffd84a, sea: 'water', seaColor: 0x57e5f7,
     grass: [0xfcd72c, 0xfa8fb0, 0xfaac54, 0x9f86ff], base: 0xffffff,
     roofs: [0x7849fa, 0xfa5b8b, 0x57e5f7, 0x111111], wall: 0xffffff,
     path: 0xffffff, pathDone: 0x111111, ring: 0x7c5cff,
@@ -60,7 +62,7 @@ export const ISLAND_THEMES: Record<GameVisualTemplate, IslandTheme> = {
   },
   arcade: {
     regions: ['新手港', '霓虹街區', '電路高塔', '頭目城堡'],
-    sky: 0x070a3a, sea: 'grid', seaColor: 0x0a1660,
+    sky: 0x070a3a, skyTop: 0x02031a, sea: 'grid', seaColor: 0x0a1660,
     grass: [0x1d2f96, 0x2a45b4, 0x3a2aa8, 0x52219a], base: 0x0d1870,
     roofs: [0x49e7ff, 0xd25cff, 0xf5cc6c, 0x2b6fcc], wall: 0x111a5a,
     path: 0x22307a, pathDone: 0x49e7ff, ring: 0xd25cff,
@@ -69,7 +71,7 @@ export const ISLAND_THEMES: Record<GameVisualTemplate, IslandTheme> = {
   },
   'forest-camp': {
     regions: ['湖畔營地', '松林步道', '溪谷吊橋', '山頂瞭望'],
-    sky: 0xeef3e2, sea: 'water', seaColor: 0x6fa8a4, lake: 0x6bbdc4, shallow: 0xbfe2d8,
+    sky: 0xeef3e2, skyTop: 0xa9d3e8, sea: 'water', seaColor: 0x6fa8a4, lake: 0x6bbdc4, shallow: 0xbfe2d8,
     grass: [0x8cb04a, 0x6f9a36, 0x9db752, 0xa8bb5e], base: 0xd8b36d,
     roofs: [0xc37438, 0xe3ad48, 0x6f8d52, 0xb5532f], wall: 0xfff7dd,
     path: 0xcdbf98, pathDone: 0xa0703f, ring: 0xe3ad48,
@@ -78,7 +80,7 @@ export const ISLAND_THEMES: Record<GameVisualTemplate, IslandTheme> = {
   },
   'arcane-archive': {
     regions: ['入館前庭', '書塔迴廊', '星象天台', '終章大殿'],
-    sky: 0x2e1a36, sea: 'water', seaColor: 0x281633,
+    sky: 0x2e1a36, skyTop: 0x120914, sea: 'water', seaColor: 0x281633,
     grass: [0x6a9a5c, 0x86689a, 0xa47a4e, 0x7a5a86], base: 0x7a5030,
     roofs: [0x704487, 0x3e8c75, 0xd9b261, 0x8a3f6f], wall: 0xf1d9ae,
     path: 0xc9a273, pathDone: 0xf0c46a, ring: 0xf0c46a,
