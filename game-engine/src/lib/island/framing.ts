@@ -15,11 +15,20 @@ export const VIEW_DIRECTION = (() => {
 })()
 
 export const MIN_DISTANCE = 8
+/** How far the student may zoom out by hand; the framing itself goes further when a narrow view needs it. */
 export const MAX_DISTANCE = 46
-/** Land and decoration reach this far beyond the outermost stops. */
-const LAND_MARGIN = 2.6
-/** Headroom above the ground for buildings, the player and stop badges. */
-const FIGURE_ROOM = 1.6
+/** Land and decoration reach about this far around each stop. */
+const LAND_MARGIN = 2
+const AROUND = [[0, 0], [LAND_MARGIN, 0], [-LAND_MARGIN, 0], [0, LAND_MARGIN], [0, -LAND_MARGIN]] as const
+/** Stop badges float about this high over the ground. */
+const BADGE_HEIGHT = 2.5
+/** Keep a little air between the outermost point and the frame edge. */
+const FRAME_FILL = 0.94
+
+type Vec = { x: number; y: number; z: number }
+const dot = (a: Vec, b: Vec) => a.x * b.x + a.y * b.y + a.z * b.z
+const cross = (a: Vec, b: Vec) => ({ x: a.y * b.z - a.z * b.y, y: a.z * b.x - a.x * b.z, z: a.x * b.y - a.y * b.x })
+const normalize = (a: Vec) => { const l = Math.hypot(a.x, a.y, a.z); return { x: a.x / l, y: a.y / l, z: a.z / l } }
 
 /**
  * Frames the part of the island the student's route has opened, so it fills the view:
@@ -30,14 +39,21 @@ export function frameOpenIsland(spots: IslandSpot[], stopCount: number, aspect: 
   const xs = open.map(s => s.x), zs = open.map(s => s.z), ys = open.map(s => s.y)
   const minX = Math.min(...xs), maxX = Math.max(...xs), minZ = Math.min(...zs), maxZ = Math.max(...zs)
   const center = { x: (minX + maxX) / 2, y: (Math.min(...ys) + Math.max(...ys)) / 2, z: (minZ + maxZ) / 2 }
-  // Project the open area's footprint onto the view: the camera looks down at a fixed angle
-  // and from a fixed side, so the ground's depth is foreshortened and its corners turn.
-  const halfX = (maxX - minX) / 2 + LAND_MARGIN, halfZ = (maxZ - minZ) / 2 + LAND_MARGIN
-  const azimuth = Math.atan2(VIEW_DIRECTION.x, VIEW_DIRECTION.z), pitch = Math.asin(VIEW_DIRECTION.y)
-  const across = halfX * Math.cos(azimuth) + halfZ * Math.sin(azimuth)
-  const deep = (halfX * Math.sin(azimuth) + halfZ * Math.cos(azimuth)) * Math.sin(pitch) + FIGURE_ROOM
-  const halfVertical = (fovDegrees * Math.PI) / 360
-  const halfHorizontal = Math.atan(Math.tan(halfVertical) * Math.max(aspect, 0.1))
-  const distance = Math.max(across / Math.tan(halfHorizontal), deep / Math.tan(halfVertical))
-  return { center, distance: Math.min(MAX_DISTANCE, Math.max(MIN_DISTANCE, distance)) }
+  // Exact fit: for each point that must show (the land around every open stop, at ground level
+  // and at badge height) find how far back the camera has to be for it to land inside the frame
+  // edge, and take the furthest. The camera looks at `center` along a fixed direction.
+  const forward = { x: -VIEW_DIRECTION.x, y: -VIEW_DIRECTION.y, z: -VIEW_DIRECTION.z }
+  const right = normalize(cross(forward, { x: 0, y: 1, z: 0 }))
+  const up = cross(right, forward)
+  const tanV = Math.tan((fovDegrees * Math.PI) / 360) * FRAME_FILL
+  const tanH = Math.tan((fovDegrees * Math.PI) / 360) * Math.max(aspect, 0.1) * FRAME_FILL
+  let distance = MIN_DISTANCE
+  for (const s of open) for (const [dx, dz] of AROUND) for (const lift of [0, BADGE_HEIGHT]) {
+    const v = { x: s.x + dx - center.x, y: s.y + lift - center.y, z: s.z + dz - center.z }
+    // Depth in front of the camera is distance - v·VIEW_DIRECTION; the point fits when its offset
+    // across (or up) is within that depth times the half-angle's tangent
+    const back = dot(v, VIEW_DIRECTION)
+    distance = Math.max(distance, Math.abs(dot(v, right)) / tanH + back, Math.abs(dot(v, up)) / tanV + back)
+  }
+  return { center, distance }
 }

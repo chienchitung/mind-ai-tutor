@@ -102,7 +102,7 @@ function World({ template, stops, selected, walkTo, refusals, onSelect, reduceMo
   useEffect(() => { if (refusals) refusedAt.current = performance.now() }, [refusals])
 
   // The camera frames the island's open part until the student picks a stop, then follows the pick
-  const controls = useThree(state => state.controls) as unknown as { target: THREE.Vector3; update: () => void } | null
+  const controls = useThree(state => state.controls) as unknown as { target: THREE.Vector3; maxDistance: number; update: () => void } | null
   const camera = useThree(state => state.camera)
   const scene = useThree(state => state.scene)
   const aspect = useThree(state => state.size.width / Math.max(1, state.size.height))
@@ -110,7 +110,11 @@ function World({ template, stops, selected, walkTo, refusals, onSelect, reduceMo
   useEffect(() => {
     const { center, distance } = framing
     camera.position.set(center.x + VIEW_DIRECTION.x * distance, center.y + VIEW_DIRECTION.y * distance, center.z + VIEW_DIRECTION.z * distance)
-    if (controls) { controls.target.set(center.x, center.y, center.z); controls.update() }
+    if (controls) {
+      // A narrow view may need the camera further back than the usual zoom-out limit
+      controls.maxDistance = Math.max(MAX_DISTANCE, distance + 4)
+      controls.target.set(center.x, center.y, center.z); controls.update()
+    }
     // Haze begins past the island, however far back the camera is
     if (scene.fog instanceof THREE.Fog) { scene.fog.near = distance + 10; scene.fog.far = distance + 75 }
   }, [framing, camera, controls, scene])
