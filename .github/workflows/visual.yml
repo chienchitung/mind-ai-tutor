@@ -1,0 +1,101 @@
+name: Visual snapshots
+
+# Pictures every game template's home (3D island and route map) on this branch and on the base
+# branch, on the same runner, and reports which templates changed. It fails only when a page
+# throws or the 3D island draws nothing; whether a visual change is intended is for a person to
+# judge from the report (job summary) and the before | after | difference images (artifact).
+on:
+  pull_request:
+    paths:
+      - "game-engine/**"
+      - ".github/workflows/visual.yml"
+
+jobs:
+  snapshots:
+    name: Template snapshots
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    env:
+      # Placeholders, as in ci.yml: the snapshot page calls nothing.
+      NEXT_PUBLIC_SUPABASE_URL: "https://placeholder.supabase.co"
+      NEXT_PUBLIC_SUPABASE_ANON_KEY: "placeholder-anon-key"
+      GEMINI_API_KEY: "placeholder-key"
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          path: pr
+
+      - uses: actions/checkout@v7
+        with:
+          path: base
+          ref: ${{ github.event.pull_request.base.sha }}
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: "24"
+          cache: "npm"
+          cache-dependency-path: |
+            pr/game-engine/package-lock.json
+            pr/game-engine/visual/package-lock.json
+
+      - name: Install snapshot tools
+        working-directory: pr/game-engine/visual
+        run: |
+          npm ci
+          npx playwright install --with-deps chromium
+
+      - name: Build this branch
+        working-directory: pr/game-engine
+        run: |
+          npm ci
+          npm run build
+
+      - name: Build the base branch
+        id: base
+        working-directory: base/game-engine
+        run: |
+          # Bases from before the snapshot page existed have nothing to compare with
+          if [ ! -f src/app/visual-qa/page.tsx ]; then
+            echo "ready=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          npm ci
+          npm run build
+          echo "ready=true" >> "$GITHUB_OUTPUT"
+
+      - name: Snapshot this branch
+        run: |
+          (cd pr/game-engine && VISUAL_QA=1 npx next start -p 3300 > "$RUNNER_TEMP/after.log" 2>&1 &)
+          for i in $(seq 60); do curl -sf -o /dev/null http://localhost:3300/games/visual-qa && break; sleep 1; done
+          cd pr/game-engine/visual
+          node snapshots.mjs http://localhost:3300/games "$GITHUB_WORKSPACE/visual-out/after"
+
+      - name: Snapshot the base branch
+        if: steps.base.outputs.ready == 'true'
+        # A base that fails to draw is reported by its own pull request, not this one
+        continue-on-error: true
+        run: |
+          (cd base/game-engine && VISUAL_QA=1 npx next start -p 3301 > "$RUNNER_TEMP/before.log" 2>&1 &)
+          for i in $(seq 60); do curl -sf -o /dev/null http://localhost:3301/games/visual-qa && break; sleep 1; done
+          cd pr/game-engine/visual
+          node snapshots.mjs http://localhost:3301/games "$GITHUB_WORKSPACE/visual-out/before"
+
+      - name: Compare
+        if: always()
+        working-directory: pr/game-engine/visual
+        run: |
+          if [ -d "$GITHUB_WORKSPACE/visual-out/before" ]; then
+            node diff.mjs "$GITHUB_WORKSPACE/visual-out/before" "$GITHUB_WORKSPACE/visual-out/after" "$GITHUB_WORKSPACE/visual-out/diff"
+          else
+            echo "## 樣板畫面比對" >> "$GITHUB_STEP_SUMMARY"
+            echo "base 分支沒有可比對的畫面，這次只確認本分支每個樣板都能正常顯示；截圖在 visual-diff 成品（artifact）裡。" >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+      - name: Upload pictures
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: visual-diff
+          path: visual-out
+          if-no-files-found: ignore
+          retention-days: 14

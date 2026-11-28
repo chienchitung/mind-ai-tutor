@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useMemo, useRef } from 'react'
+import { useEffect, useMemo, useRef, useState, type KeyboardEvent, type RefObject } from 'react'
 import * as THREE from 'three'
 import { Canvas, useFrame, useThree, type ThreeEvent } from '@react-three/fiber'
 import { Html, MeshReflectorMaterial, OrbitControls, Sparkles, Stars, useGLTF } from '@react-three/drei'
@@ -14,6 +14,8 @@ import { animateCharacter, buildPlayer } from '../../lib/island/character'
 import { FACE_CAMERA, WALK_SPEED, planWalk, redirectWalk, sampleWalk, standPoint, type Walk } from '../../lib/island/walker'
 import { MAX_DISTANCE, VIEW_DIRECTION, frameOpenIsland } from '../../lib/island/framing'
 import { gameAssetPath } from '../../lib/game-asset-path'
+import { stopForKey } from '../../lib/island/keyboard'
+import { CELEBRATION_SECONDS, cheerAt, confettiAt, confettiPieces } from '../../lib/island/celebration'
 
 export interface IslandSceneStop extends IslandRouteStop { label: string; ariaLabel: string }
 
@@ -26,6 +28,12 @@ interface IslandSceneProps {
   /** Bumped when the student picks a stop that isn't open yet: the player shakes its head. */
   refusals: number
   onSelect: (index: number) => void
+  /** A newly opened stop: when the player reaches it, confetti bursts and the player cheers. */
+  celebrate: number | null
+  /** Called once, when the player arrives at `celebrate`. */
+  onCelebrate: () => void
+  /** Called once the models have loaded and the island is on screen. */
+  onReady: () => void
   reduceMotion: boolean
   /** Bloom and reflections cost GPU time; small screens skip them. */
   richEffects: boolean
@@ -38,8 +46,9 @@ const MODEL_URLS = ISLAND_MODELS.map(name => gameAssetPath(`/island/kenney/${nam
 const hex = (value: number) => `#${value.toString(16).padStart(6, '0')}`
 
 function useIslandModels(): IslandModels {
-  // No Draco: the Kenney models are plain glTF, so no decoder is fetched.
-  const gltfs = useGLTF(MODEL_URLS, false)
+  // No Draco or meshopt: the Kenney models are plain glTF. The meshopt decoder is WebAssembly,
+  // which the game's content security policy (no 'unsafe-eval') would refuse to start.
+  const gltfs = useGLTF(MODEL_URLS, false, false)
   return useMemo(() => Object.fromEntries(ISLAND_MODELS.map((name, i) => [name, markShared(gltfs[i].scene)])) as IslandModels, [gltfs])
 }
 
@@ -68,7 +77,41 @@ function Sea({ template, reduceMotion }: { template: GameVisualTemplate; reduceM
   </>
 }
 
-function World({ template, stops, selected, walkTo, refusals, onSelect, reduceMotion, richEffects }: IslandSceneProps) {
+/** Confetti in the template's colours, thrown up from a stop. */
+function Confetti({ at, colors, startedAt }: { at: IslandSpot; colors: number[]; startedAt: RefObject<number> }) {
+  const pieces = useMemo(() => confettiPieces(undefined, colors.length), [colors.length])
+  const mesh = useRef<THREE.InstancedMesh>(null)
+  const geometry = useMemo(() => new THREE.PlaneGeometry(0.16, 0.24), [])
+  const material = useMemo(() => new THREE.MeshBasicMaterial({ side: THREE.DoubleSide, toneMapped: false }), [])
+  useEffect(() => () => { geometry.dispose(); material.dispose() }, [geometry, material])
+  useEffect(() => {
+    const m = mesh.current
+    if (!m) return
+    const color = new THREE.Color()
+    pieces.forEach((piece, i) => m.setColorAt(i, color.set(colors[piece.tone])))
+    if (m.instanceColor) m.instanceColor.needsUpdate = true
+  }, [pieces, colors])
+  const dummy = useMemo(() => new THREE.Object3D(), [])
+  useFrame(() => {
+    const m = mesh.current
+    if (!m) return
+    const t = (performance.now() - startedAt.current) / 1000
+    m.visible = t >= 0 && t < CELEBRATION_SECONDS
+    if (!m.visible) return
+    pieces.forEach((piece, i) => {
+      const state = confettiAt(piece, t)
+      dummy.position.set(at.x + state.position.x, at.y + state.position.y, at.z + state.position.z)
+      dummy.rotation.set(state.rotation.x, state.rotation.y, 0)
+      dummy.scale.setScalar(Math.max(0.0001, state.scale))
+      dummy.updateMatrix()
+      m.setMatrixAt(i, dummy.matrix)
+    })
+    m.instanceMatrix.needsUpdate = true
+  })
+  return <instancedMesh ref={mesh} args={[geometry, material, pieces.length]} visible={false} frustumCulled={false} />
+}
+
+function World({ template, stops, selected, walkTo, refusals, onSelect, celebrate, onCelebrate, onReady, reduceMotion, richEffects }: IslandSceneProps) {
   const theme = ISLAND_THEMES[template]
   const layout = LAYOUT_FOR_TEMPLATE[template]
   const models = useIslandModels()
@@ -100,6 +143,33 @@ function World({ template, stops, selected, walkTo, refusals, onSelect, reduceMo
   const walk = usePlayerWalk(layout, land.spots, Math.min(walkTo, stops.length - 1), reduceMotion)
   const refusedAt = useRef(-Infinity)
   useEffect(() => { if (refusals) refusedAt.current = performance.now() }, [refusals])
+  // The celebration starts when the player arrives at the newly opened stop
+  const celebratedAt = useRef(-Infinity)
+  const celebrated = useRef(false)
+  const announce = useRef(onCelebrate)
+  announce.current = onCelebrate
+  // World renders only once the models have loaded (useIslandModels suspends until then)
+  const ready = useRef(onReady)
+  ready.current = onReady
+  useEffect(() => { ready.current() }, [])
+  const confettiColors = useMemo(() => [theme.ring, 0xffffff, 0xf2b13c], [theme.ring])
+  const [arrived, setArrived] = useState(false)
+
+  // Keyboard: the selected badge is the group's one tab stop; arrows move along the route
+  const badges = useRef<(HTMLButtonElement | null)[]>([])
+  const keyed = useRef(false)
+  useEffect(() => {
+    if (!keyed.current) return
+    keyed.current = false
+    badges.current[selected]?.focus()
+  }, [selected])
+  const onBadgeKey = (event: KeyboardEvent<HTMLButtonElement>, index: number) => {
+    const next = stopForKey(event.key, index, stops.length)
+    if (next === null) return
+    event.preventDefault()
+    keyed.current = true
+    onSelect(next)
+  }
 
   // The camera frames the island's open part until the student picks a stop, then follows the pick
   const controls = useThree(state => state.controls) as unknown as { target: THREE.Vector3; maxDistance: number; update: () => void } | null
@@ -127,13 +197,20 @@ function World({ template, stops, selected, walkTo, refusals, onSelect, reduceMo
   const ring = useRef<THREE.Mesh>(null)
   useFrame(({ clock }, delta) => {
     const frame = walk.advance(delta)
+    if (celebrate !== null && !celebrated.current && !frame.moving && frame.target === celebrate) {
+      celebrated.current = true
+      celebratedAt.current = performance.now()
+      announce.current()
+      setArrived(true)
+    }
     player.root.position.set(frame.position.x, frame.position.y, frame.position.z)
     player.root.rotation.y = frame.heading
     // Reduced motion: the walk is instant and the player holds still
     const time = reduceMotion ? 0 : clock.elapsedTime
     // The player shakes its head when the student picks a stop that isn't open yet
     const shake = reduceMotion ? 0 : Math.max(0, 1 - (performance.now() - refusedAt.current) / 700)
-    animateCharacter(player, time, { moving: frame.moving, hopping: frame.hopping, shake })
+    const cheer = reduceMotion ? 0 : cheerAt((performance.now() - celebratedAt.current) / 1000)
+    animateCharacter(player, time, { moving: frame.moving, hopping: frame.hopping, shake, cheer })
     // While the player walks the camera follows; after a pick it frames the picked stop.
     const spot = land.spots[Math.min(selected, stops.length - 1)]
     if (frame.moving) focus.set(frame.position.x, frame.position.y + 0.4, frame.position.z)
@@ -190,9 +267,11 @@ function World({ template, stops, selected, walkTo, refusals, onSelect, reduceMo
       <Sparkles count={18} scale={[2, 2, 2]} position={[currentSpot.x, currentSpot.y + 1, currentSpot.z]} size={4} speed={reduceMotion ? 0 : 0.6} color={hex(theme.ring)} />
     </>}
     <primitive object={player.root} />
+    {celebrate !== null && !reduceMotion && land.spots[celebrate] && <Confetti at={land.spots[celebrate]} colors={confettiColors} startedAt={celebratedAt} />}
     {route.labels.map((position, i) => <Html key={i} position={i === walkTo ? [position.x, position.y + PLAYER_HEIGHT * 0.75, position.z] : position} center zIndexRange={[30, 0]}>
-      <button type="button" className={`island-badge is-${stops[i].status}${stops[i].final ? ' is-final' : ''}${i === selected ? ' is-selected' : ''}`}
-        aria-label={stops[i].ariaLabel} aria-pressed={i === selected} onClick={() => onSelect(i)}>{stops[i].intro ? <Flag size={14} strokeWidth={2.5} aria-hidden="true" /> : stops[i].label}</button>
+      <button type="button" ref={el => { badges.current[i] = el }} tabIndex={i === selected ? 0 : -1}
+        className={`island-badge is-${stops[i].status}${stops[i].final ? ' is-final' : ''}${i === selected ? ' is-selected' : ''}${arrived && i === celebrate ? ' is-unlocked' : ''}`}
+        aria-label={stops[i].ariaLabel} aria-pressed={i === selected} onClick={() => onSelect(i)} onKeyDown={event => onBadgeKey(event, i)}>{stops[i].intro ? <Flag size={14} strokeWidth={2.5} aria-hidden="true" /> : stops[i].label}</button>
     </Html>)}
     {richEffects && theme.glow && <EffectComposer>
       <Bloom mipmapBlur luminanceThreshold={0.75} intensity={0.9} />
@@ -215,7 +294,7 @@ function usePlayerWalk(layout: IslandLayout, spots: IslandSpot[], target: number
       const s = state.current!
       s.travelled = reduceMotion ? s.walk.total : s.travelled + Math.min(delta, 0.1) * WALK_SPEED
       const frame = sampleWalk(s.walk, s.travelled)
-      return { position: frame.position, heading: frame.done ? FACE_CAMERA : frame.heading, moving: !frame.done, hopping: frame.hopping }
+      return { position: frame.position, heading: frame.done ? FACE_CAMERA : frame.heading, moving: !frame.done, hopping: frame.hopping, target: s.walk.target }
     },
   }
 }

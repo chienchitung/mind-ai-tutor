@@ -173,10 +173,12 @@ export interface CharacterMotion {
   hopping: boolean
   /** 0–1: head shake when the student picks a stop that isn't open yet. */
   shake: number
+  /** 0–1: arms up and little jumps when the player reaches a newly opened stop. */
+  cheer?: number
 }
 
 /** One frame of the player's animation: walk cycle, hop pose or idle. */
-export function animateCharacter(c: IslandCharacter, t: number, { moving, hopping, shake }: CharacterMotion) {
+export function animateCharacter(c: IslandCharacter, t: number, { moving, hopping, shake, cheer = 0 }: CharacterMotion) {
   const swing = hopping ? 0 : moving ? Math.sin(t * 11) * 0.7 : 0
   c.legL.rotation.x = hopping ? -0.7 : swing
   c.legR.rotation.x = hopping ? -0.7 : -swing
@@ -184,4 +186,15 @@ export function animateCharacter(c: IslandCharacter, t: number, { moving, hoppin
   c.armR.rotation.x = hopping ? -2.4 : moving ? swing * 0.8 : -Math.sin(t * 1.6) * 0.06
   c.body.position.y = moving && !hopping ? Math.abs(Math.sin(t * 11)) * 0.05 : Math.sin(t * 2) * 0.012
   c.head.rotation.y = shake > 0 ? Math.sin(t * 28) * 0.45 * shake : 0
+  if (cheer > 0 && !moving) {
+    // Both arms up, waving a little, and small jumps on the spot
+    c.armL.rotation.x = -2.9 * cheer
+    c.armR.rotation.x = -2.9 * cheer
+    c.armL.rotation.z = -0.35 * cheer + Math.sin(t * 12) * 0.15 * cheer
+    c.armR.rotation.z = 0.35 * cheer - Math.sin(t * 12) * 0.15 * cheer
+    c.body.position.y = Math.abs(Math.sin(t * 8)) * 0.22 * cheer
+  } else {
+    c.armL.rotation.z = 0
+    c.armR.rotation.z = 0
+  }
 }
