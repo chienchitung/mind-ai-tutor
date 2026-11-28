@@ -153,8 +153,8 @@ function World({ template, stops, selected, walkTo, refusals, onSelect, reduceMo
     {land.lake && <mesh rotation-x={-Math.PI / 2} position={[land.lake.x, land.lake.y, land.lake.z]}>
       <circleGeometry args={[land.lake.radius, 40]} />
       {richEffects
-        ? <MeshReflectorMaterial color="#5aa0a8" blur={[200, 80]} resolution={512} mixBlur={1} mixStrength={2} roughness={0.6} depthScale={0.6} minDepthThreshold={0.4} maxDepthThreshold={1.2} metalness={0.2} mirror={0.6} />
-        : <meshStandardMaterial color="#5aa0a8" roughness={0.3} />}
+        ? <MeshReflectorMaterial color={hex(theme.lake ?? 0x74c6cc)} blur={[200, 80]} resolution={512} mixBlur={1} mixStrength={0.4} roughness={0.5} depthScale={0.4} minDepthThreshold={0.4} maxDepthThreshold={1.2} metalness={0.05} mirror={0.3} />
+        : <meshStandardMaterial color={hex(theme.lake ?? 0x74c6cc)} roughness={0.3} />}
     </mesh>}
     <primitive object={route.root} onClick={pick} />
     {currentSpot && <>

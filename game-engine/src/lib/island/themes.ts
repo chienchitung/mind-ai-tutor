@@ -30,17 +30,19 @@ export interface IslandTheme {
   stars?: boolean
   /** Daylight sky dome and clouds. */
   daySky?: boolean
+  /** Water inside the island (the lake layout); clearer than the sea around it. */
+  lake?: number
 }
 
 export const ISLAND_THEMES: Record<GameVisualTemplate, IslandTheme> = {
   discovery: {
     regions: ['海灣碼頭', '雨林小徑', '瞭望山丘', '燈塔海岬'],
-    sky: 0xcfe8ee, sea: 'water', seaColor: 0x2c8aa0,
+    sky: 0xd4ecf0, sea: 'water', seaColor: 0x46a3b5,
     grass: [0x8cc47a, 0x5fa865, 0x9cbb6a, 0x7fb98a], base: 0xe8d3a1,
     roofs: [0xd8664a, 0x2f7f8f, 0xd9a441, 0xc4574a], wall: 0xf4ecdc,
     path: 0xd9d5c8, pathDone: 0xe3c27a, ring: 0xffc94d,
     building: 'hut', final: 'lighthouse', decoration: 'tropical',
-    hemi: [0xffffff, 0x6b8f7a, 0.75], sun: 0.9, fogPuff: 0xffffff, daySky: true,
+    hemi: [0xffffff, 0x86a88f, 0.85], sun: 1.0, fogPuff: 0xffffff, daySky: true,
   },
   'neo-brutal': {
     regions: ['底板區', '零件區', '組裝區', '成品台'],
@@ -62,12 +64,12 @@ export const ISLAND_THEMES: Record<GameVisualTemplate, IslandTheme> = {
   },
   'forest-camp': {
     regions: ['湖畔營地', '松林步道', '溪谷吊橋', '山頂瞭望'],
-    sky: 0xe6ead0, sea: 'water', seaColor: 0x5f8f8a,
-    grass: [0x8fae6a, 0x6f8d52, 0x7d9a5c, 0x9aa86f], base: 0xd8c79a,
+    sky: 0xe6f0e6, sea: 'water', seaColor: 0x9fcbbd, lake: 0x5fc4d4,
+    grass: [0xa6c47c, 0x88aa63, 0x96b16e, 0xb2bf82], base: 0xe2d2a6,
     roofs: [0xc37438, 0xe3ad48, 0x6f8d52, 0xb5532f], wall: 0xfff7dd,
     path: 0xcdbf98, pathDone: 0xa0703f, ring: 0xe3ad48,
     building: 'tent', final: 'summit', decoration: 'pine',
-    hemi: [0xfffbe8, 0x5d6b45, 0.8], sun: 0.85, fogPuff: 0xffffff, daySky: true,
+    hemi: [0xfffbe8, 0x9aab78, 1.15], sun: 1.2, fogPuff: 0xffffff, daySky: true,
   },
   'arcane-archive': {
     regions: ['入館前庭', '書塔迴廊', '星象天台', '終章大殿'],

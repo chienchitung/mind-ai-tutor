@@ -200,6 +200,9 @@ export function buildLand(theme: IslandTheme, layout: IslandLayout, models: Isla
     })
     const inner = kit.mesh(new THREE.CylinderGeometry(5.6, 5.6, 1.55, 16), kit.mat(theme.grass[0]), false, false); inner.position.set(0, 0.35 - 0.775, 0); regions[0].add(inner)
     lake = { x: 0, z: 0, y: 0.37, radius: 3.6 } // drawn by the scene with a reflective surface
+    // A sandy shore so the lake reads as water on the island, not a hole through it
+    const shore = kit.mesh(new THREE.RingGeometry(3.55, 4.05, 40), kit.mat(theme.base), false, false)
+    shore.rotation.x = -Math.PI / 2; shore.position.set(0, 0.362, 0); regions[0].add(shore)
     const lily = kit.model('lily_large', 1.4); if (lily) { lily.position.set(1.4, 0.39, 0.8); regions[0].add(lily) }
     const final = spots[spots.length - 1], ang = Math.atan2(final.z, final.x)
     const mountain = kit.mesh(new THREE.ConeGeometry(2.8, 4, 8), kit.mat(0x8c8a76), false, false); mountain.position.set(Math.cos(ang) * 11, 1.6, Math.sin(ang) * 11); regions[3].add(mountain)
